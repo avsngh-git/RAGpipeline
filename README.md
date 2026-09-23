@@ -2,6 +2,17 @@
 
 An installable Python project for a scientific literature research platform.
 
+## Project status
+
+The Phase 0 audit fixes are implemented. Local verification passed Ruff
+lint/format, mypy, 21 unit/API tests, 3 disposable-service integration tests,
+and a locked Docker build with live /health and /ready checks. Hosted CI for
+this fixed working revision remains the final Phase 0 gate.
+
+Continue with the [Phase 0 learning checklist](docs/plans/phase-0-learning-handoff.md).
+The [Phase 1 ingestion plan](docs/plans/phase-1-corpus-ingestion.md) is approved
+and starts after hosted CI passes.
+
 ## Development environment
 
 This project uses Conda as its development dependency manager.
@@ -25,6 +36,12 @@ python -m ruff format --check .
 python -m mypy
 python -m pytest
 ```
+
+The integration tests skip unless RESEARCH_PLATFORM_TEST_DATABASE_URL and
+RESEARCH_PLATFORM_TEST_QDRANT_URL point to disposable services. The
+PostgreSQL URL must use a dedicated database named research_test; tests apply
+migrations and enforce constraints. The Qdrant test creates and removes a
+temporary collection. CI supplies fresh service containers for these tests.
 
 ## Locked Linux environment
 
@@ -91,15 +108,15 @@ Expected response:
 
 The API assigns every HTTP request an `X-Request-ID`. A caller-provided ID is
 preserved when it is non-empty and reasonably bounded; otherwise the API
-generates a UUID. The ID is returned in the response and is available to
-request handlers and structured logs.
+generates a UUID. The ID is returned in response headers and error bodies, and
+is attached to request logs.
 
 Application logs are emitted as JSON with timestamps, levels, logger names,
 request IDs, and safe HTTP metadata. Expected failures can raise `AppError`
 and return a structured response containing an error code, message, and
-request ID. Unexpected failures return a generic `internal_error` response;
-diagnostic exception details stay in server logs rather than being exposed to
-clients.
+request ID. Unexpected failures return a generic `internal_error` response.
+Exception diagnostics retain the exception type and frame locations while
+omitting exception messages and traceback source text.
 
 ## Local services and migrations
 
@@ -135,6 +152,17 @@ of the relational migration.
 - `pyproject.toml` defines the Python package and configures build, linting,
   type checking, and testing tools.
 
-The YAML specification is the normal starting point for a new environment.
-The lock file is platform-specific and should be regenerated after deliberate
-environment changes.
+The YAML specification is the normal starting point for a new development
+environment. The Linux x86-64 lock is consumed by GitHub Actions and the Docker
+image, so the tested CI environment and container runtime use the same exact
+Conda packages. The image installs the local project with dependency resolution
+disabled; its runtime dependencies come from that lock. Regenerate the lock
+after deliberate environment changes.
+
+## Phase 1 learning plan
+
+The [detailed ingestion plan](docs/plans/phase-1-corpus-ingestion.md) contains
+14 approved tasks, dependencies, learning objectives and acceptance criteria.
+A continuing agent should read the [Phase 1 handoff](docs/plans/phase-1-learning-handoff.md)
+for current progress and the next exercise. The user implements the tasks unless
+coding is explicitly delegated.

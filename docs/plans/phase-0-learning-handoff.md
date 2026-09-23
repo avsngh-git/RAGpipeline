@@ -1,6 +1,10 @@
 # Phase 0 — Learning checklist and handoff
 
-Updated: 2026-09-22. Resume at Phase 0 gate verification: migration, persistence, and CI.
+Updated: 2026-09-23. Audit fixes are implemented and locally verified; hosted CI on the fixed revision remains pending.
+
+Read the [completion audit](../reviews/phase-0-audit-2026-09-23.md) for the
+original findings, fixes, and verification evidence. Locked container and
+disposable-service checks passed locally; hosted CI on the fixed revision is pending.
 
 ## Working agreement
 
@@ -38,84 +42,34 @@ is already approved; its implementation follows the foundations below.
 
 ## Progress and evidence
 
-- Task 1: package directory and setuptools configuration exist. Installation was
-  discussed and generated metadata exists, but an outside-repository import
-  result was not captured. Verify briefly if needed rather than reteaching packaging.
-- Task 2: complete. `environment.yaml` defines the Conda development
-  environment, and `environment-linux-64.lock` records the recreated Linux
-  package set. The README documents both workflows and editable installation.
-  The user chose Conda as the sole development dependency manager. Agent
-  verification confirmed Ruff, mypy, and pytest pass in
-  `sci_research_agent`.
-- Ruff/mypy/pytest configuration exists in `pyproject.toml`. The user reported
-  installing tools through Conda in the `sci_research_agent` environment: Ruff
-  0.16.7, mypy 2.3.1, pytest 9.1.1.
-- Task 3: complete. `config.py` provides frozen typed settings with safe
-  development defaults, environment-variable overrides, URL validation, and
-  allowed environment/log-level validation. `.env.example` documents safe
-  placeholders, `.env` remains ignored, and README documents loading behavior.
-- Agent verification after Task 3: Ruff lint/format, mypy, and 9 pytest tests
-  pass. No new dependency was needed; configuration uses the standard library.
-- Task 4: complete. The FastAPI dependencies are managed through Conda, the
-  application factory exposes a typed `GET /health` response, and the API
-  contract has an HTTP-level test. The Linux lock was regenerated after the
-  dependency update. The test uses HTTPX's async ASGI transport because the
-  installed Starlette/httpx `TestClient` path hung in this environment.
-- Agent verification after Task 4: Ruff lint/format, mypy, and 10 pytest tests
-  pass. The recreated environment imports the application and passes the API
-  test.
-- Task 5: complete. Request middleware now preserves or generates bounded
-  correlation IDs, exposes them through request context and response headers,
-  and logs safe request metadata as JSON. Expected `AppError` failures and
-  unexpected exceptions have consistent sanitized response envelopes.
-- Agent verification after Task 5: Ruff lint/format, mypy, and 15 pytest tests
-  pass.
-- Task 6 implementation: `docker-compose.yml` defines PostgreSQL and Qdrant
-  with named volumes, plus the API service. PostgreSQL has a container
-  healthcheck; Qdrant is intentionally gated by process start because the
-  pinned image does not include a reliable HTTP probe utility. Qdrant is
-  verified by the application's network readiness check instead.
-- Task 7 implementation: `/ready` uses bounded async PostgreSQL and Qdrant
-  probes with injectable test seams and configurable timeouts. Unit/API tests
-  cover ready and unavailable responses. The user verified the live endpoint
-  returned HTTP 200 with both `postgres` and `qdrant` reported as `ok`.
-- Task 8 implementation: `migrations/001_initial.sql` and
-  `scripts/migrate.py` provide an idempotent first relational schema covering
-  metadata, citations, documents, ingestion, runs, tools, claims, and
-  evidence. The user successfully applied the migration to the live
-  PostgreSQL service, and its migration state survived a normal restart.
-- Task 9 implementation: tests now cover configuration, API contracts,
-  observability, readiness seams, migration entities, and validation without
-  requiring a GPU or live LLM. Disposable live-service integration tests remain
-  a follow-on after the Compose gate is executable.
-- Task 10 implementation: `Dockerfile`, `.dockerignore`, Compose startup, and
-  README operations instructions are present. The user verified the API image
-  built, the Compose stack started successfully, and named-volume state
-  survived a normal restart. A clean-checkout run remains pending.
-- Task 11 implementation: `.github/workflows/ci.yml` runs Conda setup, lint,
-  formatting, mypy, tests, PostgreSQL migration, dependency checks, and Docker
-  build validation. GitHub-hosted execution remains unverified in this session.
-- Agent verification after the remaining implementation: Ruff lint/format,
-  mypy, 19 pytest tests, Compose YAML parsing, `pip check`, and `pip-audit`
-  pass. `pip-audit` reported no known vulnerabilities.
-- User implemented `validation.py` and reported passing tests. The exercise
-  checks increasing, equal and reversed year ranges, and illustrates type errors
-  versus behavioral errors. The test is now under root `tests/` on disk.
-  The user says they understand the gist; avoid repeating this exercise.
-- User-reported Docker acceptance: `docker compose up --build` built the API,
-  started PostgreSQL and Qdrant, and started the API. `/health` returned HTTP
-  200 and `/ready` returned HTTP 200 with both dependencies `ok`. The user
-  also successfully ran the migration and confirmed the migration state and
-  readiness survived a normal PostgreSQL/Qdrant restart. CI acceptance
-  evidence remains outstanding.
-- The latest checks were agent-verified in the intended Conda environment.
-  Consult actual files for current implementations.
+The 2026-09-23 audit identified gaps after the initial Phase 0 checks. The
+follow-up fixes and local verification are recorded in the linked audit.
+Remaining sign-off requires hosted CI to pass on the fixed revision.
+
+| Task | Current status |
+| --- | --- |
+| 1. Package | Verified: import works outside the repository |
+| 2. Development checks | Locked Conda environment used by CI; Ruff lint/format and mypy pass |
+| 3. Configuration | Implemented with passing configuration tests |
+| 4. Minimal API | Implemented; API tests and live `/health` pass |
+| 5. Logging/errors | Verified: unexpected errors preserve request IDs in response/logs; JSON exception logs omit messages and source text |
+| 6. Services | Verified: isolated stack startup and both stores' restart persistence |
+| 7. Connections/readiness | Verified: live happy path plus stalled-query and stalled-cleanup timeout tests |
+| 8. Schema/migrations | Verified: live migration reapplication and unique/FK constraints tested against disposable PostgreSQL |
+| 9. Test foundations | 21 unit/API tests pass; 3 live PostgreSQL/Qdrant integration tests pass |
+| 10. Startup | Verified: lock-based Docker build and live `/health` and `/ready` checks pass |
+| 11. CI | Workflow now uses the Conda lock and runs isolated integration tests; hosted run on the fixed revision is pending |
+
+The user uses Conda (`sci_research_agent`) and has completed the introductory
+validation/type-checking exercise. The audit implementation gaps are fixed;
+do not mark Phase 0 complete until hosted CI passes on the fixed revision.
 
 ## Next small task
 
-Continue the Phase 0 gate:
-
-1. Run the CI workflow in GitHub and resolve any runner-specific issues.
+Next, have the user commit/publish the reviewed changes through their normal
+workflow and verify the resulting hosted CI run. Once it passes, record Phase 0
+completion and resume the approved Phase 1 plan. Do not commit or publish on the
+user's behalf unless explicitly asked.
 
 The earlier pip-tools instructions were superseded by the user's Conda choice.
 Conda manages development dependencies, while Setuptools remains the package

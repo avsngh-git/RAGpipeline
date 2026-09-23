@@ -1,12 +1,15 @@
 """API contract tests."""
 
 import asyncio
+import json
+import logging
 
 import httpx
 from fastapi import FastAPI
 
 from research_platform.api import create_app
 from research_platform.api.errors import AppError
+from research_platform.observability.logging_config import JsonFormatter
 from research_platform.observability.request_context import get_request_id
 from research_platform.services.readiness import ReadinessReport
 
@@ -78,18 +81,46 @@ def test_expected_error_has_safe_structured_response() -> None:
     }
 
 
-def test_unexpected_error_does_not_leak_internal_details() -> None:
+def test_unexpected_error_does_not_leak_internal_details(caplog) -> None:
+    caplog.set_level(logging.ERROR)
     app = create_app()
+    secret = "synthetic-api-key-should-not-be-logged"
 
     @app.get("/unexpected-error")
     async def unexpected_error() -> None:
-        raise RuntimeError("database password should not be returned")
+        raise RuntimeError(secret)
 
     response = asyncio.run(_request(app, "/unexpected-error"))
+    request_id = response.headers["x-request-id"]
 
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
-    assert "database password" not in response.text
+    assert response.json()["error"]["request_id"] == request_id
+    assert response.headers["x-request-id"] == request_id
+    assert secret not in response.text
+
+    error_records = [
+        record
+        for record in caplog.records
+        if record.name in {"research_platform.errors", "research_platform.http"}
+        and record.exc_info is not None
+    ]
+    assert {record.getMessage() for record in error_records} == {
+        "request_failed",
+        "unhandled_exception",
+    }
+    assert all(
+        getattr(record, "request_id", None) == request_id for record in error_records
+    )
+
+    formatted = [JsonFormatter().format(record) for record in error_records]
+    assert all(secret not in line for line in formatted)
+    payloads = [json.loads(line) for line in formatted]
+    assert all(payload["request_id"] == request_id for payload in payloads)
+    diagnostics = [payload["exception"] for payload in payloads]
+    assert all(
+        item["type"] == "RuntimeError" and item["frames"] for item in diagnostics
+    )
 
 
 def test_ready_returns_ok_when_dependencies_are_available() -> None:

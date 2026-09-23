@@ -5,5 +5,4 @@
 .ruff_cache
 *.egg-info
 __pycache__
-environment-linux-64.lock
 tests

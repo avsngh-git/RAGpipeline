@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 
 import asyncpg  # type: ignore[import-untyped]
 import httpx
@@ -53,15 +53,32 @@ class LiveDependencyChecker:
         return ReadinessReport(dependencies=statuses)
 
     async def _check_postgres(self) -> bool:
-        connection = await asyncpg.connect(
-            self._settings.database_url,
-            timeout=self._settings.dependency_timeout_seconds,
-        )
+        timeout_seconds = self._settings.dependency_timeout_seconds
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout_seconds
+        connection: asyncpg.Connection | None = None
         try:
-            await connection.fetchval("SELECT 1")
-            return True
+            async with asyncio.timeout_at(deadline):
+                connection = await asyncpg.connect(
+                    self._settings.database_url,
+                    timeout=timeout_seconds,
+                )
+                result = cast(int, await connection.fetchval("SELECT 1"))
+            return result == 1
         finally:
-            await connection.close()
+            if connection is not None:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    connection.terminate()
+                else:
+                    try:
+                        await asyncio.wait_for(connection.close(), timeout=remaining)
+                    except TimeoutError:
+                        connection.terminate()
+                        raise
+                    except asyncio.CancelledError:
+                        connection.terminate()
+                        raise
 
     async def _check_qdrant(self) -> bool:
         health_url = f"{self._settings.qdrant_url.rstrip('/')}/healthz"

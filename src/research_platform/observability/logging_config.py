@@ -2,6 +2,7 @@
 
 import json
 import logging
+import traceback
 from datetime import datetime, timezone
 from typing import Any
 
@@ -19,7 +20,7 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
 
-        request_id = get_request_id()
+        request_id = get_request_id() or getattr(record, "request_id", None)
         if request_id is not None:
             payload["request_id"] = request_id
 
@@ -28,7 +29,18 @@ class JsonFormatter(logging.Formatter):
                 payload[field_name] = getattr(record, field_name)
 
         if record.exc_info is not None:
-            payload["exception"] = self.formatException(record.exc_info)
+            exception_type, _, exception_traceback = record.exc_info
+            payload["exception"] = {
+                "type": exception_type.__name__ if exception_type else "Exception",
+                "frames": [
+                    {
+                        "file": frame.filename.rsplit("/", maxsplit=1)[-1],
+                        "line": frame.lineno,
+                        "function": frame.name,
+                    }
+                    for frame in traceback.extract_tb(exception_traceback, limit=12)
+                ],
+            }
 
         return json.dumps(payload, sort_keys=True)
 

@@ -23,6 +23,7 @@ services:
       - qdrant_data:/qdrant/storage
 
   api:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile

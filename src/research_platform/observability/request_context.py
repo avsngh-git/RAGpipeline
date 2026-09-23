@@ -38,6 +38,7 @@ class RequestIDMiddleware:
             return
 
         request_id = _request_id_from_scope(scope)
+        scope.setdefault("state", {})["request_id"] = request_id
         token = _REQUEST_ID.set(request_id)
 
         async def send_with_request_id(message: Message) -> None:

@@ -16,9 +16,12 @@ Choose the smallest coherent implementation that serves the current phase.
 
 ### Learning workflow
 
-For Phase 0 work, read `docs/plans/phase-0-learning-handoff.md` for the checklist,
-progress and next exercise. The user implements the project to learn Python;
-default to tutoring and reviewing, and implement only when explicitly asked.
+For Phase 0 work, read `docs/plans/phase-0-learning-handoff.md`.
+For Phase 1 work, read `docs/plans/phase-1-learning-handoff.md`, then follow the
+approved tasks in `docs/plans/phase-1-corpus-ingestion.md`.
+These handoffs record progress and the next exercise. The user implements the
+project to learn Python; default to tutoring and reviewing, and implement only
+when explicitly asked.
 
 ### Issue tracker
 

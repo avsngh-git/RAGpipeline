@@ -5,6 +5,8 @@ from time import perf_counter
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .request_context import get_request_id
+
 logger = logging.getLogger("research_platform.http")
 
 
@@ -31,6 +33,7 @@ class RequestLoggingMiddleware:
         fields = {
             "http_method": scope.get("method", ""),
             "path": scope.get("path", ""),
+            "request_id": get_request_id(),
         }
 
         try:

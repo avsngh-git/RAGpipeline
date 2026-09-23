@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative  
-**Version:** 1.1  
-**Last updated:** 2026-09-22  
+**Version:** 1.3\
+**Last updated:** 2026-09-23\
 **Audience:** Human contributors and coding agents  
-**Project stage:** Architecture and planning  
+**Project stage:** Phase 0 audit fixes implemented and locally verified; hosted CI on the fixed revision pending\
 
 ---
 
@@ -400,21 +400,28 @@ Citation relationships MUST originate from real OpenAlex-linked identifiers. Bas
 
 ### 8.6 Phase 1 corpus policy — LOCKED
 
-Approved 2026-09-22. The [Phase 1 plan](../plans/phase-1-corpus-ingestion.md)
-defines delivery slices and acceptance evidence; [ADR-0001](../adr/0001-versioned-corpus-evidence.md)
-records the architectural tradeoffs.
+Initial policy approved 2026-09-22; detailed execution and acceptance decisions
+approved 2026-09-23. The [Phase 1 plan](../plans/phase-1-corpus-ingestion.md)
+defines tasks and acceptance evidence, and the [learning handoff](../plans/phase-1-learning-handoff.md)
+records the next step. [ADR-0001](../adr/0001-versioned-corpus-evidence.md) records
+versioned evidence tradeoffs; [ADR-0002](../adr/0002-finalize-validated-snapshots.md)
+records finalization and quality acceptance.
 
 - **Scope:** start with RAG, retrieval and reranking; expand toward broader ML research later. The initial collection covers English-language papers from 2020 through its snapshot date, with explicit older foundational exceptions. Require substantive relevance, including negative and mixed findings; merely using RAG is insufficient.
-- **Selection:** automated discovery followed by a reviewed, versioned manifest of queries, filters, membership and inclusion/exclusion reasons. Improving automated selection is a critical follow-on, evaluated for relevance, coverage and bias against retained review decisions.
+- **Selection:** Phase 1 MUST deliver reproducible discovery and an explainable candidate shortlist with configurable queries/filters, duplicate handling and recorded selection signals. Human review approves the versioned manifest of membership and inclusion/exclusion reasons. Evaluate shortlist relevance, coverage and bias against retained review decisions, reporting limitations; a learned classifier is not required.
 - **Milestones:** 10 full-text papers for the initial end-to-end comparison, then 100 successfully ingested full-text papers. These are engineering milestones, not claims of research sufficiency. Use local compute without paid data acquisition or cloud compute initially.
 - **Access:** use OpenAlex discovery/metadata and a bounded set of supported download sources. Record applicable permission evidence, source URL, acquisition time, checksum and document version. Downloadability alone is not permission for all uses; assess public passage display separately. Unresolved or unavailable full text remains metadata-only.
 - **Identity:** one logical paper with separately identifiable document versions. Prefer the published version, falling back to an eligible preprint. Index one selected version per paper in a snapshot and label the actual evidence source. Link versions only with reliable identifiers or metadata; leave uncertain matches separate.
-- **Citation collection:** retain real citation edges and external identifiers without recursively acquiring referenced full text. Related papers are candidates for later selection.
+- **Citation collection:** retain real citation edges and unresolved external identifiers before complete metadata is available; enrich through bounded metadata requests without inventing missing titles. Do not recursively acquire referenced full text. Related papers are candidates for later selection.
 - **Evidence:** text and structured tables are required. Preserve table headers, values, captions, units, footnotes and source references. Split large tables into row groups with relevant headers repeated; respect section boundaries for text. Table-heavy papers MUST be supported rather than excluded because of their format. Actual extraction failures remain visible and require investigation or reprocessing.
 - **Extraction choice:** compare structured document conversion with local vision-model extraction on the 10-paper reference set. Prepare human-verified expected results before comparison. Measure quality, provenance, runtime, memory and storage. Exact tools/models and thresholds remain OPEN pending the assessment. Preserve figures, captions and equation regions where available; decide plot/equation interpretation scope after the pilot assessment.
-- **Execution:** manually trigger versioned snapshots through terminal start/status/resume operations over reusable application services and persisted job state. Processing stops when the process stops; saved progress permits resumption. API-controlled background scheduling is deferred, not removed from the eventual API contract.
+- **Execution:** manually trigger versioned snapshots through terminal start/status/resume operations over reusable application services and persisted job state. Processing stops when the process stops; saved progress permits resumption. Allow one active ingestion process initially with concurrent-start protection and explicit crash recovery; bounded download concurrency and controlled extraction/embedding batches remain possible. API-controlled background scheduling is deferred, not removed from the eventual API contract.
 - **Failures:** continue unaffected papers after paper-specific failures, recording stage and reason for targeted retries. Pause for shared failures such as database unavailability or storage exhaustion. Mark successful ingestion only after evidence/index integrity checks; failed and metadata-only records do not count toward the full-text target.
 - **Storage:** retain unique originals once, compress extraction outputs, share artifacts across collections and promptly clean temporary files. Store artifacts outside Git and metadata, checksums, versions and job state in PostgreSQL. Retain additional versions only when retained snapshots or research runs require them; do not silently replace or delete their evidence. Keep Qdrant rebuildable. Measure usage on 10 papers and set a configurable storage cap before scaling.
+
+- **Snapshot acceptance:** processing produces inspectable/testable drafts. Normal research MUST use explicitly finalized snapshots with validated, fixed membership, selected document/extraction versions, effective configurations and evidence/index integrity. New evidence/configuration requires a new snapshot. A smaller finalized snapshot does not satisfy the 100-paper target.
+- **Quality failures:** unresolved extraction failures, including a results-table validation failure, prevent a paper from counting as successfully ingested. Preserve intermediate outputs for alternative extraction or reviewed correction with provenance. Exclusions and replacements MUST be explicit selection decisions, never silent quality filtering.
+- **Verification scope:** prepare human-verified text/table samples from every paper in the 10-paper comparison before evaluating approaches. For the 100-paper pilot, run automated integrity checks across all papers and a documented manual quality sample. Report sampling and coverage without implying exhaustive cell-level review.
 
 Chunk sizes, initial embedding model, numerical quality thresholds, retention
 periods and storage limits are selected from pilot evidence and recorded in
@@ -989,6 +996,13 @@ MCP and polish are deliberately later than the core retrieval and service founda
 
 ### Phase 0 — Repository and contracts
 
+Status as of 2026-09-23: foundations and completion-audit fixes are implemented;
+Ruff, mypy, unit/API tests, disposable-service integration tests, and a locked
+Docker build passed locally. Hosted CI on the fixed revision remains the final
+gate. See the [completion audit](../reviews/phase-0-audit-2026-09-23.md) and
+[learning handoff](../plans/phase-0-learning-handoff.md). This status update
+records evidence; it does not relax the requirements below.
+
 Deliver:
 
 - installable `src/` project;
@@ -1146,7 +1160,7 @@ Resolve these progressively; do not decide all of them before evidence is availa
 13. Exact remote MCP SDK/transport version at implementation time.
 14. Extraction pipeline and local vision-model selection, and plot/equation interpretation scope after the pilot assessment.
 15. Numerical extraction thresholds, storage cap and retention periods based on pilot measurements.
-16. Automated corpus-selection methods and acceptance criteria beyond reviewed pilot manifests.
+16. Advanced corpus-selection methods and expansion criteria beyond the required explainable shortlist and reviewed pilot manifests.
 
 Each resolution SHOULD be captured in an ADR or an explicit update here.
 

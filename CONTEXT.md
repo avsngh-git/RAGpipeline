@@ -30,3 +30,15 @@ full-text evidence.
 
 **Manifest**:
 The record of a snapshot's membership, acquisition provenance and selection reasons.
+
+**Draft snapshot**:
+A snapshot undergoing processing or inspection whose evidence has not yet been
+accepted for normal research use.
+
+**Finalized snapshot**:
+A snapshot with validated, fixed membership, selected evidence versions and
+configuration, accepted for normal research use.
+
+**Unresolved citation reference**:
+A known external paper identifier at the end of a citation relationship whose
+full paper metadata has not yet been established.

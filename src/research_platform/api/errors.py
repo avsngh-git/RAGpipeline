@@ -7,7 +7,10 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from research_platform.observability.request_context import get_request_id
+from research_platform.observability.request_context import (
+    REQUEST_ID_HEADER,
+    get_request_id,
+)
 
 logger = logging.getLogger("research_platform.errors")
 
@@ -39,34 +42,44 @@ class AppError(Exception):
 
 
 def _request_id(request: Request) -> str | None:
-    return get_request_id() or request.headers.get("x-request-id")
+    state = request.scope.get("state", {})
+    request_id = state.get("request_id")
+    return request_id if isinstance(request_id, str) else get_request_id()
 
 
 async def handle_app_error(_request: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, AppError):
         raise RuntimeError("handle_app_error received an unexpected exception")
 
+    request_id = _request_id(_request)
     response = ErrorResponse(
         error=ErrorBody(
             code=exc.code,
             message=exc.message,
-            request_id=get_request_id(),
+            request_id=request_id,
         )
     )
-    return JSONResponse(status_code=exc.status_code, content=response.model_dump())
+    headers = {REQUEST_ID_HEADER: request_id} if request_id else None
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=response.model_dump(),
+        headers=headers,
+    )
 
 
 async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    request_id = _request_id(request)
     logger.exception(
         "unhandled_exception",
-        extra={"path": request.url.path},
+        extra={"path": request.url.path, "request_id": request_id},
     )
     response = ErrorResponse(
         error=ErrorBody(
             code="internal_error",
             message="An unexpected error occurred.",
-            request_id=_request_id(request),
+            request_id=request_id,
         )
     )
     content: dict[str, Any] = response.model_dump()
-    return JSONResponse(status_code=500, content=content)
+    headers = {REQUEST_ID_HEADER: request_id} if request_id else None
+    return JSONResponse(status_code=500, content=content, headers=headers)

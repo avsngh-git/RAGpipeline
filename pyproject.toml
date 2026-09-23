@@ -30,3 +30,4 @@ strict = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
+markers = ["integration: requires dedicated disposable PostgreSQL and Qdrant services"]
