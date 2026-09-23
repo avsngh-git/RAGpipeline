@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-research}
+      POSTGRES_USER: ${POSTGRES_USER:-research}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-research}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      RESEARCH_PLATFORM_ENVIRONMENT: ${RESEARCH_PLATFORM_ENVIRONMENT:-development}
+      RESEARCH_PLATFORM_LOG_LEVEL: ${RESEARCH_PLATFORM_LOG_LEVEL:-INFO}
+      RESEARCH_PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-research}:${POSTGRES_PASSWORD:-research}@postgres:5432/${POSTGRES_DB:-research}
+      RESEARCH_PLATFORM_QDRANT_URL: http://qdrant:6333
+      RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS: ${RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS:-2}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  qdrant_data:

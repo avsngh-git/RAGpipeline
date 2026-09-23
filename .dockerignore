@@ -1,0 +1,9 @@
+.git
+.github
+.mypy_cache
+.pytest_cache
+.ruff_cache
+*.egg-info
+__pycache__
+environment-linux-64.lock
+tests

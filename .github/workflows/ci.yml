@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: research
+          POSTGRES_USER: research
+          POSTGRES_PASSWORD: research
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U research -d research"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.14.1
+        ports:
+          - 6333:6333
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Conda environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: sci_research_agent
+          environment-file: environment.yaml
+          auto-activate-base: false
+
+      - name: Install the package
+        run: python -m pip install --no-build-isolation --no-deps -e .
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Check formatting
+        run: python -m ruff format --check .
+
+      - name: Type check
+        run: python -m mypy
+
+      - name: Unit and API tests
+        run: python -m pytest
+
+      - name: Apply migration against PostgreSQL service
+        env:
+          RESEARCH_PLATFORM_DATABASE_URL: postgresql://research:research@127.0.0.1:5432/research
+        run: python scripts/migrate.py
+
+      - name: Dependency checks
+        run: |
+          python -m pip check
+          python -m pip_audit --skip-editable
+
+      - name: Build Docker image
+        run: docker build --tag scientific-research-platform:ci .

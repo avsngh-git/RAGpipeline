@@ -1,0 +1,32 @@
+[build-system]
+requires =["setuptools"]
+build-backend ="setuptools.build_meta"
+
+[project]
+name = "scientific-research-platform"
+version = "0.1.0"
+description = "A scientific literature research platform"
+dependencies = [
+    "asyncpg",
+    "fastapi",
+    "httpx",
+    "uvicorn",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.mypy]
+files = ["src/research_platform"]
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
