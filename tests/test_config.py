@@ -14,6 +14,7 @@ _SETTING_ENVIRONMENT_VARIABLES = (
     "RESEARCH_PLATFORM_LOG_LEVEL",
     "RESEARCH_PLATFORM_DATABASE_URL",
     "RESEARCH_PLATFORM_QDRANT_URL",
+    "OPENALEX_API_KEY",
 )
 
 
@@ -28,6 +29,7 @@ def test_settings_use_safe_development_defaults(monkeypatch) -> None:
     assert settings.database_url == DEFAULT_DATABASE_URL
     assert settings.qdrant_url == DEFAULT_QDRANT_URL
     assert settings.dependency_timeout_seconds == DEFAULT_DEPENDENCY_TIMEOUT_SECONDS
+    assert settings.openalex_api_key is None
     assert DEFAULT_DATABASE_URL not in repr(settings)
 
 
@@ -40,6 +42,7 @@ def test_settings_read_environment_overrides(monkeypatch) -> None:
     )
     monkeypatch.setenv("RESEARCH_PLATFORM_QDRANT_URL", "https://qdrant.example")
     monkeypatch.setenv("RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS", "4.5")
+    monkeypatch.setenv("OPENALEX_API_KEY", "  secret-test-key  ")
 
     settings = Settings()
 
@@ -50,6 +53,8 @@ def test_settings_read_environment_overrides(monkeypatch) -> None:
     )
     assert settings.qdrant_url == "https://qdrant.example"
     assert settings.dependency_timeout_seconds == 4.5
+    assert settings.openalex_api_key == "secret-test-key"
+    assert "secret-test-key" not in repr(settings)
 
 
 @pytest.mark.parametrize(

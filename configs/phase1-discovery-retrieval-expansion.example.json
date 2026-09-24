@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "queries": [
+    "retrieval augmented generation hybrid sparse dense retrieval comparison",
+    "retrieval augmented generation reranking cross encoder latency benchmark"
+  ],
+  "year_range": {
+    "start_year": 2020,
+    "end_year": 2026
+  },
+  "language": "en",
+  "older_paper_exceptions": [],
+  "limits": {
+    "per_page": 100,
+    "max_pages_per_query": 10,
+    "max_total_requests": 20,
+    "max_retries": 2,
+    "timeout_seconds": 15.0,
+    "minimum_request_interval_seconds": 1.0
+  }
+}

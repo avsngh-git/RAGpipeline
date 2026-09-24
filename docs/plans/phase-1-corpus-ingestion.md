@@ -1,8 +1,9 @@
 # Phase 1 — Corpus and ingestion
 
-Status: detailed plan approved 2026-09-23; implementation not started.
-Original scope approved 2026-09-22. Phase 0 hosted CI on the fixed revision is
-still the entry gate at this handoff; verify current evidence before starting.
+Status: detailed plan approved 2026-09-23; Phase 1 implementation is in
+progress under the user’s explicit delegation on 2026-09-23. Original scope
+approved 2026-09-22. The Phase 0 hosted CI entry gate passed on the fixed
+revision; the P1-01 baseline and profiles are recorded below.
 
 ## Authority and working agreement
 
@@ -12,10 +13,10 @@ in full as required by AGENTS.md. Section 8.6 owns the corpus constraints.
 [ADR-0002](../adr/0002-finalize-validated-snapshots.md) explains snapshot acceptance.
 [CONTEXT.md](../../CONTEXT.md) defines terms.
 
-The user implements this project to learn Python. Default to explaining one small
-exercise, reviewing their attempt and helping debug. Implement only when explicitly
-asked. Approval of this plan is not blanket delegation of application coding.
-A continuing agent should start with the [Phase 1 handoff](phase-1-learning-handoff.md).
+The user normally implements this project to learn Python. On 2026-09-23, the
+user explicitly delegated the remaining Phase 1 implementation, tests and
+documentation to the assistant. Preserve that delegation and the human review
+gates recorded in the [Phase 1 handoff](phase-1-learning-handoff.md).
 
 ## Outcome and boundaries
 
@@ -52,30 +53,31 @@ committing to implementation scope.
 
 Use local compute without paid data acquisition/cloud compute initially. The
 observed laptop GPU has 4 GiB VRAM and WSL exposes about 7.6 GiB RAM; remeasure
-at execution time. Neither parser nor vision-model feasibility is established.
+at execution time. P1-08 measured both parser candidates and selected the standard
+pipeline for the pilot, with a review-only VLM path for suspicious tables.
 Virtual filesystem free space is not proof of physical host capacity.
 
 ## Task checklist and dependencies
 
-All Phase 1 tasks are pending. Mark a task complete only with its listed evidence.
+P1-01 is complete; implementation and verification are progressing under explicit delegation. Parser decisions and corpus acceptance evidence remain human-gated. Mark a task complete only with its listed evidence.
 Use these IDs in commits or future issues; these rows are not published tickets.
 
 | ID | Task | Depends on | Status |
 | --- | --- | --- | --- |
-| P1-01 | Entry gate and execution profiles | Phase 0 fixes | Pending |
-| P1-02 | Typed ingestion contracts and configuration | P1-01 | Pending |
-| P1-03 | Safe schema evolution and persistence | P1-02 | Pending |
-| P1-04 | Reproducible discovery and explainable shortlist | P1-02, P1-03 | Pending |
-| P1-05 | Paper/version identity and unresolved citations | P1-03, P1-04 | Pending |
-| P1-06 | Acquisition and efficient artifact storage | P1-03, P1-05 | Pending |
-| P1-07 | Human-verified 10-paper reference set | P1-04, P1-06 | Pending |
-| P1-08 | Extraction comparison and quality decision | P1-07 | Pending |
-| P1-09 | Normalized evidence and chunking | P1-03, P1-08 | Pending |
-| P1-10 | Embeddings, Qdrant indexing and rebuild | P1-09 | Pending |
-| P1-11 | Runner, recovery and snapshot finalization | P1-02 through P1-10 | Pending |
-| P1-12 | Operational visibility and storage controls | Across P1-03 through P1-11 | Pending |
-| P1-13 | Verification suite and CI | Alongside every implementation task | Pending |
-| P1-14 | 100-paper acceptance pilot and documentation | P1-01 through P1-13 | Pending |
+| P1-01 | Entry gate and execution profiles | Phase 0 fixes | Complete (2026-09-23) |
+| P1-02 | Typed ingestion contracts and configuration | P1-01 | Complete (serializable contracts, stable configuration/code identities, downstream invalidation and runtime validation tested; parser and model revisions are recorded; E5-small-v2 is the reversible ten-paper pilot choice, while the final embedding model remains open for Phase 2) |
+| P1-03 | Safe schema evolution and persistence | P1-02 | Complete (migrations 001–012; empty-database and Phase 0 upgrade paths, failed-migration rollback, concurrent/repeated migrations, constraints and ingestion repositories pass isolated live tests) |
+| P1-04 | Reproducible discovery and explainable shortlist | P1-02, P1-03 | Complete (2026-09-24; approved v1 manifest has 67 included, 47 excluded, reviewed coverage and documented discovery limits) |
+| P1-05 | Paper/version identity and unresolved citations | P1-03, P1-04 | Complete (approved v1 import persisted 67 papers, 328 distinct authors, 114 source locations, 49 resolved citation edges and 1,501 unresolved endpoints; metadata outcomes recorded for all 1,166 distinct external targets: 954 found, 212 not found) |
+| P1-06 | Acquisition and efficient artifact storage | P1-03, P1-05 | Complete (permission-gated OpenAlex adapter and storage controls tested; source terms reviewed; ten permitted PDFs acquired; document availability now transitions from metadata_only to acquired when the artifact association commits) |
+| P1-07 | Human-verified 10-paper reference set | P1-04, P1-06 | Complete (2026-09-24; user confirmed all ten sampled prose passages, locations, table captions and selected values match the local PDFs; W4410600121 correction accepted) |
+| P1-08 | Extraction comparison and quality decision | P1-07 | Complete (2026-09-24; 19 reviewed pages compared, Docling standard selected as automatic parser, Granite VLM restricted to review aid, thresholds and figure/equation scope recorded in ADR-0004 and comparison report) |
+| P1-09 | Normalized evidence and chunking | P1-03, P1-08 | Complete (ten-paper Docling run persisted 5,944 located sections, 113 structured tables and 9,683 chunks; all ten extraction attempts succeeded; nine tables await human PDF review; see the [pilot report](../reference/phase-1-full-extraction-pilot.md)) |
+| P1-10 | Embeddings, Qdrant indexing and rebuild | P1-09 | Complete for the reversible pilot (E5-small-v2 embedded all 9,683 chunks; expected and indexed counts reconciled; final model choice remains open for Phase 2 retrieval evaluation) |
+| P1-11 | Runner, recovery and snapshot finalization | P1-02 through P1-10 | Complete for the local ten-paper workflow (start/status/resume/retry, draft inspection, index rebuild, validation and finalization paths are tested; draft remains blocked by nine human table reviews and the 100-paper minimum) |
+| P1-12 | Operational visibility and storage controls | Across P1-03 through P1-11 | Complete for the pilot (11,587,433 source bytes; 2 GiB hard acquisition cap retained based on the full ten-paper footprint; row-size and process resource measurements recorded in the pilot report; disposable retention period remains open) |
+| P1-13 | Verification suite and CI | Alongside every implementation task | In progress (162 local tests passed, including 15 live PostgreSQL/Qdrant checks; Ruff, format, strict mypy, pip checks, audit and Docker build pass; hosted CI remains) |
+| P1-14 | 100-paper acceptance pilot and documentation | P1-01 through P1-13 | Pending human-gated pilot (metadata-only expansion screening proposal recommends 33 additions to the approved 67; user approval, exact full-text permissions, and resumable 100-paper run remain) |
 
 The order describes completion dependencies, not a requirement to finish every
 layer before exercising it. Introduce a minimal runner/checkpoint path with the
@@ -97,6 +99,52 @@ profile definitions. Reuse Phase 0 foundations rather than rebuilding them.
 
 Learning: reproducible execution, configuration scope and interpreting CI evidence.
 
+### P1-01 baseline and execution profiles
+
+Verified 2026-09-23 against code revision
+`d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc`. Hosted
+[CI run 35852371358](https://github.com/avsngh-git/RAGpipeline/actions/runs/35852371358)
+completed successfully, including the locked environment, lint, formatting,
+type checks, unit/API/service integration tests, migration, dependency checks
+and Docker build.
+
+The project lock is `environment-linux-64.lock`
+(SHA-256 `7e72ec479c6820d8bad52ad8662f9496fedb2dfe41681b5ec1cf94926f2865ce`).
+The local `sci_research_agent` environment uses Python 3.12.14, Conda 26.7.1,
+Ruff 0.16.7, mypy 2.3.1 and pytest 9.1.1. Docker is 29.8.0 with Compose
+5.5.1. CI uses PostgreSQL 16 and Qdrant 1.14.1.
+
+Resource measurements are a dated snapshot and must be repeated before the
+10-paper and 100-paper runs:
+
+- Ubuntu 24.04 under WSL2: 7.6 GiB total RAM and 4.2 GiB available.
+- RTX 3050 Laptop GPU: 4,096 MiB total VRAM and 3,964 MiB free.
+- The Ubuntu WSL distribution is stored on `D:` (264.6 GiB free); Docker's WSL
+  data is stored on `C:` (40.7 GiB free). The Linux view reports 949 GiB free
+  in the WSL filesystem. These values do not set the later artifact storage cap.
+
+| Profile | Input and request ceiling | Resource limits |
+| --- | --- | --- |
+| Deterministic CI | Synthetic or permitted small fixtures only. Zero OpenAlex, paper-download, or model inference/weight requests. Dependency installation and disposable service startup remain part of CI. | One CI job, CPU-only, no GPU or large-model execution. Use the locked Conda environment, PostgreSQL 16 and Qdrant 1.14.1. |
+| 10-paper comparison | One reviewed manifest of at most 10 papers and at most one selected full-text version per paper. No recursive full-text acquisition from references. At most 10 selected-document acquisition work items; any HTTP retries count against a configured per-source total-request ceiling. | Local hardware only, one active ingestion process and one paper in flight. The measured WSL and GPU capacity above are the outer hardware envelope; P1-08 records the parser/model memory headroom measured on the reviewed pages. |
+| 100-paper pilot | One approved manifest of at most 100 accepted full-text papers, one selected version per paper. No recursive full-text acquisition. At most 100 selected-document acquisition work items; retries count against configured per-source total-request ceilings. | Local hardware only, one active ingestion process and one paper in flight, with resumable progress. Set the numeric storage cap from the 10-paper footprint before scaling, as required by P1-12. |
+
+
+### P1-01 pre-comparison resource recheck (2026-09-24)
+
+Immediately before the ten-paper parser comparison, the host reported 7.6 GiB
+RAM total and 3.7 GiB available. The RTX 3050 Laptop GPU reported 4,096 MiB
+VRAM total and 3,964 MiB free. The project volume on D: had 265 GiB free; the
+Docker data volume on C: had 37 GiB free. The WSL filesystem view had 949 GiB
+free and is not a physical-capacity measure. The ten source PDFs occupy
+11,587,433 bytes (12 MiB on disk); the 19-page standard comparison output was
+1,018,293 bytes. Neither figure is the full 10-paper extraction footprint.
+All external metadata and download traffic must use a configured page budget,
+timeout, retry ceiling, per-source rate limit and total-request ceiling based on
+verified source terms. Those exact per-source values and supported adapters are
+resolved before live requests in P1-04/P1-06. The profile ceilings above bound
+the workload without preselecting a source or parser.
+
 ## P1-02 — Typed contracts and configuration
 
 Introduce typed representations as their first use cases require them:
@@ -116,6 +164,19 @@ configuration that produced them. Exact libraries and field layouts are implemen
 choices, subject to existing architecture and measured needs.
 
 Learning: dataclasses/Pydantic, enums, protocols, validation and serialization.
+
+### P1-02 implementation evidence (2026-09-23)
+
+Discovery, acquisition, chunking, embedding/index and per-stage configurations are
+versioned, strictly validated, serializable and stably hashed. Stage identities define
+downstream invalidation; extracted evidence records its effective configuration and
+source artifact. Code provenance includes HEAD plus a digest of tracked and untracked
+worktree changes. Runner contracts now validate document UUIDs, SHA-256 fingerprints,
+JSON-compatible output/resource mappings, machine-readable failure categories and
+boolean retryability, retry reasons and stage names. Unit coverage includes round
+trips, stable IDs, invalidation, invalid inputs and dirty-worktree identity. Parser
+and model revisions remain OPEN
+values to populate after the human-reviewed pilot, not missing configuration support.
 
 ## P1-03 — Safe schema evolution and persistence
 
@@ -141,6 +202,18 @@ isolated tests. Record material schema decisions through the project change proc
 
 Learning: transactions, constraints, migrations, repositories and resource ownership.
 
+### P1-03 implementation evidence (2026-09-23)
+
+Migrations 001–012 apply atomically and repeatably under a PostgreSQL advisory lock.
+Isolated PostgreSQL tests cover empty-database creation, Phase 0 upgrade, concurrent
+and repeated runners, failed-migration rollback, uniqueness/referential constraints,
+and paper, artifact, evidence, index, job and snapshot repositories. The standalone
+CI migration command applied all 12 migrations to a fresh disposable database.
+A later manifest-export attempt used the default `research` database and applied
+migrations 002–012 there at 10:25 UTC on 2026-09-24. It found no discovery manifest
+in that database and wrote no candidate records. Screening data remains in the
+isolated `research_phase1_review` database.
+
 ## P1-04 — Discovery and explainable candidate selection
 
 Implement configurable OpenAlex queries/filters, pagination, bounded requests,
@@ -165,6 +238,71 @@ and a follow-on improvement path are recorded.
 
 Learning: HTTP clients, pagination, iterators, normalization and deterministic rules.
 
+
+### P1-04 current OpenAlex verification (2026-09-23)
+
+The adapter uses the official Works REST endpoint and the currently documented
+query conventions. OpenAlex's [cursor paging guidance](https://help.openalex.org/api/paging/)
+sets `per_page` to at most 100 and recommends cursor paging beyond the first
+10,000 records; each query is additionally capped by this project's recorded
+page and total-request limits. The official [filter reference](https://help.openalex.org/api/filtering/)
+documents publication-year ranges and comma-combined filters. The official
+[search reference](https://help.openalex.org/api/searching/) states that Works
+search covers title, abstract and full text, and that search requests cost more
+than list/filter calls. The [authentication/rate-limit reference](https://help.openalex.org/api/authentication/)
+currently reports a 100-request/second hard ceiling and a free API key with a
+larger daily budget. Since the current authentication and deprecation pages
+are inconsistent about keyless use, the live adapter conservatively requires an
+API key, sends it in the Authorization header, caps a run at 50 total HTTP
+attempts, and waits at least one second between attempts. Live discovery remains
+outside ordinary CI.
+
+The verified documentation also warns not to use cursor paging to download the
+entire Works dataset. This implementation pages only the configured search
+queries, retains every fetched candidate and query origin, and records when a
+configured page ceiling truncated results. It ranks the review shortlist using
+OpenAlex's per-query result order; it does not automatically include or exclude
+papers. Human decisions and coverage notes are required before manifest approval.
+
+The `manifest report` command measures reviewer inclusion share over the selected
+shortlist, breaks decisions down by query origin and retained selection signals, and
+reports provider/page limits and query truncation. Origin counts can include the same
+paper under more than one query. The report explicitly avoids treating shortlist inclusion share as corpus recall. It is tested against retained synthetic review data.
+
+### P1-04 live discovery and review evidence (2026-09-24)
+
+The bounded OpenAlex run completed in the isolated local `research_phase1_review`
+database using the approved example configuration (configuration ID
+`sha256:6aece0bed0aee0b1071fc4484efe56a733e8466bf7045281440d27ef57b56ac4`).
+It saved 30 pages from three configured queries in 30 request attempts, below the
+50-attempt ceiling, and reported `$0.03` API usage. The [current OpenAlex cost
+reference](https://help.openalex.org/access/example-costs/) lists search calls at
+`$0.001` each and `$1` daily free usage per key; at that rate the configured
+50-attempt ceiling is at most `$0.05` if every attempt is billed as a search. No
+full-text/content requests were made.
+
+The run retained 2,334 unique candidates. Each query reached its 10-page/1,000-result
+limit, so all three queries are marked truncated. Version 1 of the shortlist contains
+114 unique candidates (105 with abstracts and 9 without); query-origin associations
+overlap. On 2026-09-24, the user approved all candidate-level screening choices:
+67 included and 47 excluded, including selective inclusion of directly relevant
+reviews. The decisions and approved coverage assessment were imported into the
+isolated `research_phase1_review` database, and manifest v1 was approved. Hybrid/dense
+retrieval and reranking/latency are marked covered; chunking/citation is marked a gap
+because direct citation-support evidence is limited in the candidate metadata. The
+[approved manifest](../../manifests/phase1-discovery-v1.json),
+[review decisions](../../manifests/phase1-discovery-v1-review.json),
+[screening rationale](../../manifests/phase1-discovery-v1-screening-proposal.md),
+and [review report](../../manifests/phase1-discovery-v1-report.json) are retained.
+The manifest ID is `1d84a2eb-8379-45ee-923b-fd6dd219a103`. All queries were truncated
+at the configured result limit; future selection improvements should add targeted
+query variants and compare their retained candidates against this reviewed set. No
+full-text acquisition has occurred.
+
+#### Supplemental metadata-only discovery (2026-09-24)
+
+Two targeted OpenAlex runs were completed in the isolated review database: citation/chunking and sparse/dense retrieval/reranking latency. Each used 20 requests and cost $0.02; neither made full-text requests. Their 83- and 81-record draft shortlists contain 70 distinct new publications after cross-run and v1 DOI/title deduplication. The [screening proposal](../../manifests/phase1-discovery-expansion-screening-proposal.md) recommends 33 additions, pending user approval. A read-only [source and rights preflight](../../manifests/phase1-discovery-expansion-rights-preflight.md) found source-level CC BY terms for 23 proposed records and 10 records requiring follow-up: two ACM journal versions with unconfirmed item-level terms, one accepted ACM version with a personal/classroom-use notice, one author-hosted CC BY-NC-ND preprint statement, two CC BY-NC-SA alternate versions, three publisher CC BY-NC-ND versions, and RefAI's repository copy. Raw v2/v3 manifests remain undecided drafts, the approved v1 is unchanged, and no new source permission or PDF acquisition has been authorized.
+
 ## P1-05 — Identity, versions and citations
 
 Use reliable identifiers/metadata to associate document versions with one logical
@@ -182,6 +320,56 @@ explicit representations.
 
 Learning: identity versus representation, normalization and referential integrity.
 
+The CLI can now enrich unresolved OpenAlex citation endpoints with bounded,
+per-identifier lookups. Found metadata and not-found outcomes are checkpointed
+separately from `papers`, with the effective configuration and code revision.
+The next invocation skips completed identifiers. Mocked and isolated persistence
+tests cover this path; no live metadata request has been made.
+
+### P1-05 implementation evidence (2026-09-23)
+
+Paper imports from an approved manifest normalize OpenAlex and DOI identifiers,
+persist author links and source-reported document locations/versions, add real
+citation edges when both endpoints are represented, and otherwise retain the
+external work ID as an unresolved citation. Re-import is idempotent and does not
+invent a paper title. The preference helper deterministically favors the latest
+permitted published representation, then an eligible preprint. Unit and isolated
+PostgreSQL integration checks cover these paths. Bounded metadata enrichment is
+implemented and checkpointed; live requests remain unrun.
+
+### P1-05 approved-manifest import (2026-09-24)
+
+Imported approved manifest
+`1d84a2eb-8379-45ee-923b-fd6dd219a103` into collection
+`dd7de0d9-0755-4a34-8d0b-e7d8ab6bce51` in the isolated local
+`research_phase1_review` database. The import created 67 logical papers, linked
+328 distinct authors, recorded 114 OpenAlex source locations as metadata-only,
+and added 49 resolved citation edges. It retained 1,501 unresolved citation
+endpoints across 1,166 distinct target identifiers; no imported paper lacked a
+title. The manifest is approved, but no source PDF was acquired or selected.
+
+Using the exact saved discovery configuration, the first resumable enrichment
+batch checked 50 distinct unresolved targets: 48 returned metadata and 2 were
+not found. Those outcomes are checkpointed separately from `papers`; 1,116
+distinct target identifiers remain eligible for later bounded enrichment. The
+official [OpenAlex example costs](https://help.openalex.org/access/example-costs/)
+lists single-entity lookups by ID as free. The batch used 50 request attempts,
+the configuration's one-second minimum interval, and its 50-attempt ceiling.
+The review database is separate from the Compose `research` database.
+
+
+### P1-05 citation metadata enrichment continuation (2026-09-24)
+
+After the initial 50-target batch, the resumable OpenAlex command processed the
+remaining 1,116 distinct targets in 23 bounded batches, using the same approved
+configuration ID `sha256:6aece0bed0aee0b1071fc4484efe56a733e8466bf7045281440d27ef57b56ac4`.
+Each batch was limited to 50 attempts and retained the configured one-second
+minimum request interval. Across all 1,166 identifiers, 954 returned metadata and
+212 returned not found; no target remains pending. Three recent not-found outcomes
+were independently rechecked and returned HTTP 404. OpenAlex's rate-limit status
+remained at $0.86 daily free balance, confirming singleton metadata requests used
+no additional credits. Citation endpoints remain explicit unresolved records;
+metadata lookup did not create papers or silently resolve citation edges.
 ## P1-06 — Acquisition and artifact storage
 
 Build adapters for explicitly supported download sources. Verify current source
@@ -205,6 +393,61 @@ references protect shared artifacts.
 
 Learning: streaming I/O, hashing, filesystem operations, atomic writes and cleanup.
 
+### P1-06 source and adapter review (updated 2026-09-24)
+
+The official [OpenAlex full-text documentation](https://help.openalex.org/access/fulltext/)
+says its cached PDFs retain their original copyright and OpenAlex grants no
+additional rights. For a specific work, it directs clients to
+`best_oa_location.license`. The [locations documentation](https://help.openalex.org/data/locations/)
+explains that licenses belong to individual hosted copies, while OpenAlex's own
+cached content is exposed separately through `content_urls`. The [license
+vocabulary](https://help.openalex.org/data/licenses/) distinguishes reusable
+licenses from non-commercial, no-derivatives and catch-all labels. Accordingly,
+the adapter checks both `has_content.pdf` and an explicit `best_oa_location.license`,
+accepts only configured `cc-by` or `public-domain` values by default, and still
+requires immutable human-reviewed storage and indexing permission evidence.
+Passage-display eligibility is recorded separately. A PDF flag or URL alone does
+not grant permission. The adapter uses the fixed OpenAlex content host, rejects
+redirects, verifies the PDF response and byte limit, and publishes complete
+checksum-addressed files atomically.
+
+Current [OpenAlex example costs](https://help.openalex.org/access/example-costs/)
+list cached PDF downloads at $10 per 1,000 calls ($0.01 per file) and a free daily
+usage allowance of $1, enough for 100 files at that rate; single-entity metadata
+lookups are free. On 2026-09-24, after the user's approval, ten cached PDFs were acquired under
+recorded permission evidence for local storage and indexing. OpenAlex rate-limit
+status reported $0.96 of free daily usage before the successful batch and $0.86
+afterward; prepaid balance remained $0. An earlier failed local write incurred
+$0.01; total content usage for this set was $0.11. No paid balance was used. The
+ten-document ceiling was enforced.
+
+arXiv's [bulk-access documentation](https://info.arxiv.org/help/bulk_data.html)
+says its default non-exclusive license lets arXiv distribute an article but does
+not let arXiv grant reuse rights to others. It says full-text indexes must link
+back to arXiv and that per-submission license metadata is available through
+OAI-PMH. No direct arXiv adapter is enabled; any future adapter must check the
+individual submission license and access terms.
+
+Implementation evidence: the OpenAlex PDF adapter is mock-tested for explicit
+permission, fixed-host requests, redirect rejection, retry/request/size bounds,
+PDF validation and atomic storage. PostgreSQL integration tests verify immutable
+review evidence and distinct storage, indexing and passage-display flags. The
+OpenAlex content endpoint has now been used for ten approved published versions;
+no arXiv full-text request has been made. Compose mounts the Git-ignored
+`data/artifacts` directory into the API container at `/app/data/artifacts`, matching
+the CLI's default root for host and container operations.
+
+#### Candidate access preflight (2026-09-24)
+
+The imported 67-paper manifest metadata reports an OpenAlex cached PDF for 42
+works. The best OA license is `cc-by` for 33, `other-oa` for 2, `cc-by-nc-nd`
+for 3, `cc-by-nc` for 2, and missing for 27. Twenty-eight works have both a
+reported cached PDF and a license in the adapter's configured allowlist; all 28
+are CC BY in this snapshot. Of 114 source locations, 61 have an explicit license
+and 53 do not. These were metadata prefilters only: they did not establish per-document
+permission or authorize acquisition. P1-07 records the later user approval and
+the per-paper metadata and permission checks for the selected ten.
+
 ## P1-07 — Ten-paper reference set
 
 Select representative papers across the agreed questions and difficult layouts.
@@ -212,14 +455,44 @@ Prepare human-verified samples from every paper before comparing approaches.
 Include section/read-order samples, ordinary tables, merged headers, tables spanning
 pages, numeric values and header associations, captions, units, footnotes and locations.
 
-The assistant may help draft the annotation format/checking instructions; the user
-verifies selected evidence against PDFs. Version the sampling rules, annotations
-and corrections. Use permitted fixtures and keep restricted full text outside Git.
+The assistant may prepare annotation files and comparison reports; a human must
+verify selected evidence directly against the PDFs. Version the sampling rules,
+annotations and corrections. Keep restricted full text outside Git.
 
 Completion evidence: a versioned reference set with explicit checked coverage and
 expected results independent of parser outputs. Record sample counts and limitations;
-this is not a claim of exhaustive checking of every page/cell.
+this is not a claim of exhaustive checking of every page or cell.
 
+The [ten-paper proposal](../../manifests/phase1-discovery-v1-pdf-reference-proposal.md)
+selects approved-manifest records whose imported metadata reported a cached PDF,
+a CC BY best-open-access license and a published version. The user approved the
+exact sample for local storage and indexing on 2026-09-24; public passage display
+remains disabled. Immediately before each content request, all ten works still
+reported cached PDFs, CC BY licenses and published-version records. The ten PDFs
+were acquired into Git-ignored data/artifacts, totaling 11,587,433 bytes.
+Checksums and immutable permission evidence are recorded in the
+[acquisition inventory](../../manifests/phase1-discovery-v1-pdf-acquisition.json).
+The free daily balance fell from $0.96 to $0.86, with no prepaid balance used.
+An earlier failed storage attempt cost $0.01 but left no file; total Phase 1
+content usage was $0.11. After the reviewer flagged a metric-label mismatch in
+W4410600121, I corrected the local review packet: the Naive RAG / SQuAD row maps
+0.736 to K-Precision, 0.945 to FS and 0.666 to ARS. On 2026-09-24 the user
+confirmed that all ten sampled prose passages and table evidence, including
+their PDF locations, match the local PDFs. The correction is accepted and all
+ten annotations record the explicit confirmation. The [local review packet](../../local-reference/phase1-discovery-v1/review-draft.md)
+and [compact review index](../../manifests/phase1-discovery-v1-pdf-review.md)
+retain the user-confirmed outcome. This verifies the selected samples, not every
+page or cell in the ten papers.
+
+#### P1-07 local PDF title and location check (2026-09-24)
+
+The user confirmed that the saved PDF titles match the approved papers and updated
+the page locators in the [review index](../../manifests/phase1-discovery-v1-pdf-review.md)
+after checking the local files. I prepared a short draft prose/table sample for each
+paper in the ignored local-reference directory. Following the W4410600121 label
+correction, the user confirmed that all ten prose/table samples and their locations
+match the PDFs. This completes P1-07 and opens P1-08. The resulting reference set
+is limited to these ten short samples and is not an exhaustive page/cell audit.
 Learning: reference data, annotation consistency, sampling and evaluation bias.
 
 ## P1-08 — Extraction comparison and decision
@@ -235,15 +508,55 @@ and failure/recovery behavior. Preserve figures/captions/equation regions where
 available, assess interpretation capability, and explicitly decide its phase scope.
 
 Record a justified pipeline or combination/fallback decision. Do not assume a
-model fits the laptop or that structured output guarantees accuracy. If candidates
-fail quality/resource needs, investigate and return the scope tradeoff to the user.
-Set numerical acceptance criteria after this assessment and before judging the
-100-paper run; record their definitions, denominators and checked sample.
+model fits the laptop or that structured output guarantees accuracy. Set numerical
+acceptance criteria after this assessment and before judging the 100-paper run;
+record their definitions, denominators and checked sample.
 
 Completion evidence: comparison artifacts, reproducible commands/configurations,
 resource measurements, accepted extraction decision and quality thresholds.
 
 Learning: adapters, controlled experiments, measurement and error analysis.
+
+### P1-08 comparison and decision evidence (2026-09-24)
+
+The user confirmed all ten independent prose/table reference samples and their PDF
+locations. The comparison then processed only the 19 annotated pages from those ten
+PDFs (280 PDF pages total). Both Docling pipelines completed all 19 pages without
+conversion errors. Docling standard achieved 100% ordered-token coverage over the
+annotated prose, 100% page provenance over 366 located elements and 98% mean
+caption coverage. It found 57 of 66 annotated numeric values (86.4% weighted).
+Granite-Docling achieved the same prose and page-location scores, 88% mean caption
+coverage and 60/66 numeric values (90.9% weighted), but took 908.855 seconds versus
+30.437 seconds. The local standard run peaked at 2,937,028,608 bytes process RSS
+and 1,868,562,432 bytes CUDA reserved; VLM peaked at 2,317,397,616 bytes RSS and
+1,023,410,176 bytes CUDA reserved.
+
+W4404782883 is the material failure case. The standard pipeline preserved a 26×8
+table with two header rows and marked 30 cells as column headers, but found only
+3/12 selected numeric values. VLM found 11/12, but returned a 25×11 grid with no
+header-marked cells. Its different grid and missing header relationships make an
+automatic cell merge unsafe. The standard extractor is selected as the automatic
+pilot parser; VLM output is diagnostic only for tables meeting the measured
+sparse/multi-header rule. All such tables need human review before verified use.
+The heuristic (at least two consecutive column-header rows and at least 20% blank
+grid positions) flagged one of ten reference tables. It is a pilot heuristic, not
+a guarantee of defect detection.
+
+Numerical acceptance thresholds and their denominators are in the
+[comparison report](../reference/phase-1-extraction-comparison.md). Plot/chart
+interpretation is out of Phase 1 scope. Preserve available figure captions,
+formula/equation text and source locations; keep the permitted PDF as the image
+source. Accuracy for figure/equation regions was not measured because the
+human-labeled samples do not include expected outputs for those regions. The
+reviewed tables are each on one page, so multi-page table behavior remains an
+explicit coverage gap.
+
+The runnable adapter pins Docling 2.130.0 and the selected model revisions,
+records resolved pipeline options/dependency versions/OCR weight hashes, and was
+translated against all 19 standard-pipeline page outputs into 292 source-located
+text blocks and 11 source-located tables. The comparison report, implementation
+decision and consequences are recorded in
+[ADR-0004](../adr/0004-phase1-pdf-extraction.md).
 
 ## P1-09 — Evidence normalization and chunking
 
@@ -334,6 +647,75 @@ respects resource limits, and cleanup preserves shared/retained evidence.
 
 Learning: structured observability, accounting, retention and operational diagnostics.
 
+### Initial component-level P1-09 through P1-12 evidence (2026-09-23)
+
+This section records the component implementation before the full ten-paper run;
+the measured workflow outcome is recorded in the subsequent pilot report.
+
+The local contracts preserve PDF page indices separately from printed labels,
+normalized bounding boxes, section text, table cells/header references, units,
+footnotes and deterministic text/table-row-group identities. Extraction output
+is stored transactionally against its effective configuration and exact reviewed
+source artifact. Replaying identical output is idempotent; changed output under the
+same configuration is rejected.
+
+Qdrant uses a versioned model-neutral configuration. The embedding adapter receives
+bounded text batches; model name/revision, preprocessing revision, vector dimensions,
+distance and collection identity are recorded. A collection is assigned to one
+embedding configuration. Rebuild removes only the target snapshot's points, then
+reconciles exact evidence IDs and counts against PostgreSQL. Permission checks use
+the same artifact association recorded by extraction. No embedding model has been
+selected or loaded.
+
+The adapter-neutral runner records one active lease, stage attempts, output fingerprints,
+resource measurements and machine-readable failure categories. Free-form exception
+text is omitted from persisted error summaries so parser messages cannot leak source
+passages or credentials; the runner exposes only a category-only failure, including
+when it is cancelled with a caller-supplied message. Live persistence tests verify
+these paths. It skips matching completed stages,
+continues after paper-specific failures, stops on shared failures, renews active leases,
+and records cancellation as a retryable failed attempt. Targeted retries name both the
+document and starting stage and persist the operator's reason. Stale leases close running
+attempts as retryable and can be claimed again. Snapshot inspection lists selected
+versions, statuses, permission flags and evidence counts without exposing source text.
+Validation requires the reviewed source-artifact permission, usable extraction/chunks,
+a ready index and matching PostgreSQL/Qdrant evidence-ID fingerprints before finalization.
+Finalized membership and snapshot metadata are database-immutable. CLI operations expose
+snapshot inspection/validation/finalization, job status, index inspection, storage
+inspection, cleanup preview and explicit age-bounded cleanup. Cleanup blocks while a job
+is active, preserves referenced artifacts and retries safely after interrupted deletion.
+The local `snapshots evidence` command previews evidence from draft snapshots only; it
+filters by exact source-artifact storage permission and bounds text and table output.
+End-to-end `jobs start/resume`, targeted retry and `index rebuild` CLI commands await
+stage wiring to the selected parser and embedding adapter; the adapter-neutral runner
+and rebuild library remain available and tested.
+
+The artifact store serializes writers per store instance, publishes PDFs atomically,
+reports physical/configured capacity, and lists unregistered or unreferenced files
+without deleting them. The ten source PDFs use 11,587,433 bytes.
+
+### P1-09 through P1-12 full ten-paper pilot evidence (2026-09-24)
+
+The approved draft snapshot processed ten papers with no failures. The run persisted
+5,944 sections, 113 tables, 15,627 evidence units and 9,683 chunks. Nine flagged
+tables across five papers still require manual PDF checks; the snapshot remains a
+draft. The [pilot report](../reference/phase-1-full-extraction-pilot.md) records
+each flagged paper, extraction ID and zero-based table ordinal.
+
+The reversible E5-small-v2 configuration embedded all 9,683 chunks in 606 batches.
+PostgreSQL and Qdrant reconciled the same count, which remained intact after the
+full live integration test suite. This verifies local indexing and rebuild, not
+retrieval quality; the final model choice stays open for Phase 2.
+
+The source-artifact store contains 11,587,433 bytes against the configured
+2,147,483,648-byte cap. Retain this 2 GiB hard cap for the 100-paper pilot: the
+simple tenfold source-size projection is about 115.9 MB, or 18.5 times below the
+cap. The estimate is based on ten papers and does not guarantee a later corpus will
+fit. New acquisition stops at the limit. Disposable-artifact retention remains
+open. Summed `pg_column_size` across selected evidence rows is 29,227,416 bytes;
+this excludes indexes, WAL and database overhead. Per-paper processing summed to
+845.403 seconds, and the processor high-water RSS was 5,099,646,976 bytes.
+
 ## P1-13 — Verification suite and CI
 
 Build tests alongside each behavior. Use small synthetic/permitted fixtures,
@@ -358,6 +740,22 @@ actual completed revision, retaining GPU/network-heavy benchmarks as separate ev
 
 Completion evidence: relevant cases pass in the documented small profile and hosted
 CI, with reference/model evaluation results linked independently.
+
+### P1-13 current local verification (2026-09-24)
+
+The full suite passed on tested implementation snapshot
+`d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc+dirty.sha256:e77d6fd89651a89d0fbeba64335a84a54295b40eee5cd17881e387114e9cae10`:
+**162 passed in 4.42 seconds**, including all 15 live PostgreSQL/Qdrant integration
+checks. The disposable `research_test` database was dropped after the run; the
+persistent `research` and `research_phase1_review` databases were left in place.
+The approved Phase 1 collection remained present with 9,683 points after tests.
+
+Current-worktree checks also passed: `ruff check .`, `ruff format --check .`
+(87 files), strict mypy (37 source files), `pip check`, and
+`pip-audit --skip-editable` (no known vulnerabilities; the two editable local
+distributions were excluded by the command). A `linux/amd64` Docker image build
+passed; its temporary verification tag was removed after the build. Hosted CI has
+not run on this uncommitted worktree, so P1-13 remains in progress.
 
 ## P1-14 — Hundred-paper acceptance and documentation
 

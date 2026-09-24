@@ -32,9 +32,12 @@ services:
       RESEARCH_PLATFORM_LOG_LEVEL: ${RESEARCH_PLATFORM_LOG_LEVEL:-INFO}
       RESEARCH_PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-research}:${POSTGRES_PASSWORD:-research}@postgres:5432/${POSTGRES_DB:-research}
       RESEARCH_PLATFORM_QDRANT_URL: http://qdrant:6333
+      OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
       RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS: ${RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS:-2}
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./data/artifacts:/app/data/artifacts
     depends_on:
       postgres:
         condition: service_healthy

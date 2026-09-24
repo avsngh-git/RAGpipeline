@@ -150,6 +150,7 @@ activemq-data/
 # Environments
 .env
 .envrc
+.env.example
 .venv
 env/
 venv/
@@ -216,3 +217,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated scientific corpora and local model/index artifacts.
+/data/artifacts/
+/data/reference/
+/local-reference/
+/data/models/
+/data/qdrant/

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "collection_name": "phase1-e5-small-v2",
+  "embedding_model": "intfloat/e5-small-v2",
+  "embedding_revision": "e8b23a92af33fd81c865283d505f8f058a570cc8",
+  "preprocessing_revision": "e5-small-v2:passage-prefix:mean-mask:l2-normalize:v1",
+  "vector_size": 384,
+  "distance": "Cosine",
+  "batch_size": 16,
+  "maximum_input_tokens": 512
+}

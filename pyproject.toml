@@ -13,6 +13,29 @@ dependencies = [
     "uvicorn",
 ]
 
+[project.optional-dependencies]
+pdf = [
+    "docling==2.130.0",
+    "docling-core==2.98.0",
+    "docling-ibm-models==4.0.3",
+    "docling-parse==7.21.0",
+    "rapidocr==3.9.2",
+]
+embeddings = [
+    "sentence-transformers==6.1.0",
+]
+pdf-vlm = [
+    "docling[vlm]==2.130.0",
+    "docling-core==2.98.0",
+    "docling-ibm-models==4.0.3",
+    "docling-parse==7.21.0",
+    "rapidocr==3.9.2",
+    "transformers==5.17.0",
+]
+
+[project.scripts]
+research-ingest = "research_platform.ingestion.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

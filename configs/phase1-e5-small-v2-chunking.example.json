@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "maximum_text_tokens": 480,
+  "overlapping_text_tokens": 64,
+  "maximum_table_rows_per_group": 6
+}

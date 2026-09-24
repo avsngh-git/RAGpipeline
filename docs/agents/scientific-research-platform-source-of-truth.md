@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative  
-**Version:** 1.3\
-**Last updated:** 2026-09-23\
+**Version:** 1.6\
+**Last updated:** 2026-09-24\
 **Audience:** Human contributors and coding agents  
-**Project stage:** Phase 0 audit fixes implemented and locally verified; hosted CI on the fixed revision pending\
+**Project stage:** Phase 0 gate passed on the fixed revision; Phase 1 implementation is in progress under the user’s explicit delegation\
 
 ---
 
@@ -414,7 +414,7 @@ records finalization and quality acceptance.
 - **Identity:** one logical paper with separately identifiable document versions. Prefer the published version, falling back to an eligible preprint. Index one selected version per paper in a snapshot and label the actual evidence source. Link versions only with reliable identifiers or metadata; leave uncertain matches separate.
 - **Citation collection:** retain real citation edges and unresolved external identifiers before complete metadata is available; enrich through bounded metadata requests without inventing missing titles. Do not recursively acquire referenced full text. Related papers are candidates for later selection.
 - **Evidence:** text and structured tables are required. Preserve table headers, values, captions, units, footnotes and source references. Split large tables into row groups with relevant headers repeated; respect section boundaries for text. Table-heavy papers MUST be supported rather than excluded because of their format. Actual extraction failures remain visible and require investigation or reprocessing.
-- **Extraction choice:** compare structured document conversion with local vision-model extraction on the 10-paper reference set. Prepare human-verified expected results before comparison. Measure quality, provenance, runtime, memory and storage. Exact tools/models and thresholds remain OPEN pending the assessment. Preserve figures, captions and equation regions where available; decide plot/equation interpretation scope after the pilot assessment.
+- **Extraction choice:** the 2026-09-24 comparison selected Docling StandardPdfPipeline as the automatic Phase 1 parser and a pinned local Granite-Docling VLM as a review-only aid for sparse multi-header tables. Do not automatically merge VLM table cells because the reviewed fallback candidate lacked header markers and used a different grid shape. Record parser, model, package and effective configuration versions. The [comparison report](../reference/phase-1-extraction-comparison.md) and [ADR-0004](../adr/0004-phase1-pdf-extraction.md) define the pilot strategy and numerical acceptance thresholds. Keep the original PDF as the source for visual inspection; preserve extracted figure captions and formula text, but do not interpret figure pixels or generate chart summaries in Phase 1.
 - **Execution:** manually trigger versioned snapshots through terminal start/status/resume operations over reusable application services and persisted job state. Processing stops when the process stops; saved progress permits resumption. Allow one active ingestion process initially with concurrent-start protection and explicit crash recovery; bounded download concurrency and controlled extraction/embedding batches remain possible. API-controlled background scheduling is deferred, not removed from the eventual API contract.
 - **Failures:** continue unaffected papers after paper-specific failures, recording stage and reason for targeted retries. Pause for shared failures such as database unavailability or storage exhaustion. Mark successful ingestion only after evidence/index integrity checks; failed and metadata-only records do not count toward the full-text target.
 - **Storage:** retain unique originals once, compress extraction outputs, share artifacts across collections and promptly clean temporary files. Store artifacts outside Git and metadata, checksums, versions and job state in PostgreSQL. Retain additional versions only when retained snapshots or research runs require them; do not silently replace or delete their evidence. Keep Qdrant rebuildable. Measure usage on 10 papers and set a configurable storage cap before scaling.
@@ -423,9 +423,14 @@ records finalization and quality acceptance.
 - **Quality failures:** unresolved extraction failures, including a results-table validation failure, prevent a paper from counting as successfully ingested. Preserve intermediate outputs for alternative extraction or reviewed correction with provenance. Exclusions and replacements MUST be explicit selection decisions, never silent quality filtering.
 - **Verification scope:** prepare human-verified text/table samples from every paper in the 10-paper comparison before evaluating approaches. For the 100-paper pilot, run automated integrity checks across all papers and a documented manual quality sample. Report sampling and coverage without implying exhaustive cell-level review.
 
-Chunk sizes, initial embedding model, numerical quality thresholds, retention
-periods and storage limits are selected from pilot evidence and recorded in
-versioned configuration. Automated refresh remains deferred.
+Chunk-size/token-overlap baselines remain OPEN pending later corpus and retrieval
+evaluation. The ten-paper indexing pilot uses reversible E5-small-v2 settings;
+the final embedding choice remains OPEN for Phase 2. The measured ten-paper
+source-artifact footprint is 11,587,433 bytes, and the 2 GiB hard acquisition cap
+is retained for the 100-paper pilot with an explicit tenfold-size projection in
+the [pilot report](../reference/phase-1-full-extraction-pilot.md). Disposable
+retention periods remain OPEN. Extraction quality thresholds are in the P1-08
+comparison report. Automated refresh remains deferred.
 
 ---
 
@@ -996,12 +1001,16 @@ MCP and polish are deliberately later than the core retrieval and service founda
 
 ### Phase 0 — Repository and contracts
 
-Status as of 2026-09-23: foundations and completion-audit fixes are implemented;
-Ruff, mypy, unit/API tests, disposable-service integration tests, and a locked
-Docker build passed locally. Hosted CI on the fixed revision remains the final
-gate. See the [completion audit](../reviews/phase-0-audit-2026-09-23.md) and
-[learning handoff](../plans/phase-0-learning-handoff.md). This status update
-records evidence; it does not relax the requirements below.
+Status as of 2026-09-23: foundations and completion-audit fixes passed local
+verification and hosted [CI run 35852371358](https://github.com/avsngh-git/RAGpipeline/actions/runs/35852371358)
+on revision `d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc`. See the [completion
+audit](../reviews/phase-0-audit-2026-09-23.md) and [learning handoff](../plans/phase-0-learning-handoff.md).
+This status update records evidence; it does not relax the requirements below.
+
+The Phase 1 indexing pilot uses the reversible `intfloat/e5-small-v2`
+configuration recorded in [ADR-0005](../adr/0005-phase1-embedding-pilot.md).
+This hardware-feasibility result does not close the final embedding-model choice;
+that remains open pending Phase 2 retrieval-quality evaluation.
 
 Deliver:
 
@@ -1017,8 +1026,61 @@ Gate: clean checkout can run tests and start baseline services from documented c
 ### Phase 1 — Corpus and ingestion
 
 Approved execution plan: [Phase 1 corpus ingestion](../plans/phase-1-corpus-ingestion.md).
-Phase 0 foundations are prerequisites; plan approval does not satisfy their gate.
+Phase 0 foundations and hosted CI gate are complete. As of 2026-09-24,
+P1-02 through P1-12 are complete for the approved ten-paper workflow. Local
+P1-13 verification passes; hosted CI remains. A metadata-only expansion proposal
+recommends 33 additions to the approved 67-paper v1 manifest; user approval is
+pending. P1-14 is gated on an approved 100-paper manifest, full-text permissions
+and the resumable acceptance run. The
+currently approved discovery manifest contains 67 included papers and only ten
+PDFs have local storage/indexing approval.
 
+P1-04 completed bounded live discovery and an approved version 1 manifest with
+67 included and 47 excluded candidates. The user approved candidate decisions and
+coverage statuses. P1-05 imported the 67-paper manifest into the isolated
+research_phase1_review database: 328 distinct authors, 114 source locations,
+49 resolved citation edges and 1,501 unresolved citation endpoints across 1,166
+targets. Metadata outcomes are now recorded for all 1,166 distinct OpenAlex
+reference targets: 954 returned metadata and 212 were not found. The unresolved
+citation endpoints remain preserved until identity resolution; no papers were
+fabricated. P1-06 reviewed OpenAlex and arXiv access terms and implemented the
+permission-gated adapter and artifact controls.
+
+Two supplemental metadata-only OpenAlex runs completed on 2026-09-24 in the
+isolated review database, with 20 requests and $0.02 cost per run. They yielded
+70 distinct new publications after DOI/title deduplication. The [screening
+proposal](../../manifests/phase1-discovery-expansion-screening-proposal.md)
+recommends 33 additions to reach 100 screened records and awaits user approval.
+The approved v1 manifest is unchanged; the expansion made no full-text requests
+and grants no new storage/indexing permissions.
+
+On 2026-09-24, the user approved the ten-paper reference sample for local storage
+and indexing, with public passage display disabled. Immediately before each
+request, all ten works reported a cached PDF, a CC BY best-OA license and a
+published version. Ten PDFs totaling 11,587,433 bytes were acquired into
+Git-ignored data/artifacts, with checksums and permission evidence in the
+[acquisition inventory](../../manifests/phase1-discovery-v1-pdf-acquisition.json).
+An early failed storage attempt cost $0.01 and retained no file; the ten successful
+requests cost $0.10. OpenAlex reported $0.86 of free daily usage remaining and no
+prepaid balance; no paid balance was used. The user confirmed all ten sampled
+prose passages, locations, captions and selected table values. P1-07 is complete.
+P1-08 compared the two pinned Docling candidates and selected the standard pipeline
+with review-only VLM output for flagged tables; see the
+[comparison report](../reference/phase-1-extraction-comparison.md).
+
+The approved ten-paper draft was processed on 2026-09-24. All ten extraction
+attempts completed, producing 5,944 sections, 113 tables, 15,627 evidence units
+and 9,683 searchable chunks. Nine flagged tables across five papers remain for
+manual PDF review, so the snapshot remains a draft. The reversible E5-small-v2
+configuration indexed all 9,683 chunks, and PostgreSQL/Qdrant counts reconciled.
+The full extraction, index, storage and verification evidence is in the
+[ten-paper pilot report](../reference/phase-1-full-extraction-pilot.md). This
+result does not complete the 100-paper Phase 1 acceptance gate or close the final
+embedding-model decision.
+
+An export attempt on 2026-09-24 applied migrations 002–012 to the default research
+database; it found no discovery manifest or candidate rows there. The reviewed
+manifest and acquired sample remain in research_phase1_review.
 Deliver:
 
 - OpenAlex metadata ingestion;
@@ -1148,7 +1210,9 @@ Resolve these progressively; do not decide all of them before evidence is availa
 1. Expansion beyond the initial RAG/retrieval/reranking collection into broader ML research; initial boundaries are fixed in Section 8.6.
 2. Exact supported full-text adapters and per-source permission/access verification under the agreed policy.
 3. Lexical retrieval implementation.
-4. Embedding model shortlist and benchmark.
+4. Final embedding-model choice after Phase 2 retrieval-quality evaluation;
+   the current E5-small-v2 configuration is a reversible Phase 1 pilot choice
+   recorded in ADR-0005.
 5. Reranker shortlist and benchmark.
 6. Tool-capable local generator shortlist, quantization, and serving backend.
 7. Chunk-size/token-overlap baseline after corpus analysis.
@@ -1156,11 +1220,11 @@ Resolve these progressively; do not decide all of them before evidence is availa
 9. Authentication and caching implementations.
 10. Production hosting target and cost envelope.
 11. Thin UI choice.
-12. Numeric quality/latency regression thresholds after baselines exist.
+12. General retrieval, reranking and end-to-end quality/latency regression thresholds after those baselines exist.
 13. Exact remote MCP SDK/transport version at implementation time.
-14. Extraction pipeline and local vision-model selection, and plot/equation interpretation scope after the pilot assessment.
-15. Numerical extraction thresholds, storage cap and retention periods based on pilot measurements.
-16. Advanced corpus-selection methods and expansion criteria beyond the required explainable shortlist and reviewed pilot manifests.
+14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was
+    retained after measuring the complete ten-paper source-artifact footprint.
+15. Advanced corpus-selection methods and expansion criteria beyond the required explainable shortlist and reviewed pilot manifests.
 
 Each resolution SHOULD be captured in an ADR or an explicit update here.
 

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "queries": [
+    "hybrid retrieval retrieval augmented generation",
+    "reranking retrieval augmented generation",
+    "chunking retrieval augmented generation"
+  ],
+  "year_range": {
+    "start_year": 2020,
+    "end_year": 2026
+  },
+  "language": "en",
+  "older_paper_exceptions": [],
+  "limits": {
+    "per_page": 100,
+    "max_pages_per_query": 10,
+    "max_total_requests": 50,
+    "max_retries": 2,
+    "timeout_seconds": 15.0,
+    "minimum_request_interval_seconds": 1.0
+  }
+}

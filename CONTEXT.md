@@ -41,4 +41,13 @@ configuration, accepted for normal research use.
 
 **Unresolved citation reference**:
 A known external paper identifier at the end of a citation relationship whose
-full paper metadata has not yet been established.
+corresponding local paper record has not yet been established. Retrieved metadata
+may be retained without creating a local paper record.
+
+
+**Original artifact**:
+The exact file bytes obtained from a source, identified by their content checksum.
+Multiple document versions may refer to the same original artifact.
+
+**Permission evidence**:
+A reviewed record of the source, applicable license and separate decisions for storing, indexing and displaying passages from a document version.

@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "manifest": {
+    "id": "917bcd07-248c-4a1e-8636-10de250c3842",
+    "run_id": "969d32c5-0023-41ed-9e92-54c83772bf15",
+    "version": 2,
+    "status": "draft",
+    "discovery_configuration_id": "sha256:6ca3af56a09e4ec7091fc63303412cc624962832df083ef588ca92dc7fc76043",
+    "code_revision": "d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc+dirty.sha256:268ce53abdd2a0ea0c0803bc46aba3b25e8b0321c9acf589f63cdd991e51a5cf"
+  },
+  "discovery": {
+    "status": "completed",
+    "request_attempts": 20,
+    "request_limit": 20,
+    "unique_discovered_candidates": 1800,
+    "api_cost_usd": 0.02,
+    "maximum_pages_per_query": 10,
+    "queries": [
+      {
+        "query_index": 0,
+        "query": "retrieval augmented generation citation support evaluation",
+        "source_kind": "search",
+        "pages_fetched": 10,
+        "provider_result_count": 1000,
+        "truncated_at_page_limit": true,
+        "shortlist_candidate_origins": 50,
+        "reviewed_candidate_origins": 0,
+        "included_candidate_origins": 0,
+        "excluded_candidate_origins": 0,
+        "undecided_candidate_origins": 50,
+        "reviewer_inclusion_share": null
+      },
+      {
+        "query_index": 1,
+        "query": "retrieval augmented generation chunking benchmark",
+        "source_kind": "search",
+        "pages_fetched": 10,
+        "provider_result_count": 1000,
+        "truncated_at_page_limit": true,
+        "shortlist_candidate_origins": 56,
+        "reviewed_candidate_origins": 0,
+        "included_candidate_origins": 0,
+        "excluded_candidate_origins": 0,
+        "undecided_candidate_origins": 56,
+        "reviewer_inclusion_share": null
+      }
+    ],
+    "truncated_queries": [
+      "retrieval augmented generation citation support evaluation",
+      "retrieval augmented generation chunking benchmark"
+    ]
+  },
+  "review_yield": {
+    "candidate_count": 83,
+    "included": 0,
+    "excluded": 0,
+    "undecided": 83,
+    "reviewed": 0,
+    "reviewer_inclusion_share": null,
+    "interpretation": "Share of reviewed shortlist candidates retained by the reviewer; this is not corpus recall."
+  },
+  "coverage_review": [],
+  "review_decisions_by_selection_signal": {
+    "older_paper_exception": {
+      "true": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 0
+      },
+      "false": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 83
+      },
+      "unknown": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 0
+      }
+    },
+    "publication_year_in_range": {
+      "true": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 83
+      },
+      "false": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 0
+      },
+      "unknown": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 0
+      }
+    },
+    "language_matches": {
+      "true": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 83
+      },
+      "false": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 0
+      },
+      "unknown": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 0
+      }
+    },
+    "has_abstract": {
+      "true": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 81
+      },
+      "false": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 2
+      },
+      "unknown": {
+        "include": 0,
+        "exclude": 0,
+        "undecided": 0
+      }
+    }
+  },
+  "candidate_metadata_distribution": {
+    "publication_year": {
+      "2020": 1,
+      "2021": 1,
+      "2022": 6,
+      "2023": 15,
+      "2024": 33,
+      "2025": 25,
+      "2026": 2
+    },
+    "work_type": {
+      "article": 33,
+      "conference-paper": 30,
+      "preprint": 14,
+      "review": 6
+    },
+    "missing_fields": {}
+  },
+  "limitations": [
+    "The reviewer inclusion share describes only this reviewed shortlist; it does not estimate recall over all OpenAlex works.",
+    "Per-query origin counts can count one paper more than once when it matched multiple queries.",
+    "The shortlist is bounded by configured page and request limits; truncated queries are listed above.",
+    "Coverage statuses and inclusion/exclusion decisions are human judgments, not independent labels."
+  ]
+}
