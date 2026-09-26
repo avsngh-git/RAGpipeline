@@ -130,6 +130,16 @@ Preserve the user's existing worktree and publication workflow.
   `pytest -m 'not integration'` reports 219 passed / 19 deselected. P2-05 remains in
   progress; continue with source matching in 05.2.
 
+- **P2-05.2 complete:** `source_alignment.py` loads the coordinate manifest pinned to
+  calibration and snapshot; `matching.py` checks canonical text spans and table cells,
+  unions duplicate/overlapping coverage, and validates hit lineage. Policy
+  `source-match-policy-v1` freezes 80% ordinary-span and 100% critical-span coverage,
+  plus full mapped-cell/header coverage for a full table match. Eight positive table
+  anchors are aligned (942 target cells); there are no positive prose anchors in this
+  calibration. Details and limitations are recorded in
+  `docs/reference/phase-2-source-matching.md`. Ruff and mypy were unavailable in this
+  shell; runtime tests have not yet been run. Continue with P2-05.3 scoring.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -141,8 +151,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-05.2. Implement source matching from returned search units to
-canonical prose/table evidence. Keep private source excerpts under ignored
-local-reference storage. ADR-0009 records exact selection and lineage; the P2-01 entry
-check records resource measurements, migration/restore evidence and local artifact
-paths.
+**Next step:** P2-05.3. Implement scoring over judged paper and evidence results,
+using the versioned P2-05.2 source-matching policy. Keep private source excerpts under
+ignored local-reference storage. ADR-0009 records exact selection and lineage; the
+P2-01 entry check records resource measurements, migration/restore evidence and local
+artifact paths.

@@ -285,8 +285,21 @@ family assignment, reviewer status, labels, cross-references, and non-empty evid
 requirement groups. Eleven focused cases cover invalid IDs/references, split overlap,
 invalid filters, unreviewed records and unsupported-family constraints. Verification:
 `ruff check .`, `ruff format --check .`, and `mypy` pass; `pytest -m 'not integration'`
-reports 219 passed / 19 deselected. No source excerpts are included. Next: **05.2
-source matching**.
+reports 219 passed / 19 deselected. No source excerpts are included.
+
+**05.2 complete 2026-09-26:** `source_alignment.py` strictly loads a versioned
+coordinate map pinned to the calibration and accepted snapshot. `matching.py` resolves
+hit provenance to prose spans or table cells, unions overlap, checks document and
+extraction lineage, and reports partial and full support. `source-alignment-v1.toml`
+records all eight positive table anchors (942 target cells) without source excerpts.
+Policy v1 requires 80% coverage per ordinary prose span, 100% for critical spans, and
+complete mapped cell plus header coverage for a fully supported table anchor. Seven
+tables require caption context; the semantic-chunking Table 10 alignment omits the
+accepted extraction's stale caption. No units or footnotes are present in the aligned
+tables; the current calibration has no direct-positive prose anchors. Python AST and
+TOML parsing and `git diff --check` passed; a metadata-only accepted-snapshot query
+confirmed the table context flags. `ruff` and `mypy` are unavailable in this shell; the
+P2-05.5 runtime test work remains pending. Next: **05.3 scoring**.
 
 1. **05.1 Define loaders.** Validate query families, filters, split, judgments,
    source anchors and reviewer status. Reject duplicate IDs, invalid cross-references,
