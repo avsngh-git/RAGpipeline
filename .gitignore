@@ -235,3 +235,6 @@ __marimo__/
 
 # Windows download metadata sidecars are not project source.
 *:Zone.Identifier
+
+# Local documentation folder.
+/docs/
