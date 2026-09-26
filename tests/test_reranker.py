@@ -4,13 +4,18 @@ import asyncio
 import math
 import threading
 import time
+from dataclasses import replace
 from uuid import UUID
 
 import pytest
 
 from research_platform.ingestion.evidence import SourceLocation
 from research_platform.ingestion.snapshot_selection import SnapshotSelection
-from research_platform.search.contracts import ComponentScores, EvidenceHit
+from research_platform.search.contracts import (
+    ComponentScores,
+    EvidenceHit,
+    RankedComponent,
+)
 from research_platform.search.profiles import (
     CandidateLimits,
     DenseIndexIdentity,
@@ -29,6 +34,10 @@ from research_platform.search.reranker import (
     RerankerProfileMismatch,
 )
 from research_platform.search.reranker_pairs import RerankerPairBudgetExceeded
+from research_platform.search.reranker_results import (
+    RerankerProvenanceError,
+    apply_reranker_scores,
+)
 
 SNAPSHOT_ID = UUID("4b11fab3-d4a5-4e7a-a58e-8654accf2c6c")
 SNAPSHOT_CONFIG_ID = "sha256:" + "a" * 64
@@ -116,7 +125,9 @@ def _hit(rank: int, number: int, text: str | None = None) -> EvidenceHit:
         kind="text",
         source_location=SourceLocation(page_index_zero_based=rank),
         rank=rank,
-        component_scores=ComponentScores(),
+        component_scores=ComponentScores(
+            fusion=RankedComponent(rank=rank, score=1.0 / (60 + rank))
+        ),
         text=text or f"evidence {number}",
     )
 
@@ -269,3 +280,108 @@ def test_empty_pool_returns_empty_without_invoking_the_model() -> None:
     finally:
         adapter.close()
     assert scorer.calls == []
+
+
+def test_apply_reranker_scores_retains_all_prior_component_provenance() -> None:
+    first = replace(
+        _hit(3, 3),
+        component_scores=ComponentScores(
+            lexical=RankedComponent(rank=2, score=4.25),
+            dense=RankedComponent(rank=1, score=0.875),
+            fusion=RankedComponent(rank=3, score=0.032),
+        ),
+    )
+    second = replace(
+        _hit(1, 1),
+        component_scores=ComponentScores(
+            lexical=RankedComponent(rank=1, score=5.5),
+            dense=RankedComponent(rank=2, score=0.825),
+            fusion=RankedComponent(rank=1, score=0.033),
+        ),
+    )
+    adapter = _adapter(FakeScorer([0.2, 0.9]))
+    try:
+        scores = asyncio.run(adapter.rerank(_profile(), "query", (first, second)))
+    finally:
+        adapter.close()
+
+    result = apply_reranker_scores(_profile(), "query", (first, second), scores)
+
+    assert [hit.chunk_id for hit in result] == [second.chunk_id, first.chunk_id]
+    assert [hit.rank for hit in result] == [1, 2]
+    assert result[0].component_scores == ComponentScores(
+        lexical=second.component_scores.lexical,
+        dense=second.component_scores.dense,
+        fusion=second.component_scores.fusion,
+        reranker=RankedComponent(rank=1, score=0.9),
+    )
+    assert result[1].component_scores.lexical == first.component_scores.lexical
+    assert result[1].component_scores.dense == first.component_scores.dense
+    assert result[1].component_scores.fusion == first.component_scores.fusion
+    assert result[0].source_evidence_ids == second.source_evidence_ids
+    assert result[0].source_location == second.source_location
+
+
+def test_apply_reranker_scores_rejects_pool_changes_and_component_overwrite() -> None:
+    original = (_hit(1, 1), _hit(2, 2))
+    adapter = _adapter(FakeScorer([0.8, 0.2]))
+    try:
+        scores = asyncio.run(adapter.rerank(_profile(), "query", original))
+    finally:
+        adapter.close()
+
+    with pytest.raises(RerankerProvenanceError, match="outside the supplied"):
+        apply_reranker_scores(_profile(), "query", (_hit(1, 1), _hit(2, 3)), scores)
+    with pytest.raises(RerankerProvenanceError, match="cover the candidate pool"):
+        apply_reranker_scores(_profile(), "query", original, scores[:1])
+
+    already_reranked = replace(
+        original[0],
+        component_scores=ComponentScores(reranker=RankedComponent(rank=1, score=0.8)),
+    )
+    with pytest.raises(RerankerProvenanceError, match="already reranked"):
+        apply_reranker_scores(
+            _profile(), "query", (already_reranked, original[1]), scores
+        )
+
+    missing_fusion_rank = replace(original[0], component_scores=ComponentScores())
+    with pytest.raises(RerankerProvenanceError, match="original fused rank"):
+        apply_reranker_scores(
+            _profile(), "query", (missing_fusion_rank, original[1]), scores
+        )
+
+
+def test_apply_reranker_scores_rejects_a_different_model_identity() -> None:
+    original = (_hit(1, 1),)
+    adapter = _adapter(FakeScorer([0.8]))
+    try:
+        scores = asyncio.run(adapter.rerank(_profile(), "query", original))
+    finally:
+        adapter.close()
+
+    other_profile = _profile(
+        identity=RerankerIdentity(
+            model=IDENTITY.model,
+            revision="different-revision",
+            preprocessing_revision=IDENTITY.preprocessing_revision,
+            maximum_input_tokens=IDENTITY.maximum_input_tokens,
+        )
+    )
+    with pytest.raises(RerankerProvenanceError, match="identity differs"):
+        apply_reranker_scores(other_profile, "query", original, scores)
+
+
+def test_apply_reranker_scores_rejects_different_profile_or_query() -> None:
+    original = (_hit(1, 1),)
+    profile = _profile()
+    adapter = _adapter(FakeScorer([0.8]))
+    try:
+        scores = asyncio.run(adapter.rerank(profile, "query", original))
+    finally:
+        adapter.close()
+
+    other_profile = replace(profile, fusion=FusionSettings(rank_constant=30))
+    with pytest.raises(RerankerProvenanceError, match="profile differs"):
+        apply_reranker_scores(other_profile, "query", original, scores)
+    with pytest.raises(RerankerProvenanceError, match="query identity"):
+        apply_reranker_scores(profile, "different query", original, scores)

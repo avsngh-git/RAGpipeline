@@ -55,8 +55,8 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-09 are complete. P2-10 is in progress; 10.1–10.3 are complete,
-with 10.4 next.
+P2-01–P2-09 are complete. P2-10 is in progress; 10.1–10.4 are complete,
+with 10.5 next.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -634,10 +634,24 @@ alignment and finite raw-score validation fail the whole request without partial
 scores. Results retain each original EvidenceHit and tie by its original fused rank.
 `tests/test_reranker.py` covers fake-model batching, event-loop isolation, profile
 mismatch, limits, stable ties, timeout, over-budget inputs, malformed scores, output
-alignment and partial-batch failure. Focused suite: 24 passed; Ruff and strict
-mypy pass. A timeout cannot terminate an already-running inference thread; a timed-out
-request returns no scores while that worker finishes. No weights or dependencies
-were added. Full verification and this limitation are recorded in the handoff.
+alignment and partial-batch failure. Focused suite: 24 passed. The full offline suite passes
+(342 passed, 21 deselected) using the existing temporary BM25S verification path;
+full Ruff and formatting pass (158 files), and strict mypy reports no issues in 67
+source files. A timeout cannot terminate an already-running inference thread; a
+timed-out request returns no scores while that worker finishes. No weights or
+dependencies were added. See the handoff for exact commands and limitations.
+
+**10.4 complete; assistant-reviewed 2026-09-27:**
+`search/reranker_results.py` applies result ordering only when scores cover the exact
+candidate pool and match the selected model, full retrieval-profile identity and
+SHA-256 of the exact query. It requires hybrid fusion provenance and checks every
+input's fused rank before updating the visible EvidenceHit rank. Lexical, dense and
+original fusion scores/ranks remain unchanged; reranker rank/raw score are separate.
+Omitted, substituted, duplicated, modified, already-reranked or non-fused evidence is
+rejected. Tests cover provenance retention, candidate-pool changes and query/profile/
+model identity mismatches; focused reranker/pair suite: 28 passed. The full offline
+suite passes (346 passed, 21 deselected) using the existing temporary BM25S
+verification path; Ruff, format, strict source mypy and `git diff --check` pass.
 
 1. **10.1 Pilot both candidates.** Evaluate MS MARCO MiniLM-L6-v2 and BGE-reranker-base
    on bounded representative query/prose/table pairs. Record revisions, licenses,

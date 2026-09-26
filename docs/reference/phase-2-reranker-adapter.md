@@ -1,6 +1,6 @@
 # Phase 2 cross-encoder adapter
 
-Status: P2-10.3 implemented and assistant-reviewed, 2026-09-27.
+Status: P2-10.3–10.4 implemented and assistant-reviewed, 2026-09-27.
 
 `search/reranker.py` provides `CrossEncoderReranker`, a framework-independent
 asynchronous boundary around an injected synchronous scorer and pair-token counter.
@@ -21,9 +21,9 @@ Model loading and application-level fallback are separate follow-up substeps.
 
 ## Results and failure behavior
 
-Each `RerankerScore` retains the original immutable `EvidenceHit`, its original fused
-rank, a finite raw cross-encoder score, and its new reranked position. Higher scores
-rank first. Equal scores preserve original fused rank, with chunk ID as a final stable
+Each `RerankerScore` retains the exact `RerankerIdentity`, full retrieval profile ID,
+SHA-256 of the exact query, original immutable `EvidenceHit`, original fused rank,
+finite raw cross-encoder score, and new reranked position. Higher scores rank first. Equal scores preserve original fused rank, with chunk ID as a final stable
 tie key. Scores are not calibrated probabilities, and earlier component values are
 not rewritten by this adapter.
 
@@ -39,3 +39,13 @@ Focused fake-boundary tests cover identity, batching, event-loop isolation, alig
 finite scores, stable ties, count limits, timeout, pair overflow and partial failure.
 No model weights, real-model selection, search-service integration or quality
 evaluation is included in P2-10.3.
+
+## Applying results to evidence hits
+
+`search/reranker_results.py` applies result records against the original candidate
+sequence and profile. It requires a hybrid profile and verifies exact one-to-one
+chunk coverage, unchanged evidence values, matching model identity, sequential output
+ranks, and retained original fused ranks. It updates `EvidenceHit.rank`, preserves the
+lexical, dense and fusion components verbatim, and records the cross-encoder's raw
+score and reranked position in its own component. A candidate outside the input pool,
+a missing/duplicate candidate, or an already-reranked hit is rejected.

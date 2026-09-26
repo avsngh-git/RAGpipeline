@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import math
+import re
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Protocol
 
-from research_platform.search.contracts import EvidenceHit
+from research_platform.search.contracts import DEFAULT_SEARCH_LIMITS, EvidenceHit
 from research_platform.search.profiles import RerankerIdentity, RetrievalProfile
 from research_platform.search.reranker_pairs import (
     RERANKER_PAIR_FORMAT_ID,
@@ -17,6 +19,8 @@ from research_platform.search.reranker_pairs import (
     RerankerPairBudgetExceeded,
     build_reranker_pairs,
 )
+
+_SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 class CrossEncoderScorer(Protocol):
@@ -59,6 +63,9 @@ class RerankerScore:
     """One source-preserving candidate with its raw score and reranked position."""
 
     evidence_hit: EvidenceHit
+    reranker_identity: RerankerIdentity
+    profile_id: str
+    query_sha256: str
     score: float
     rank: int
     original_rank: int
@@ -67,6 +74,16 @@ class RerankerScore:
     def __post_init__(self) -> None:
         if not isinstance(self.evidence_hit, EvidenceHit):
             raise ValueError("evidence_hit must be an EvidenceHit")
+        if not isinstance(self.reranker_identity, RerankerIdentity):
+            raise ValueError("reranker_identity must be a RerankerIdentity")
+        if not isinstance(self.profile_id, str) or not _SHA256_ID.fullmatch(
+            self.profile_id
+        ):
+            raise ValueError("profile_id must be a SHA-256 identity")
+        if not isinstance(self.query_sha256, str) or not _SHA256_ID.fullmatch(
+            self.query_sha256
+        ):
+            raise ValueError("query_sha256 must be a SHA-256 identity")
         if (
             isinstance(self.score, bool)
             or not isinstance(self.score, (int, float))
@@ -113,9 +130,12 @@ class CrossEncoderReranker:
                 isinstance(value, bool)
                 or not isinstance(value, int)
                 or value <= 0
-                or value > 200
+                or value > DEFAULT_SEARCH_LIMITS.max_candidate_limit
             ):
-                raise ValueError(f"{name} must be between 1 and 200")
+                raise ValueError(
+                    f"{name} must be between 1 and "
+                    f"{DEFAULT_SEARCH_LIMITS.max_candidate_limit}"
+                )
         if (
             isinstance(timeout_seconds, bool)
             or not isinstance(timeout_seconds, (int, float))
@@ -165,7 +185,9 @@ class CrossEncoderReranker:
         future = loop.run_in_executor(
             self._executor,
             self._score_candidates,
+            profile.profile_id,
             query,
+            compute_query_sha256(query),
             candidate_tuple,
         )
         try:
@@ -219,7 +241,11 @@ class CrossEncoderReranker:
         return rerank_limit
 
     def _score_candidates(
-        self, query: str, candidates: tuple[EvidenceHit, ...]
+        self,
+        profile_id: str,
+        query: str,
+        query_sha256: str,
+        candidates: tuple[EvidenceHit, ...],
     ) -> tuple[RerankerScore, ...]:
         tokenizer_id = f"{self.identity.model}@{self.identity.revision}"
         try:
@@ -273,9 +299,17 @@ class CrossEncoderReranker:
         return tuple(
             RerankerScore(
                 evidence_hit=evidence_hit,
+                reranker_identity=self.identity,
+                profile_id=profile_id,
+                query_sha256=query_sha256,
                 score=score,
                 rank=rank,
                 original_rank=original_rank,
             )
             for rank, (evidence_hit, score, original_rank) in enumerate(scored, start=1)
         )
+
+
+def compute_query_sha256(query: str) -> str:
+    """Return a content identity without retaining the user's query text."""
+    return "sha256:" + hashlib.sha256(query.encode("utf-8")).hexdigest()
