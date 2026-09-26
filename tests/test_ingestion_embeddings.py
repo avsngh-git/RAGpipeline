@@ -7,10 +7,17 @@ from collections.abc import Sequence
 import pytest
 
 from research_platform.ingestion.embeddings import (
+    BGE_BASE_EN_V1_5_MODEL,
+    BGE_BASE_EN_V1_5_PREPROCESSING,
+    BGE_BASE_EN_V1_5_QUERY_PREFIX,
+    BGE_BASE_EN_V1_5_REVISION,
     E5_SMALL_V2_MODEL,
     E5_SMALL_V2_PREPROCESSING,
     E5_SMALL_V2_REVISION,
+    BGEBaseEnV15Embedder,
     E5SmallV2Embedder,
+    EmbeddingModelError,
+    create_embedder_for_configuration,
 )
 from research_platform.ingestion.evidence import TokenSpan
 from research_platform.ingestion.indexing import IndexConfiguration
@@ -29,18 +36,22 @@ class _FakeTokenizer:
                 start = index
         if start is not None:
             spans.append((start, len(text)))
-        return {"offset_mapping": spans}
+        return {"offset_mapping": spans, "input_ids": [101, *range(len(spans)), 102]}
 
 
 class _FakeModel:
     tokenizer = _FakeTokenizer()
 
-    def __init__(self) -> None:
+    def __init__(self, dimensions: int = 384) -> None:
+        self.dimensions = dimensions
         self.calls: list[tuple[list[str], dict[str, object]]] = []
 
     def encode(self, texts: list[str], **options: object) -> Sequence[Sequence[float]]:
         self.calls.append((texts, options))
-        return [list(1.0 if index == 0 else 0.0 for index in range(384)) for _ in texts]
+        return [
+            [1.0 if index == 0 else 0.0 for index in range(self.dimensions)]
+            for _ in texts
+        ]
 
 
 def test_e5_embedder_prepends_passage_and_returns_normalized_dimension() -> None:
@@ -112,3 +123,74 @@ def test_e5_model_identity_is_pinned_and_uses_retrieval_preprocessing() -> None:
     assert config.preprocessing_revision == E5_SMALL_V2_PREPROCESSING
     assert config.vector_size == 384
     assert config.maximum_input_tokens == 512
+
+
+def test_bge_passages_are_unprefixed_and_use_the_pinned_768_dim_profile() -> None:
+    model = _FakeModel(dimensions=768)
+    embedder = BGEBaseEnV15Embedder(model=model)
+    config = embedder.index_configuration()
+
+    import asyncio
+
+    vectors = asyncio.run(
+        embedder.embed(("prose evidence", "| table | result |"), configuration=config)
+    )
+
+    assert len(vectors) == 2
+    assert all(len(vector) == 768 for vector in vectors)
+    assert config.embedding_model == BGE_BASE_EN_V1_5_MODEL
+    assert config.embedding_revision == BGE_BASE_EN_V1_5_REVISION
+    assert config.preprocessing_revision == BGE_BASE_EN_V1_5_PREPROCESSING
+    assert (
+        config.collection_name
+        != E5SmallV2Embedder.index_configuration().collection_name
+    )
+    assert config.batch_size == 4
+    assert model.calls[0][0] == ["prose evidence", "| table | result |"]
+    assert model.calls[0][1]["normalize_embeddings"] is True
+
+
+def test_bge_query_uses_the_exact_retrieval_instruction() -> None:
+    model = _FakeModel(dimensions=768)
+    embedder = BGEBaseEnV15Embedder(model=model)
+    config = embedder.index_configuration()
+
+    import asyncio
+
+    vector = asyncio.run(embedder.embed_query("retrieval query", configuration=config))
+
+    assert len(vector) == 768
+    assert model.calls[0][0] == [BGE_BASE_EN_V1_5_QUERY_PREFIX + "retrieval query"]
+    assert model.calls[0][1]["normalize_embeddings"] is True
+
+
+def test_bge_embedder_rejects_mismatched_profile_and_overlong_passage() -> None:
+    model = _FakeModel(dimensions=768)
+    embedder = BGEBaseEnV15Embedder(model=model)
+    config = embedder.index_configuration()
+    incompatible = IndexConfiguration.from_dict(
+        {**config.to_dict(), "embedding_revision": "unreviewed-revision"}
+    )
+
+    import asyncio
+
+    with pytest.raises(ValueError, match="pinned BGE-base-en-v1.5"):
+        asyncio.run(embedder.embed(("evidence",), configuration=incompatible))
+    with pytest.raises(EmbeddingModelError, match="token limit"):
+        asyncio.run(embedder.embed(("token " * 511,), configuration=config))
+    assert model.calls == []
+
+
+def test_configuration_factory_selects_only_a_pinned_local_adapter() -> None:
+    bge_config = BGEBaseEnV15Embedder.index_configuration()
+    e5_config = E5SmallV2Embedder.index_configuration()
+
+    assert isinstance(
+        create_embedder_for_configuration(bge_config), BGEBaseEnV15Embedder
+    )
+    assert isinstance(create_embedder_for_configuration(e5_config), E5SmallV2Embedder)
+    unsupported = IndexConfiguration.from_dict(
+        {**bge_config.to_dict(), "embedding_revision": "unknown"}
+    )
+    with pytest.raises(ValueError, match="pinned E5-small-v2 or BGE"):
+        create_embedder_for_configuration(unsupported)

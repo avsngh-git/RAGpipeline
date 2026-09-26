@@ -48,7 +48,10 @@ from research_platform.ingestion.discovery_repository import (
     ManifestHeader,
     ManifestItem,
 )
-from research_platform.ingestion.embeddings import E5SmallV2Embedder
+from research_platform.ingestion.embeddings import (
+    E5SmallV2Embedder,
+    create_embedder_for_configuration,
+)
 from research_platform.ingestion.evidence import ChunkingConfig
 from research_platform.ingestion.evidence_repository import EvidenceRepository
 from research_platform.ingestion.indexing import (
@@ -729,7 +732,7 @@ async def _execute_index_operation(
     pool: asyncpg.Pool,
 ) -> None:
     configuration = _load_index_configuration(args.configuration)
-    embedder = E5SmallV2Embedder(device=args.device)
+    embedder = create_embedder_for_configuration(configuration, device=args.device)
     async with httpx.AsyncClient(
         base_url=settings.qdrant_url.rstrip("/"), timeout=30
     ) as http:

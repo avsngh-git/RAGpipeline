@@ -10,11 +10,7 @@ from typing import Protocol
 from uuid import UUID
 
 from research_platform.ingestion.embeddings import (
-    E5_SMALL_V2_DIMENSIONS,
-    E5_SMALL_V2_MAX_TOKENS,
-    E5_SMALL_V2_MODEL,
-    E5_SMALL_V2_PREPROCESSING,
-    E5_SMALL_V2_REVISION,
+    validate_supported_embedding_configuration,
 )
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
@@ -30,7 +26,7 @@ from research_platform.search.profiles import RetrievalProfile
 
 
 class DenseQueryEmbedder(Protocol):
-    """E5-compatible query embedding adapter used by profile-bound search."""
+    """Pinned-model query adapter used by profile-bound dense search."""
 
     async def embed_query(
         self, text: str, *, configuration: IndexConfiguration
@@ -120,7 +116,7 @@ class SnapshotDenseSearch:
     async def search_query(
         self, profile: RetrievalProfile, query: str, *, limit: int
     ) -> DenseSearchResponse:
-        """Embed an E5 query, retrieve its candidates, and hydrate source rows."""
+        """Embed a pinned-model query, retrieve candidates and hydrate source rows."""
         return await self._search_query(profile, query, limit=limit, evaluation=False)
 
     async def evaluate_query(
@@ -139,7 +135,7 @@ class SnapshotDenseSearch:
     ) -> DenseSearchResponse:
         if self._query_embedder is None or self._evidence_hydrator is None:
             raise RuntimeError(
-                "query search requires an E5 embedder and authoritative evidence hydrator"
+                "query search requires a pinned embedder and authoritative evidence hydrator"
             )
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query text must be non-empty")
@@ -147,7 +143,10 @@ class SnapshotDenseSearch:
             raise ValueError("query text exceeds the configured character limit")
         configuration = self._index.configuration
         _validate_search_request(profile, configuration, limit)
-        _validate_e5_configuration(configuration)
+        try:
+            validate_supported_embedding_configuration(configuration)
+        except ValueError as error:
+            raise ProfileDenseIndexMismatch(str(error)) from None
         vector = await self._query_embedder.embed_query(
             query, configuration=configuration
         )
@@ -234,20 +233,6 @@ class SnapshotDenseSearch:
             requested_limit=limit,
             hits=hits,
             hydrated_hits=hydrated_hits,
-        )
-
-
-def _validate_e5_configuration(configuration: IndexConfiguration) -> None:
-    if (
-        configuration.embedding_model != E5_SMALL_V2_MODEL
-        or configuration.embedding_revision != E5_SMALL_V2_REVISION
-        or configuration.preprocessing_revision != E5_SMALL_V2_PREPROCESSING
-        or configuration.vector_size != E5_SMALL_V2_DIMENSIONS
-        or configuration.distance != "Cosine"
-        or configuration.maximum_input_tokens != E5_SMALL_V2_MAX_TOKENS
-    ):
-        raise ProfileDenseIndexMismatch(
-            "query adapter configuration does not match pinned E5-small-v2"
         )
 
 

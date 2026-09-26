@@ -11,7 +11,10 @@ from uuid import UUID
 import httpx
 import pytest
 
-from research_platform.ingestion.embeddings import E5SmallV2Embedder
+from research_platform.ingestion.embeddings import (
+    BGEBaseEnV15Embedder,
+    E5SmallV2Embedder,
+)
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
     IndexInput,
@@ -534,5 +537,101 @@ def test_evaluation_query_passes_explicit_draft_access_to_hydrator() -> None:
         assert gate.evaluation_calls == 1
         assert result.hydrated_hits == ()
         assert hydrator.allow_draft_calls == [True]
+
+    asyncio.run(exercise())
+
+
+def test_bge_query_search_uses_a_separate_768_dim_index_and_hydrates() -> None:
+    configuration = BGEBaseEnV15Embedder.index_configuration(
+        collection_name="dense-bge-query-test", batch_size=2
+    )
+    gate = _Gate()
+    evidence_id = "sha256:" + "e" * 64
+    fixture_point = {
+        "payload": {
+            "snapshot_id": str(SNAPSHOT_ID),
+            "index_configuration_id": configuration.configuration_id,
+            "evidence_id": evidence_id,
+            "text": "stale vector payload text",
+        },
+        "score": 0.91,
+    }
+    requests: list[dict[str, object]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path.endswith("/points/query"):
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, json={"result": {"points": [fixture_point]}})
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "result": {
+                        "config": {
+                            "params": {"vectors": {"size": 768, "distance": "Cosine"}}
+                        }
+                    }
+                },
+            )
+        return httpx.Response(200, json={"result": {"points": []}})
+
+    async def exercise() -> None:
+        embedder = _QueryEmbedder((1.0,) + (0.0,) * 767)
+        hydrator = _Hydrator(gate)
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test", transport=httpx.MockTransport(respond)
+        ) as http:
+            service = SnapshotDenseSearch(
+                gate,
+                QdrantIndex(configuration, http),
+                query_embedder=embedder,
+                evidence_hydrator=hydrator,
+            )
+            result = await service.search_query(
+                _profile(configuration), "retrieval query", limit=5
+            )
+        assert embedder.calls == [("retrieval query", configuration)]
+        assert gate.serving_calls == 1
+        assert requests[0]["query"] == [1.0] + [0.0] * 767
+        assert result.index_configuration_id == configuration.configuration_id
+        assert result.hits[0].evidence_id == evidence_id
+        assert result.hydrated_hits[0].evidence.text == (
+            "authoritative database source text"
+        )
+
+    asyncio.run(exercise())
+
+
+def test_bge_query_rejects_unreviewed_revision_before_embedding() -> None:
+    compatible = BGEBaseEnV15Embedder.index_configuration(
+        collection_name="dense-bge-revision-test"
+    )
+    configuration = IndexConfiguration.from_dict(
+        {**compatible.to_dict(), "embedding_revision": "unreviewed-revision"}
+    )
+    gate = _Gate()
+    embedder = _QueryEmbedder((1.0,) + (0.0,) * 767)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test",
+            transport=httpx.MockTransport(
+                lambda _request: pytest.fail(
+                    "unreviewed embedding identity must fail before Qdrant"
+                )
+            ),
+        ) as http:
+            service = SnapshotDenseSearch(
+                gate,
+                QdrantIndex(configuration, http),
+                query_embedder=embedder,
+                evidence_hydrator=_Hydrator(gate),
+            )
+            with pytest.raises(ProfileDenseIndexMismatch, match="BGE-base-en-v1.5"):
+                await service.search_query(
+                    _profile(configuration), "retrieval query", limit=5
+                )
+        assert embedder.calls == []
+        assert gate.serving_calls == 0
 
     asyncio.run(exercise())

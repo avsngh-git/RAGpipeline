@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 in progress at 07.4.
+Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 in progress at 07.5.
 
 ## Start and authority
 
@@ -66,7 +66,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
 | P2-06 | BM25 lexical retrieval | P2-03 | Complete |
-| P2-07 | Dense retrieval and embedding pilots | P2-03 | In progress (07.4) |
+| P2-07 | Dense retrieval and embedding pilots | P2-03 | In progress (07.5) |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Pending |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Pending |
@@ -498,8 +498,9 @@ A deterministic adapter substitute supports CI.
 **07.2 complete; assistant-reviewed 2026-09-26:** pinned BGE-base-en-v1.5 and
 measured a deterministic 12-chunk prose/table/near-limit sample on CPU and the local
 RTX 3050, with batch size 4, five warm repetitions per group, explicit normalization,
-peak RSS and allocator VRAM. CUDA ran using an isolated official PyTorch 2.14 CUDA
-12.6 install under `/tmp`; project dependencies were unchanged. See
+peak RSS and allocator VRAM. After the Windows driver update propagated into WSL,
+the default PyTorch 2.14 `cu130` runtime detected CUDA and the GPU pilot was rerun
+there. Project dependencies were unchanged. See
 [the BGE pilot report](../research/phase-2-bge-base-en-v1-5-pilot-research.md).
 The pilot supports hardware feasibility only, not retrieval quality or full-index
 build-time claims.
@@ -511,6 +512,23 @@ exceeds either limit. The common compatible selection is the complete accepted s
 with sorted-ID SHA-256
 `823bd7cd64ed89f555add9ec4967777118b8c1845b4b949e260f88987c9016f8`. Private
 per-chunk records remain under ignored `local-reference/`.
+
+**07.4 complete; assistant-reviewed 2026-09-26:** added the pinned BGE adapter and
+configuration-driven adapter selection, with the example configuration at
+`configs/phase2-bge-base-en-v1-5-index.example.json` (configuration ID
+`sha256:c90fc73b817284ab9a7b6efd6168b06cd560247934da9e7b014c68317f562735`). The synthetic Qdrant lifecycle test builds a separate 768-dimensional collection, checks exact selected IDs and
+matching readiness digests, verifies the payload configuration identity, retrieves
+known synthetic neighbors, reloads the collection through a new index instance, and
+rebuilds twice. The existing 384-dimensional E5 collection remains intact. BGE query
+hydration and rejection of unreviewed revisions are also covered by synthetic dense
+search tests. `pytest -m 'not integration' -q`: 263 passed, 19 deselected. `ruff check .`,
+`ruff format --check .`, and `mypy src` pass; the missing declared BM25S dependency
+was supplied only through a `/tmp` verification path. The lifecycle uses deterministic
+vectors and an in-memory Qdrant fixture; no full accepted-corpus index was built or
+modified.
+
+**07.5 is next:** add pre-top-k metadata filtering to dense retrieval and recheck
+eligibility against authoritative snapshot evidence during hydration.
 
 ## P2-08 — Fuse candidate lists
 

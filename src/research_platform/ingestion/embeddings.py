@@ -1,4 +1,4 @@
-"""Optional local E5 passage embeddings and matching chunk tokenizer."""
+"""Optional local, revision-pinned sentence embedding adapters."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ import importlib
 import math
 import threading
 from collections.abc import Sequence
-from typing import Any, Literal
+from dataclasses import dataclass
+from typing import Any, ClassVar, Literal
 
 from research_platform.ingestion.evidence import TokenSpan
 from research_platform.ingestion.indexing import IndexConfiguration
@@ -18,22 +19,105 @@ E5_SMALL_V2_DIMENSIONS = 384
 E5_SMALL_V2_MAX_TOKENS = 512
 E5_SMALL_V2_PREPROCESSING = "e5-small-v2:passage-prefix:mean-mask:l2-normalize:v1"
 
+BGE_BASE_EN_V1_5_MODEL = "BAAI/bge-base-en-v1.5"
+BGE_BASE_EN_V1_5_REVISION = "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a"
+BGE_BASE_EN_V1_5_DIMENSIONS = 768
+BGE_BASE_EN_V1_5_MAX_TOKENS = 512
+BGE_BASE_EN_V1_5_PREPROCESSING = (
+    "bge-base-en-v1.5:query-instruction:cls-pooling:l2-normalize:v1"
+)
+BGE_BASE_EN_V1_5_QUERY_PREFIX = (
+    "Represent this sentence for searching relevant passages: "
+)
+
+EmbeddingDevice = Literal["auto", "cpu", "cuda"]
+
+
+@dataclass(frozen=True)
+class _EmbeddingProfile:
+    """Model identity and formatting that determine one local embedding space."""
+
+    model: str
+    revision: str
+    preprocessing_revision: str
+    dimensions: int
+    maximum_input_tokens: int
+    passage_prefix: str
+    query_prefix: str
+    display_name: str
+    collection_name: str
+    batch_size: int
+
+    def matches(self, configuration: IndexConfiguration) -> bool:
+        return (
+            configuration.embedding_model == self.model
+            and configuration.embedding_revision == self.revision
+            and configuration.preprocessing_revision == self.preprocessing_revision
+            and configuration.vector_size == self.dimensions
+            and configuration.distance == "Cosine"
+            and configuration.maximum_input_tokens == self.maximum_input_tokens
+        )
+
+    def index_configuration(
+        self,
+        *,
+        collection_name: str | None = None,
+        batch_size: int | None = None,
+    ) -> IndexConfiguration:
+        return IndexConfiguration(
+            collection_name=(
+                self.collection_name if collection_name is None else collection_name
+            ),
+            embedding_model=self.model,
+            embedding_revision=self.revision,
+            preprocessing_revision=self.preprocessing_revision,
+            vector_size=self.dimensions,
+            distance="Cosine",
+            batch_size=self.batch_size if batch_size is None else batch_size,
+            maximum_input_tokens=self.maximum_input_tokens,
+        )
+
+
+_E5_PROFILE = _EmbeddingProfile(
+    model=E5_SMALL_V2_MODEL,
+    revision=E5_SMALL_V2_REVISION,
+    preprocessing_revision=E5_SMALL_V2_PREPROCESSING,
+    dimensions=E5_SMALL_V2_DIMENSIONS,
+    maximum_input_tokens=E5_SMALL_V2_MAX_TOKENS,
+    passage_prefix="passage: ",
+    query_prefix="query: ",
+    display_name="E5-small-v2",
+    collection_name="phase1-e5-small-v2",
+    batch_size=16,
+)
+_BGE_PROFILE = _EmbeddingProfile(
+    model=BGE_BASE_EN_V1_5_MODEL,
+    revision=BGE_BASE_EN_V1_5_REVISION,
+    preprocessing_revision=BGE_BASE_EN_V1_5_PREPROCESSING,
+    dimensions=BGE_BASE_EN_V1_5_DIMENSIONS,
+    maximum_input_tokens=BGE_BASE_EN_V1_5_MAX_TOKENS,
+    passage_prefix="",
+    query_prefix=BGE_BASE_EN_V1_5_QUERY_PREFIX,
+    display_name="BGE-base-en-v1.5",
+    collection_name="phase2-bge-base-en-v1-5",
+    batch_size=4,
+)
+_SUPPORTED_PROFILES = (_E5_PROFILE, _BGE_PROFILE)
+
 
 class EmbeddingModelError(RuntimeError):
     """A safe local embedding failure without model or source text details."""
 
 
-class E5SmallV2Embedder:
-    """Batch-embed searchable passages with the pinned English E5 model.
+class _SentenceTransformerEmbedder:
+    """Shared lazy loader, input validation and normalized encoding implementation."""
 
-    The optional Sentence Transformers package and model weights load only when
-    this adapter is used. Core CI and ingestion without indexing need neither.
-    """
+    _profile: ClassVar[_EmbeddingProfile]
 
     def __init__(
         self,
         *,
-        device: Literal["auto", "cpu", "cuda"] = "auto",
+        device: EmbeddingDevice = "auto",
         model: Any | None = None,
     ) -> None:
         if device not in {"auto", "cpu", "cuda"}:
@@ -44,22 +128,17 @@ class E5SmallV2Embedder:
         self._model_lock = threading.Lock()
         self._tokenizer_lock = threading.Lock()
 
-    @staticmethod
+    @classmethod
     def index_configuration(
-        collection_name: str = "phase1-e5-small-v2",
+        cls,
+        collection_name: str | None = None,
         *,
-        batch_size: int = 16,
+        batch_size: int | None = None,
     ) -> IndexConfiguration:
-        """Return the model and preprocessing identity required by this adapter."""
-        return IndexConfiguration(
+        """Return the immutable model identity with a separately named collection."""
+        return cls._profile.index_configuration(
             collection_name=collection_name,
-            embedding_model=E5_SMALL_V2_MODEL,
-            embedding_revision=E5_SMALL_V2_REVISION,
-            preprocessing_revision=E5_SMALL_V2_PREPROCESSING,
-            vector_size=E5_SMALL_V2_DIMENSIONS,
-            distance="Cosine",
             batch_size=batch_size,
-            maximum_input_tokens=E5_SMALL_V2_MAX_TOKENS,
         )
 
     async def embed(
@@ -75,7 +154,10 @@ class E5SmallV2Embedder:
             return ()
         try:
             return await asyncio.to_thread(
-                self._encode_passages, tuple(texts), configuration
+                self._encode_texts,
+                tuple(texts),
+                self._profile.passage_prefix,
+                configuration,
             )
         except EmbeddingModelError:
             raise
@@ -85,13 +167,13 @@ class E5SmallV2Embedder:
     async def embed_query(
         self, text: str, *, configuration: IndexConfiguration
     ) -> Sequence[float]:
-        """Embed one search query using the model's required query prefix."""
+        """Embed one search query with this model's pinned query formatting."""
         self._validate_configuration(configuration)
         if not isinstance(text, str) or not text.strip():
             raise ValueError("query text must be non-empty")
         try:
             vectors = await asyncio.to_thread(
-                self._encode_texts, (text,), "query: ", configuration
+                self._encode_texts, (text,), self._profile.query_prefix, configuration
             )
             return vectors[0]
         except EmbeddingModelError:
@@ -100,7 +182,7 @@ class E5SmallV2Embedder:
             raise EmbeddingModelError("local query embedding failed") from None
 
     def token_spans(self, text: str) -> Sequence[TokenSpan]:
-        """Return E5 tokenizer offsets for section and table chunking."""
+        """Return tokenizer offsets for source-aware chunking."""
         if not isinstance(text, str):
             raise ValueError("tokenizer input must be text")
         try:
@@ -126,13 +208,6 @@ class E5SmallV2Embedder:
         except Exception:
             raise EmbeddingModelError("local model tokenizer failed") from None
 
-    def _encode_passages(
-        self,
-        texts: Sequence[str],
-        configuration: IndexConfiguration,
-    ) -> tuple[tuple[float, ...], ...]:
-        return self._encode_texts(texts, "passage: ", configuration)
-
     def _encode_texts(
         self,
         texts: Sequence[str],
@@ -140,22 +215,38 @@ class E5SmallV2Embedder:
         configuration: IndexConfiguration,
     ) -> tuple[tuple[float, ...], ...]:
         model = self._ensure_model()
-        encoded = model.encode(
-            [prefix + text for text in texts],
+        tokenizer = self._ensure_tokenizer()
+        formatted_texts = [prefix + text for text in texts]
+        for formatted_text in formatted_texts:
+            encoded = tokenizer(
+                formatted_text,
+                add_special_tokens=True,
+                truncation=False,
+                verbose=False,
+            )
+            input_ids = encoded["input_ids"]
+            if input_ids and isinstance(input_ids[0], list):
+                input_ids = input_ids[0]
+            if len(input_ids) > self._profile.maximum_input_tokens:
+                raise EmbeddingModelError(
+                    "embedding input exceeds the configured model token limit"
+                )
+        encoded_vectors = model.encode(
+            formatted_texts,
             batch_size=min(configuration.batch_size, len(texts)),
             convert_to_numpy=True,
             normalize_embeddings=True,
             show_progress_bar=False,
         )
-        if hasattr(encoded, "tolist"):
-            encoded = encoded.tolist()
-        if not isinstance(encoded, list) or len(encoded) != len(texts):
+        if hasattr(encoded_vectors, "tolist"):
+            encoded_vectors = encoded_vectors.tolist()
+        if not isinstance(encoded_vectors, list) or len(encoded_vectors) != len(texts):
             raise EmbeddingModelError("embedding model returned an invalid batch")
         vectors: list[tuple[float, ...]] = []
-        for vector in encoded:
+        for vector in encoded_vectors:
             if (
                 not isinstance(vector, (list, tuple))
-                or len(vector) != E5_SMALL_V2_DIMENSIONS
+                or len(vector) != self._profile.dimensions
             ):
                 raise EmbeddingModelError("embedding model returned an invalid vector")
             values = tuple(float(value) for value in vector)
@@ -182,8 +273,8 @@ class E5SmallV2Embedder:
                 ) from None
             try:
                 tokenizer = auto_tokenizer.from_pretrained(
-                    E5_SMALL_V2_MODEL,
-                    revision=E5_SMALL_V2_REVISION,
+                    self._profile.model,
+                    revision=self._profile.revision,
                     use_fast=True,
                     trust_remote_code=False,
                 )
@@ -217,12 +308,12 @@ class E5SmallV2Embedder:
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             try:
                 model = sentence_transformer(
-                    E5_SMALL_V2_MODEL,
-                    revision=E5_SMALL_V2_REVISION,
+                    self._profile.model,
+                    revision=self._profile.revision,
                     device=device,
                     trust_remote_code=False,
                 )
-                model.max_seq_length = E5_SMALL_V2_MAX_TOKENS
+                model.max_seq_length = self._profile.maximum_input_tokens
             except Exception:
                 raise EmbeddingModelError(
                     "pinned local embedding model could not be loaded"
@@ -231,14 +322,45 @@ class E5SmallV2Embedder:
             self._tokenizer = model.tokenizer
             return model
 
-    @staticmethod
-    def _validate_configuration(configuration: IndexConfiguration) -> None:
-        if (
-            configuration.embedding_model != E5_SMALL_V2_MODEL
-            or configuration.embedding_revision != E5_SMALL_V2_REVISION
-            or configuration.preprocessing_revision != E5_SMALL_V2_PREPROCESSING
-            or configuration.vector_size != E5_SMALL_V2_DIMENSIONS
-            or configuration.distance != "Cosine"
-            or configuration.maximum_input_tokens != E5_SMALL_V2_MAX_TOKENS
-        ):
-            raise ValueError("index configuration does not match the pinned E5 model")
+    def _validate_configuration(self, configuration: IndexConfiguration) -> None:
+        if not self._profile.matches(configuration):
+            raise ValueError(
+                f"index configuration does not match pinned {self._profile.display_name}"
+            )
+
+
+class E5SmallV2Embedder(_SentenceTransformerEmbedder):
+    """Batch-embed passages with the pinned Phase 1 E5 retrieval model."""
+
+    _profile = _E5_PROFILE
+
+
+class BGEBaseEnV15Embedder(_SentenceTransformerEmbedder):
+    """Batch-embed passages with the pinned Phase 2 BGE-base-en-v1.5 model."""
+
+    _profile = _BGE_PROFILE
+
+
+def validate_supported_embedding_configuration(
+    configuration: IndexConfiguration,
+) -> None:
+    """Reject query profiles that do not name one of the pinned local models."""
+    if not any(profile.matches(configuration) for profile in _SUPPORTED_PROFILES):
+        raise ValueError(
+            "query adapter configuration does not match pinned E5-small-v2 "
+            "or BGE-base-en-v1.5"
+        )
+
+
+def create_embedder_for_configuration(
+    configuration: IndexConfiguration,
+    *,
+    device: EmbeddingDevice = "auto",
+) -> _SentenceTransformerEmbedder:
+    """Choose the pinned local adapter from the vector-index identity."""
+    validate_supported_embedding_configuration(configuration)
+    if configuration.embedding_model == E5_SMALL_V2_MODEL:
+        return E5SmallV2Embedder(device=device)
+    if configuration.embedding_model == BGE_BASE_EN_V1_5_MODEL:
+        return BGEBaseEnV15Embedder(device=device)
+    raise ValueError("no local embedding adapter supports this configuration")

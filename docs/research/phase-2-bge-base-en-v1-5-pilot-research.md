@@ -52,20 +52,21 @@ been warm.
 
 | Measurement | CPU | RTX 3050 Laptop GPU |
 | --- | ---: | ---: |
-| Runtime | PyTorch `2.14.0+cu130`; CUDA unavailable in that build | PyTorch `2.14.0+cu126` in a temporary `/tmp` install; CUDA available |
-| Model initialization | 0.28 s | 2.37 s |
-| Prose batch latency | 0.836 s (0.746–0.869) | 0.058 s (0.057–0.063) |
-| Pipe-table-like batch latency | 1.282 s (1.197–1.338) | 0.078 s (0.078–0.082) |
+| Runtime | PyTorch `2.14.0+cu130`; CUDA unavailable in that earlier driver state | PyTorch `2.14.0+cu130`; CUDA available after the Windows driver update propagated into WSL |
+| Model initialization | 0.28 s | 2.31 s |
+| Prose batch latency | 0.836 s (0.746–0.869) | 0.060 s (0.059–0.063) |
+| Pipe-table-like batch latency | 1.282 s (1.197–1.338) | 0.077 s (0.075–0.077) |
 | Near-limit batch latency | 2.344 s (2.154–2.538) | 0.141 s (0.140–0.142) |
-| Process peak RSS | 1.34 GiB | 1.32 GiB |
+| Process peak RSS | 1.34 GiB | 1.33 GiB |
 | Peak GPU memory | unavailable | 490 MiB allocated / 574 MiB reserved |
 
 The laptop has an Intel Core i5-11400H (6 cores / 12 threads), 7.6 GiB host RAM,
-and an RTX 3050 Laptop GPU with 4 GiB VRAM (driver 576.80). The active PyTorch
-`cu130` build could not initialize CUDA against the installed driver. The official
-PyTorch 2.14 release provides a CUDA 12.6 wheel, so that build and its runtime
-libraries were installed only under `/tmp` for this measurement; the project Conda
-environment and dependency files were unchanged. [PyTorch 2.14 release notes](https://pytorch.org/blog/pytorch-2-14-release-blog/)
+and an RTX 3050 Laptop GPU with 4 GiB VRAM. Before the Windows driver update, WSL
+reported driver 576.80 and the installed `cu130` build could not initialize CUDA.
+After the update, WSL reported driver 617.14 and the same PyTorch
+`2.14.0+cu130` build detected the GPU. Final GPU figures above were rerun on this
+normal project environment. An isolated CUDA 12.6 wheel was used for an earlier
+exploratory run and then removed; no project environment or dependency file changed.
 
 BGE returned `(4, 768)` passage vectors and `(1, 768)` for the query. With explicit
 normalization, observed vector norms ranged from 0.99999994 to 1.00000012. The
@@ -99,9 +100,8 @@ development-set evaluation. This pilot is not a model-selection decision.
 2. The complete embedding/index build over 44,277 chunks, storage footprint and
    rebuild behavior have not been measured. The pilot uses three small batches per
    repeat group, not a full index workload.
-3. The upstream model repository declares MIT. The inference package and all
-   temporary CUDA runtime component licenses have not received a separate license
-   audit.
+3. The upstream model repository declares MIT. The inference library license has
+   not received a separate audit.
 
 ## Agent operating checklist
 
@@ -110,6 +110,6 @@ development-set evaluation. This pilot is not a model-selection decision.
   evaluation.
 - No application retrieval code or project dependency was added by the pilot. Hardware inference and all-chunk tokenizer auditing were run directly; there is no code-test result to report for this research artifact.
 - Measurements retain model commit, runtime versions, tokenizer, prefixes, normalization, device, batch size, sample identity, timing repetitions and memory peaks. CI must not download weights.
-- The upstream model repository declares MIT. No permanent technology/scope change is proposed, so no ADR or source-of-truth update is needed. The CUDA-compatible wheel and packages used for the GPU measurement live only under `/tmp`.
+- The upstream model repository declares MIT. No permanent technology/scope change is proposed, so no ADR or source-of-truth update is needed. An isolated CUDA 12.6 wheel used for an earlier exploratory run was removed; final GPU measurements used the default `cu130` runtime after the Windows driver update propagated into WSL.
 
 Sources reviewed on 2026-09-26. The BGE repository and Sentence Transformers documentation are first-party sources for the model artifact and loader API. The revision SHA is the current `main` resolution captured on that date; it is an immutable content revision even if `main` advances later.

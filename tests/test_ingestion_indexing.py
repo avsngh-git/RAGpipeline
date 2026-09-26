@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from typing import cast
@@ -12,6 +13,10 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 
+from research_platform.ingestion.embeddings import (
+    BGEBaseEnV15Embedder,
+    E5SmallV2Embedder,
+)
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
     IndexConfigurationMismatch,
@@ -82,11 +87,22 @@ class _QdrantFixture:
             return httpx.Response(200, json={"result": {"count": count}})
         if request.method == "POST" and pieces[2:] == ["points", "query"]:
             snapshot_id = _snapshot_id_from_filter(body["filter"])
+            query = cast(list[float], body["query"])
+            scored = []
+            for point in self.points[name].values():
+                if point["payload"]["snapshot_id"] != snapshot_id:
+                    continue
+                vector = cast(list[float], point["vector"])
+                dot = sum(left * right for left, right in zip(query, vector))
+                query_norm = math.sqrt(sum(value * value for value in query))
+                vector_norm = math.sqrt(sum(value * value for value in vector))
+                score = dot / (query_norm * vector_norm)
+                scored.append((score, point["payload"]["evidence_id"], point))
+            scored.sort(key=lambda item: (-item[0], item[1]))
             matches = [
-                {"payload": point["payload"], "score": 0.75}
-                for point in self.points[name].values()
-                if point["payload"]["snapshot_id"] == snapshot_id
-            ][: body["limit"]]
+                {"payload": point["payload"], "score": score}
+                for score, _evidence_id, point in scored[: body["limit"]]
+            ]
             return httpx.Response(200, json={"result": {"points": matches}})
         if request.method == "POST" and pieces[2:] == ["points", "delete"]:
             snapshot_id = _snapshot_id_from_filter(body["filter"])
@@ -165,7 +181,7 @@ def test_qdrant_upsert_is_idempotent_and_queries_only_the_requested_snapshot() -
             assert await index.scroll_snapshot_ids(first_snapshot) == ("sha256:one",)
             matches = await index.query_snapshot((1.0, 0.0), first_snapshot, limit=5)
             assert [match.evidence_id for match in matches] == ["sha256:one"]
-            assert matches[0].score == 0.75
+            assert matches[0].score == 1.0
             await index.delete_snapshot(first_snapshot)
             assert await index.count_snapshot(first_snapshot) == 0
             assert await index.count_snapshot(other_snapshot) == 1
@@ -223,6 +239,7 @@ class _FakeStore(IndexStateStore):
     def __init__(self, inputs: tuple[IndexInput, ...]) -> None:
         self.inputs = inputs
         self.states: list[tuple[IndexState, int, int]] = []
+        self.state_details: list[Mapping[str, object]] = []
         self._build_gate = asyncio.Lock()
         self.active_builds = 0
         self.maximum_active_builds = 0
@@ -257,6 +274,7 @@ class _FakeStore(IndexStateStore):
         details: Mapping[str, object],
     ) -> None:
         self.states.append((status, expected_count, indexed_count))
+        self.state_details.append(dict(details))
 
 
 class _FakeEmbedder(VectorEmbedder):
@@ -449,5 +467,131 @@ def test_cancelled_rebuild_is_not_published_as_ready() -> None:
             "building",
             "reconciliation_required",
         ]
+
+    asyncio.run(exercise())
+
+
+def test_bge_index_is_separate_reconciled_reloadable_and_rebuildable() -> None:
+    snapshot_id = uuid4()
+    e5_configuration = E5SmallV2Embedder.index_configuration(
+        collection_name="phase1-e5-lifecycle-fixture"
+    )
+    bge_configuration = BGEBaseEnV15Embedder.index_configuration(
+        collection_name="phase2-bge-lifecycle-fixture"
+    )
+    evidence_ids = ("sha256:alpha", "sha256:near-alpha", "sha256:beta")
+    inputs = tuple(
+        IndexInput(
+            evidence_id=evidence_id,
+            text=text,
+            payload={
+                "snapshot_id": str(snapshot_id),
+                "index_configuration_id": bge_configuration.configuration_id,
+                "paper_id": "W123",
+                "document_id": str(uuid4()),
+                "extraction_id": str(uuid4()),
+            },
+        )
+        for evidence_id, text in zip(
+            evidence_ids,
+            ("alpha target", "near alpha", "beta only"),
+            strict=True,
+        )
+    )
+    store = _FakeStore(inputs)
+    fixture = _QdrantFixture()
+
+    class _SyntheticBGEEmbedder(VectorEmbedder):
+        async def embed(
+            self, texts: Sequence[str], *, configuration: IndexConfiguration
+        ) -> Sequence[Sequence[float]]:
+            vectors: list[tuple[float, ...]] = []
+            for text in texts:
+                vector = [0.0] * configuration.vector_size
+                if text == "alpha target":
+                    vector[0] = 1.0
+                elif text == "near alpha":
+                    vector[0], vector[1] = 0.8, 0.6
+                elif text == "beta only":
+                    vector[1] = 1.0
+                else:
+                    raise AssertionError("unexpected synthetic passage")
+                vectors.append(tuple(vector))
+            return tuple(vectors)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test",
+            transport=httpx.MockTransport(fixture.handle),
+        ) as http:
+            e5_index = QdrantIndex(e5_configuration, http)
+            await e5_index.ensure_collection()
+            await e5_index.upsert(
+                (
+                    IndexPoint(
+                        evidence_id="sha256:retained-e5",
+                        vector=(1.0,) + (0.0,) * 383,
+                        payload={
+                            "snapshot_id": str(snapshot_id),
+                            "index_configuration_id": e5_configuration.configuration_id,
+                            "paper_id": "W123",
+                            "document_id": str(uuid4()),
+                            "extraction_id": str(uuid4()),
+                        },
+                    ),
+                )
+            )
+
+            bge_index = QdrantIndex(bge_configuration, http)
+            for _ in range(2):
+                report = await rebuild_snapshot_index(
+                    store, bge_index, _SyntheticBGEEmbedder(), snapshot_id
+                )
+                assert report.configuration_id == bge_configuration.configuration_id
+                assert report.expected_count == report.indexed_count == 3
+                assert fixture.collections[bge_configuration.collection_name] == {
+                    "size": 768,
+                    "distance": "Cosine",
+                }
+                assert await bge_index.count_snapshot(snapshot_id) == 3
+                assert set(await bge_index.scroll_snapshot_ids(snapshot_id)) == set(
+                    evidence_ids
+                )
+                assert store.states[-1] == ("ready", 3, 3)
+                ready_details = store.state_details[-1]
+                assert (
+                    ready_details["evidence_ids_sha256"]
+                    == ready_details["qdrant_evidence_ids_sha256"]
+                )
+                matches = await bge_index.query_snapshot(
+                    (1.0,) + (0.0,) * 767, snapshot_id, limit=3
+                )
+                assert [match.evidence_id for match in matches] == [
+                    "sha256:alpha",
+                    "sha256:near-alpha",
+                    "sha256:beta",
+                ]
+                assert matches[0].payload["index_configuration_id"] == (
+                    bge_configuration.configuration_id
+                )
+                assert await e5_index.count_snapshot(snapshot_id) == 1
+
+            reloaded_bge_index = QdrantIndex(bge_configuration, http)
+            assert await reloaded_bge_index.collection_exists()
+            await reloaded_bge_index.ensure_collection()
+            reloaded_matches = await reloaded_bge_index.query_snapshot(
+                (1.0,) + (0.0,) * 767, snapshot_id, limit=1
+            )
+            assert reloaded_matches[0].evidence_id == "sha256:alpha"
+            assert fixture.collections[e5_configuration.collection_name] == {
+                "size": 384,
+                "distance": "Cosine",
+            }
+            assert [state for state, _, _ in store.states] == [
+                "building",
+                "ready",
+                "building",
+                "ready",
+            ]
 
     asyncio.run(exercise())

@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 in progress at 07.4.
+Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 in progress at 07.5.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-07.2**.
+   whose prerequisites are satisfied. Continue at **P2-07.5**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -234,9 +234,10 @@ Preserve the user's existing worktree and publication workflow.
   pipe-table-like, four near the accepted input maximum). At batch size 4 and five
   warm repetitions, the GPU completed the longest group at 0.141 s per four chunks;
   allocator peak was 490 MiB allocated / 574 MiB reserved. CPU peak RSS was 1.34 GiB.
-  The active CUDA 13.0 PyTorch build failed against driver 12.9; an official PyTorch
-  CUDA 12.6 wheel was installed only under `/tmp` and successfully used for GPU
-  measurement. Project dependencies remain unchanged. This establishes feasibility,
+  The user updated the Windows driver; WSL now reports driver 617.14 and the normal
+  PyTorch `2.14.0+cu130` build detects the GPU. Final GPU measurements were rerun on
+  that environment. An isolated CUDA 12.6 wheel used for an earlier exploratory run
+  was removed. Project dependencies remain unchanged. This establishes feasibility,
   not retrieval quality or full-index cost.
 - **P2-07.3 complete; assistant-reviewed 2026-09-26:** exact pinned tokenizers
   audited all 44,277 unique accepted chunks and the E5 `passage: ` prefix. No chunk
@@ -245,6 +246,19 @@ Preserve the user's existing worktree and publication workflow.
   `823bd7cd64ed89f555add9ec4967777118b8c1845b4b949e260f88987c9016f8`. Raw IDs
   and counts remain private under ignored local-reference.
   See `docs/research/phase-2-bge-base-en-v1-5-pilot-research.md`.
+- **P2-07.4 complete; assistant-reviewed 2026-09-26:** the pinned BGE embedder is
+  selected from a separately versioned configuration at
+  `configs/phase2-bge-base-en-v1-5-index.example.json`; its configuration ID is
+  `sha256:c90fc73b817284ab9a7b6efd6168b06cd560247934da9e7b014c68317f562735`.
+  Synthetic lifecycle coverage
+  verifies a distinct 768-dimensional Qdrant collection, exact selected-ID
+  reconciliation/readiness digests, matching configuration payloads, known-neighbor
+  ranking, reload through a new index object, and two successful rebuilds. The E5
+  384-dimensional collection remains unchanged. Focused dense hydration tests cover
+  BGE and reject an unreviewed model revision. `pytest -m 'not integration' -q` passes
+  (263 passed, 19 deselected); `ruff check .`, `ruff format --check .`, and `mypy src`
+  pass. BM25S was supplied only through a `/tmp` verification path. No accepted-corpus
+  index was built.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -257,9 +271,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-07.4. Implement the BGE embedding adapter and a separately
-identified dense index path, then verify synthetic known-neighbor retrieval and
-profile/filter invariants. The BGE pilot and full input-token compatibility audit
-are complete; quality comparison and full-index cost remain open. The accepted
-review database remains unmigrated to 015, so a real profile-bound lexical artifact
-is still unavailable.
+**Next step:** P2-07.5. Apply the shared metadata-filter contract before dense
+top-k and recheck authoritative snapshot eligibility during hydration. The BGE
+adapter and synthetic separate-index lifecycle are complete; retrieval-quality
+comparison and the full accepted-corpus index cost remain open. Keep the accepted
+review database untouched until its migration/readiness gate is explicitly met.
