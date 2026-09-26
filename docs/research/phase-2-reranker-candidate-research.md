@@ -64,13 +64,14 @@ Raw scores from the two models should not be compared numerically or interpreted
 
 GPU allocated/reserved reports the inference peak after model load; MiniLM used 87 MiB allocated after load, and BGE used 1,061 MiB. BGE began with 3.222 GiB free in WSL. Peak process RSS includes the Python runtime and tokenizer as well as the model. Model-load timing began after input selection, and local file/OS caches may have been warm. Timings include tokenization, transfer and inference; five repeats provide medians and ranges, not a credible p95 or service benchmark. Raw scores were checked for finite alignment but not retained or interpreted.
 
-## Practical implications for the next P2-10 work
+## Practical implications for the remaining P2-10 work
 
 These are implementation inferences from the confirmed source behavior and approved roadmap, not model-selection judgments:
 
 1. Use the same saved hybrid candidate lists for both rerankers, keep each model's full revision and tokenizer identity in configuration, and compare rank-based metrics rather than raw scores.
 2. Make pair formatting explicit and version it. Any paper title, section name, table caption, header, unit or footnote added to the document side consumes the same 512-token pair budget and must not be silently clipped.
-3. For table evidence, retain the value's source-linked row/header context. P2-10.2 must define a source-linked window or another declared policy if the pair exceeds the model budget.
+3. P2-10.2 freezes raw source-chunk pairs and an all-or-fail 512-token policy;
+   over-budget results require explicit caller fallback rather than evidence loss.
 4. FP32 batch size 4 is feasible on this laptop for the measured pair groups. Batch sizes above 4 and FP16 remain unmeasured; the library's default batch size 32 and upstream FP16 examples are not local feasibility evidence.
 
 ## Unknowns and limitations
@@ -85,6 +86,6 @@ These are implementation inferences from the confirmed source behavior and appro
 
 - **Phase/task:** Phase 2, P2-10.1 source review and bounded resource pilot. This report supports the approved comparison of MiniLM-L6-v2 and BGE reranker base.
 - **Decision state:** both candidates are feasible for batch-size-4 FP32 inference on the measured laptop. Exact reranker choice and settings remain OPEN until development retrieval evaluation.
-- **Tests and telemetry:** the local ignored pilot script ran four offline model/device combinations; every group completed with finite aligned outputs. Raw IDs, timings and memory records remain local. No quality score was computed. P2-10.2 still needs to freeze table-aware pair construction before quality comparisons.
+- **Tests and telemetry:** the local ignored pilot script ran four offline model/device combinations; every group completed with finite aligned outputs. Raw IDs, timings and memory records remain local. No quality score was computed. P2-10.2 freezes table-aware source-chunk preservation and pair overflow behavior; quality remains unmeasured.
 - **Scope and consequences:** no project dependency, application code, database, index, or accepted snapshot changed. Pinned model files are confined to /tmp. No ADR or source-of-truth amendment is proposed; model selection remains OPEN.
 - **Review limits:** findings are assistant-reviewed, rely on upstream model/library sources and cited papers, and are not independently human-validated. The Hub revisions are those observed on 2026-09-27.

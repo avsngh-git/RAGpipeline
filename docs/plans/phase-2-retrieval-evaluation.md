@@ -55,7 +55,8 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-09 are complete. P2-10 is in progress; 10.1 is complete and 10.2 is next.
+P2-01–P2-09 are complete. P2-10 is in progress; 10.1–10.2 are complete,
+with 10.3 next.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -610,6 +611,20 @@ per four pairs was MiniLM 0.3386 s CPU / 0.0306 s GPU and BGE 2.0602 s CPU /
 evaluated, and reranker selection remains OPEN. From WSL, nvidia-smi reported host
 driver 617.14 and 4 GiB VRAM; the project PyTorch 2.14.0+cu130 runtime detected
 CUDA. Raw pair IDs, timing samples and the local-only pilot script remain outside Git.
+
+**10.2 complete; assistant-reviewed 2026-09-27:** pair format
+query-source-chunk-v1 is implemented in
+src/research_platform/search/reranker_pairs.py and specified in
+docs/reference/phase-2-reranker-pair-format.md. It passes the query and full stored
+chunk text unchanged, retains the complete EvidenceHit, and adds no paper/section
+context. Model token counters measure query, evidence and special tokens with
+truncation disabled. Comparative runs can supply both tokenizer revisions; if any
+pair exceeds 512 tokens under any counter, the builder returns no partial list and
+raises a structured budget error. Table-row-group context is passed unchanged, including header associations and
+any footnotes present in the stored chunk.
+Fourteen focused tests cover prose/table preservation, provenance, exact-limit and
+overflow behavior. The full non-integration suite passes (332 passed, 21 deselected);
+Ruff, format and strict source mypy pass.
 
 1. **10.1 Pilot both candidates.** Evaluate MS MARCO MiniLM-L6-v2 and BGE-reranker-base
    on bounded representative query/prose/table pairs. Record revisions, licenses,

@@ -1,13 +1,13 @@
 # Phase 2 — Agent handoff
 
 Updated: 2026-09-27. Plan approved; P2-01–P2-09 complete; P2-10 is in progress.
-P2-10.1 is complete; continue with 10.2.
+P2-10.1–10.2 are complete; continue with 10.3.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-10.2**.
+   whose prerequisites are satisfied. Continue at **P2-10.3**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -400,6 +400,18 @@ This is feasibility evidence only; quality and final reranker choice remain OPEN
 The WSL process sees the Windows host driver (617.14), rather than a separately
 installed Linux driver. No project dependency, index or database changed.
 
+**P2-10.2 complete; assistant-reviewed 2026-09-27:** pair format
+query-source-chunk-v1 passes each query and complete source chunk unchanged, keeps
+the full EvidenceHit and its source/rank/component provenance, and adds no metadata
+context. Every model tokenizer counts the complete pair with truncation disabled.
+An over-budget candidate for any comparison tokenizer fails the entire pair set;
+no evidence is cut or dropped. Table row-group text preserves its ingested caption,
+units, header associations, footnotes where present and cell values; oversized-cell
+units also retain coordinates. Tests cover
+table associations, stable source alignment, token limits and failure behavior.
+Full non-integration suite passes (332 passed, 21 deselected); Ruff, format and
+strict source mypy pass. Quality remains unmeasured.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -411,8 +423,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-10.2. Define versioned query/evidence pair construction and retain
-table header/value associations within the shared pair token budget. P2-09 is
-complete; run its PostgreSQL integration fixtures when the dedicated
-research_test database is configured. Keep the accepted review DB read-only until
-its migration/readiness gate is met.
+**Next step:** P2-10.3. Implement the profile-bound cross-encoder adapter with
+off-event-loop batching, inference timeout, finite-score validation, strict output
+alignment and stable tie handling. P2-09 is complete; run its PostgreSQL integration
+fixtures when the dedicated research_test database is configured. Keep the accepted
+review DB read-only until its migration/readiness gate is met.
