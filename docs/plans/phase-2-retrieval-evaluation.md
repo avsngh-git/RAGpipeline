@@ -55,7 +55,8 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-09 are complete. P2-10 is next. The table is the single implementation status checklist.
+P2-01–P2-09 are complete. P2-10 is in progress; 10.1 is complete and 10.2 is next.
+The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -69,7 +70,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Complete |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Complete |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Complete |
-| P2-10 | Cross-encoder reranking | P2-05, P2-08 | Pending |
+| P2-10 | Cross-encoder reranking | P2-05, P2-08 | In progress |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Pending |
 | P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Pending |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Pending |
@@ -498,9 +499,9 @@ A deterministic adapter substitute supports CI.
 **07.2 complete; assistant-reviewed 2026-09-26:** pinned BGE-base-en-v1.5 and
 measured a deterministic 12-chunk prose/table/near-limit sample on CPU and the local
 RTX 3050, with batch size 4, five warm repetitions per group, explicit normalization,
-peak RSS and allocator VRAM. After the Windows driver update propagated into WSL,
-the default PyTorch 2.14 `cu130` runtime detected CUDA and the GPU pilot was rerun
-there. Project dependencies were unchanged. See
+peak RSS and allocator VRAM. The Windows host driver is exposed to WSL; `nvidia-smi` inside WSL reports
+driver 617.14, and the default PyTorch 2.14 `cu130` runtime detects CUDA there.
+The GPU pilot was rerun in that WSL environment. Project dependencies were unchanged. See
 [the BGE pilot report](../research/phase-2-bge-base-en-v1-5-pilot-research.md).
 The pilot supports hardware feasibility only, not retrieval quality or full-index
 build-time claims.
@@ -594,6 +595,21 @@ and out-of-snapshot endpoint tests pass. No live OpenAlex call occurs on search.
 
 **Inputs:** fixed pilot candidate lists, initially from the existing E5 hybrid path.
 Final embedding/reranker selection happens in P2-14/15.
+
+**10.1 complete; assistant-reviewed 2026-09-27:** the source audit and bounded
+resource pilot are recorded in the [candidate report](../research/phase-2-reranker-candidate-research.md).
+MiniLM-L6-v2 (233902d25c440f23af6f7d6e94d2946bac0bee0a, Apache-2.0 metadata)
+and BGE reranker base (2cfc18c9415c912f9d8155881c133215df768a70, MIT metadata)
+both completed CPU and WSL RTX 3050 runs, sequentially at FP32/batch 4. The same
+12 development-only query/source-chunk pairs were used in every run, with no
+truncation; each group has five warm timings. Peak process RSS was 1.275/1.553 GiB
+for MiniLM CPU/GPU and 1.951/2.589 GiB for BGE. Peak GPU allocated/reserved memory
+was 128/170 MiB for MiniLM and 1,137/1,256 MiB for BGE. Longest-group median time
+per four pairs was MiniLM 0.3386 s CPU / 0.0306 s GPU and BGE 2.0602 s CPU /
+0.1444 s GPU. These support feasibility only; no relevance or ranking score was
+evaluated, and reranker selection remains OPEN. From WSL, nvidia-smi reported host
+driver 617.14 and 4 GiB VRAM; the project PyTorch 2.14.0+cu130 runtime detected
+CUDA. Raw pair IDs, timing samples and the local-only pilot script remain outside Git.
 
 1. **10.1 Pilot both candidates.** Evaluate MS MARCO MiniLM-L6-v2 and BGE-reranker-base
    on bounded representative query/prose/table pairs. Record revisions, licenses,

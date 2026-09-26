@@ -1,12 +1,13 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-09 complete; P2-10 next.
+Updated: 2026-09-27. Plan approved; P2-01–P2-09 complete; P2-10 is in progress.
+P2-10.1 is complete; continue with 10.2.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-10.1**.
+   whose prerequisites are satisfied. Continue at **P2-10.2**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -234,9 +235,10 @@ Preserve the user's existing worktree and publication workflow.
   pipe-table-like, four near the accepted input maximum). At batch size 4 and five
   warm repetitions, the GPU completed the longest group at 0.141 s per four chunks;
   allocator peak was 490 MiB allocated / 574 MiB reserved. CPU peak RSS was 1.34 GiB.
-  The user updated the Windows driver; WSL now reports driver 617.14 and the normal
-  PyTorch `2.14.0+cu130` build detects the GPU. Final GPU measurements were rerun on
-  that environment. An isolated CUDA 12.6 wheel used for an earlier exploratory run
+  The Windows host driver is exposed to WSL; `nvidia-smi` inside the project WSL
+  environment reports host driver 617.14, and its normal PyTorch `2.14.0+cu130`
+  build detects the GPU. Final GPU measurements were rerun in that WSL environment.
+  An isolated CUDA 12.6 wheel used for an earlier exploratory run
   was removed. Project dependencies remain unchanged. This establishes feasibility,
   not retrieval quality or full-index cost.
 - **P2-07.3 complete; assistant-reviewed 2026-09-26:** exact pinned tokenizers
@@ -388,6 +390,16 @@ is not configured. Full non-integration suite passes (318 passed, 21 deselected)
 Ruff, format and strict source mypy pass. P2-09 Done behavior is covered offline;
 database-backed SQL execution remains an environment-gated check.
 
+**P2-10.1 complete; assistant-reviewed 2026-09-27:** the primary-source audit
+and bounded MiniLM/BGE resource pilot are recorded in
+docs/research/phase-2-reranker-candidate-research.md. Both pinned candidates ran
+on CPU and the WSL RTX 3050 at FP32/batch 4 using identical development-only pairs;
+all outputs were finite/aligned, including a 512-token pair, with no OOM. The report
+records revisions, model-declared licenses, pair limits, CPU/GPU latency and memory.
+This is feasibility evidence only; quality and final reranker choice remain OPEN.
+The WSL process sees the Windows host driver (617.14), rather than a separately
+installed Linux driver. No project dependency, index or database changed.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -399,8 +411,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-10.1. Research the shortlisted reranker candidates against
-primary sources and record current licenses, revisions, preprocessing constraints
-and hardware/latency feasibility. P2-09 is complete; run its PostgreSQL integration
-fixtures when the dedicated `research_test` database is configured. Keep the
-accepted review DB read-only until its migration/readiness gate is met.
+**Next step:** P2-10.2. Define versioned query/evidence pair construction and retain
+table header/value associations within the shared pair token budget. P2-09 is
+complete; run its PostgreSQL integration fixtures when the dedicated
+research_test database is configured. Keep the accepted review DB read-only until
+its migration/readiness gate is met.

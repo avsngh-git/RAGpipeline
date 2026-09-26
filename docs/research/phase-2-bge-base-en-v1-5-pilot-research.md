@@ -61,11 +61,12 @@ been warm.
 | Peak GPU memory | unavailable | 490 MiB allocated / 574 MiB reserved |
 
 The laptop has an Intel Core i5-11400H (6 cores / 12 threads), 7.6 GiB host RAM,
-and an RTX 3050 Laptop GPU with 4 GiB VRAM. Before the Windows driver update, WSL
-reported driver 576.80 and the installed `cu130` build could not initialize CUDA.
-After the update, WSL reported driver 617.14 and the same PyTorch
-`2.14.0+cu130` build detected the GPU. Final GPU figures above were rerun on this
-normal project environment. An isolated CUDA 12.6 wheel was used for an earlier
+and an RTX 3050 Laptop GPU with 4 GiB VRAM. WSL exposes the Windows host's NVIDIA
+driver to Linux processes; `nvidia-smi` run inside WSL reported driver 576.80
+before the Windows driver update, when the installed `cu130` build could not
+initialize CUDA. After the Windows host update, `nvidia-smi` inside WSL reported
+617.14 and the same PyTorch `2.14.0+cu130` build detected the GPU. Final GPU
+figures above were rerun in this normal project WSL environment. An isolated CUDA 12.6 wheel was used for an earlier
 exploratory run and then removed; no project environment or dependency file changed.
 
 BGE returned `(4, 768)` passage vectors and `(1, 768)` for the query. With explicit
