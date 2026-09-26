@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-05 are complete. P2-06 is in progress at substep 06.2. The table is the single implementation status checklist.
+P2-01–P2-05 are complete. P2-06 is in progress at substep 06.3. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -211,7 +211,7 @@ execute. Four new unit tests, the profile tests, and synthetic parent/variant an
 serving-boundary integration checks pass. P2-03 done condition is met: parent and
 variant searches return their own exact selected chunk sets and do not mix vectors.
 
-P2-05 is complete. P2-06.1 confirms BM25S is feasible as a candidate; continue with **P2-06.2** to define the scientific analyzer.
+P2-05 is complete. P2-06.1 confirms BM25S is feasible as a candidate and 06.2 defines scientific-en-v1; continue with **P2-06.3** to build the indexes.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 
@@ -374,6 +374,20 @@ pilot source are retained under the ignored local-reference/phase2-runs path.
 Details and limitations:
 [BM25S pilot research](../research/phase-2-bm25s-pilot-research.md). No project
 dependency or serving implementation is accepted yet.
+
+**06.2 complete 2026-09-26:** `search/lexical_analyzer.py` defines the
+versioned `scientific-en-v1` analyzer. It applies Unicode NFC/casefold and narrow
+dash/micro-symbol normalization; retains one-character terms, acronyms, technical
+compounds and their components, numeric forms and operators; and uses no stopword
+removal or stemming. Nine focused behavioral tests pass, as do Ruff check/format
+and mypy. On the accepted 44,277 chunks, the analyzer produced 1,917,082 tokens,
+65,432 vocabulary terms and 601 empty rows in 2.012 s, versus BM25S defaults at
+1,345,214 tokens, 43,469 terms and 3,685 empty rows in 0.511 s. It retained all
+10 diagnostic scientific features versus one under the default analyzer; 7/10
+calibration families contain a one-character query token. These are token-retention
+and cost measurements, not retrieval-quality results. Policy and caveats:
+[BM25S analyzer v1](../reference/phase-2-bm25s-analyzer.md). Development retrieval
+evaluation may select a later analyzer revision.
 
 **Inputs:** ready variant manifest, canonical evidence, lexical candidate BM25S.
 

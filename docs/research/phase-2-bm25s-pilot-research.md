@@ -102,8 +102,10 @@ The tested artifact was `bm25s==0.3.11`, wheel SHA-256
 `3d1d28badb299d6fc9324111e5c8276927e990b908607b39ff9bd65b102e9a24`, on Python
 3.12.14 and NumPy 2.5.3. Both the BM25 backend and CSC builder were forced to
 `numpy`. The pilot used BM25S's default tokenization only as a baseline: lowercase,
-two-character word tokens, English stopwords and no stemmer. This is not the
-selected project analyzer. BM25S's `lucene` default uses Lucene IDF and the
+two-character word tokens, English stopwords and no stemmer. The selected
+custom analyzer is versioned as `scientific-en-v1`; its policy and measured token
+retention are in [phase-2-bm25s-analyzer.md](../reference/phase-2-bm25s-analyzer.md).
+BM25S's `lucene` default uses Lucene IDF and the
 Robertson term-frequency component; explicit `k1=1.5`, `b=0.75` scoring matched
 an independent three-document calculation within `1e-6` absolute tolerance and
 produced the expected order. [Pinned BM25S scoring source](https://github.com/xhluca/bm25s/blob/a213158181d4b3781ba06bc88840f89871f1c775/bm25s/scoring.py).
@@ -160,15 +162,16 @@ This makes BM25S **feasible as a candidate** for the next implementation steps:
 it has low measured local build/storage cost, fast warm scoring at this corpus
 scale, stable row mapping and a correct adapter path for restrictive filters.
 The API's masked `retrieve` path is disallowed for project filtering. P2-06.2
-must define the scientific analyzer; P2-06.3–06.5 must implement and validate
+now defines the scientific analyzer; P2-06.3–06.5 must implement and validate
 serving artifacts, rebuild, and CLI behavior. No dependency or serving code has
 been added, and the lexical implementation ADR remains deferred until that task
 is complete.
 
 ## Agent operating checklist
 
-- This serves Phase 2 P2-06.1. BM25 is approved; the lexical library/version and
-  analyzer remain open until measured.
+- This serves Phase 2 P2-06.1. BM25 is approved. The scientific-en-v1 analyzer
+  is defined in P2-06.2; the BM25S package remains a measured candidate until
+  implementation and lifecycle checks finish.
 - This research adds no service or duplicate search logic. The pilot covered
   exact scoring/order, eligible-only top-k, empty eligibility, zero-term queries,
   and mmap save/load with the stable ID mapping. Atomic rebuild publication and

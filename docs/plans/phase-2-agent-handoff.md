@@ -6,7 +6,7 @@ Updated: 2026-09-26. Plan approved; P2-01–P2-05 complete; P2-06 in progress.
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-06.2**.
+   whose prerequisites are satisfied. Continue at **P2-06.3**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -176,6 +176,16 @@ Preserve the user's existing worktree and publication workflow.
   `docs/research/phase-2-bm25s-pilot-research.md` for artifact, corpus and timing
   identities, commands and limits.
 
+- **P2-06.2 complete:** `src/research_platform/search/lexical_analyzer.py` and
+  nine focused tests define scientific-en-v1. It keeps stopwords, no stemming,
+  one-character terms, acronyms, numeric/compound aliases and scientific operators;
+  normalization is Unicode NFC/casefold plus common dash/minus and micro-symbol
+  mapping. The corpus comparison measured 1,917,082 tokens/65,432 vocabulary terms
+  (2.012 s) versus BM25S defaults at 1,345,214/43,469 (0.511 s). All ten designed
+  diagnostic features survive, compared with one under the default tokenizer. This
+  is token-retention evidence, not a quality result. Ruff, format, mypy and all nine
+  focused tests pass; see `docs/reference/phase-2-bm25s-analyzer.md`.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -187,9 +197,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-06.2. Define and version a conservative analyzer that preserves
-scientifically meaningful one-character terms, acronyms, numbers and punctuation
-variants while leaving source text unchanged. BM25S remains a candidate rather than
-an accepted project dependency until P2-06.2–06.5 complete the implementation gate.
-ADR-0009 records exact selection and lineage; the P2-01 entry check records
+**Next step:** P2-06.3. Build separate evidence and paper title/abstract lexical
+representations under the exact snapshot/profile identities. Use scientific-en-v1
+for evidence and preserve stable row-to-ID mapping; BM25S remains a candidate rather
+than an accepted project dependency until P2-06.3–06.5 complete the implementation
+gate. ADR-0009 records exact selection and lineage; the P2-01 entry check records
 migration/restore evidence and local artifact paths.
