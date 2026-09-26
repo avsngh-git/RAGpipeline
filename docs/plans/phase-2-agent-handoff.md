@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-07 complete; P2-08 pending.
+Updated: 2026-09-27. Plan approved; P2-01–P2-08 complete; P2-09 in progress.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-08.1**.
+   whose prerequisites are satisfied. Continue at **P2-09.2**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -322,6 +322,19 @@ Preserve the user's existing worktree and publication workflow.
   (288 passed, 19 deselected), with Ruff, formatting and strict source mypy. P2-08's
   Done condition is met; P2-09.1 is next.
 
+**P2-09.1 implementation complete; assistant-reviewed 2026-09-27:**
+`search/paper_reads.py` resolves canonical OpenAlex IDs through both stored identity paths
+in one SQL query with a two-row resolution cap. It distinguishes unknown IDs from known
+papers outside the requested snapshot, returns selected document ID/version/kind only
+for members, and reports title/abstract/year availability. The query projects only the
+abstract index needed for that flag and reads no evidence/chunk text or live OpenAlex
+data. Six unit cases cover selected, outside, unknown, missing snapshot, conflicting
+identity, query bounds and invalid public IDs. A PostgreSQL integration case exercises
+canonical and identifier-table resolution, but was skipped because
+`RESEARCH_PLATFORM_TEST_DATABASE_URL` is not configured. The full non-integration suite
+passes (294 passed, 20 deselected); Ruff, format and strict source mypy pass.
+`PaperMetadataResponse`/HTTP routing remain scheduled under P2-16.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -333,8 +346,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-09.1. Implement bounded paper reads that resolve public paper IDs,
-report actual document version and metadata availability, and distinguish unknown IDs
-from records outside the selected snapshot. P2-08 is complete; the BGE/E5 filter path
-is ready for this service work. Keep the accepted review DB read-only until its
-migration/readiness gate is met.
+**Next step:** P2-09.2. Group evidence into papers using the strongest eligible hit
+as the initial evidence score and retain up to three distinct supporting hits. P2-09.1
+is implemented and unit-verified; its isolated PostgreSQL integration case remains
+unrun until the dedicated test database is configured. Keep the accepted review DB
+read-only until its migration/readiness gate is met.
