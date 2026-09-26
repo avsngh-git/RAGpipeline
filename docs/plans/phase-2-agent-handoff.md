@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 in progress at 07.5.
+Updated: 2026-09-26. Plan approved; P2-01–P2-07 complete; P2-08 pending.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-07.5**.
+   whose prerequisites are satisfied. Continue at **P2-08.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -260,6 +260,15 @@ Preserve the user's existing worktree and publication workflow.
   pass. BM25S was supplied only through a `/tmp` verification path. No accepted-corpus
   index was built.
 
+- **P2-07.5 complete; assistant-reviewed 2026-09-26:** dense retrieval applies
+  inclusive year ranges and OR-within-field metadata predicates before top-k. Rebuilds
+  populate a versioned payload marker and indexed metadata, reconcile exact Qdrant
+  payloads against the selected DB inputs, and publish readiness only on a full match.
+  Hydration rechecks the shared filter contract against source-authoritative metadata;
+  stale filter payloads require rebuild. Both E5 and BGE have known-neighbor filter
+  tests. Shared checks pass (270 passed, 19 deselected; Ruff, format and mypy). The
+  accepted DB remains unmigrated to 015, so no accepted-index backfill was run.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -271,8 +280,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-07.5. Apply the shared metadata-filter contract before dense
-top-k and recheck authoritative snapshot eligibility during hydration. The BGE
-adapter and synthetic separate-index lifecycle are complete; retrieval-quality
-comparison and the full accepted-corpus index cost remain open. Keep the accepted
-review database untouched until its migration/readiness gate is explicitly met.
+**Next step:** P2-08.1. Implement deterministic reciprocal rank fusion over the
+profile-bound lexical and dense candidate lists. The BGE/E5 filter path is complete;
+retrieval quality comparison and full-index cost remain open for the development
+experiments. Keep the accepted review DB untouched until its migration/readiness gate
+is met.

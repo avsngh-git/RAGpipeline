@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 in progress at 07.5.
+Status: approved 2026-09-26; P2-01–P2-07 complete; P2-08 pending.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-06 are complete. P2-07 is next. The table is the single implementation status checklist.
+P2-01–P2-07 are complete. P2-08 is next. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -66,7 +66,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
 | P2-06 | BM25 lexical retrieval | P2-03 | Complete |
-| P2-07 | Dense retrieval and embedding pilots | P2-03 | In progress (07.5) |
+| P2-07 | Dense retrieval and embedding pilots | P2-03 | Complete |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Pending |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Pending |
@@ -527,8 +527,21 @@ was supplied only through a `/tmp` verification path. The lifecycle uses determi
 vectors and an in-memory Qdrant fixture; no full accepted-corpus index was built or
 modified.
 
-**07.5 is next:** add pre-top-k metadata filtering to dense retrieval and recheck
-eligibility against authoritative snapshot evidence during hydration.
+**07.5 complete; assistant-reviewed 2026-09-26:** `SearchFilters` now maps to
+Qdrant `must` conditions before top-k: inclusive year ranges and OR-within-field
+`match.any` for paper, evidence-kind, and version-kind values. Index inputs carry a
+versioned filter-payload marker plus authoritative paper/year/kind metadata. Serialized
+rebuilds create Qdrant payload indexes, compare exact selected IDs and filter payloads
+against PostgreSQL before readiness, and leave incomplete builds in
+`reconciliation_required`. Filter requests reject stale index readiness and recheck
+each hydrated source row using the shared filter truth table. E5 and BGE synthetic
+nearest-neighbor tests both confirm restrictive filters can return a qualifying hit
+below unfiltered top-1. `pytest -m 'not integration' -q`: 270 passed, 19 deselected;
+`ruff check .`, `ruff format --check .`, and `mypy src` pass (BM25S is provided only
+via a `/tmp` verification path). The accepted review DB is not migrated to 015, so no
+accepted-index payload backfill was run; the existing collection was left untouched.
+P2-07's Done condition is met; quality comparison and full-index cost remain open.
+
 
 ## P2-08 — Fuse candidate lists
 

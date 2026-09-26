@@ -23,6 +23,7 @@ from research_platform.ingestion.snapshot_selection import (
     SnapshotSelection,
 )
 
+DENSE_FILTER_PAYLOAD_REVISION = "dense-filter-payload-v1"
 IndexDistance = Literal["Cosine", "Dot", "Euclid", "Manhattan"]
 IndexState = Literal[
     "pending", "building", "ready", "reconciliation_required", "failed"
@@ -185,6 +186,7 @@ class ReadySnapshotIndex:
     configuration_id: str
     collection_name: str
     expected_count: int
+    filter_payload_revision: str | None = None
 
 
 class SnapshotIndexNotReady(RuntimeError):
@@ -294,6 +296,23 @@ class QdrantIndex:
                 "Qdrant collection dimensions or distance differ from configuration"
             )
 
+    async def ensure_filter_payload_indexes(self) -> None:
+        """Create the scalar payload indexes used by bounded dense filters."""
+        schemas = (
+            ("filter_payload_revision", "keyword"),
+            ("paper_id", "keyword"),
+            ("publication_year", "integer"),
+            ("evidence_kind", "keyword"),
+            ("document_version_kind", "keyword"),
+        )
+        for field_name, field_schema in schemas:
+            response = await self._http.put(
+                f"{self._collection_url}/index",
+                params={"wait": "true"},
+                json={"field_name": field_name, "field_schema": field_schema},
+            )
+            response.raise_for_status()
+
     async def upsert(self, points: Sequence[IndexPoint]) -> int:
         if len(points) > self.configuration.batch_size:
             raise ValueError("Qdrant upsert exceeds the configured batch size")
@@ -334,6 +353,7 @@ class QdrantIndex:
         snapshot_id: UUID,
         *,
         limit: int,
+        payload_conditions: Sequence[Mapping[str, object]] = (),
     ) -> tuple[IndexMatch, ...]:
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise ValueError("query limit must be a positive integer")
@@ -343,7 +363,7 @@ class QdrantIndex:
             json={
                 "query": checked_vector,
                 "limit": limit,
-                "filter": _snapshot_filter(snapshot_id),
+                "filter": _snapshot_filter(snapshot_id, payload_conditions),
                 "with_payload": True,
                 "with_vector": False,
             },
@@ -389,6 +409,69 @@ class QdrantIndex:
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             raise RuntimeError("Qdrant returned an invalid exact count")
         return count
+
+    async def scroll_snapshot_payloads(
+        self,
+        snapshot_id: UUID,
+        *,
+        payload_fields: Sequence[str],
+        page_size: int = 100,
+    ) -> tuple[Mapping[str, object], ...]:
+        """Read requested snapshot payload fields without loading vector values."""
+        if (
+            isinstance(page_size, bool)
+            or not isinstance(page_size, int)
+            or page_size <= 0
+        ):
+            raise ValueError("page_size must be a positive integer")
+        if any(
+            not isinstance(field, str) or not field.strip() for field in payload_fields
+        ):
+            raise ValueError("payload_fields must contain non-empty field names")
+        if len(set(payload_fields)) != len(payload_fields):
+            raise ValueError("payload_fields must not contain duplicates")
+        fields = ["evidence_id", *payload_fields]
+        if len(set(fields)) != len(fields):
+            raise ValueError("payload_fields must not include evidence_id")
+
+        payloads: list[Mapping[str, object]] = []
+        offset: str | int | None = None
+        while True:
+            request_payload: dict[str, object] = {
+                "filter": _snapshot_filter(snapshot_id),
+                "limit": page_size,
+                "with_payload": fields,
+                "with_vector": False,
+            }
+            if offset is not None:
+                request_payload["offset"] = offset
+            response = await self._http.post(
+                f"{self._collection_url}/points/scroll", json=request_payload
+            )
+            response.raise_for_status()
+            body = response.json()
+            result = body.get("result") if isinstance(body, dict) else None
+            points = result.get("points") if isinstance(result, dict) else None
+            next_offset = (
+                result.get("next_page_offset") if isinstance(result, dict) else None
+            )
+            if not isinstance(points, list):
+                raise RuntimeError("Qdrant returned an invalid scroll response")
+            for point in points:
+                if not isinstance(point, dict) or not isinstance(
+                    point.get("payload"), dict
+                ):
+                    raise RuntimeError("Qdrant returned a malformed point")
+                payload = point["payload"]
+                if not isinstance(payload.get("evidence_id"), str):
+                    raise RuntimeError("Qdrant point has no evidence_id payload")
+                payloads.append(dict(payload))
+            if next_offset is None or not points:
+                break
+            if not isinstance(next_offset, (str, int)) or isinstance(next_offset, bool):
+                raise RuntimeError("Qdrant returned an invalid scroll offset")
+            offset = next_offset
+        return tuple(payloads)
 
     async def delete_snapshot(self, snapshot_id: UUID) -> None:
         response = await self._http.post(
@@ -453,8 +536,16 @@ def _qdrant_point_id(snapshot_id: str, evidence_id: str) -> UUID:
     )
 
 
-def _snapshot_filter(snapshot_id: UUID) -> dict[str, object]:
-    return {"must": [{"key": "snapshot_id", "match": {"value": str(snapshot_id)}}]}
+def _snapshot_filter(
+    snapshot_id: UUID,
+    payload_conditions: Sequence[Mapping[str, object]] = (),
+) -> dict[str, object]:
+    return {
+        "must": [
+            {"key": "snapshot_id", "match": {"value": str(snapshot_id)}},
+            *[dict(condition) for condition in payload_conditions],
+        ]
+    }
 
 
 def _validate_vector(vector: Sequence[float], dimension: int) -> list[float]:
@@ -715,6 +806,11 @@ class IndexRepository:
                         configuration_id=configuration.configuration_id,
                         collection_name=configuration.collection_name,
                         expected_count=len(selected_chunk_ids),
+                        filter_payload_revision=(
+                            details.get("filter_payload_revision")
+                            if isinstance(details.get("filter_payload_revision"), str)
+                            else None
+                        ),
                     )
             finally:
                 self._build_connection.reset(token)
@@ -741,6 +837,8 @@ class IndexRepository:
                        document.id AS document_id, extraction.id AS extraction_id,
                        extraction.source_artifact_id,
                        source_file.sha256 AS source_artifact_sha256, document.version,
+                       document.version_kind AS document_version_kind,
+                       chunk.kind AS evidence_kind,
                        paper.publication_year, paper.title,
                        section.id AS section_id, section.title AS section_title
                 FROM snapshot_items AS item
@@ -802,6 +900,9 @@ class IndexRepository:
                     "source_artifact_id": str(row["source_artifact_id"]),
                     "source_artifact_sha256": row["source_artifact_sha256"],
                     "publication_year": row["publication_year"],
+                    "evidence_kind": row["evidence_kind"],
+                    "document_version_kind": row["document_version_kind"],
+                    "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                     "paper_title": row["title"],
                     "section_id": str(row["section_id"])
                     if row["section_id"] is not None
@@ -890,6 +991,8 @@ class IndexRepository:
                    document.id AS document_id, document.version,
                    extraction.id AS extraction_id, extraction.source_artifact_id,
                    source_file.sha256 AS source_artifact_sha256,
+                   document.version_kind AS document_version_kind,
+                   chunk.kind AS evidence_kind,
                    paper.publication_year, paper.title,
                    section.id AS section_id, section.title AS section_title
             FROM snapshot_items AS item
@@ -952,6 +1055,9 @@ class IndexRepository:
                     "source_artifact_id": str(row["source_artifact_id"]),
                     "source_artifact_sha256": row["source_artifact_sha256"],
                     "publication_year": row["publication_year"],
+                    "evidence_kind": row["evidence_kind"],
+                    "document_version_kind": row["document_version_kind"],
+                    "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                     "paper_title": row["title"],
                     "section_id": str(row["section_id"])
                     if row["section_id"] is not None
@@ -1213,6 +1319,21 @@ async def _rebuild_snapshot_index_locked(
         raise ValueError("snapshot contains duplicate evidence identities")
     if not inputs:
         raise ValueError("cannot build an index for an empty snapshot")
+    for item in inputs:
+        year = item.payload.get("publication_year")
+        if (
+            item.payload.get("filter_payload_revision") != DENSE_FILTER_PAYLOAD_REVISION
+            or item.payload.get("evidence_kind")
+            not in {"text", "table", "table_row_group", "caption", "figure", "equation"}
+            or item.payload.get("document_version_kind")
+            not in {"published", "preprint", "other", "unknown"}
+            or "publication_year" not in item.payload
+            or (
+                year is not None
+                and (isinstance(year, bool) or not isinstance(year, int) or year < 0)
+            )
+        ):
+            raise ValueError("snapshot index input lacks valid dense filter metadata")
     expected_count = len(inputs)
     await store.set_index_state(
         snapshot_id,
@@ -1226,6 +1347,7 @@ async def _rebuild_snapshot_index_locked(
     batch_count = 0
     try:
         await index.ensure_collection()
+        await index.ensure_filter_payload_indexes()
         await index.delete_snapshot(snapshot_id)
         for start in range(0, expected_count, configuration.batch_size):
             batch = inputs[start : start + configuration.batch_size]
@@ -1245,19 +1367,65 @@ async def _rebuild_snapshot_index_locked(
             indexed_count += await index.upsert(points)
             batch_count += 1
         observed_count = await index.count_snapshot(snapshot_id)
-        observed_ids = await index.scroll_snapshot_ids(snapshot_id)
+        payload_fields = (
+            "snapshot_id",
+            "index_configuration_id",
+            "paper_id",
+            "publication_year",
+            "evidence_kind",
+            "document_version_kind",
+            "filter_payload_revision",
+        )
+        observed_payloads = await index.scroll_snapshot_payloads(
+            snapshot_id, payload_fields=payload_fields
+        )
+        observed_ids = tuple(
+            str(payload["evidence_id"])
+            for payload in observed_payloads
+            if isinstance(payload.get("evidence_id"), str)
+        )
         expected_ids_sha256 = _evidence_ids_fingerprint(evidence_ids)
         observed_ids_sha256 = _evidence_ids_fingerprint(observed_ids)
         current_inputs = await store.load_snapshot_inputs(snapshot_id, configuration)
         current_evidence_ids = [item.evidence_id for item in current_inputs]
+        expected_payloads = {item.evidence_id: item.payload for item in inputs}
+        current_payloads = {item.evidence_id: item.payload for item in current_inputs}
+        observed_payloads_by_id = {
+            cast(str, payload["evidence_id"]): payload
+            for payload in observed_payloads
+            if isinstance(payload.get("evidence_id"), str)
+        }
+        payloads_match = (
+            len(observed_payloads_by_id) == expected_count
+            and all(
+                all(
+                    observed_payloads_by_id[evidence_id].get(field)
+                    == expected_payloads[evidence_id].get(field)
+                    for field in payload_fields
+                )
+                for evidence_id in evidence_ids
+                if evidence_id in observed_payloads_by_id
+            )
+            and all(
+                all(
+                    current_payloads[evidence_id].get(field)
+                    == expected_payloads[evidence_id].get(field)
+                    for field in payload_fields
+                )
+                for evidence_id in evidence_ids
+                if evidence_id in current_payloads
+            )
+            and set(current_payloads) == set(evidence_ids)
+        )
         if (
             observed_count != expected_count
             or len(observed_ids) != expected_count
             or set(observed_ids) != set(evidence_ids)
             or _evidence_ids_fingerprint(current_evidence_ids) != expected_ids_sha256
+            or not payloads_match
         ):
             raise IndexReconciliationRequired(
-                "Qdrant evidence identities differ from the PostgreSQL snapshot"
+                "Qdrant evidence IDs or filter payloads differ from the PostgreSQL snapshot"
             )
         await store.set_index_state(
             snapshot_id,
@@ -1270,6 +1438,7 @@ async def _rebuild_snapshot_index_locked(
                 "batch_count": batch_count,
                 "evidence_ids_sha256": expected_ids_sha256,
                 "qdrant_evidence_ids_sha256": observed_ids_sha256,
+                "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
             },
         )
         return IndexBuildReport(

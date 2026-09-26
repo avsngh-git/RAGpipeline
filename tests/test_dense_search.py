@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from uuid import UUID
 
@@ -16,13 +16,16 @@ from research_platform.ingestion.embeddings import (
     E5SmallV2Embedder,
 )
 from research_platform.ingestion.indexing import (
+    DENSE_FILTER_PAYLOAD_REVISION,
     IndexConfiguration,
     IndexInput,
     IndexMatch,
     QdrantIndex,
     ReadySnapshotIndex,
+    SnapshotIndexMismatch,
 )
 from research_platform.ingestion.snapshot_selection import SnapshotSelection
+from research_platform.search.contracts import SearchFilters
 from research_platform.search.dense_search import (
     ProfileDenseIndexMismatch,
     SnapshotDenseSearch,
@@ -41,8 +44,13 @@ CHUNK_SELECTION_ID = "sha256:" + "b" * 64
 
 
 class _Gate:
-    def __init__(self, snapshot_status: str = "finalized") -> None:
+    def __init__(
+        self,
+        snapshot_status: str = "finalized",
+        filter_payload_revision: str | None = DENSE_FILTER_PAYLOAD_REVISION,
+    ) -> None:
         self.snapshot_status = snapshot_status
+        self.filter_payload_revision = filter_payload_revision
         self.serving_calls = 0
         self.evaluation_calls = 0
 
@@ -59,6 +67,7 @@ class _Gate:
             configuration_id=configuration.configuration_id,
             collection_name=configuration.collection_name,
             expected_count=1,
+            filter_payload_revision=self.filter_payload_revision,
         )
 
     @asynccontextmanager
@@ -74,6 +83,7 @@ class _Gate:
             configuration_id=configuration.configuration_id,
             collection_name=configuration.collection_name,
             expected_count=1,
+            filter_payload_revision=self.filter_payload_revision,
         )
 
 
@@ -278,8 +288,13 @@ class _QueryEmbedder:
 
 
 class _Hydrator:
-    def __init__(self, gate: _Gate) -> None:
+    def __init__(
+        self,
+        gate: _Gate,
+        payload_overrides: Mapping[str, object] | None = None,
+    ) -> None:
         self.gate = gate
+        self.payload_overrides = dict(payload_overrides or {})
         self.calls: list[tuple[SnapshotSelection, tuple[IndexMatch, ...]]] = []
         self.allow_draft_calls: list[bool] = []
 
@@ -297,27 +312,33 @@ class _Hydrator:
             assert self.gate.serving_calls == 1
         self.calls.append((snapshot_selection, tuple(matches)))
         self.allow_draft_calls.append(allow_draft)
-        return tuple(
-            IndexInput(
-                evidence_id=match.evidence_id,
-                text="authoritative database source text",
-                payload={
-                    "snapshot_id": str(snapshot_selection.snapshot_id),
-                    "index_configuration_id": configuration.configuration_id,
-                    "paper_id": "W123",
-                    "document_id": str(UUID(int=1)),
-                    "document_version": "published",
-                    "extraction_id": str(UUID(int=2)),
-                    "source_artifact_id": str(UUID(int=3)),
-                    "source_artifact_sha256": "sha256:" + "d" * 64,
-                    "publication_year": 2024,
-                    "paper_title": "Fixture paper",
-                    "section_id": None,
-                    "section_title": "Results",
-                },
+        hydrated: list[IndexInput] = []
+        for match in matches:
+            payload: dict[str, object] = {
+                "snapshot_id": str(snapshot_selection.snapshot_id),
+                "index_configuration_id": configuration.configuration_id,
+                "paper_id": "W123",
+                "document_id": str(UUID(int=1)),
+                "document_version": "published",
+                "document_version_kind": "preprint",
+                "evidence_kind": "table_row_group",
+                "extraction_id": str(UUID(int=2)),
+                "source_artifact_id": str(UUID(int=3)),
+                "source_artifact_sha256": "sha256:" + "d" * 64,
+                "publication_year": 2024,
+                "paper_title": "Fixture paper",
+                "section_id": None,
+                "section_title": "Results",
+            }
+            payload.update(self.payload_overrides)
+            hydrated.append(
+                IndexInput(
+                    evidence_id=match.evidence_id,
+                    text="authoritative database source text",
+                    payload=payload,
+                )
             )
-            for match in matches
-        )
+        return tuple(hydrated)
 
 
 def _e5_configuration() -> IndexConfiguration:
@@ -633,5 +654,187 @@ def test_bge_query_rejects_unreviewed_revision_before_embedding() -> None:
                 )
         assert embedder.calls == []
         assert gate.serving_calls == 0
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("model_name", ["e5", "bge"])
+def test_dense_query_sends_all_metadata_filters_to_qdrant_before_top_k(
+    model_name: str,
+) -> None:
+    if model_name == "e5":
+        configuration = _e5_configuration()
+        dimensions = 384
+    else:
+        configuration = BGEBaseEnV15Embedder.index_configuration(
+            collection_name="dense-bge-filter-test", batch_size=2
+        )
+        dimensions = 768
+    gate = _Gate()
+    evidence_id = "sha256:" + "f" * 64
+    fixture_point = {
+        "payload": {
+            "snapshot_id": str(SNAPSHOT_ID),
+            "index_configuration_id": configuration.configuration_id,
+            "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
+            "paper_id": "W123",
+            "publication_year": 2024,
+            "evidence_kind": "table_row_group",
+            "document_version_kind": "preprint",
+            "evidence_id": evidence_id,
+        },
+        "score": 0.93,
+    }
+    requests: list[dict[str, object]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path.endswith("/points/query"):
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, json={"result": {"points": [fixture_point]}})
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "result": {
+                        "config": {
+                            "params": {
+                                "vectors": {
+                                    "size": dimensions,
+                                    "distance": "Cosine",
+                                }
+                            }
+                        }
+                    }
+                },
+            )
+        return httpx.Response(200, json={"result": {"points": []}})
+
+    filters = SearchFilters(
+        year_from=2020,
+        year_to=2024,
+        paper_ids=("W123", "W456"),
+        evidence_kinds=("table", "table_row_group"),
+        document_version_kinds=("preprint", "published"),
+    )
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test", transport=httpx.MockTransport(respond)
+        ) as http:
+            service = SnapshotDenseSearch(
+                gate,
+                QdrantIndex(configuration, http),
+                query_embedder=_QueryEmbedder((1.0,) + (0.0,) * (dimensions - 1)),
+                evidence_hydrator=_Hydrator(gate),
+            )
+            result = await service.search_query(
+                _profile(configuration), "filtered query", limit=1, filters=filters
+            )
+        assert requests[0]["limit"] == 1
+        assert requests[0]["filter"] == {
+            "must": [
+                {"key": "snapshot_id", "match": {"value": str(SNAPSHOT_ID)}},
+                {
+                    "key": "filter_payload_revision",
+                    "match": {"value": DENSE_FILTER_PAYLOAD_REVISION},
+                },
+                {
+                    "key": "publication_year",
+                    "range": {"gte": 2020, "lte": 2024},
+                },
+                {"key": "paper_id", "match": {"any": ["W123", "W456"]}},
+                {
+                    "key": "evidence_kind",
+                    "match": {"any": ["table", "table_row_group"]},
+                },
+                {
+                    "key": "document_version_kind",
+                    "match": {"any": ["preprint", "published"]},
+                },
+            ]
+        }
+        assert result.hits[0].evidence_id == evidence_id
+        assert result.hydrated_hits[0].evidence.payload["publication_year"] == 2024
+
+    asyncio.run(exercise())
+
+
+def test_dense_query_rechecks_filters_against_authoritative_hydration() -> None:
+    configuration = _e5_configuration()
+    gate = _Gate()
+    evidence_id = "sha256:" + "f" * 64
+    fixture_point = {
+        "payload": {
+            "snapshot_id": str(SNAPSHOT_ID),
+            "index_configuration_id": configuration.configuration_id,
+            "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
+            "evidence_id": evidence_id,
+            "publication_year": 2024,
+        },
+        "score": 0.93,
+    }
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(200, json={"result": {"points": [fixture_point]}})
+        return httpx.Response(
+            200,
+            json={
+                "result": {
+                    "config": {
+                        "params": {"vectors": {"size": 384, "distance": "Cosine"}}
+                    }
+                }
+            },
+        )
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test", transport=httpx.MockTransport(respond)
+        ) as http:
+            service = SnapshotDenseSearch(
+                gate,
+                QdrantIndex(configuration, http),
+                query_embedder=_QueryEmbedder((1.0,) + (0.0,) * 383),
+                evidence_hydrator=_Hydrator(gate, {"publication_year": 2019}),
+            )
+            with pytest.raises(SnapshotIndexMismatch, match="authoritative evidence"):
+                await service.search_query(
+                    _profile(configuration),
+                    "filtered query",
+                    limit=1,
+                    filters=SearchFilters(year_from=2020),
+                )
+
+    asyncio.run(exercise())
+
+
+def test_dense_filter_rejects_stale_index_payload_revision() -> None:
+    configuration = _e5_configuration()
+    gate = _Gate(filter_payload_revision=None)
+    qdrant_calls: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        qdrant_calls.append(request)
+        return httpx.Response(200)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test", transport=httpx.MockTransport(respond)
+        ) as http:
+            service = SnapshotDenseSearch(
+                gate,
+                QdrantIndex(configuration, http),
+                query_embedder=_QueryEmbedder((1.0,) + (0.0,) * 383),
+                evidence_hydrator=_Hydrator(gate),
+            )
+            with pytest.raises(SnapshotIndexMismatch, match="rebuild the index"):
+                await service.search_query(
+                    _profile(configuration),
+                    "filtered query",
+                    limit=1,
+                    filters=SearchFilters(year_from=2020),
+                )
+        assert qdrant_calls == []
 
     asyncio.run(exercise())

@@ -6,13 +6,16 @@ import math
 from collections.abc import Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID
 
 from research_platform.ingestion.embeddings import (
     validate_supported_embedding_configuration,
 )
+from research_platform.ingestion.evidence import EvidenceKind
+from research_platform.ingestion.identity import DocumentVersionKind
 from research_platform.ingestion.indexing import (
+    DENSE_FILTER_PAYLOAD_REVISION,
     IndexConfiguration,
     IndexInput,
     IndexMatch,
@@ -21,7 +24,12 @@ from research_platform.ingestion.indexing import (
     SnapshotIndexMismatch,
 )
 from research_platform.ingestion.snapshot_selection import SnapshotSelection
-from research_platform.search.contracts import DEFAULT_SEARCH_LIMITS
+from research_platform.search.contracts import (
+    DEFAULT_SEARCH_LIMITS,
+    SearchFilters,
+    SearchOperation,
+    matches_filters,
+)
 from research_platform.search.profiles import RetrievalProfile
 
 
@@ -106,24 +114,48 @@ class SnapshotDenseSearch:
         self._evidence_hydrator = evidence_hydrator
 
     async def search(
-        self, profile: RetrievalProfile, vector: Sequence[float], *, limit: int
+        self,
+        profile: RetrievalProfile,
+        vector: Sequence[float],
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
     ) -> DenseSearchResponse:
         """Serve only a finalized snapshot through its exact ready profile."""
         return await self._search(
-            profile, vector, limit=limit, evaluation=False, hydrate=False
+            profile,
+            vector,
+            limit=limit,
+            filters=filters,
+            evaluation=False,
+            hydrate=False,
         )
 
     async def search_query(
-        self, profile: RetrievalProfile, query: str, *, limit: int
+        self,
+        profile: RetrievalProfile,
+        query: str,
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
     ) -> DenseSearchResponse:
         """Embed a pinned-model query, retrieve candidates and hydrate source rows."""
-        return await self._search_query(profile, query, limit=limit, evaluation=False)
+        return await self._search_query(
+            profile, query, limit=limit, filters=filters, evaluation=False
+        )
 
     async def evaluate_query(
-        self, profile: RetrievalProfile, query: str, *, limit: int
+        self,
+        profile: RetrievalProfile,
+        query: str,
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
     ) -> DenseSearchResponse:
         """Run a named evaluation query, including explicit draft snapshots."""
-        return await self._search_query(profile, query, limit=limit, evaluation=True)
+        return await self._search_query(
+            profile, query, limit=limit, filters=filters, evaluation=True
+        )
 
     async def _search_query(
         self,
@@ -131,6 +163,7 @@ class SnapshotDenseSearch:
         query: str,
         *,
         limit: int,
+        filters: SearchFilters,
         evaluation: bool,
     ) -> DenseSearchResponse:
         if self._query_embedder is None or self._evidence_hydrator is None:
@@ -143,6 +176,7 @@ class SnapshotDenseSearch:
             raise ValueError("query text exceeds the configured character limit")
         configuration = self._index.configuration
         _validate_search_request(profile, configuration, limit)
+        filters.validate_for(SearchOperation.EVIDENCE_SEARCH)
         try:
             validate_supported_embedding_configuration(configuration)
         except ValueError as error:
@@ -155,16 +189,27 @@ class SnapshotDenseSearch:
             profile,
             vector,
             limit=limit,
+            filters=filters,
             evaluation=evaluation,
             hydrate=True,
         )
 
     async def evaluate(
-        self, profile: RetrievalProfile, vector: Sequence[float], *, limit: int
+        self,
+        profile: RetrievalProfile,
+        vector: Sequence[float],
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
     ) -> DenseSearchResponse:
         """Use the separate evaluation path, which may name a draft snapshot."""
         return await self._search(
-            profile, vector, limit=limit, evaluation=True, hydrate=False
+            profile,
+            vector,
+            limit=limit,
+            filters=filters,
+            evaluation=True,
+            hydrate=False,
         )
 
     async def _search(
@@ -173,11 +218,15 @@ class SnapshotDenseSearch:
         vector: Sequence[float],
         *,
         limit: int,
+        filters: SearchFilters,
         evaluation: bool,
         hydrate: bool,
     ) -> DenseSearchResponse:
         configuration = self._index.configuration
         _validate_search_request(profile, configuration, limit)
+        filters.validate_for(SearchOperation.EVIDENCE_SEARCH)
+        if _has_active_filters(filters) and self._evidence_hydrator is None:
+            raise RuntimeError("filtered dense search requires authoritative hydration")
 
         lease_factory = (
             self._gate.evaluation_index if evaluation else self._gate.serving_index
@@ -191,8 +240,17 @@ class SnapshotDenseSearch:
                 raise SnapshotIndexMismatch(
                     "resolved index does not match the requested retrieval profile"
                 )
+            if _has_active_filters(filters) and (
+                ready.filter_payload_revision != DENSE_FILTER_PAYLOAD_REVISION
+            ):
+                raise SnapshotIndexMismatch(
+                    "dense index filter metadata is stale; rebuild the index before filtering"
+                )
             hits = await self._index.query_snapshot(
-                vector, profile.snapshot.snapshot_id, limit=limit
+                vector,
+                profile.snapshot.snapshot_id,
+                limit=limit,
+                payload_conditions=_qdrant_payload_conditions(filters),
             )
             for hit in hits:
                 if (
@@ -204,7 +262,7 @@ class SnapshotDenseSearch:
                         "vector result payload does not match the resolved profile"
                     )
             hydrated_hits: tuple[HydratedDenseHit, ...] = ()
-            if hydrate:
+            if hydrate or _has_active_filters(filters):
                 assert self._evidence_hydrator is not None
                 hydrated_inputs = (
                     await self._evidence_hydrator.hydrate_snapshot_matches(
@@ -220,6 +278,7 @@ class SnapshotDenseSearch:
                     raise SnapshotIndexMismatch(
                         "authoritative evidence rows do not align with vector results"
                     )
+                _validate_hydrated_filter_eligibility(hydrated_inputs, filters)
                 hydrated_hits = tuple(
                     HydratedDenseHit(rank=rank, score=hit.score, evidence=evidence)
                     for rank, (hit, evidence) in enumerate(
@@ -294,3 +353,91 @@ def _validate_search_request(
         raise ProfileDenseIndexMismatch(
             "retrieval profile does not match the configured dense index"
         )
+
+
+def _has_active_filters(filters: SearchFilters) -> bool:
+    return any(
+        value is not None
+        for value in (
+            filters.year_from,
+            filters.year_to,
+            filters.paper_ids,
+            filters.evidence_kinds,
+            filters.document_version_kinds,
+        )
+    )
+
+
+def _qdrant_payload_conditions(
+    filters: SearchFilters,
+) -> tuple[dict[str, object], ...]:
+    if not _has_active_filters(filters):
+        return ()
+    conditions: list[dict[str, object]] = [
+        {
+            "key": "filter_payload_revision",
+            "match": {"value": DENSE_FILTER_PAYLOAD_REVISION},
+        }
+    ]
+    if filters.year_from is not None or filters.year_to is not None:
+        year_range: dict[str, object] = {}
+        if filters.year_from is not None:
+            year_range["gte"] = filters.year_from
+        if filters.year_to is not None:
+            year_range["lte"] = filters.year_to
+        conditions.append({"key": "publication_year", "range": year_range})
+    for key, values in (
+        ("paper_id", filters.paper_ids),
+        ("evidence_kind", filters.evidence_kinds),
+        ("document_version_kind", filters.document_version_kinds),
+    ):
+        if values is not None:
+            conditions.append({"key": key, "match": {"any": list(values)}})
+    return tuple(conditions)
+
+
+def _validate_hydrated_filter_eligibility(
+    evidence: Sequence[IndexInput], filters: SearchFilters
+) -> None:
+    if not _has_active_filters(filters):
+        return
+    valid_evidence_kinds = {
+        "text",
+        "table",
+        "table_row_group",
+        "caption",
+        "figure",
+        "equation",
+    }
+    valid_version_kinds = {"published", "preprint", "other", "unknown"}
+    for item in evidence:
+        payload = item.payload
+        year_value = payload.get("publication_year")
+        publication_year = (
+            year_value
+            if isinstance(year_value, int) and not isinstance(year_value, bool)
+            else None
+        )
+        kind_value = payload.get("evidence_kind")
+        evidence_kind = cast(
+            EvidenceKind | None,
+            kind_value if kind_value in valid_evidence_kinds else None,
+        )
+        version_value = payload.get("document_version_kind")
+        version_kind = cast(
+            DocumentVersionKind | None,
+            version_value if version_value in valid_version_kinds else None,
+        )
+        paper_id_value = payload.get("paper_id")
+        paper_id = paper_id_value if isinstance(paper_id_value, str) else None
+        if not matches_filters(
+            filters,
+            operation=SearchOperation.EVIDENCE_SEARCH,
+            paper_id=paper_id,
+            publication_year=publication_year,
+            evidence_kind=evidence_kind,
+            document_version_kind=version_kind,
+        ):
+            raise SnapshotIndexMismatch(
+                "authoritative evidence does not satisfy the requested dense filters"
+            )

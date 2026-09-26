@@ -18,10 +18,12 @@ from research_platform.ingestion.embeddings import (
     E5SmallV2Embedder,
 )
 from research_platform.ingestion.indexing import (
+    DENSE_FILTER_PAYLOAD_REVISION,
     IndexConfiguration,
     IndexConfigurationMismatch,
     IndexInput,
     IndexPoint,
+    IndexReconciliationRequired,
     IndexState,
     IndexStateStore,
     QdrantIndex,
@@ -47,6 +49,8 @@ class _QdrantFixture:
     def __init__(self) -> None:
         self.collections: dict[str, dict[str, object]] = {}
         self.points: dict[str, dict[str, dict[str, object]]] = {}
+        self.payload_indexes: dict[str, dict[str, str]] = {}
+        self.omit_payload_fields: set[str] = set()
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -74,6 +78,11 @@ class _QdrantFixture:
         if name not in self.collections:
             return httpx.Response(404)
         body = json.loads(request.read().decode("utf-8"))
+        if request.method == "PUT" and pieces[2:] == ["index"]:
+            self.payload_indexes.setdefault(name, {})[body["field_name"]] = body[
+                "field_schema"
+            ]
+            return httpx.Response(200, json={"result": {"status": "ok"}})
         if request.method == "PUT" and pieces[2:] == ["points"]:
             for point in body["points"]:
                 self.points[name][point["id"]] = point
@@ -88,9 +97,10 @@ class _QdrantFixture:
         if request.method == "POST" and pieces[2:] == ["points", "query"]:
             snapshot_id = _snapshot_id_from_filter(body["filter"])
             query = cast(list[float], body["query"])
+            filter_body = cast(Mapping[str, object], body["filter"])
             scored = []
             for point in self.points[name].values():
-                if point["payload"]["snapshot_id"] != snapshot_id:
+                if not _payload_matches_filter(point["payload"], filter_body):
                     continue
                 vector = cast(list[float], point["vector"])
                 dot = sum(left * right for left, right in zip(query, vector))
@@ -114,8 +124,16 @@ class _QdrantFixture:
             return httpx.Response(200, json={"result": {"status": "acknowledged"}})
         if request.method == "POST" and pieces[2:] == ["points", "scroll"]:
             snapshot_id = _snapshot_id_from_filter(body["filter"])
+            fields = cast(list[str], body["with_payload"])
             points = [
-                {"payload": {"evidence_id": point["payload"]["evidence_id"]}}
+                {
+                    "payload": {
+                        field: point["payload"][field]
+                        for field in fields
+                        if field in point["payload"]
+                        and field not in self.omit_payload_fields
+                    }
+                }
                 for point in self.points[name].values()
                 if point["payload"]["snapshot_id"] == snapshot_id
             ][: body["limit"]]
@@ -131,6 +149,32 @@ def _snapshot_id_from_filter(filter_body: Mapping[str, object]) -> str:
     return cast(str, match["value"])
 
 
+def _payload_matches_filter(
+    payload: Mapping[str, object], filter_body: Mapping[str, object]
+) -> bool:
+    conditions = cast(Sequence[Mapping[str, object]], filter_body["must"])
+    for condition in conditions:
+        key = cast(str, condition["key"])
+        actual = payload.get(key)
+        match = condition.get("match")
+        value_range = condition.get("range")
+        if isinstance(match, Mapping):
+            if "value" in match and actual != match["value"]:
+                return False
+            if "any" in match and actual not in cast(Sequence[object], match["any"]):
+                return False
+        elif isinstance(value_range, Mapping):
+            if not isinstance(actual, (int, float)) or isinstance(actual, bool):
+                return False
+            lower = value_range.get("gte")
+            upper = value_range.get("lte")
+            if isinstance(lower, (int, float)) and actual < lower:
+                return False
+            if isinstance(upper, (int, float)) and actual > upper:
+                return False
+    return True
+
+
 def _point(config: IndexConfiguration, snapshot_id: UUID, evidence_id: str):
     return IndexPoint(
         evidence_id=evidence_id,
@@ -139,6 +183,10 @@ def _point(config: IndexConfiguration, snapshot_id: UUID, evidence_id: str):
             "snapshot_id": str(snapshot_id),
             "index_configuration_id": config.configuration_id,
             "paper_id": "W123",
+            "publication_year": 2024,
+            "evidence_kind": "text",
+            "document_version_kind": "published",
+            "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
             "document_id": str(uuid4()),
             "extraction_id": str(uuid4()),
         },
@@ -303,6 +351,10 @@ def test_rebuild_batches_vectors_and_marks_index_ready() -> None:
                     "snapshot_id": str(snapshot_id),
                     "index_configuration_id": config.configuration_id,
                     "paper_id": "W123",
+                    "publication_year": 2024,
+                    "evidence_kind": "text",
+                    "document_version_kind": "published",
+                    "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                     "document_id": str(uuid4()),
                     "extraction_id": str(uuid4()),
                 },
@@ -346,6 +398,10 @@ def test_rebuild_marks_reconciliation_required_when_embedding_fails() -> None:
                     "snapshot_id": str(snapshot_id),
                     "index_configuration_id": config.configuration_id,
                     "paper_id": "W123",
+                    "publication_year": 2024,
+                    "evidence_kind": "text",
+                    "document_version_kind": "published",
+                    "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                     "document_id": str(uuid4()),
                     "extraction_id": str(uuid4()),
                 },
@@ -384,6 +440,10 @@ def test_rebuilds_sharing_a_configuration_are_serialized() -> None:
                 "snapshot_id": str(snapshot_id),
                 "index_configuration_id": config.configuration_id,
                 "paper_id": "W123",
+                "publication_year": 2024,
+                "evidence_kind": "text",
+                "document_version_kind": "published",
+                "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                 "document_id": str(uuid4()),
                 "extraction_id": str(uuid4()),
             },
@@ -434,6 +494,10 @@ def test_cancelled_rebuild_is_not_published_as_ready() -> None:
                     "snapshot_id": str(snapshot_id),
                     "index_configuration_id": config.configuration_id,
                     "paper_id": "W123",
+                    "publication_year": 2024,
+                    "evidence_kind": "text",
+                    "document_version_kind": "published",
+                    "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                     "document_id": str(uuid4()),
                     "extraction_id": str(uuid4()),
                 },
@@ -488,6 +552,16 @@ def test_bge_index_is_separate_reconciled_reloadable_and_rebuildable() -> None:
                 "snapshot_id": str(snapshot_id),
                 "index_configuration_id": bge_configuration.configuration_id,
                 "paper_id": "W123",
+                "publication_year": 2024,
+                "evidence_kind": (
+                    "table_row_group"
+                    if text == "near alpha"
+                    else "table"
+                    if text == "beta only"
+                    else "text"
+                ),
+                "document_version_kind": "published",
+                "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                 "document_id": str(uuid4()),
                 "extraction_id": str(uuid4()),
             },
@@ -535,6 +609,10 @@ def test_bge_index_is_separate_reconciled_reloadable_and_rebuildable() -> None:
                             "snapshot_id": str(snapshot_id),
                             "index_configuration_id": e5_configuration.configuration_id,
                             "paper_id": "W123",
+                            "publication_year": 2024,
+                            "evidence_kind": "text",
+                            "document_version_kind": "published",
+                            "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
                             "document_id": str(uuid4()),
                             "extraction_id": str(uuid4()),
                         },
@@ -553,6 +631,13 @@ def test_bge_index_is_separate_reconciled_reloadable_and_rebuildable() -> None:
                     "size": 768,
                     "distance": "Cosine",
                 }
+                assert fixture.payload_indexes[bge_configuration.collection_name] == {
+                    "filter_payload_revision": "keyword",
+                    "paper_id": "keyword",
+                    "publication_year": "integer",
+                    "evidence_kind": "keyword",
+                    "document_version_kind": "keyword",
+                }
                 assert await bge_index.count_snapshot(snapshot_id) == 3
                 assert set(await bge_index.scroll_snapshot_ids(snapshot_id)) == set(
                     evidence_ids
@@ -563,6 +648,10 @@ def test_bge_index_is_separate_reconciled_reloadable_and_rebuildable() -> None:
                     ready_details["evidence_ids_sha256"]
                     == ready_details["qdrant_evidence_ids_sha256"]
                 )
+                assert (
+                    ready_details["filter_payload_revision"]
+                    == DENSE_FILTER_PAYLOAD_REVISION
+                )
                 matches = await bge_index.query_snapshot(
                     (1.0,) + (0.0,) * 767, snapshot_id, limit=3
                 )
@@ -570,6 +659,24 @@ def test_bge_index_is_separate_reconciled_reloadable_and_rebuildable() -> None:
                     "sha256:alpha",
                     "sha256:near-alpha",
                     "sha256:beta",
+                ]
+                filtered_matches = await bge_index.query_snapshot(
+                    (1.0,) + (0.0,) * 767,
+                    snapshot_id,
+                    limit=1,
+                    payload_conditions=(
+                        {
+                            "key": "filter_payload_revision",
+                            "match": {"value": DENSE_FILTER_PAYLOAD_REVISION},
+                        },
+                        {
+                            "key": "evidence_kind",
+                            "match": {"any": ["table", "table_row_group"]},
+                        },
+                    ),
+                )
+                assert [match.evidence_id for match in filtered_matches] == [
+                    "sha256:near-alpha"
                 ]
                 assert matches[0].payload["index_configuration_id"] == (
                     bge_configuration.configuration_id
@@ -593,5 +700,136 @@ def test_bge_index_is_separate_reconciled_reloadable_and_rebuildable() -> None:
                 "building",
                 "ready",
             ]
+
+    asyncio.run(exercise())
+
+
+def test_rebuild_does_not_publish_when_qdrant_filter_payload_is_incomplete() -> None:
+    config = _configuration()
+    snapshot_id = uuid4()
+    store = _FakeStore(
+        (
+            IndexInput(
+                evidence_id="sha256:missing-filter-field",
+                text="source evidence",
+                payload={
+                    "snapshot_id": str(snapshot_id),
+                    "index_configuration_id": config.configuration_id,
+                    "paper_id": "W123",
+                    "publication_year": 2024,
+                    "evidence_kind": "table",
+                    "document_version_kind": "published",
+                    "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
+                    "document_id": str(uuid4()),
+                    "extraction_id": str(uuid4()),
+                },
+            ),
+        )
+    )
+    fixture = _QdrantFixture()
+    fixture.omit_payload_fields.add("evidence_kind")
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test",
+            transport=httpx.MockTransport(fixture.handle),
+        ) as http:
+            with pytest.raises(IndexReconciliationRequired, match="filter payloads"):
+                await rebuild_snapshot_index(
+                    store, QdrantIndex(config, http), _FakeEmbedder(), snapshot_id
+                )
+        assert [status for status, _, _ in store.states] == [
+            "building",
+            "reconciliation_required",
+        ]
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("model_name", ["e5", "bge"])
+def test_each_pinned_embedding_space_filters_before_top_k(model_name: str) -> None:
+    snapshot_id = uuid4()
+    if model_name == "e5":
+        configuration = E5SmallV2Embedder.index_configuration(
+            collection_name="phase2-e5-filter-neighbor-fixture"
+        )
+    else:
+        configuration = BGEBaseEnV15Embedder.index_configuration(
+            collection_name="phase2-bge-filter-neighbor-fixture"
+        )
+    evidence_ids = ("sha256:alpha", "sha256:near-alpha", "sha256:beta")
+    inputs = tuple(
+        IndexInput(
+            evidence_id=evidence_id,
+            text=text,
+            payload={
+                "snapshot_id": str(snapshot_id),
+                "index_configuration_id": configuration.configuration_id,
+                "paper_id": "W123",
+                "publication_year": 2024 if text != "beta only" else 2018,
+                "evidence_kind": (
+                    "table_row_group"
+                    if text == "near alpha"
+                    else "table"
+                    if text == "beta only"
+                    else "text"
+                ),
+                "document_version_kind": "published",
+                "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
+                "document_id": str(uuid4()),
+                "extraction_id": str(uuid4()),
+            },
+        )
+        for evidence_id, text in zip(
+            evidence_ids,
+            ("alpha target", "near alpha", "beta only"),
+            strict=True,
+        )
+    )
+    store = _FakeStore(inputs)
+    fixture = _QdrantFixture()
+
+    class _DirectionalEmbedder(VectorEmbedder):
+        async def embed(
+            self, texts: Sequence[str], *, configuration: IndexConfiguration
+        ) -> Sequence[Sequence[float]]:
+            vectors: list[tuple[float, ...]] = []
+            for text in texts:
+                vector = [0.0] * configuration.vector_size
+                if text == "alpha target":
+                    vector[0] = 1.0
+                elif text == "near alpha":
+                    vector[0], vector[1] = 0.8, 0.6
+                elif text == "beta only":
+                    vector[1] = 1.0
+                vectors.append(tuple(vector))
+            return tuple(vectors)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test",
+            transport=httpx.MockTransport(fixture.handle),
+        ) as http:
+            index = QdrantIndex(configuration, http)
+            await rebuild_snapshot_index(
+                store, index, _DirectionalEmbedder(), snapshot_id
+            )
+            matches = await index.query_snapshot(
+                (1.0,) + (0.0,) * (configuration.vector_size - 1),
+                snapshot_id,
+                limit=1,
+                payload_conditions=(
+                    {
+                        "key": "filter_payload_revision",
+                        "match": {"value": DENSE_FILTER_PAYLOAD_REVISION},
+                    },
+                    {"key": "publication_year", "range": {"gte": 2020}},
+                    {
+                        "key": "evidence_kind",
+                        "match": {"any": ["table", "table_row_group"]},
+                    },
+                ),
+            )
+        assert [match.evidence_id for match in matches] == ["sha256:near-alpha"]
 
     asyncio.run(exercise())
