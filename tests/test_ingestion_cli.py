@@ -53,6 +53,70 @@ def test_snapshot_and_job_commands_parse_explicit_ids_and_gates() -> None:
     assert status.job_id == snapshot_id
 
 
+def test_membership_import_requires_decision_and_metadata_configuration() -> None:
+    args = build_parser().parse_args(
+        [
+            "membership",
+            "import",
+            "--decision",
+            "membership.json",
+            "--config",
+            "discovery.json",
+        ]
+    )
+
+    assert args.decision == Path("membership.json")
+    assert args.config == Path("discovery.json")
+    assert args.metadata_cache == Path(
+        "local-reference/phase1-100/openalex-metadata.json"
+    )
+    assert args.document_map == Path(
+        "local-reference/phase1-100/selected-document-ids.json"
+    )
+
+
+def test_membership_acquire_requires_decision_document_map_and_route_review() -> None:
+    args = build_parser().parse_args(
+        [
+            "membership",
+            "acquire",
+            "--decision",
+            "membership.json",
+            "--document-map",
+            "documents.json",
+            "--source-route-review",
+            "routes.json",
+        ]
+    )
+
+    assert args.decision == Path("membership.json")
+    assert args.document_map == Path("documents.json")
+    assert args.source_route_review == Path("routes.json")
+    assert args.metadata_cache == Path(
+        "local-reference/phase1-100/openalex-metadata.json"
+    )
+
+
+def test_snapshot_membership_command_binds_decision_and_document_map() -> None:
+    snapshot_id = UUID("abababab-abab-4bab-8bab-abababababab")
+    args = build_parser().parse_args(
+        [
+            "snapshots",
+            "add-membership",
+            "--snapshot-id",
+            str(snapshot_id),
+            "--decision",
+            "membership.json",
+            "--document-map",
+            "documents.json",
+        ]
+    )
+
+    assert args.snapshot_id == snapshot_id
+    assert args.decision == Path("membership.json")
+    assert args.document_map == Path("documents.json")
+
+
 def test_manifest_report_requires_a_reviewable_output_path() -> None:
     manifest_id = UUID("ffffffff-ffff-4fff-8fff-ffffffffffff")
     args = build_parser().parse_args(
@@ -156,6 +220,8 @@ def test_pdf_job_index_and_flagged_table_commands_parse_review_gates() -> None:
             str(snapshot_id),
             "--chunking-configuration",
             "chunking.json",
+            "--membership-decision",
+            "membership.json",
         ]
     )
     retry = parser.parse_args(
@@ -211,6 +277,7 @@ def test_pdf_job_index_and_flagged_table_commands_parse_review_gates() -> None:
 
     assert start.job_command == "start"
     assert start.artifact_root == Path("data/artifacts")
+    assert start.membership_decision == Path("membership.json")
     assert retry.from_stage == "extraction"
     assert retry.reason == "verified local file repair"
     assert rebuild.index_command == "rebuild"

@@ -4,10 +4,17 @@ An installable Python project for a scientific literature research platform.
 
 ## Project status
 
-Phase 0 is complete. Hosted CI run [35852371358](https://github.com/avsngh-git/RAGpipeline/actions/runs/35852371358)
-passed on revision `d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc`. Phase 1 ingestion
-is in progress; see the [approved plan](docs/plans/phase-1-corpus-ingestion.md)
-and [current handoff](docs/plans/phase-1-learning-handoff.md).
+Phase 0 is complete; its hosted CI gate passed on revision
+`d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc`. Phase 1 has an assistant-reviewed
+100-paper membership, exact-source and file-permission checks, completed
+extraction, manual table sampling, and a reconciled index. The current worktree
+passes 188 tests and the local CI checks. The latest hosted run
+[36053054222](https://github.com/avsngh-git/RAGpipeline/actions/runs/36053054222)
+passed on the baseline revision; hosted CI has not run on the current uncommitted
+worktree. The 100-paper snapshot remains a draft until that gate passes. See the
+[acceptance evidence report](docs/reference/phase-1-100-paper-acceptance-report.md),
+[approved plan](docs/plans/phase-1-corpus-ingestion.md) and
+[current handoff](docs/plans/phase-1-learning-handoff.md).
 
 ## Development environment
 
@@ -210,8 +217,13 @@ research-ingest citations enrich \
 ```
 
 This command makes live OpenAlex metadata requests. Tests use mocked responses and
-do not call OpenAlex. Full-text download remains permission-gated and is not run
-by discovery or citation enrichment.
+do not call OpenAlex. Full-text download is separate from discovery and citation
+enrichment. The accepted adapters cover OpenAlex content, Springer Nature,
+version-pinned arXiv, and Glasgow Eprints. Exact hosts, request bounds, and
+source-specific permission evidence are recorded in
+[ADR-0007](docs/adr/0007-bounded-direct-source-pdf-downloads.md). The 100 selected
+files passed their individual version, checksum, storage, and indexing checks;
+six other privately stored follow-up PDFs remain unassociated with the accepted set.
 
 ## Phase 1 evidence, indexing and operations
 
@@ -220,8 +232,10 @@ mounts the Git-ignored `data/artifacts` directory at `/app/data/artifacts` insid
 the API container, so downloaded source PDFs persist across container recreation.
 
 The approved ten-paper extraction and indexing pilot is recorded in the
-[full-pilot report](docs/reference/phase-1-full-extraction-pilot.md). Its nine
-flagged tables remain pending PDF review, so its snapshot is still a draft.
+[full-pilot report](docs/reference/phase-1-full-extraction-pilot.md). After
+source-linked corrections and figure reclassification, all eight flagged-table
+checks passed. Its snapshot remains a draft because it is below the 100-paper
+acceptance minimum, not because a table review is pending.
 
 The ingestion CLI can create and edit draft snapshots, validate their selected
 versions and permissions, and finalize them under a named reviewer. Finalization
@@ -264,16 +278,84 @@ open until Phase 2 retrieval-quality evaluation. Install the optional parser and
 embedding dependencies only in the local ingestion environment; ordinary CI does
 not download their model weights.
 
-Run extraction and chunking only after adding the approved paper/document pairs
-to a draft snapshot. This command refuses more than ten members:
+For a new draft, add the approved paper/document pairs before starting
+extraction. The CLI records `10-paper-comparison` for up to 10 members. For an
+exact 100-member draft it records `100-paper-pilot` and requires the approved
+membership decision, source-route review, and source-content review. The acceptance
+run is already complete; starting another job against its snapshot would repeat
+extraction work. The review inputs live under Git-ignored `manifests/` and
+`local-reference/` paths and are available only in the local project workspace.
+
+A 10-paper comparison job uses:
 
 ```bash
 research-ingest jobs start \
   --snapshot-id SNAPSHOT_ID \
   --chunking-configuration configs/phase1-e5-small-v2-chunking.example.json \
   --artifact-root data/artifacts
-research-ingest jobs status --job-id JOB_UUID
 ```
+
+The accepted 100-paper snapshot is in the isolated `research_phase1_review`
+database. Export its URL before running 100-paper snapshot or job commands; the
+Compose default `research` database does not contain the accepted snapshot. The
+membership, selected-document map, and source review files are Git-ignored local
+review data, not files available from a clean checkout.
+
+```bash
+export RESEARCH_PLATFORM_DATABASE_URL=postgresql://research:research@localhost:5432/research_phase1_review
+```
+
+To create a fresh 100-paper run, create a separate membership-bound draft and add
+the selected documents. This does not modify the accepted snapshot and will repeat
+the extraction workload:
+
+```bash
+research-ingest snapshots create \
+  --name phase1-100-reproduction \
+  --configuration local-reference/phase1-100/snapshot-configuration.json
+research-ingest snapshots add-membership \
+  --snapshot-id NEW_SNAPSHOT_ID \
+  --decision manifests/phase1-100-paper-membership-decision.json \
+  --document-map local-reference/phase1-100/selected-document-ids.json
+```
+
+A 100-paper job uses the new snapshot bound to the approved decision and source
+reviews:
+
+```bash
+research-ingest jobs start \
+  --snapshot-id SNAPSHOT_ID \
+  --chunking-configuration configs/phase1-e5-small-v2-chunking.example.json \
+  --artifact-root data/artifacts \
+  --membership-decision manifests/phase1-100-paper-membership-decision.json \
+  --source-route-review local-reference/phase1-100/source-route-review.json \
+  --source-content-review local-reference/phase1-100/source-content-review.json
+```
+
+Inspect the accepted snapshot and completed extraction job:
+
+```bash
+research-ingest snapshots inspect --snapshot-id 4b11fab3-d4a5-4e7a-a58e-8654accf2c6c
+research-ingest snapshots validate --snapshot-id 4b11fab3-d4a5-4e7a-a58e-8654accf2c6c --minimum-papers 100
+research-ingest jobs status --job-id 0e6bebc6-706d-49ec-9ad7-296ad48f1f89
+```
+
+If a new job is interrupted while pending or failed, resume its saved checkpoints.
+Retry one terminally failed extraction from the extraction stage, with a reason:
+
+```bash
+research-ingest jobs resume --job-id JOB_UUID --artifact-root data/artifacts
+research-ingest jobs retry \
+  --job-id JOB_UUID \
+  --document-id DOCUMENT_UUID \
+  --from-stage extraction \
+  --reason "Reviewed cause and retry rationale" \
+  --artifact-root data/artifacts
+```
+
+The accepted 100-paper job is already complete; its single expired lease was
+recovered on the next attempt. Keep the job's recorded sources and configuration
+fixed. Source or configuration changes require a new draft/job with new identities.
 
 Then build or reconcile its local Qdrant collection and inspect IDs/counts without
 printing passages:
@@ -287,8 +369,10 @@ research-ingest index inspect \
   --configuration configs/phase1-e5-small-v2-index.example.json
 ```
 
-A flagged table remains pending until someone checks its headers and selected
-values against the source PDF:
+For a new pilot, keep each flagged table pending until its headers and selected
+values have been checked against the source PDF. The 100-paper acceptance sample
+reviewed 83 flagged tables and 20 ordinary-sample packet items; one item was a
+figure, and all 102 table reviews are recorded in the [acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
 ```bash
 research-ingest snapshots review-table \
@@ -298,8 +382,11 @@ research-ingest snapshots review-table \
   --reviewer "Your name"
 ```
 
-Keep the snapshot in draft until its selected evidence has been reviewed. Public
-passage display remains disabled.
+Keep a new snapshot in draft until its selected evidence has been reviewed and
+its integrity validation passes. Public passage display remains disabled. For the
+completed 100-paper run, 269/269 sampled unique numeric values were present, the
+44,277 PostgreSQL and Qdrant evidence IDs reconciled, and all exact PDF artifacts
+resolved. Its snapshot remains a draft solely until current-worktree hosted CI passes.
 
 Storage inspection and cleanup preview are also available. Cleanup candidates
 include old database artifacts without document references, stale unregistered
@@ -309,9 +396,10 @@ age cutoff, refuses to run while an ingestion job is active, and protects every
 artifact linked to a document. If interrupted, run it again to reconcile the
 remaining unreferenced files. The 168-hour value below is an example, not a project
 retention decision. Set `--root` and byte limits to match the active acquisition
-configuration. The measured ten-paper source-artifact footprint supports retaining
-the configured 2 GiB cap for the 100-paper pilot; see the pilot report for the
-projection, limits and remaining retention decision.
+configuration. The ten-paper source-artifact footprint set the 2 GiB cap. The 100-paper run
+used 116,492,245 bytes. See the [acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md)
+for recovery, storage, and retry measurements; the disposable-file retention
+period remains an explicit project decision.
 
 ```bash
 research-ingest storage inspect --root data/artifacts
@@ -323,12 +411,17 @@ research-ingest storage cleanup \
   --root data/artifacts --older-than-hours 168 --apply
 ```
 
-Run the database-backed commands only after applying the versioned migrations
-against the intended database. Live discovery and the approved ten-paper extraction
-and indexing pilot are complete. The ten-paper snapshot remains a draft while nine
-flagged tables await PDF review. Further full-text downloads require their own
-manifest and source-permission approval; the 100-paper acceptance run remains gated
-on its expanded approved manifest.
+Run database-backed commands only after applying the versioned migrations to
+the intended database. The 100-paper decision selects 10 approved v1 references,
+21 expansion candidates, 51 cited-work candidates and 18 discovery-cache candidates.
+All 100 selected PDFs passed exact-source, checksum and persisted permission checks;
+all 100 extractions completed. Six additional private follow-up PDFs remain
+unassociated and do not count toward the accepted set. Any further full-text
+acquisition needs its own reviewed membership and source permission evidence. The
+100-paper snapshot remains a draft because hosted CI has not run on this worktree.
+
+Reproduce the parser comparison and its source-scored reference measurements using
+the optional local environment described in the [extraction comparison report](docs/reference/phase-1-extraction-comparison.md). The [embedding feasibility report](docs/reference/phase-1-embedding-pilot.md) records its pinned model and reproduction settings. These model benchmarks are separate from ordinary CI.
 
 ## Environment files
 

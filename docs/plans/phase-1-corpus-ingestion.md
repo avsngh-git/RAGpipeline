@@ -69,15 +69,15 @@ Use these IDs in commits or future issues; these rows are not published tickets.
 | P1-03 | Safe schema evolution and persistence | P1-02 | Complete (migrations 001–012; empty-database and Phase 0 upgrade paths, failed-migration rollback, concurrent/repeated migrations, constraints and ingestion repositories pass isolated live tests) |
 | P1-04 | Reproducible discovery and explainable shortlist | P1-02, P1-03 | Complete (2026-09-24; approved v1 manifest has 67 included, 47 excluded, reviewed coverage and documented discovery limits) |
 | P1-05 | Paper/version identity and unresolved citations | P1-03, P1-04 | Complete (approved v1 import persisted 67 papers, 328 distinct authors, 114 source locations, 49 resolved citation edges and 1,501 unresolved endpoints; metadata outcomes recorded for all 1,166 distinct external targets: 954 found, 212 not found) |
-| P1-06 | Acquisition and efficient artifact storage | P1-03, P1-05 | Complete (permission-gated OpenAlex adapter and storage controls tested; source terms reviewed; ten permitted PDFs acquired; document availability now transitions from metadata_only to acquired when the artifact association commits) |
+| P1-06 | Acquisition and efficient artifact storage | P1-03, P1-05 | Complete for the ten-paper workflow; accepted ADR-0007 adds bounded Springer, version-pinned arXiv and Glasgow Eprints adapters with matching permission evidence and adapter tests. OpenAlex defaults remain CC BY/public domain; ten v1 PDFs acquired. |
 | P1-07 | Human-verified 10-paper reference set | P1-04, P1-06 | Complete (2026-09-24; user confirmed all ten sampled prose passages, locations, table captions and selected values match the local PDFs; W4410600121 correction accepted) |
 | P1-08 | Extraction comparison and quality decision | P1-07 | Complete (2026-09-24; 19 reviewed pages compared, Docling standard selected as automatic parser, Granite VLM restricted to review aid, thresholds and figure/equation scope recorded in ADR-0004 and comparison report) |
-| P1-09 | Normalized evidence and chunking | P1-03, P1-08 | Complete (ten-paper Docling run persisted 5,944 located sections, 113 structured tables and 9,683 chunks; all ten extraction attempts succeeded; nine tables await human PDF review; see the [pilot report](../reference/phase-1-full-extraction-pilot.md)) |
-| P1-10 | Embeddings, Qdrant indexing and rebuild | P1-09 | Complete for the reversible pilot (E5-small-v2 embedded all 9,683 chunks; expected and indexed counts reconciled; final model choice remains open for Phase 2 retrieval evaluation) |
-| P1-11 | Runner, recovery and snapshot finalization | P1-02 through P1-10 | Complete for the local ten-paper workflow (start/status/resume/retry, draft inspection, index rebuild, validation and finalization paths are tested; draft remains blocked by nine human table reviews and the 100-paper minimum) |
+| P1-09 | Normalized evidence and chunking | P1-03, P1-08 | Complete for the corrected ten-paper draft (5,944 sections, 112 tables, 15,628 evidence units, 9,684 chunks); five table corrections across three papers and one figure reclassification; all eight flagged table checks passed. See the [pilot report](../reference/phase-1-full-extraction-pilot.md). |
+| P1-10 | Embeddings, Qdrant indexing and rebuild | P1-09 | Complete for the reversible pilot (E5-small-v2 embedded all 9,684 chunks in 606 batches; expected and indexed counts reconciled; final model choice remains open for Phase 2 retrieval evaluation) |
+| P1-11 | Runner, recovery and snapshot finalization | P1-02 through P1-10 | Complete for the local ten-paper workflow (start/status/resume/retry, draft inspection, index rebuild, and validation are tested; the draft validates with no issues and remains unfinalized only because the 100-paper minimum is unmet) |
 | P1-12 | Operational visibility and storage controls | Across P1-03 through P1-11 | Complete for the pilot (11,587,433 source bytes; 2 GiB hard acquisition cap retained based on the full ten-paper footprint; row-size and process resource measurements recorded in the pilot report; disposable retention period remains open) |
-| P1-13 | Verification suite and CI | Alongside every implementation task | In progress (162 local tests passed, including 15 live PostgreSQL/Qdrant checks; Ruff, format, strict mypy, pip checks, audit and Docker build pass; hosted CI remains) |
-| P1-14 | 100-paper acceptance pilot and documentation | P1-01 through P1-13 | Pending human-gated pilot (metadata-only expansion screening proposal recommends 33 additions to the approved 67; user approval, exact full-text permissions, and resumable 100-paper run remain) |
+| P1-13 | Verification suite and CI | Alongside every implementation task | Baseline revision `ebe1c41602b62c5934fbfe43e51ae765896e3e6e` passed hosted CI. The current worktree passes 188 tests (15 live), Ruff check/format, strict mypy, migration, `pip check`, `pip-audit` and Linux AMD64 Docker build. Hosted CI has not been rerun on this uncommitted tree. |
+| P1-14 | 100-paper acceptance pilot and documentation | P1-01 through P1-13 | In progress under user delegation (10 v1 + 21 expansion + 51 cited + 18 cache-screen members; all 100 exact PDFs and persisted permissions checked; all extractions complete; 102 tables source-reviewed, one figure reclassified; 269/269 sampled unique numeric values present; snapshot in `research_phase1_review` validates and its 44,277 Qdrant evidence IDs reconcile; acceptance report and README runbook record the 10/100 profiles, local database target, recovery/retry, cleanup, rebuild, and benchmark reproduction; hosted CI on this worktree and snapshot finalization remain) |
 
 The order describes completion dependencies, not a requirement to finish every
 layer before exercising it. Introduce a minimal runner/checkpoint path with the
@@ -144,6 +144,17 @@ timeout, retry ceiling, per-source rate limit and total-request ceiling based on
 verified source terms. Those exact per-source values and supported adapters are
 resolved before live requests in P1-04/P1-06. The profile ceilings above bound
 the workload without preselecting a source or parser.
+
+### P1-01 pre-100 resource recheck (2026-09-25)
+
+Immediately before the 100-paper pilot planning gate, WSL reported 7.6 GiB total
+RAM and 4.6 GiB available. The RTX 3050 Laptop GPU reported 4,096 MiB total
+VRAM and 3,964 MiB free. The project volume on D: had 244 GiB free; Docker's
+C: volume had 29 GiB free. Docker reported 2.293 GB of images, 905.3 MB of
+volumes and 1.898 GB of build cache. The WSL filesystem's 930 GiB available is
+not physical host capacity. These are dated measurements; repeat them before
+large-scale acquisition and extraction.
+
 
 ## P1-02 — Typed contracts and configuration
 
@@ -296,12 +307,24 @@ because direct citation-support evidence is limited in the candidate metadata. T
 and [review report](../../manifests/phase1-discovery-v1-report.json) are retained.
 The manifest ID is `1d84a2eb-8379-45ee-923b-fd6dd219a103`. All queries were truncated
 at the configured result limit; future selection improvements should add targeted
-query variants and compare their retained candidates against this reviewed set. No
-full-text acquisition has occurred.
+query variants and compare their retained candidates against this reviewed set. This
+P1-04 discovery run made no full-text requests. Two separately authorized NC-ND
+follow-ups were acquired on 2026-09-25 and remain unassociated; see the rights
+preflight and acquisition inventory below.
 
 #### Supplemental metadata-only discovery (2026-09-24)
 
-Two targeted OpenAlex runs were completed in the isolated review database: citation/chunking and sparse/dense retrieval/reranking latency. Each used 20 requests and cost $0.02; neither made full-text requests. Their 83- and 81-record draft shortlists contain 70 distinct new publications after cross-run and v1 DOI/title deduplication. The [screening proposal](../../manifests/phase1-discovery-expansion-screening-proposal.md) recommends 33 additions, pending user approval. A read-only [source and rights preflight](../../manifests/phase1-discovery-expansion-rights-preflight.md) found source-level CC BY terms for 23 proposed records and 10 records requiring follow-up: two ACM journal versions with unconfirmed item-level terms, one accepted ACM version with a personal/classroom-use notice, one author-hosted CC BY-NC-ND preprint statement, two CC BY-NC-SA alternate versions, three publisher CC BY-NC-ND versions, and RefAI's repository copy. Raw v2/v3 manifests remain undecided drafts, the approved v1 is unchanged, and no new source permission or PDF acquisition has been authorized.
+Two targeted OpenAlex runs were completed in the isolated review database: citation/chunking and sparse/dense retrieval/reranking latency. Each used 20 requests and cost $0.02; neither run made full-text requests. Their 83- and 81-record draft shortlists contain 70 distinct new publications after cross-run and v1 DOI/title deduplication. Assistant title/abstract screening of those 70 records is recorded in the [screening review](../../manifests/phase1-discovery-expansion-review.json): 33 include and 37 exclude. The 33/37 decisions are finalized under the user’s explicit Phase 1 delegation; the v1 manifest remains unchanged until a new 100-paper acceptance set is assembled. The [source and rights preflight](../../manifests/phase1-discovery-expansion-rights-preflight.md) found exact-source CC BY terms for 23 proposed records and 10 records requiring follow-up. After the user's private noncommercial-use clarification and prior download authorization, two publisher versions with matching CC BY-NC-ND OpenAlex metadata and three exact, version-pinned arXiv preprints with CC BY-NC-ND/NC-SA terms were acquired under scoped configurations. One Glasgow accepted version was separately acquired under the user's personal-use scope. All six remain unassociated and private, and the global CC BY/public-domain default is unchanged. No OpenAlex cached route was available for the arXiv and Springer NC versions; the three arXiv files were acquired directly, while the Springer endpoint returned HTML. The fixed-host direct-source adapter in [accepted ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md) supports Springer Nature, arXiv and Glasgow Eprints. arXiv URLs must pin a numbered version; each source/version still requires matching permission evidence. The user’s personal student-project decision supports private local personal/classroom-copy or text-mining use for the four source paths recorded in the rights preflight; W4384656680 was acquired under its personal-use terms, while three ACM/PMC follow-ups remain unacquired or unresolved. Six of the ten authorized follow-ups are now acquired. A Springer NC PDF route returned HTML rather than PDF and remains unresolved. The six downloaded files are unassociated with the accepted 100-paper set; see the [OpenAlex inventory](../../manifests/phase1-discovery-expansion-nc-acquisition.json), [arXiv inventory](../../manifests/phase1-discovery-expansion-arxiv-acquisition.json), and [Glasgow inventory](../../manifests/phase1-discovery-expansion-personal-use-acquisition.json). Raw v2/v3 manifests remain undecided drafts, and the approved v1 is unchanged.
+
+#### Full-text source-path capacity check (updated 2026-09-25)
+
+The 67 approved v1 titles had 28 cached-PDF plus license-metadata prefilter matches; those matches are not exact-version permission approvals. The 33 proposed additions have 23 source versions with primary-source CC BY statements and ten unresolved follow-ups. Together they yield at most 51 preliminary routes. Ten v1 PDFs are already stored, leaving 90 required files.
+
+A no-network audit of the 954 found citation records removed discovery-candidate matches by OpenAlex ID, DOI, and normalized title. Two local title/abstract passes screened 192 distinct citation leads in the [citation-pool proposal](../../manifests/phase1-cited-work-screening-proposal.md) and [decision record](../../manifests/phase1-cited-work-screening-review.json): 55 include and 137 exclude, finalized under the user’s explicit Phase 1 delegation. Primary-source checks support 51 cached-PDF routes among those recommendations: 35 verified earlier, eight ACL Anthology papers verified in the supplemental pass, seven additional 2020 ACL Anthology records matched to their exact title and DOI, and one UvA-DARE final published-version PDF stating CC BY 4.0. Three recommendations still have unverified publisher terms, and one IRIS repository path has conflicting access metadata. Each still needs exact fetched-file/version, checksum, PDF-exception review, and persisted permission evidence before acquisition.
+
+A separate local cache screen selected 80 of 448 direct-title-term matches outside discovery manifests and the cited-work pool. The [review](../../manifests/phase1-discovery-pool-screening-proposal.md) finalizes 43 include and 37 exclude under the user’s explicit Phase 1 delegation. All 43 have OpenAlex-reported CC BY and cached PDFs. Twenty-two are ACL Anthology published versions covered by its post-2016 CC BY 4.0 policy; two Springer, four MDPI, and one MIT Press TACL published-version page state CC BY 4.0; nine exact arXiv records link to CC BY 4.0 for their submitted versions; and four other publisher or repository records state CC BY 4.0, including the REIS published version in the ETH Zurich Research Collection. Three ACM-listed works have eligible arXiv preprint routes, but these do not establish ACM published-version terms. The Great Nugget Recall ACM version remains unverified, and its arXiv v1 license grants arXiv only a non-exclusive distribution right. Third-party material remains subject to credit-line exceptions and exact files have not been checked. No candidate PDFs were downloaded into the repository.
+
+Across the 51 initial paths, 51 source-checked citation paths, and 42 source-policy-backed cache paths, there are at most 144 preliminary source routes among approved and delegated-screened titles. Ten PDFs remain associated with approved v1; five additional private NC PDFs are stored locally but unassociated and do not reduce the 90 accepted-paper gap. The screened titles are finalized under delegation. The accepted 100-paper membership decision selects 90 additions from these routes; it does not convert preliminary source checks into exact-file permission evidence. The one cache recommendation without a verified eligible source right does not add a route. Neither local title/abstract screen made OpenAlex API or content requests.
 
 ## P1-05 — Identity, versions and citations
 
@@ -425,8 +448,7 @@ arXiv's [bulk-access documentation](https://info.arxiv.org/help/bulk_data.html)
 says its default non-exclusive license lets arXiv distribute an article but does
 not let arXiv grant reuse rights to others. It says full-text indexes must link
 back to arXiv and that per-submission license metadata is available through
-OAI-PMH. No direct arXiv adapter is enabled; any future adapter must check the
-individual submission license and access terms.
+OAI-PMH. The accepted [ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md) enables bounded Springer Nature, explicitly version-pinned arXiv, and Glasgow Eprints PDF routes; exact-source permission evidence remains required.
 
 Implementation evidence: the OpenAlex PDF adapter is mock-tested for explicit
 permission, fixed-host requests, redirect rejection, retry/request/size bounds,
@@ -696,16 +718,18 @@ without deleting them. The ten source PDFs use 11,587,433 bytes.
 
 ### P1-09 through P1-12 full ten-paper pilot evidence (2026-09-24)
 
-The approved draft snapshot processed ten papers with no failures. The run persisted
-5,944 sections, 113 tables, 15,627 evidence units and 9,683 chunks. Nine flagged
-tables across five papers still require manual PDF checks; the snapshot remains a
-draft. The [pilot report](../reference/phase-1-full-extraction-pilot.md) records
-each flagged paper, extraction ID and zero-based table ordinal.
+The initial ten-paper run processed ten papers with no failures and produced
+5,944 sections, 113 tables, 15,627 evidence units and 9,683 chunks. Subsequent
+source-linked immutable corrections fixed five tables across three papers and
+reclassified one figure in a fourth paper. All eight flagged tables now pass. The
+corrected draft has 5,944 sections, 112 tables, 15,628 evidence units and 9,684
+chunks, with no pending review issues; see the [pilot
+report](../reference/phase-1-full-extraction-pilot.md) for extraction lineage.
 
-The reversible E5-small-v2 configuration embedded all 9,683 chunks in 606 batches.
-PostgreSQL and Qdrant reconciled the same count, which remained intact after the
-full live integration test suite. This verifies local indexing and rebuild, not
-retrieval quality; the final model choice stays open for Phase 2.
+The reversible E5-small-v2 configuration was rebuilt after correction. PostgreSQL
+and Qdrant both report 9,684 chunks across 606 batches, and ten-paper snapshot
+validation returns no issues. The snapshot remains a draft until the 100-paper
+acceptance gate is met. The final model choice stays open for Phase 2.
 
 The source-artifact store contains 11,587,433 bytes against the configured
 2,147,483,648-byte cap. Retain this 2 GiB hard cap for the 100-paper pilot: the
@@ -741,21 +765,58 @@ actual completed revision, retaining GPU/network-heavy benchmarks as separate ev
 Completion evidence: relevant cases pass in the documented small profile and hosted
 CI, with reference/model evaluation results linked independently.
 
-### P1-13 current local verification (2026-09-24)
+### P1-13 baseline verification (2026-09-25)
 
-The full suite passed on tested implementation snapshot
-`d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc+dirty.sha256:e77d6fd89651a89d0fbeba64335a84a54295b40eee5cd17881e387114e9cae10`:
-**162 passed in 4.42 seconds**, including all 15 live PostgreSQL/Qdrant integration
-checks. The disposable `research_test` database was dropped after the run; the
+The full suite passed on code revision `ebe1c41602b62c5934fbfe43e51ae765896e3e6e`: **162 passed in 3.76 seconds**,
+including all 15 live PostgreSQL/Qdrant integration checks. The disposable
+`research_test` database was created for the run and dropped afterward; the
 persistent `research` and `research_phase1_review` databases were left in place.
-The approved Phase 1 collection remained present with 9,683 points after tests.
+The approved `phase1-e5-small-v2` Qdrant collection remained green with 9,683 points.
 
-Current-worktree checks also passed: `ruff check .`, `ruff format --check .`
-(87 files), strict mypy (37 source files), `pip check`, and
-`pip-audit --skip-editable` (no known vulnerabilities; the two editable local
-distributions were excluded by the command). A `linux/amd64` Docker image build
-passed; its temporary verification tag was removed after the build. Hosted CI has
-not run on this uncommitted worktree, so P1-13 remains in progress.
+On the same code/test tree, `ruff check .`, `ruff format --check .` (91 files),
+strict mypy (37 source files), `pip check`, and `pip-audit --skip-editable` passed.
+The audit found no known vulnerabilities and excluded the two editable local
+distributions. The `linux/amd64` Docker build passed and its temporary image tag
+was removed. [hosted CI run 36053054222](https://github.com/avsngh-git/RAGpipeline/actions/runs/36053054222) completed successfully on the exact same revision, including
+lint, formatting, typing, unit/API/live-service tests, migration, dependency
+checks, and Docker build. That hosted evidence applies to the baseline revision only. The current worktree adds the direct-source adapter, its tests, acquisitions and review records; hosted CI and the Docker build have not been rerun on this uncommitted revision.
+
+
+### Follow-up adapter verification (2026-09-25)
+
+The adapter worktree passed **177 tests in 3.95 seconds**, including all 15 live
+PostgreSQL/Qdrant checks. The disposable `research_test` database was created and
+dropped; `research` and `research_phase1_review` were not modified by the suite.
+Full-project Ruff check, format (94 files), strict mypy (37 source files),
+`pip check`, and `pip-audit --skip-editable` passed. A `linux/amd64` Docker build
+also passed under a temporary image tag, which was removed after the build. Hosted
+CI remains verified only on the baseline commit described above; it has not run on
+this uncommitted revision.
+
+### Correction workflow and arXiv route verification (2026-09-25)
+
+At that checkpoint, the correction/adapter worktree passed **182 tests in 3.60 seconds**,
+including all 15 live PostgreSQL/Qdrant checks, using a fresh temporary
+PostgreSQL service and the configured Qdrant test service. Ruff check, format
+(96 files), strict mypy (38 source files), and `pip check` passed. The dependency
+audit found no known vulnerabilities after restoring local setuptools to the
+84.0.0 version in the project lock. The Linux AMD64 Docker build passed; its
+temporary image tag was removed. Hosted CI remains verified only on the baseline
+revision above. A preliminary run against the persistent `research_test` database
+hit duplicate-key fixture collisions, so local integration runs should use a
+fresh disposable PostgreSQL service, as CI does.
+
+### Final current-worktree verification (2026-09-25)
+
+After the latest source fixes, the full suite passed **188 tests in 3.59 seconds**,
+including all 15 live PostgreSQL/Qdrant checks, against a freshly recreated
+`research_test` database in the disposable PostgreSQL container. Ruff check passed;
+Ruff format check passed for 92 files; strict mypy passed across 40 source files.
+The CI migration step, `pip check`, and `pip-audit --skip-editable` passed, with no
+known vulnerabilities. The CI `linux/amd64` Docker build passed using a unique
+temporary image tag, which was removed afterward. The disposable PostgreSQL
+container was stopped after verification. Hosted CI remains verified only on the
+baseline revision; this worktree has not been pushed or run by hosted CI.
 
 ## P1-14 — Hundred-paper acceptance and documentation
 

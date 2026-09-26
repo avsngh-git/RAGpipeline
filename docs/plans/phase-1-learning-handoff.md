@@ -1,6 +1,10 @@
 # Phase 1 — Learning handoff
 
-Updated: 2026-09-24. P1-01 through P1-12 are complete for the approved ten-paper workflow. The user explicitly delegated the remaining Phase 1 implementation, tests and documentation. P1-13 local checks pass; hosted CI remains. A 33-paper discovery-expansion screening proposal is ready for user approval; its read-only source preflight found 23 candidates with source-level CC BY terms and 10 requiring further rights review. P1-14 then still requires an approved manifest, permitted full-text sources and the acceptance run.
+Updated: 2026-09-25. P1-01 through P1-12 are complete for the approved ten-paper workflow. The corrected draft contains 5,944 sections, 112 tables, 15,628 evidence units and 9,684 chunks; all eight flagged table checks passed, and validation reports no issues. The current worktree passes 188 tests in 3.59 seconds, including all 15 live service checks, Ruff check/format, strict mypy, the migration step, pip check, pip-audit and the Linux AMD64 Docker build. Baseline hosted CI passed on `ebe1c41602b62c5934fbfe43e51ae765896e3e6e` ([run 36053054222](https://github.com/avsngh-git/RAGpipeline/actions/runs/36053054222)); hosted CI has not run on the current worktree.
+
+Three assistant title screens are finalized under the user’s Phase 1 delegation: 70 expansion candidates (33 include, 37 exclude), 192 cited-work leads (55/137), and 80 cache records (43/37). The current pool has at most 144 preliminary source routes. Ten PDFs are associated with approved v1; five private NC-ND/NC-SA PDFs are stored locally but remain unassociated with the accepted 100-paper set. They do not reduce the 90 accepted-paper gap. See the [rights preflight](../../manifests/phase1-discovery-expansion-rights-preflight.md) and [NC acquisition inventory](../../manifests/phase1-discovery-expansion-nc-acquisition.json).
+
+Four of the ten authorized expansion follow-ups remain unacquired or unresolved; one is the Springer route that returned HTML and three are ACM/PMC candidates needing separate source paths. The accepted [ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md) enables bounded Springer Nature, version-pinned arXiv and Glasgow Eprints routes; each item still needs source-specific permission evidence. The OpenAlex default remains CC BY/public domain. The ten-paper pilot’s nine original flagged items were visually compared under delegation. Five tables were corrected across three papers; one figure was reclassified in a fourth paper; all eight flagged tables passed. The delegated 100-paper set is now acquired and extracted. Exact PDF, version, checksum and permission checks passed for all 100 files; all initial source-review checks are closed in the linked closeout. The 100-paper table sample and snapshot validation also pass. P1-14 remains open only for current-worktree hosted CI and formal snapshot finalization.
 
 ## Start here
 
@@ -30,20 +34,9 @@ Updated: 2026-09-24. P1-01 through P1-12 are complete for the approved ten-paper
    reversible E5-small-v2 pilot is complete; the final embedding choice remains open
    for Phase 2. Review the [local sample packet](../../local-reference/phase1-discovery-v1/review-draft.md)
    using the [reference protocol](../reference/phase-1-reference-protocol.md).
-   The [P1-14 acceptance report template](../reference/phase-1-acceptance-report-template.md)
-   records the eventual 100-paper evidence without fabricating results.
-4. **Next decision:** review the [discovery expansion screening proposal](../../manifests/phase1-discovery-expansion-screening-proposal.md).
-   It recommends 33 distinct additions to the approved 67, enough for a
-   100-paper metadata-screened manifest. See the linked [source and rights
-   preflight](../../manifests/phase1-discovery-expansion-rights-preflight.md):
-   23 candidates have source-level CC BY terms identified, while 10 need further
-   rights review: two ACM journal versions have unconfirmed item-level terms, one accepted
-   ACM version carries a personal/classroom-use notice, one coauthor page states
-   CC BY-NC-ND for a preprint, two alternate versions are CC BY-NC-SA, three
-   publisher versions are CC BY-NC-ND, and RefAI's repository copy needs review. The v2/v3 manifests remain drafts and v1 is unchanged.
-   Screening approval does not grant full-text permissions; approve exact
-   sources and storage/indexing rights before any new PDF acquisition. P1-13
-   hosted CI also remains open until the worktree is committed and CI can run.
+   The [100-paper acceptance report](../reference/phase-1-100-paper-acceptance-report.md)
+   records the observed pilot results and the remaining hosted-CI gate.
+4. **P1-14 status:** the assistant accepted the [100-title membership](../../manifests/phase1-100-paper-membership-decision.json) on 2026-09-25 under the user's explicit delegation. The set is 10 v1 papers plus 21 expansion, 51 cited-work and 18 cache-screen candidates; the approved v1 remains unchanged. All 100 selected PDFs are acquired, checksum-valid and linked to persisted storage/index permission evidence. The [source-review closeout](../../local-reference/phase1-100/source-review-closeout.json) resolves the three checks listed in the initial source-route review. The [100-paper acceptance evidence report](../reference/phase-1-100-paper-acceptance-report.md) records extraction, table review, recovery and index reconciliation. Six privately stored follow-up PDFs remain unassociated and do not count toward acceptance. No further copyright decision is pending. The 100-paper snapshot remains a draft until hosted CI runs on the current worktree; its last recorded hosted run is the baseline. The current worktree passed 188 local tests, including all 15 live service checks; Ruff check/format (92 files), strict mypy (40 source files), migration, `pip check`, `pip-audit` and Linux AMD64 Docker build also passed.
 
 Do not repeat the completed planning interview. Corpus scope, 10/100-paper
 milestones, text/table requirements, manually finalized snapshots, one active
@@ -129,15 +122,7 @@ requested.
   1,018,293 bytes; this partial comparison is not the complete 10-paper storage
   footprint used to set the final cap.
 
-- P1-09 through P1-12 full ten-paper pilot (agent-verified 2026-09-24): all ten
-  approved PDFs extracted successfully to 5,944 sections, 113 tables, 15,627
-  evidence units and 9,683 chunks. Nine tables across five papers remain flagged
-  for human PDF review; the snapshot is still a draft. The E5-small-v2 rebuild
-  indexed and reconciled all 9,683 chunks in 606 batches. The source-artifact store
-  uses 11,587,433 bytes against its 2 GiB cap. An audit found that source-PDF
-  acquisition had left document availability marked metadata-only; the repository
-  now records acquired transactionally, and the ten pilot rows were corrected. The [pilot report](../reference/phase-1-full-extraction-pilot.md)
-  records resource and database row-size measurements and the exact review queue.
+- P1-09 through P1-12 full ten-paper pilot (agent-verified 2026-09-24; corrected 2026-09-25): the initial run produced 5,944 sections, 113 tables, 15,627 evidence units and 9,683 chunks. Source-linked corrections now yield 5,944 sections, 112 tables, 15,628 evidence units and 9,684 chunks. All eight flagged tables passed, and the figure misclassified as table evidence was reclassified. PostgreSQL and Qdrant reconcile 9,684 chunks across 606 batches; ten-paper snapshot validation returns no issues. The snapshot remains a draft because the 100-paper gate is unmet. The source-artifact store uses 11,587,433 bytes against its 2 GiB cap. An audit also fixed acquisition status so recorded PDFs promote document availability to acquired transactionally. See the [pilot report](../reference/phase-1-full-extraction-pilot.md) for resource measurements and correction lineage.
 
 
 ## Progress protocol
@@ -148,18 +133,16 @@ current. Label user-reported versus agent-verified outcomes and record code/conf
 revisions. Do not mark Phase 1 complete without its actual finalized 100-paper
 snapshot, acceptance report, recovery/rebuild evidence and passing checks.
 
-Current status: P1-01 through P1-12 are complete for the approved ten-paper
-workflow. P1-13 has passed local checks but awaits hosted CI. P1-14 remains gated
-on a newly approved 100-paper manifest, source permissions and the acceptance run.
+Current status: P1-01 through P1-12 are complete for the ten-paper workflow. The delegated 100-paper membership is recorded, all 100 selected PDFs passed exact source/checksum/permission review, and the 100-paper extraction completed for every member. The manual sample covers 83 flagged tables and 20 ordinary-sample packet items; one item was reclassified as a figure, and all 269 sampled unique numeric values were present after source-linked corrections. Snapshot validation in `research_phase1_review` reports no issues, and snapshot-filtered PostgreSQL/Qdrant evidence IDs match (44,277). The default `research` database does not contain this snapshot; point `RESEARCH_PLATFORM_DATABASE_URL` at the review database for its CLI commands. The [100-paper acceptance report](../reference/phase-1-100-paper-acceptance-report.md) and [source closeout](../../local-reference/phase1-100/source-review-closeout.json) record these results. Current-worktree local checks passed 188 tests in 3.59 seconds, including all 15 live service checks; Ruff check/format (92 files), strict mypy (40 source files), migration, `pip check`, `pip-audit` and the Linux AMD64 Docker build also passed. Baseline hosted CI run [36053054222](https://github.com/avsngh-git/RAGpipeline/actions/runs/36053054222) passed, but hosted CI has not run on the current worktree. Therefore the 100-paper snapshot remains a draft and P1-14 remains in progress. Six additional private follow-up PDFs remain unassociated and outside the accepted set.
 
-On tested implementation snapshot
-`d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc+dirty.sha256:e77d6fd89651a89d0fbeba64335a84a54295b40eee5cd17881e387114e9cae10`,
-all **162 tests passed in 4.42 seconds**, including all 15 live PostgreSQL/Qdrant
-checks. The disposable `research_test` database was dropped afterward. Ruff
-check/format, strict mypy, `pip check`, `pip-audit --skip-editable`, and the
-`linux/amd64` Docker build passed. The temporary Docker tag was removed. The
-approved `phase1-e5-small-v2` collection retained its 9,683 points after tests.
-Hosted CI has not run on this uncommitted worktree.
+On code revision `ebe1c41602b62c5934fbfe43e51ae765896e3e6e`, all **162 tests passed in 3.76 seconds**, including
+all 15 live PostgreSQL/Qdrant checks. The disposable `research_test` database was
+created for the run and dropped afterward. Ruff check/format (91 files), strict
+mypy (37 source files), `pip check`, `pip-audit --skip-editable`, and the
+`linux/amd64` Docker build passed; the temporary image tag was removed. The audit
+found no known vulnerabilities and excluded two editable local distributions. The
+approved `phase1-e5-small-v2` collection remained green with 9,683 points. The
+[hosted CI run 36053054222](https://github.com/avsngh-git/RAGpipeline/actions/runs/36053054222) succeeded on this exact baseline revision. Later work added the direct-source adapter, source-linked extraction corrections and tests, so hosted CI does not cover the current worktree. The current worktree passed 188 local tests, including all 15 live PostgreSQL/Qdrant checks, plus Ruff check/format (92 files), strict mypy (40 source files), migration, `pip check`, `pip-audit` and Linux AMD64 Docker build; hosted CI remains the outstanding gate.
 
 The bounded P1-04 live discovery completed on 2026-09-24 in the isolated local
 `research_phase1_review` database: 30 request attempts out of the 50-attempt

@@ -7,14 +7,19 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import cast
 from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 
 from research_platform.ingestion.evidence import (
     EvidenceUnit,
+    ExtractedSection,
     ExtractedTable,
     ExtractionResult,
+    ExtractionStatus,
+    SourceLocation,
+    TableCell,
 )
 
 
@@ -31,11 +36,94 @@ class EvidencePersistenceResult:
     reused_existing: bool
 
 
+@dataclass(frozen=True)
+class StoredExtraction:
+    result: ExtractionResult
+    source_pdf_sha256: str
+
+
 class EvidenceRepository:
     """Store extraction outputs transactionally and make retries idempotent."""
 
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
+
+    async def load_for_correction(self, extraction_id: UUID) -> StoredExtraction:
+        """Load immutable extraction outputs and their exact source PDF checksum."""
+        async with self._pool.acquire() as connection:
+            extraction = await connection.fetchrow(
+                """
+                SELECT extraction.id, extraction.document_id,
+                       extraction.source_artifact_id, extraction.extractor_name,
+                       extraction.extractor_revision, extraction.configuration_id,
+                       extraction.configuration, extraction.status, artifact.sha256
+                FROM extractions extraction
+                JOIN document_artifacts document_artifact
+                  ON document_artifact.id = extraction.source_artifact_id
+                 AND document_artifact.document_id = extraction.document_id
+                JOIN artifacts artifact
+                  ON artifact.id = document_artifact.artifact_id
+                WHERE extraction.id = $1
+                """,
+                extraction_id,
+            )
+            if extraction is None:
+                raise ValueError("source extraction or PDF artifact does not exist")
+            section_rows = await connection.fetch(
+                """
+                SELECT section.ordinal, section.source_location, evidence_unit.content
+                FROM sections section
+                JOIN evidence_units evidence_unit
+                  ON evidence_unit.extraction_id = section.extraction_id
+                 AND evidence_unit.section_id = section.id
+                 AND evidence_unit.kind = 'text'
+                 AND evidence_unit.id = 'section:' || section.extraction_id::text || ':' || section.ordinal::text
+                WHERE section.document_id = $1 AND section.extraction_id = $2
+                ORDER BY section.ordinal
+                """,
+                extraction["document_id"],
+                extraction_id,
+            )
+            table_rows = await connection.fetch(
+                """
+                SELECT ordinal, caption, units, footnotes, table_data,
+                       source_location, metadata
+                FROM evidence_tables
+                WHERE extraction_id = $1
+                ORDER BY ordinal
+                """,
+                extraction_id,
+            )
+
+        sections: list[ExtractedSection] = []
+        for row in section_rows:
+            stored_location = _json_mapping(
+                row["source_location"], "section source location"
+            )
+            sections.append(
+                ExtractedSection(
+                    ordinal=cast(int, row["ordinal"]),
+                    heading_path=_string_sequence(
+                        stored_location.get("heading_path"), "section heading path"
+                    ),
+                    text=cast(str, row["content"]),
+                    source_location=_source_location(stored_location.get("location")),
+                )
+            )
+        configuration = _json_mapping(extraction["configuration"], "configuration")
+        result = ExtractionResult(
+            document_id=extraction["document_id"],
+            extraction_id=extraction["id"],
+            extractor_name=extraction["extractor_name"],
+            extractor_revision=extraction["extractor_revision"],
+            configuration_id=extraction["configuration_id"],
+            status=cast(ExtractionStatus, extraction["status"]),
+            source_artifact_id=extraction["source_artifact_id"],
+            sections=tuple(sections),
+            tables=tuple(_extracted_table(row) for row in table_rows),
+            configuration=configuration,
+        )
+        return StoredExtraction(result, extraction["sha256"])
 
     async def persist(
         self,
@@ -377,3 +465,139 @@ def _result(
         evidence_unit_count=len(units),
         reused_existing=reused,
     )
+
+
+def _extracted_table(row: Mapping[str, object]) -> ExtractedTable:
+    data = _json_mapping(row["table_data"], "table data")
+    metadata = _json_mapping(row["metadata"], "table metadata")
+    raw_cells = data.get("cells")
+    if not isinstance(raw_cells, list):
+        raise ValueError("stored table cells are invalid")
+    cells = tuple(_table_cell(value) for value in raw_cells)
+    raw_footnotes = _json_value(row["footnotes"], "table footnotes")
+    if not isinstance(raw_footnotes, list) or any(
+        not isinstance(note, str) for note in raw_footnotes
+    ):
+        raise ValueError("stored table footnotes are invalid")
+    section_ordinal = metadata.get("section_ordinal")
+    if section_ordinal is not None and (
+        isinstance(section_ordinal, bool) or not isinstance(section_ordinal, int)
+    ):
+        raise ValueError("stored table section ordinal is invalid")
+    header_rows = data.get("header_rows")
+    if isinstance(header_rows, bool) or not isinstance(header_rows, int):
+        raise ValueError("stored table header row count is invalid")
+    return ExtractedTable(
+        ordinal=cast(int, row["ordinal"]),
+        caption=cast(str | None, row["caption"]),
+        units=cast(str | None, row["units"]),
+        footnotes=tuple(raw_footnotes),
+        header_rows=header_rows,
+        cells=cells,
+        source_location=_source_location(row["source_location"]),
+        section_ordinal=section_ordinal,
+        requires_vision_review=metadata.get("review_required") is True,
+    )
+
+
+def _table_cell(value: object) -> TableCell:
+    if not isinstance(value, Mapping):
+        raise ValueError("stored table cell is invalid")
+    row = value.get("row")
+    column = value.get("column")
+    text = value.get("text")
+    if (
+        isinstance(row, bool)
+        or not isinstance(row, int)
+        or isinstance(column, bool)
+        or not isinstance(column, int)
+        or not isinstance(text, str)
+    ):
+        raise ValueError("stored table cell coordinates or text are invalid")
+    raw_merged = value.get("merged_range")
+    if raw_merged is not None and (
+        not isinstance(raw_merged, list)
+        or len(raw_merged) != 4
+        or any(
+            isinstance(index, bool) or not isinstance(index, int)
+            for index in raw_merged
+        )
+    ):
+        raise ValueError("stored table merged range is invalid")
+    return TableCell(
+        row=row,
+        column=column,
+        text=text,
+        row_header_cells=_coordinate_references(value.get("row_header_cells")),
+        column_header_cells=_coordinate_references(value.get("column_header_cells")),
+        merged_range=tuple(raw_merged) if raw_merged is not None else None,
+    )
+
+
+def _coordinate_references(value: object) -> tuple[tuple[int, int], ...]:
+    if not isinstance(value, list):
+        raise ValueError("stored table header references are invalid")
+    references: list[tuple[int, int]] = []
+    for reference in value:
+        if (
+            not isinstance(reference, list)
+            or len(reference) != 2
+            or any(
+                isinstance(index, bool) or not isinstance(index, int)
+                for index in reference
+            )
+        ):
+            raise ValueError("stored table header reference is invalid")
+        references.append((reference[0], reference[1]))
+    return tuple(references)
+
+
+def _source_location(value: object) -> SourceLocation:
+    data = _json_mapping(value, "source location")
+    page = data.get("page_index_zero_based")
+    printed_page = data.get("printed_page_label")
+    raw_box = data.get("bounding_box")
+    coordinate_system = data.get("coordinate_system")
+    if page is not None and (isinstance(page, bool) or not isinstance(page, int)):
+        raise ValueError("stored source page is invalid")
+    if printed_page is not None and not isinstance(printed_page, str):
+        raise ValueError("stored printed page label is invalid")
+    if raw_box is not None and (
+        not isinstance(raw_box, list)
+        or len(raw_box) != 4
+        or any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for value in raw_box
+        )
+    ):
+        raise ValueError("stored source bounding box is invalid")
+    if coordinate_system is not None and not isinstance(coordinate_system, str):
+        raise ValueError("stored coordinate system is invalid")
+    return SourceLocation(
+        page_index_zero_based=page,
+        printed_page_label=printed_page,
+        bounding_box=tuple(raw_box) if raw_box is not None else None,
+        coordinate_system=coordinate_system,
+    )
+
+
+def _string_sequence(value: object, label: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"stored {label} is invalid")
+    return tuple(value)
+
+
+def _json_mapping(value: object, label: str) -> dict[str, object]:
+    decoded = _json_value(value, label)
+    if not isinstance(decoded, Mapping):
+        raise ValueError(f"stored {label} is invalid")
+    return dict(decoded)
+
+
+def _json_value(value: object, label: str) -> object:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"stored {label} is invalid JSON") from error
+    return value

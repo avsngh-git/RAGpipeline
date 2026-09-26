@@ -224,3 +224,14 @@ __marimo__/
 /local-reference/
 /data/models/
 /data/qdrant/
+
+# Local agent-authored research manifests, review decisions, and acquisition records.
+/manifests/
+
+# Keep generated and agent-authored JSON artifacts out of commits.
+# Checked-in JSON configuration examples remain versioned.
+*.json
+!/configs/*.example.json
+
+# Windows download metadata sidecars are not project source.
+*:Zone.Identifier

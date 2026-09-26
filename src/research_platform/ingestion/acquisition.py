@@ -13,12 +13,24 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from math import isfinite
 from typing import cast
+from urllib.parse import unquote, urlsplit
 
 import httpx
 
 from research_platform.ingestion.artifacts import ArtifactStore, StoredArtifact
 
 OPENALEX_CONTENT_BASE = "https://content.openalex.org"
+DIRECT_SOURCE_HOSTS = (
+    "link.springer.com",
+    "arxiv.org",
+    "eprints.gla.ac.uk",
+)
+_DIRECT_SOURCE_NAMES = {
+    "link.springer.com": "springer-nature",
+    "arxiv.org": "arxiv",
+    "eprints.gla.ac.uk": "university-of-glasgow-eprints",
+}
+_ARXIV_PDF_PATH = re.compile(r"^/pdf/(?:\d{4}\.\d{4,5}|[A-Za-z.-]+/\d{7})v\d+$")
 _OPENALEX_ID_PATTERN = re.compile(r"^W[0-9]+$")
 Sleep = Callable[[float], Awaitable[None]]
 Clock = Callable[[], float]
@@ -242,6 +254,137 @@ class AcquisitionError(RuntimeError):
     """A bounded document acquisition failed without publishing a partial file."""
 
 
+class _BoundedPdfDownloader:
+    """Shared request, retry, response and storage limits for PDF adapters."""
+
+    def __init__(
+        self,
+        config: AcquisitionConfig,
+        http_client: httpx.AsyncClient,
+        store: ArtifactStore,
+        *,
+        sleep: Sleep,
+        clock: Clock,
+        reserve_request: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
+        self._config = config
+        self._http = http_client
+        self._store = store
+        self._sleep = sleep
+        self._clock = clock
+        self._reserve_request = reserve_request
+        self.requests_used = 0
+        self._documents_started = 0
+        self.documents_downloaded = 0
+        self._next_request_at = 0.0
+
+    async def download(
+        self,
+        url: str,
+        source_label: str,
+        *,
+        params: Mapping[str, str] | None = None,
+    ) -> StoredArtifact:
+        if self._documents_started >= self._config.maximum_documents:
+            raise AcquisitionError("configured document acquisition ceiling reached")
+        self._documents_started += 1
+
+        for attempt in range(self._config.maximum_retries + 1):
+            await self._wait_for_slot()
+            if self.requests_used >= self._config.maximum_requests:
+                raise AcquisitionError("configured content request ceiling reached")
+            if self._reserve_request is not None:
+                await self._reserve_request()
+            self.requests_used += 1
+            try:
+                async with self._http.stream(
+                    "GET",
+                    url,
+                    params=params,
+                    timeout=httpx.Timeout(self._config.timeout_seconds),
+                    follow_redirects=False,
+                ) as response:
+                    if response.status_code in {429, 500, 502, 503, 504}:
+                        if attempt < self._config.maximum_retries:
+                            await self._sleep(self._retry_delay(response, attempt))
+                            continue
+                        raise AcquisitionError(
+                            f"{source_label} request failed with HTTP {response.status_code}"
+                        )
+                    if response.is_redirect:
+                        raise AcquisitionError(
+                            f"{source_label} redirects are not followed"
+                        )
+                    if response.status_code != 200:
+                        raise AcquisitionError(
+                            f"{source_label} request failed with HTTP {response.status_code}"
+                        )
+                    content_type = response.headers.get("content-type", "").split(
+                        ";", 1
+                    )[0]
+                    if content_type.lower() != "application/pdf":
+                        raise AcquisitionError(f"{source_label} response is not a PDF")
+                    content_length = _content_length(
+                        response.headers.get("content-length"), source_label
+                    )
+                    if (
+                        content_length is not None
+                        and content_length > self._config.maximum_file_bytes
+                    ):
+                        raise AcquisitionError(
+                            f"{source_label} PDF exceeds the configured size limit"
+                        )
+                    artifact = await self._store.store_pdf(
+                        response.aiter_bytes(), declared_length=content_length
+                    )
+                    self.documents_downloaded += 1
+                    return artifact
+            except httpx.TimeoutException as error:
+                if attempt >= self._config.maximum_retries:
+                    raise AcquisitionError(
+                        f"{source_label} request timed out"
+                    ) from error
+                await self._sleep(self._retry_delay(None, attempt))
+            except httpx.TransportError as error:
+                if attempt >= self._config.maximum_retries:
+                    raise AcquisitionError(
+                        f"{source_label} transport failed"
+                    ) from error
+                await self._sleep(self._retry_delay(None, attempt))
+        raise AcquisitionError(f"{source_label} request exhausted its retry limit")
+
+    async def _wait_for_slot(self) -> None:
+        now = self._clock()
+        delay = max(0.0, self._next_request_at - now)
+        if delay:
+            await self._sleep(delay)
+        self._next_request_at = self._clock() + max(
+            1.0, self._config.minimum_request_interval_seconds
+        )
+
+    def _retry_delay(self, response: httpx.Response | None, attempt: int) -> float:
+        if response is not None:
+            retry_after = response.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    return min(60.0, max(0.0, float(retry_after)))
+                except ValueError:
+                    try:
+                        retry_at = parsedate_to_datetime(retry_after)
+                        if retry_at.tzinfo is None:
+                            retry_at = retry_at.replace(tzinfo=timezone.utc)
+                        return min(
+                            60.0,
+                            max(
+                                0.0,
+                                (retry_at - datetime.now(timezone.utc)).total_seconds(),
+                            ),
+                        )
+                    except (TypeError, ValueError, OverflowError):
+                        pass
+        return min(30.0, 2.0**attempt)
+
+
 class OpenAlexContentAdapter:
     """Download one permitted OpenAlex PDF at a time to the artifact store."""
 
@@ -260,19 +403,22 @@ class OpenAlexContentAdapter:
             raise ValueError("an OpenAlex API key is required for content downloads")
         self._config = config
         self._api_key = api_key
-        self._http = http_client
-        self._store = store
-        self._sleep = sleep
-        self._clock = clock
-        self._reserve_request = reserve_request
-        self._requests_used = 0
-        self._documents_started = 0
-        self._documents_downloaded = 0
-        self._next_request_at = 0.0
+        self._downloader = _BoundedPdfDownloader(
+            config,
+            http_client,
+            store,
+            sleep=sleep,
+            clock=clock,
+            reserve_request=reserve_request,
+        )
 
     @property
     def requests_used(self) -> int:
-        return self._requests_used
+        return self._downloader.requests_used
+
+    @property
+    def documents_downloaded(self) -> int:
+        return self._downloader.documents_downloaded
 
     async def download_pdf(
         self,
@@ -284,82 +430,10 @@ class OpenAlexContentAdapter:
             raise AcquisitionError(
                 "OpenAlex does not report a cached PDF for this work"
             )
-        if self._documents_started >= self._config.maximum_documents:
-            raise AcquisitionError("configured document acquisition ceiling reached")
-        self._documents_started += 1
-
-        url = f"{OPENALEX_CONTENT_BASE}/works/{availability.openalex_id}.pdf"
-        for attempt in range(self._config.maximum_retries + 1):
-            await self._wait_for_slot()
-            if self._requests_used >= self._config.maximum_requests:
-                raise AcquisitionError("configured content request ceiling reached")
-            if self._reserve_request is not None:
-                await self._reserve_request()
-            self._requests_used += 1
-            try:
-                async with self._http.stream(
-                    "GET",
-                    url,
-                    params={"api_key": self._api_key},
-                    timeout=httpx.Timeout(self._config.timeout_seconds),
-                    follow_redirects=False,
-                ) as response:
-                    if response.status_code in {429, 500, 502, 503, 504}:
-                        if attempt < self._config.maximum_retries:
-                            await self._sleep(self._retry_delay(response, attempt))
-                            continue
-                        raise AcquisitionError(
-                            f"OpenAlex content request failed with HTTP {response.status_code}"
-                        )
-                    if response.is_redirect:
-                        raise AcquisitionError(
-                            "OpenAlex content redirects are not followed"
-                        )
-                    if response.status_code != 200:
-                        raise AcquisitionError(
-                            f"OpenAlex content request failed with HTTP {response.status_code}"
-                        )
-                    content_type = response.headers.get("content-type", "").split(
-                        ";", 1
-                    )[0]
-                    if content_type.lower() != "application/pdf":
-                        raise AcquisitionError("OpenAlex content response is not a PDF")
-                    content_length = _content_length(
-                        response.headers.get("content-length")
-                    )
-                    if (
-                        content_length is not None
-                        and content_length > self._config.maximum_file_bytes
-                    ):
-                        raise AcquisitionError(
-                            "OpenAlex PDF exceeds the configured size limit"
-                        )
-                    artifact = await self._store.store_pdf(
-                        response.aiter_bytes(), declared_length=content_length
-                    )
-                    self._documents_downloaded += 1
-                    return artifact
-            except httpx.TimeoutException as error:
-                if attempt >= self._config.maximum_retries:
-                    raise AcquisitionError(
-                        "OpenAlex content request timed out"
-                    ) from error
-                await self._sleep(self._retry_delay(None, attempt))
-            except httpx.TransportError as error:
-                if attempt >= self._config.maximum_retries:
-                    raise AcquisitionError(
-                        "OpenAlex content transport failed"
-                    ) from error
-                await self._sleep(self._retry_delay(None, attempt))
-        raise AcquisitionError("OpenAlex content request exhausted its retry limit")
-
-    async def _wait_for_slot(self) -> None:
-        now = self._clock()
-        delay = max(0.0, self._next_request_at - now)
-        if delay:
-            await self._sleep(delay)
-        self._next_request_at = self._clock() + max(
-            1.0, self._config.minimum_request_interval_seconds
+        return await self._downloader.download(
+            f"{OPENALEX_CONTENT_BASE}/works/{availability.openalex_id}.pdf",
+            "OpenAlex content",
+            params={"api_key": self._api_key},
         )
 
     def _validate_permission(
@@ -388,36 +462,93 @@ class OpenAlexContentAdapter:
                 "permission evidence does not match the document URL"
             )
 
-    def _retry_delay(self, response: httpx.Response | None, attempt: int) -> float:
-        if response is not None:
-            retry_after = response.headers.get("Retry-After")
-            if retry_after:
-                try:
-                    return min(60.0, max(0.0, float(retry_after)))
-                except ValueError:
-                    try:
-                        retry_at = parsedate_to_datetime(retry_after)
-                        if retry_at.tzinfo is None:
-                            retry_at = retry_at.replace(tzinfo=timezone.utc)
-                        return min(
-                            60.0,
-                            max(
-                                0.0,
-                                (retry_at - datetime.now(timezone.utc)).total_seconds(),
-                            ),
-                        )
-                    except (TypeError, ValueError, OverflowError):
-                        pass
-        return min(30.0, 2.0**attempt)
+
+class DirectSourcePdfAdapter:
+    """Download pinned publisher/repository PDFs from a fixed host allowlist."""
+
+    def __init__(
+        self,
+        config: AcquisitionConfig,
+        http_client: httpx.AsyncClient,
+        store: ArtifactStore,
+        *,
+        sleep: Sleep = asyncio.sleep,
+        clock: Clock = time.monotonic,
+    ) -> None:
+        self._config = config
+        self._downloader = _BoundedPdfDownloader(
+            config,
+            http_client,
+            store,
+            sleep=sleep,
+            clock=clock,
+        )
+
+    @property
+    def requests_used(self) -> int:
+        return self._downloader.requests_used
+
+    @property
+    def documents_downloaded(self) -> int:
+        return self._downloader.documents_downloaded
+
+    async def download_pdf(self, permission: PermissionEvidence) -> StoredArtifact:
+        self._validate_permission(permission)
+        return await self._downloader.download(
+            permission.source_url, "direct-source PDF"
+        )
+
+    def _validate_permission(self, permission: PermissionEvidence) -> None:
+        if not permission.storage_permitted or not permission.indexing_permitted:
+            raise AcquisitionError("storage and indexing permissions are required")
+        if permission.license_id not in self._config.permitted_licenses:
+            raise AcquisitionError(
+                "license is not in the configured permitted-license list"
+            )
+        try:
+            parsed = urlsplit(permission.source_url)
+            host = parsed.hostname
+            port = parsed.port
+        except ValueError as error:
+            raise AcquisitionError("direct-source PDF URL is invalid") from error
+        source_name = _DIRECT_SOURCE_NAMES.get(host or "")
+        if (
+            parsed.scheme != "https"
+            or source_name is None
+            or port not in {None, 443}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise AcquisitionError("direct-source PDF URL is not allowed")
+        if permission.source_name != source_name:
+            raise AcquisitionError(
+                "permission evidence does not match the direct source host"
+            )
+
+        path = unquote(parsed.path)
+        if any(segment in {".", ".."} for segment in path.split("/")):
+            raise AcquisitionError("direct-source PDF path is not allowed")
+        if host == "arxiv.org":
+            path_is_pdf = _ARXIV_PDF_PATH.fullmatch(path) is not None
+        elif host == "link.springer.com":
+            path_is_pdf = path.startswith("/content/pdf/") and path.endswith(".pdf")
+        else:
+            path_is_pdf = re.fullmatch(r"/\d+/\d+/\d+\.pdf", path) is not None
+        if not path_is_pdf:
+            raise AcquisitionError("direct-source URL is not a supported PDF route")
 
 
-def _content_length(value: str | None) -> int | None:
+def _content_length(value: str | None, source_label: str) -> int | None:
     if value is None:
         return None
     try:
         length = int(value)
     except ValueError as error:
-        raise AcquisitionError("OpenAlex returned an invalid content length") from error
+        raise AcquisitionError(
+            f"{source_label} returned an invalid content length"
+        ) from error
     if length < 0:
-        raise AcquisitionError("OpenAlex returned an invalid content length")
+        raise AcquisitionError(f"{source_label} returned an invalid content length")
     return length

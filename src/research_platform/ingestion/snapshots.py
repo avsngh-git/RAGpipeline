@@ -12,6 +12,8 @@ from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 
+from research_platform.ingestion.membership import MembershipDecision
+
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 _MAX_EVIDENCE_INSPECTION_LIMIT = 100
 _CONTENT_PREVIEW_CHARACTERS = 2000
@@ -114,6 +116,16 @@ class SnapshotRepository:
             raise RuntimeError("database did not return a snapshot ID")
         return snapshot_id
 
+    async def configuration_for(self, snapshot_id: UUID) -> dict[str, object]:
+        """Return the immutable configuration recorded when a snapshot was created."""
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                "SELECT configuration FROM snapshots WHERE id = $1", snapshot_id
+            )
+        if row is None:
+            raise ValueError("snapshot does not exist")
+        return _json_object(row["configuration"])
+
     async def document_ids_for_processing(self, snapshot_id: UUID) -> tuple[UUID, ...]:
         """Return a fixed draft's document membership for an extraction job."""
         async with self._pool.acquire() as connection:
@@ -132,6 +144,59 @@ class SnapshotRepository:
         if not rows:
             raise ValueError("cannot start ingestion for an empty snapshot")
         return tuple(row["document_id"] for row in rows)
+
+    async def draft_member_extractions(
+        self, snapshot_id: UUID
+    ) -> dict[UUID, UUID | None]:
+        """Return a draft's current document/extraction pairs for safe preflight."""
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                status = await connection.fetchval(
+                    "SELECT status FROM snapshots WHERE id = $1 FOR SHARE",
+                    snapshot_id,
+                )
+                if status is None:
+                    raise ValueError("snapshot does not exist")
+                if status != "draft":
+                    raise ValueError("only draft snapshots can receive corrections")
+                rows = await connection.fetch(
+                    """
+                    SELECT document_id, extraction_id
+                    FROM snapshot_items
+                    WHERE snapshot_id = $1
+                    """,
+                    snapshot_id,
+                )
+        return {row["document_id"]: row["extraction_id"] for row in rows}
+
+    async def replace_extraction(
+        self,
+        snapshot_id: UUID,
+        document_id: UUID,
+        source_extraction_id: UUID,
+        replacement_extraction_id: UUID,
+    ) -> None:
+        """Swap a draft member only if it still references the reviewed source."""
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await self._require_draft(connection, snapshot_id)
+                updated = await connection.fetchval(
+                    """
+                    UPDATE snapshot_items
+                    SET extraction_id = $4
+                    WHERE snapshot_id = $1 AND document_id = $2
+                      AND extraction_id = $3
+                    RETURNING paper_id
+                    """,
+                    snapshot_id,
+                    document_id,
+                    source_extraction_id,
+                    replacement_extraction_id,
+                )
+        if updated is None:
+            raise ValueError(
+                "draft member changed since the correction source was inspected"
+            )
 
     async def set_extraction(
         self, snapshot_id: UUID, document_id: UUID, extraction_id: UUID
@@ -179,7 +244,7 @@ class SnapshotRepository:
                     UPDATE evidence_tables AS evidence_table
                     SET metadata = evidence_table.metadata || jsonb_build_object(
                         'review_status', 'passed',
-                        'reviewer', $4,
+                        'reviewer', $4::text,
                         'reviewed_at', now()
                     )
                     WHERE evidence_table.extraction_id = $2
@@ -228,6 +293,73 @@ class SnapshotRepository:
                     extraction_id,
                     selection_reason,
                 )
+
+    async def add_reviewed_membership(
+        self,
+        snapshot_id: UUID,
+        membership: MembershipDecision,
+        document_ids: Mapping[str, UUID],
+    ) -> None:
+        """Add the exact reviewed 100-paper selection to a bound draft snapshot."""
+        if set(document_ids) != set(membership.selected_openalex_ids):
+            raise ValueError(
+                "selected document map does not match the 100-paper decision"
+            )
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                snapshot = await connection.fetchrow(
+                    "SELECT status, configuration FROM snapshots WHERE id = $1 FOR UPDATE",
+                    snapshot_id,
+                )
+                if snapshot is None:
+                    raise ValueError("snapshot does not exist")
+                if snapshot["status"] != "draft":
+                    raise ValueError("only a draft snapshot can receive membership")
+                configuration = _json_object(snapshot["configuration"])
+                if (
+                    configuration.get("membership_decision_sha256")
+                    != membership.identity
+                    or configuration.get("membership_target_count") != 100
+                ):
+                    raise ValueError(
+                        "snapshot configuration is not bound to this 100-paper decision"
+                    )
+                existing = await connection.fetch(
+                    """
+                    SELECT paper_id, document_id, selection_reason
+                    FROM snapshot_items WHERE snapshot_id = $1
+                    """,
+                    snapshot_id,
+                )
+                if existing:
+                    existing_map = {
+                        row["paper_id"]: (row["document_id"], row["selection_reason"])
+                        for row in existing
+                    }
+                    expected_map = {
+                        openalex_id: (
+                            document_ids[openalex_id],
+                            membership.selection_reasons[openalex_id],
+                        )
+                        for openalex_id in membership.selected_openalex_ids
+                    }
+                    if existing_map != expected_map:
+                        raise ValueError(
+                            "draft already has a different or partial membership"
+                        )
+                    return
+                for openalex_id in sorted(membership.selected_openalex_ids):
+                    await connection.execute(
+                        """
+                        INSERT INTO snapshot_items
+                            (snapshot_id, paper_id, document_id, extraction_id, selection_reason)
+                        VALUES ($1, $2, $3, NULL, $4)
+                        """,
+                        snapshot_id,
+                        openalex_id,
+                        document_ids[openalex_id],
+                        membership.selection_reasons[openalex_id],
+                    )
 
     async def remove_member(self, snapshot_id: UUID, paper_id: str) -> None:
         async with self._pool.acquire() as connection:

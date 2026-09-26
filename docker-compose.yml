@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-research}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-research}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.14.1
     ports:
-      - "${QDRANT_PORT:-6333}:6333"
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
     volumes:
       - qdrant_data:/qdrant/storage
 
@@ -35,7 +35,7 @@ services:
       OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
       RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS: ${RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS:-2}
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - ./data/artifacts:/app/data/artifacts
     depends_on:

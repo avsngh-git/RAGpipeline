@@ -104,6 +104,68 @@ class ArtifactRepository:
             byte_size=row["byte_size"],
         )
 
+    async def matching_permissioned_pdf(
+        self,
+        document_id: UUID,
+        *,
+        source_name: str,
+        source_url: str,
+        license_id: str,
+    ) -> PermittedSourcePdf | None:
+        """Find one already recorded PDF for the exact reviewed source route."""
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT association.id AS association_id, association.document_id,
+                       artifact.sha256, artifact.storage_path, artifact.byte_size
+                FROM document_artifacts AS association
+                JOIN artifacts AS artifact ON artifact.id = association.artifact_id
+                JOIN document_permission_evidence AS permission
+                  ON permission.id = association.permission_evidence_id
+                 AND permission.document_id = association.document_id
+                WHERE association.document_id = $1
+                  AND association.role = 'source_pdf'
+                  AND association.source_name = $2
+                  AND association.source_url = $3
+                  AND permission.source_name = $2
+                  AND permission.source_url = $3
+                  AND permission.license_id = $4
+                  AND association.storage_permitted
+                  AND association.indexing_permitted
+                  AND permission.storage_permitted
+                  AND permission.indexing_permitted
+                ORDER BY association.acquired_at DESC, association.id
+                LIMIT 2
+                """,
+                document_id,
+                source_name,
+                source_url,
+                license_id,
+            )
+        if len(rows) > 1:
+            raise PermissionError(
+                "selected document has multiple matching permitted source PDFs"
+            )
+        if not rows:
+            return None
+        row = rows[0]
+        if (
+            not isinstance(row["association_id"], UUID)
+            or row["document_id"] != document_id
+            or not isinstance(row["sha256"], str)
+            or not isinstance(row["storage_path"], str)
+            or isinstance(row["byte_size"], bool)
+            or not isinstance(row["byte_size"], int)
+        ):
+            raise RuntimeError("database returned an invalid permitted PDF record")
+        return PermittedSourcePdf(
+            association_id=row["association_id"],
+            document_id=document_id,
+            sha256=row["sha256"],
+            storage_path=row["storage_path"],
+            byte_size=row["byte_size"],
+        )
+
     async def known_storage_paths(self) -> set[str]:
         async with self._pool.acquire() as connection:
             rows = await connection.fetch("SELECT storage_path FROM artifacts")

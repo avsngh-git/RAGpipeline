@@ -25,6 +25,8 @@ from research_platform.ingestion.embeddings import (
 from research_platform.ingestion.evidence import (
     ChunkingConfig,
     EvidenceUnit,
+    ExtractedSection,
+    ExtractedTable,
     ExtractionResult,
     chunk_section,
     chunk_table_rows,
@@ -63,6 +65,8 @@ class PdfEvidenceProcessor:
         parser_config: DoclingPdfConfig,
         chunking_config: ChunkingConfig,
         tokenizer: E5SmallV2Embedder,
+        excluded_source_pages_by_document: Mapping[UUID, frozenset[int]] | None = None,
+        source_content_review_identity: str | None = None,
     ) -> None:
         self._pool = pool
         self._snapshot_id = snapshot_id
@@ -70,6 +74,21 @@ class PdfEvidenceProcessor:
         self._parser = DoclingPdfExtractor(parser_config)
         self._chunking = chunking_config
         self._tokenizer = tokenizer
+        self._excluded_source_pages_by_document = dict(
+            excluded_source_pages_by_document or {}
+        )
+        for page_numbers in self._excluded_source_pages_by_document.values():
+            if not page_numbers or any(
+                isinstance(page, bool) or not isinstance(page, int) or page < 1
+                for page in page_numbers
+            ):
+                raise ValueError("excluded source pages must be positive page numbers")
+        if (
+            source_content_review_identity is not None
+            and not source_content_review_identity.startswith("sha256:")
+        ):
+            raise ValueError("source content review identity must be a SHA-256 ID")
+        self._source_content_review_identity = source_content_review_identity
         self._prepared: PreparedPdfPipeline | None = None
 
     async def prepare(self) -> PreparedPdfPipeline:
@@ -83,6 +102,16 @@ class PdfEvidenceProcessor:
             "schema_version": 1,
             "parser": parser_configuration,
             "chunking": self._chunking.to_dict(),
+            "source_content_review": {
+                "identity": self._source_content_review_identity,
+                "excluded_source_pages_by_document": {
+                    str(document_id): sorted(page_numbers)
+                    for document_id, page_numbers in sorted(
+                        self._excluded_source_pages_by_document.items(),
+                        key=lambda item: str(item[0]),
+                    )
+                },
+            },
             "processor_code_revision": processor_revision,
             "chunk_tokenizer": {
                 "model": E5_SMALL_V2_MODEL,
@@ -158,6 +187,12 @@ class PdfEvidenceProcessor:
                 "the effective parser options changed during the run",
                 retryable=False,
             )
+
+        excluded_pages = self._excluded_source_pages_by_document.get(
+            context.document_id, frozenset()
+        )
+        if excluded_pages:
+            result = _exclude_source_pages(result, excluded_pages)
 
         flagged = set(tables_requiring_vision_review(result))
         reviewed_tables = tuple(
@@ -265,3 +300,43 @@ def _identity(value: Mapping[str, object]) -> str:
         dict(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False
     )
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _exclude_source_pages(
+    result: ExtractionResult, excluded_page_numbers: frozenset[int]
+) -> ExtractionResult:
+    """Drop evidence located on excluded one-based PDF pages and keep stable links."""
+    old_to_new_sections: dict[int, int] = {}
+    sections: list[ExtractedSection] = []
+    for section in result.sections:
+        page_index = section.source_location.page_index_zero_based
+        if page_index is not None and page_index + 1 in excluded_page_numbers:
+            continue
+        new_ordinal = len(sections)
+        old_to_new_sections[section.ordinal] = new_ordinal
+        sections.append(replace(section, ordinal=new_ordinal))
+
+    tables: list[ExtractedTable] = []
+    for table in result.tables:
+        page_index = table.source_location.page_index_zero_based
+        if page_index is not None and page_index + 1 in excluded_page_numbers:
+            continue
+        new_section_ordinal = (
+            old_to_new_sections.get(table.section_ordinal)
+            if table.section_ordinal is not None
+            else None
+        )
+        tables.append(
+            replace(
+                table,
+                ordinal=len(tables),
+                section_ordinal=new_section_ordinal,
+            )
+        )
+    if not sections and not tables:
+        raise DocumentStageFailure(
+            "source_page_exclusion_removed_all_evidence",
+            "reviewed source-page exclusions removed all extracted evidence",
+            retryable=False,
+        )
+    return replace(result, sections=tuple(sections), tables=tuple(tables))

@@ -1194,7 +1194,13 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 config=ChunkingConfig(2, 0, 4),
                 tokenizer=_WordOffsetTokenizer(),
             )
-            await EvidenceRepository(pool).persist(extraction, units)
+            evidence_repository = EvidenceRepository(pool)
+            await evidence_repository.persist(extraction, units)
+            stored_extraction = await evidence_repository.load_for_correction(
+                extraction_id
+            )
+            assert stored_extraction.result.sections == (section,)
+            assert stored_extraction.source_pdf_sha256 == artifact.sha256
             snapshot_id = await pool.fetchval(
                 """
                 INSERT INTO snapshots (name, configuration_id, configuration, code_revision)

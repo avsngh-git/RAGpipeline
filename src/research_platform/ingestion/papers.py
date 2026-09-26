@@ -6,12 +6,16 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import cast
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 
 from research_platform.ingestion.identity import ExternalIdentifier
+from research_platform.ingestion.membership import MembershipDecision
+from research_platform.ingestion.openalex import OpenAlexWork
 
 
 class IdentityConflict(ValueError):
@@ -26,6 +30,17 @@ class ManifestPaperImport:
     imported_candidates: int
     resolved_citations_added: int
     unresolved_citations_added: int
+
+
+@dataclass(frozen=True)
+class MembershipPaperImport:
+    membership_decision_id: str
+    collection_id: UUID
+    imported_papers: int
+    new_papers: int
+    resolved_citations_added: int
+    unresolved_citations_added: int
+    selected_document_ids: Mapping[str, UUID]
 
 
 class PaperRepository:
@@ -215,6 +230,248 @@ class PaperRepository:
             resolved_citations_added=resolved_added,
             unresolved_citations_added=unresolved_added,
         )
+
+    async def import_reviewed_membership(
+        self,
+        membership: MembershipDecision,
+        metadata_by_id: Mapping[str, Mapping[str, object]],
+    ) -> MembershipPaperImport:
+        """Persist a validated delegated selection and its current OpenAlex records."""
+        if set(metadata_by_id) != set(membership.selected_openalex_ids):
+            raise ValueError(
+                "OpenAlex metadata must cover the exact reviewed membership"
+            )
+        works: dict[str, OpenAlexWork] = {}
+        for openalex_id, metadata in metadata_by_id.items():
+            work = OpenAlexWork.from_payload(metadata)
+            if (
+                work.openalex_id != openalex_id
+                or work.title != membership.selected_titles[openalex_id]
+                or work.publication_year != membership.publication_years[openalex_id]
+            ):
+                raise ValueError(
+                    f"current OpenAlex identity changed for reviewed work {openalex_id}"
+                )
+            works[openalex_id] = work
+
+        collection_name = f"phase1-100-{membership.identity[7:19]}"
+        description = "Phase 1 100-paper membership; decision " + membership.identity
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                collection_id = await connection.fetchval(
+                    """
+                    INSERT INTO collections (name, description, discovery_manifest_id)
+                    VALUES ($1, $2, NULL)
+                    ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description
+                    RETURNING id
+                    """,
+                    collection_name,
+                    description,
+                )
+                if not isinstance(collection_id, UUID):
+                    raise RuntimeError("database did not return a collection ID")
+
+                new_papers = 0
+                selected_document_ids: dict[str, UUID] = {}
+                citation_references: list[tuple[str, str]] = []
+                for openalex_id in sorted(works):
+                    work = works[openalex_id]
+                    if work.title is None:
+                        raise ValueError(f"OpenAlex work {openalex_id} has no title")
+                    paper_id, created = await self._resolve_paper_identity(
+                        connection,
+                        work.openalex_id,
+                        work.doi,
+                        work.title,
+                        work.publication_year,
+                        work.metadata,
+                    )
+                    new_papers += int(created)
+                    await self._persist_authors(connection, paper_id, work.metadata)
+                    await self._persist_document_versions(
+                        connection, paper_id, work.metadata
+                    )
+                    selected_document_ids[
+                        openalex_id
+                    ] = await self._selected_document_id(
+                        connection, paper_id, membership, openalex_id
+                    )
+                    await connection.execute(
+                        """
+                        INSERT INTO collection_papers
+                            (collection_id, paper_id, inclusion_reason)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT (collection_id, paper_id)
+                        DO UPDATE SET inclusion_reason = EXCLUDED.inclusion_reason
+                        """,
+                        collection_id,
+                        paper_id,
+                        membership.selection_reasons[openalex_id],
+                    )
+                    citation_references.extend(
+                        (paper_id, target_id)
+                        for target_id in _referenced_openalex_ids(work.metadata)
+                    )
+
+                resolved_added = 0
+                unresolved_added = 0
+                for citing_paper_id, target_openalex_id in citation_references:
+                    target_paper_id = await connection.fetchval(
+                        """
+                        SELECT id FROM papers WHERE openalex_id = $1
+                        UNION
+                        SELECT paper_id FROM paper_identifiers
+                        WHERE namespace = 'openalex' AND normalized_identifier = $1
+                        LIMIT 1
+                        """,
+                        target_openalex_id,
+                    )
+                    if target_paper_id is not None:
+                        inserted = await connection.fetchval(
+                            """
+                            INSERT INTO citations (citing_paper_id, cited_paper_id, source)
+                            VALUES ($1, $2, 'openalex')
+                            ON CONFLICT (citing_paper_id, cited_paper_id) DO NOTHING
+                            RETURNING citing_paper_id
+                            """,
+                            citing_paper_id,
+                            target_paper_id,
+                        )
+                        resolved_added += int(inserted is not None)
+                    else:
+                        inserted = await connection.fetchval(
+                            """
+                            INSERT INTO unresolved_citations
+                                (citing_paper_id, target_namespace, target_identifier,
+                                 source, metadata)
+                            VALUES ($1, 'openalex', $2, 'openalex', $3::jsonb)
+                            ON CONFLICT
+                                (citing_paper_id, target_namespace, target_identifier, source)
+                            DO NOTHING
+                            RETURNING id
+                            """,
+                            citing_paper_id,
+                            target_openalex_id,
+                            json.dumps({"membership_decision_id": membership.identity}),
+                        )
+                        unresolved_added += int(inserted is not None)
+
+                await connection.execute(
+                    """
+                    UPDATE unresolved_citations AS unresolved
+                    SET resolved_paper_id = target.id,
+                        resolved_at = COALESCE(unresolved.resolved_at, now())
+                    FROM paper_identifiers AS identifier
+                    JOIN papers AS target ON target.id = identifier.paper_id
+                    WHERE unresolved.target_namespace = 'openalex'
+                      AND unresolved.target_identifier = identifier.normalized_identifier
+                      AND identifier.namespace = 'openalex'
+                      AND unresolved.resolved_paper_id IS NULL
+                    """
+                )
+                newly_resolved = await connection.fetch(
+                    """
+                    INSERT INTO citations (citing_paper_id, cited_paper_id, source)
+                    SELECT citing_paper_id, resolved_paper_id, source
+                    FROM unresolved_citations
+                    WHERE resolved_paper_id IS NOT NULL
+                    ON CONFLICT (citing_paper_id, cited_paper_id) DO NOTHING
+                    RETURNING citing_paper_id
+                    """
+                )
+                resolved_added += len(newly_resolved)
+
+        return MembershipPaperImport(
+            membership_decision_id=membership.identity,
+            collection_id=collection_id,
+            imported_papers=len(works),
+            new_papers=new_papers,
+            resolved_citations_added=resolved_added,
+            unresolved_citations_added=unresolved_added,
+            selected_document_ids=MappingProxyType(selected_document_ids),
+        )
+
+    async def _selected_document_id(
+        self,
+        connection: asyncpg.Connection,
+        paper_id: str,
+        membership: MembershipDecision,
+        openalex_id: str,
+    ) -> UUID:
+        route = membership.selected_sources[openalex_id]
+        if route.pool == "approved_v1_reference_sample":
+            rows = await connection.fetch(
+                """
+                SELECT document.id
+                FROM documents AS document
+                JOIN document_artifacts AS association
+                  ON association.document_id = document.id
+                 AND association.role = 'source_pdf'
+                JOIN document_permission_evidence AS permission
+                  ON permission.id = association.permission_evidence_id
+                 AND permission.document_id = document.id
+                WHERE document.paper_id = $1 AND document.version = $2
+                  AND association.storage_permitted AND association.indexing_permitted
+                  AND permission.storage_permitted AND permission.indexing_permitted
+                ORDER BY association.acquired_at DESC
+                LIMIT 2
+                """,
+                paper_id,
+                route.version,
+            )
+            if len(rows) != 1 or not isinstance(rows[0]["id"], UUID):
+                raise ValueError(
+                    f"approved reference paper {openalex_id} must have one permitted source PDF"
+                )
+            return rows[0]["id"]
+
+        host = urlsplit(route.source_url).hostname
+        if host == "content.openalex.org":
+            source_type = "selected-source:openalex-content-api"
+            version_kind = (
+                "published"
+                if route.version.lower() == "publishedversion"
+                else "preprint"
+                if route.version.lower() in {"submittedversion", "preprint"}
+                else "unknown"
+            )
+        elif host == "arxiv.org":
+            source_type = "selected-source:arxiv"
+            version_kind = "preprint"
+        else:
+            raise ValueError(f"selected source host is unsupported for {openalex_id}")
+        metadata = json.dumps(
+            {
+                "membership_decision_id": membership.identity,
+                "source_route_review_id": membership.source_route_review_identity,
+                "selected_source_name": source_type,
+                "selected_pdf_url": route.source_url,
+                "terms_url": route.terms_url,
+                "license_id": route.license_id,
+            },
+            sort_keys=True,
+        )
+        document_id = await connection.fetchval(
+            """
+            INSERT INTO documents
+                (paper_id, source_type, source_url, version, status, version_kind, metadata)
+            VALUES ($1, $2, $3, $4, 'metadata_only', $5, $6::jsonb)
+            ON CONFLICT (paper_id, source_type, version) DO UPDATE
+                SET source_url = EXCLUDED.source_url,
+                    version_kind = EXCLUDED.version_kind,
+                    metadata = documents.metadata || EXCLUDED.metadata
+            RETURNING id
+            """,
+            paper_id,
+            source_type,
+            route.terms_url or route.source_url,
+            route.version,
+            version_kind,
+            metadata,
+        )
+        if not isinstance(document_id, UUID):
+            raise RuntimeError("database did not return the selected document ID")
+        return document_id
 
     async def _persist_authors(
         self,

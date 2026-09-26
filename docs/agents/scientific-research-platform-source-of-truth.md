@@ -1,8 +1,8 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative  
-**Version:** 1.6\
-**Last updated:** 2026-09-24\
+**Version:** 1.10\
+**Last updated:** 2026-09-25\
 **Audience:** Human contributors and coding agents  
 **Project stage:** Phase 0 gate passed on the fixed revision; Phase 1 implementation is in progress under the user’s explicit delegation\
 
@@ -204,7 +204,7 @@ Observability surrounds the API, agent, tools, retrieval pipeline, model calls, 
 | LLM serving | Self-hosted adapter; Ollama or llama.cpp compatible | Local operation and replaceable model backend |
 | LLM observability | Langfuse-compatible tracing | Trace prompts, model calls, tool calls, latency, and scores |
 | Packaging | `pyproject.toml` with a `src/` layout | Professional, installable Python project |
-| Local runtime | Docker Compose | Reproducible multi-service development environment |
+| Local runtime | Docker Compose; host-published development ports bind to `127.0.0.1` ([ADR-0006](../adr/0006-compose-loopback-host-bindings.md)) | Reproducible multi-service development environment, accessible from the host only by default |
 | CI/CD | GitHub Actions + Docker | Simple, readable testing/build/release flow |
 | Interoperability | One Scientific Research MCP server | Reuse the same application services from external AI clients |
 
@@ -408,7 +408,7 @@ versioned evidence tradeoffs; [ADR-0002](../adr/0002-finalize-validated-snapshot
 records finalization and quality acceptance.
 
 - **Scope:** start with RAG, retrieval and reranking; expand toward broader ML research later. The initial collection covers English-language papers from 2020 through its snapshot date, with explicit older foundational exceptions. Require substantive relevance, including negative and mixed findings; merely using RAG is insufficient.
-- **Selection:** Phase 1 MUST deliver reproducible discovery and an explainable candidate shortlist with configurable queries/filters, duplicate handling and recorded selection signals. Human review approves the versioned manifest of membership and inclusion/exclusion reasons. Evaluate shortlist relevance, coverage and bias against retained review decisions, reporting limitations; a learned classifier is not required.
+- **Selection:** Phase 1 MUST deliver reproducible discovery and an explainable candidate shortlist with configurable queries/filters, duplicate handling and recorded selection signals. A human reviewer approves the versioned manifest of membership and inclusion/exclusion reasons; the user may explicitly delegate that reviewer decision to the assistant. On 2026-09-25 the user delegated membership for the Phase 1 100-paper set, and the assistant recorded its decision in [the membership review](../../manifests/phase1-100-paper-membership-decision.json). This delegation does not waive exact-file permission checks. Evaluate shortlist relevance, coverage and bias against retained review decisions, reporting limitations; a learned classifier is not required.
 - **Milestones:** 10 full-text papers for the initial end-to-end comparison, then 100 successfully ingested full-text papers. These are engineering milestones, not claims of research sufficiency. Use local compute without paid data acquisition or cloud compute initially.
 - **Access:** use OpenAlex discovery/metadata and a bounded set of supported download sources. Record applicable permission evidence, source URL, acquisition time, checksum and document version. Downloadability alone is not permission for all uses; assess public passage display separately. Unresolved or unavailable full text remains metadata-only.
 - **Identity:** one logical paper with separately identifiable document versions. Prefer the published version, falling back to an eligible preprint. Index one selected version per paper in a snapshot and label the actual evidence source. Link versions only with reliable identifiers or metadata; leave uncertain matches separate.
@@ -1026,14 +1026,16 @@ Gate: clean checkout can run tests and start baseline services from documented c
 ### Phase 1 — Corpus and ingestion
 
 Approved execution plan: [Phase 1 corpus ingestion](../plans/phase-1-corpus-ingestion.md).
-Phase 0 foundations and hosted CI gate are complete. As of 2026-09-24,
-P1-02 through P1-12 are complete for the approved ten-paper workflow. Local
-P1-13 verification passes; hosted CI remains. A metadata-only expansion proposal
-recommends 33 additions to the approved 67-paper v1 manifest; user approval is
-pending. P1-14 is gated on an approved 100-paper manifest, full-text permissions
-and the resumable acceptance run. The
-currently approved discovery manifest contains 67 included papers and only ten
-PDFs have local storage/indexing approval.
+Phase 0 foundations and hosted CI gate are complete. As of 2026-09-25,
+P1-02 through P1-12 are complete for the approved ten-paper workflow. Baseline
+P1-13 local and hosted verification passed on `ebe1c41602b62c5934fbfe43e51ae765896e3e6e`; [hosted CI run 36053054222](https://github.com/avsngh-git/RAGpipeline/actions/runs/36053054222) completed all steps. The current worktree passed 188 local tests, including all 15 live service checks, Ruff check/format (92 files), strict mypy across 40 source files, migration against a clean disposable database, `pip check`, `pip-audit` with no known vulnerabilities, and a Linux AMD64 Docker build. Hosted CI has not been rerun on this worktree. Since the baseline CI run, the worktree adds the direct-source adapter and its tests, [ADR-0006](../adr/0006-compose-loopback-host-bindings.md), [accepted ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md), review records and documentation. The three supplemental title screens are finalized
+under the user’s explicit Phase 1 delegation. The assistant prepared a separate
+[100-title acquisition shortlist](../../manifests/phase1-100-paper-shortlist-proposal.md)
+with 10 already acquired v1 references, 21 expansion candidates, 51 cited works,
+and 18 cache-screen papers. On 2026-09-25 the user delegated membership review
+to the assistant, which selected all 100 unique titles; see the
+[membership decision](../../manifests/phase1-100-paper-membership-decision.json).
+This membership decision did not itself grant per-file permission; those checks are now recorded separately. All 100 selected PDFs were checked against exact source versions, checksums and persisted permission evidence, and all 100 were acquired and extracted. The [source-review closeout](../../local-reference/phase1-100/source-review-closeout.json) resolves the initial source-route review checklist. The [100-paper acceptance report](../reference/phase-1-100-paper-acceptance-report.md) records the manual table sample, recovery and snapshot-scoped Qdrant reconciliation. Snapshot validation in isolated `research_phase1_review` reports no issues; the default `research` database does not contain this snapshot. Point `RESEARCH_PLATFORM_DATABASE_URL` at the review database for CLI validation. The snapshot remains a draft because hosted CI has not run on the current worktree. P1-14 remains in progress until that CI gate passes and the snapshot is finalized. The approved v1 remains unchanged. Six additional private follow-up PDFs are still unassociated and outside the accepted-paper count.
 
 P1-04 completed bounded live discovery and an approved version 1 manifest with
 67 included and 47 excluded candidates. The user approved candidate decisions and
@@ -1043,16 +1045,30 @@ research_phase1_review database: 328 distinct authors, 114 source locations,
 targets. Metadata outcomes are now recorded for all 1,166 distinct OpenAlex
 reference targets: 954 returned metadata and 212 were not found. The unresolved
 citation endpoints remain preserved until identity resolution; no papers were
-fabricated. P1-06 reviewed OpenAlex and arXiv access terms and implemented the
-permission-gated adapter and artifact controls.
+fabricated. P1-06 reviewed OpenAlex and arXiv access terms and implemented the permission-gated adapter and artifact controls. Accepted ADR-0007 adds bounded Springer Nature, version-pinned arXiv, and Glasgow Eprints routes with exact-source permission evidence.
 
 Two supplemental metadata-only OpenAlex runs completed on 2026-09-24 in the
 isolated review database, with 20 requests and $0.02 cost per run. They yielded
 70 distinct new publications after DOI/title deduplication. The [screening
 proposal](../../manifests/phase1-discovery-expansion-screening-proposal.md)
-recommends 33 additions to reach 100 screened records and awaits user approval.
-The approved v1 manifest is unchanged; the expansion made no full-text requests
-and grants no new storage/indexing permissions.
+finalizes 33 include and 37 exclude decisions under the user’s explicit Phase 1 delegation; these decisions are not yet an accepted full-text snapshot.
+The approved v1 manifest is unchanged. On 2026-09-25, following the user's
+private noncommercial-use clarification and prior download authorization, two
+exact published-version CC BY-NC-ND PDFs were acquired through OpenAlex under a
+two-document, NC-ND-only run configuration. Permission evidence, checksums,
+versions and local paths are recorded in the [acquisition inventory](../../manifests/phase1-discovery-expansion-nc-acquisition.json).
+Storage and indexing were permitted for private local use only; passage display
+was disabled. The user then added arXiv as a direct PDF route. Accepted ADR-0007
+records a fixed-host, version-pinned adapter, and three exact arXiv PDFs were
+acquired under scoped NC-ND/NC-SA configurations; their separate inventory is
+[here](../../manifests/phase1-discovery-expansion-arxiv-acquisition.json). Together,
+six unassociated private PDFs remain outside an approved snapshot and do not
+count toward the full-text milestone. The user also confirmed that the other
+ACM/PMC follow-ups are intended only for a private, noncommercial student
+project. Personal/classroom-copy and PMC text-mining terms are accepted for that
+local-only use under the restrictions in the [rights preflight](../../manifests/phase1-discovery-expansion-rights-preflight.md); no external hosting or redistribution is authorized.
+
+On 2026-09-25, offline title/abstract screens of 192 distinct cited works and 80 additional discovery-cache records were completed. The [citation-pool proposal](../../manifests/phase1-cited-work-screening-proposal.md) and [decision record](../../manifests/phase1-cited-work-screening-review.json), plus the [cache-screening proposal](../../manifests/phase1-discovery-pool-screening-proposal.md) record 55/137 and 43/37 include/exclude decisions, respectively, finalized under the user’s explicit Phase 1 delegation. For the cache batch, 22 recommendations have ACL Anthology published-version CC BY 4.0 routes, two Springer, four MDPI, and one MIT Press TACL publisher pages state CC BY 4.0, nine exact arXiv submitted-version pages link to CC BY 4.0, and four other publisher or repository pages state CC BY 4.0, including the REIS published version in the ETH Zurich Research Collection. Three ACM-listed works have eligible arXiv preprint routes; these do not establish the ACM published-version terms. The Great Nugget Recall ACM version remains unverified, and its arXiv version does not meet the configured CC BY/public-domain gate. Third-party exceptions and exact files remain unchecked. The [decision record](../../manifests/phase1-discovery-pool-screening-review.json) retains all 80 cache decisions. Combined with prior paths, the source-path ceiling remains 144 preliminary routes. Ten v1 PDFs are associated with the approved manifest; five additional NC follow-up PDFs and one Glasgow accepted version under the personal-use scope are stored locally but unassociated. None of the six new files reduces the 90-paper gap until a 100-paper set is built and successfully ingested. These artifacts do not count toward the approved full-text set. Neither local screening pass made OpenAlex API/content requests or changed an approved manifest.
 
 On 2026-09-24, the user approved the ten-paper reference sample for local storage
 and indexing, with public passage display disabled. Immediately before each
@@ -1068,15 +1084,16 @@ P1-08 compared the two pinned Docling candidates and selected the standard pipel
 with review-only VLM output for flagged tables; see the
 [comparison report](../reference/phase-1-extraction-comparison.md).
 
-The approved ten-paper draft was processed on 2026-09-24. All ten extraction
-attempts completed, producing 5,944 sections, 113 tables, 15,627 evidence units
-and 9,683 searchable chunks. Nine flagged tables across five papers remain for
-manual PDF review, so the snapshot remains a draft. The reversible E5-small-v2
-configuration indexed all 9,683 chunks, and PostgreSQL/Qdrant counts reconciled.
-The full extraction, index, storage and verification evidence is in the
-[ten-paper pilot report](../reference/phase-1-full-extraction-pilot.md). This
-result does not complete the 100-paper Phase 1 acceptance gate or close the final
-embedding-model decision.
+The initial approved ten-paper run on 2026-09-24 produced 5,944 sections, 113
+tables, 15,627 evidence units and 9,683 searchable chunks. Subsequent source-linked
+immutable extractions corrected five tables across three papers, and reclassified
+one figure from table to caption-only figure evidence in a fourth paper. All eight
+flagged table checks now pass. The current draft has 5,944 sections, 112 tables,
+15,628 evidence units and 9,684 searchable chunks. PostgreSQL and Qdrant reconcile
+9,684 points across 606 batches, and validation at the ten-paper minimum reports
+no issues. The snapshot remains a draft because the 100-paper acceptance gate is
+unmet; the final embedding-model decision remains open for Phase 2. See the
+[ten-paper pilot report](../reference/phase-1-full-extraction-pilot.md).
 
 An export attempt on 2026-09-24 applied migrations 002–012 to the default research
 database; it found no discovery manifest or candidate rows there. The reviewed
@@ -1208,7 +1225,7 @@ The project is portfolio-complete only when all of the following are true:
 Resolve these progressively; do not decide all of them before evidence is available.
 
 1. Expansion beyond the initial RAG/retrieval/reranking collection into broader ML research; initial boundaries are fixed in Section 8.6.
-2. Exact supported full-text adapters and per-source permission/access verification under the agreed policy.
+2. Exact supported full-text adapters and per-source permission/access verification under the agreed policy; the bounded direct-source adapter is resolved by [accepted ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md).
 3. Lexical retrieval implementation.
 4. Final embedding-model choice after Phase 2 retrieval-quality evaluation;
    the current E5-small-v2 configuration is a reversible Phase 1 pilot choice

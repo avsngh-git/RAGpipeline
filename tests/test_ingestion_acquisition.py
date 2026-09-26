@@ -12,6 +12,7 @@ from research_platform.ingestion.acquisition import (
     OPENALEX_CONTENT_BASE,
     AcquisitionConfig,
     AcquisitionError,
+    DirectSourcePdfAdapter,
     OpenAlexContentAdapter,
     OpenAlexContentAvailability,
     PermissionEvidence,
@@ -409,5 +410,223 @@ def test_artifact_store_serializes_writers_at_the_global_byte_limit(
         )
         assert sum(not isinstance(result, BaseException) for result in results) == 1
         assert sum(isinstance(result, ArtifactLimitExceeded) for result in results) == 1
+
+    asyncio.run(exercise())
+
+
+def _direct_permission(
+    source_name: str,
+    source_url: str,
+    license_id: str = "cc-by",
+) -> PermissionEvidence:
+    terms_urls = {
+        "cc-by": "https://creativecommons.org/licenses/by/4.0/",
+        "cc-by-nc-sa": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+        "cc-by-nc-nd": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+    }
+    return PermissionEvidence(
+        source_name=source_name,
+        source_url=source_url,
+        license_id=license_id,
+        basis="Exact source/version terms were reviewed for local storage and indexing.",
+        terms_url=terms_urls[license_id],
+        checked_at=datetime(2026, 9, 25, tzinfo=timezone.utc),
+        reviewer="test-reviewer",
+        storage_permitted=True,
+        indexing_permitted=True,
+    )
+
+
+@pytest.mark.parametrize(
+    ("source_name", "source_url"),
+    [
+        ("arxiv", "https://arxiv.org/pdf/2405.13576v2"),
+        (
+            "springer-nature",
+            "https://link.springer.com/content/pdf/10.1007/s10462-026-11605-7.pdf",
+        ),
+        (
+            "university-of-glasgow-eprints",
+            "https://eprints.gla.ac.uk/296333/2/296333.pdf",
+        ),
+    ],
+)
+def test_direct_source_adapter_downloads_allowlisted_pdf(
+    tmp_path: Path, source_name: str, source_url: str
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            headers={
+                "content-type": "application/pdf",
+                "content-length": str(len(PDF_BYTES)),
+            },
+            content=PDF_BYTES,
+        )
+
+    async def no_sleep(_delay: float) -> None:
+        return None
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            adapter = DirectSourcePdfAdapter(
+                AcquisitionConfig(),
+                http,
+                ArtifactStore(
+                    tmp_path / "artifacts",
+                    maximum_file_bytes=1024,
+                    maximum_store_bytes=2048,
+                ),
+                sleep=no_sleep,
+                clock=lambda: 0.0,
+            )
+            result = await adapter.download_pdf(
+                _direct_permission(source_name, source_url)
+            )
+            assert result.byte_size == len(PDF_BYTES)
+            assert adapter.requests_used == 1
+            assert adapter.documents_downloaded == 1
+
+    asyncio.run(exercise())
+
+    assert len(requests) == 1
+    assert requests[0].url == httpx.URL(source_url)
+
+
+def test_direct_source_adapter_accepts_noncommercial_license_only_when_configured(
+    tmp_path: Path,
+) -> None:
+    source_url = "https://arxiv.org/pdf/2405.13576v2"
+
+    def respond(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/pdf"},
+            content=PDF_BYTES,
+        )
+
+    async def no_sleep(_delay: float) -> None:
+        return None
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            permission = _direct_permission(
+                "arxiv", source_url, license_id="cc-by-nc-sa"
+            )
+            default_adapter = DirectSourcePdfAdapter(
+                AcquisitionConfig(),
+                http,
+                ArtifactStore(
+                    tmp_path / "default",
+                    maximum_file_bytes=1024,
+                    maximum_store_bytes=2048,
+                ),
+                sleep=no_sleep,
+                clock=lambda: 0.0,
+            )
+            with pytest.raises(AcquisitionError, match="permitted-license"):
+                await default_adapter.download_pdf(permission)
+            assert default_adapter.requests_used == 0
+
+            scoped_adapter = DirectSourcePdfAdapter(
+                AcquisitionConfig(permitted_licenses=("cc-by-nc-sa",)),
+                http,
+                ArtifactStore(
+                    tmp_path / "scoped",
+                    maximum_file_bytes=1024,
+                    maximum_store_bytes=2048,
+                ),
+                sleep=no_sleep,
+                clock=lambda: 0.0,
+            )
+            result = await scoped_adapter.download_pdf(permission)
+            assert result.byte_size == len(PDF_BYTES)
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    ("source_name", "source_url"),
+    [
+        ("arxiv", "http://arxiv.org/pdf/2405.13576v2.pdf"),
+        ("arxiv", "https://arxiv.org:444/pdf/2405.13576v2.pdf"),
+        ("arxiv", "https://user@arxiv.org/pdf/2405.13576v2.pdf"),
+        ("arxiv", "https://arxiv.org/pdf/2405.13576v2?download=1"),
+        ("arxiv", "https://arxiv.org/pdf/2405.13576v2#page=1"),
+        ("arxiv", "https://evil.example/pdf/2405.13576v2.pdf"),
+        ("arxiv", "https://arxiv.org/abs/2405.13576v2"),
+        ("arxiv", "https://arxiv.org/pdf/2405.13576"),
+        ("arxiv", "https://arxiv.org/pdf/2405.13576v2.pdf"),
+        (
+            "springer-nature",
+            "https://link.springer.com/article/10.1007/s10462-026-11605-7",
+        ),
+    ],
+)
+def test_direct_source_adapter_rejects_unpinned_or_unsafe_routes_before_request(
+    tmp_path: Path, source_name: str, source_url: str
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, content=PDF_BYTES)
+
+    async def no_sleep(_delay: float) -> None:
+        return None
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            adapter = DirectSourcePdfAdapter(
+                AcquisitionConfig(),
+                http,
+                ArtifactStore(
+                    tmp_path / "artifacts",
+                    maximum_file_bytes=1024,
+                    maximum_store_bytes=2048,
+                ),
+                sleep=no_sleep,
+                clock=lambda: 0.0,
+            )
+            with pytest.raises(AcquisitionError):
+                await adapter.download_pdf(_direct_permission(source_name, source_url))
+
+    asyncio.run(exercise())
+    assert requests == []
+
+
+def test_direct_source_adapter_rejects_redirects_and_non_pdf_content(
+    tmp_path: Path,
+) -> None:
+    source_url = "https://arxiv.org/pdf/2405.13576v2"
+
+    async def no_sleep(_delay: float) -> None:
+        return None
+
+    async def exercise() -> None:
+        responses = (
+            httpx.Response(302, headers={"location": "http://127.0.0.1/private"}),
+            httpx.Response(200, headers={"content-type": "text/html"}, content=b"html"),
+        )
+        for index, response in enumerate(responses):
+            async with httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda _request, result=response: result)
+            ) as http:
+                adapter = DirectSourcePdfAdapter(
+                    AcquisitionConfig(),
+                    http,
+                    ArtifactStore(
+                        tmp_path / str(index),
+                        maximum_file_bytes=1024,
+                        maximum_store_bytes=2048,
+                    ),
+                    sleep=no_sleep,
+                    clock=lambda: 0.0,
+                )
+                with pytest.raises(AcquisitionError):
+                    await adapter.download_pdf(_direct_permission("arxiv", source_url))
 
     asyncio.run(exercise())
