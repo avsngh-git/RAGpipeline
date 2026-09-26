@@ -380,6 +380,8 @@ class PaperHit:
     rank: int
     component_scores: ComponentScores
     supporting_evidence: tuple[EvidenceHit, ...] = ()
+    metadata_rank: int | None = None
+    evidence_rank: int | None = None
 
     def __post_init__(self) -> None:
         if not is_valid_paper_id(self.paper_id):
@@ -400,6 +402,12 @@ class PaperHit:
             raise ValueError("rank must be a positive integer")
         if not isinstance(self.component_scores, ComponentScores):
             raise ValueError("component_scores must be ComponentScores")
+        for name in ("metadata_rank", "evidence_rank"):
+            value = getattr(self, name)
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value < 1
+            ):
+                raise ValueError(f"{name} must be a positive integer or null")
         if any(not isinstance(hit, EvidenceHit) for hit in self.supporting_evidence):
             raise ValueError("supporting_evidence must contain EvidenceHit values")
         if any(hit.paper_id != self.paper_id for hit in self.supporting_evidence):

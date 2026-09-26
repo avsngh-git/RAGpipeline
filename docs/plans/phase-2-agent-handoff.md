@@ -346,6 +346,20 @@ focused tests cover long-paper score bias, support caps, stable ties, duplicates
 empty input. Full non-integration suite passes (300 passed, 20 deselected); Ruff,
 format and strict source mypy pass.
 
+**P2-09.3 complete; assistant-reviewed 2026-09-27:**
+`search/paper_fusion.py` combines metadata `PaperMetadataHit` rankings with grouped
+evidence `PaperHit` rankings using profile-bound `rrf-v1` and its rank constant. It
+adds one reciprocal-rank contribution per available branch, never adds the raw
+metadata and passage scores, and sorts fused ties by public paper ID. Results retain
+`metadata_rank` and `evidence_rank`; evidence passage scores remain on their
+supporting hits, while the top-level fusion component records the combined score.
+Metadata-only hits keep an empty evidence tuple. The initial rule and limitations
+are documented in `docs/reference/phase-2-paper-fusion.md`; rank constant remains
+provisional for P2-14. Seven focused tests cover overlap, disjoint candidates, raw
+score separation, metadata-only results, deterministic ties, and invalid duplicate
+IDs/ranks; typed response serialization preserves branch ranks. Full non-integration
+suite passes (307 passed, 20 deselected); Ruff, format and strict source mypy pass.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -357,8 +371,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-09.3. Combine metadata and evidence candidates while retaining
-their separate rankings, then apply documented rank-based fusion. P2-09.1–09.2 are
-implemented; the bounded PostgreSQL paper-read integration case still needs the
-dedicated test database. Keep the accepted review DB read-only until its
-migration/readiness gate is met.
+**Next step:** P2-09.4. Define bounded paper diversity and candidate scanning, and
+report truncation honestly. P2-09.1–09.3 are implemented; the PostgreSQL paper-read
+integration case remains gated on the dedicated test database. Keep the accepted
+review DB read-only until its migration/readiness gate is met.

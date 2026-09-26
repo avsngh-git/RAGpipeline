@@ -214,6 +214,8 @@ class PaperHitModel(_StrictModel):
     supporting_evidence: tuple[EvidenceHitModel, ...] = Field(
         default=(), max_length=DEFAULT_SEARCH_LIMITS.max_per_paper_evidence_limit
     )
+    metadata_rank: int | None = Field(default=None, strict=True, ge=1)
+    evidence_rank: int | None = Field(default=None, strict=True, ge=1)
 
     @classmethod
     def from_contract(cls, hit: PaperHit) -> PaperHitModel:
