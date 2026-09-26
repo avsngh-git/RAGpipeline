@@ -4,15 +4,12 @@ An installable Python project for a scientific literature research platform.
 
 ## Project status
 
-Phase 0 is complete; its hosted CI gate passed on revision
-`d104e5607d90643fbd0dbb3119fbb7ace8c8e3fc`. Phase 1 has an assistant-reviewed
-100-paper membership, exact-source and file-permission checks, completed
-extraction, manual table sampling, and a reconciled index. The current worktree
-passes 188 tests and the local CI checks. The latest hosted run
-[36053054222](https://github.com/avsngh-git/RAGpipeline/actions/runs/36053054222)
-passed on the baseline revision; hosted CI has not run on the current uncommitted
-worktree. The 100-paper snapshot remains a draft until that gate passes. See the
-[acceptance evidence report](docs/reference/phase-1-100-paper-acceptance-report.md),
+Phase 0 is complete. Phase 1 P1-01 through P1-14 is complete: all 100 papers
+passed exact-source and permission checks, extraction and manual sampling; the
+index reconciles, and the accepted snapshot is finalized. Hosted CI passed on
+revision `ed54a046429a7b288830eca0d1a1bcf4e3de87cf` ([run
+36231611600](https://github.com/avsngh-git/RAGpipeline/actions/runs/36231611600)).
+See the [acceptance evidence report](docs/reference/phase-1-100-paper-acceptance-report.md),
 [approved plan](docs/plans/phase-1-corpus-ingestion.md) and
 [current handoff](docs/plans/phase-1-learning-handoff.md).
 
@@ -386,7 +383,8 @@ Keep a new snapshot in draft until its selected evidence has been reviewed and
 its integrity validation passes. Public passage display remains disabled. For the
 completed 100-paper run, 269/269 sampled unique numeric values were present, the
 44,277 PostgreSQL and Qdrant evidence IDs reconciled, and all exact PDF artifacts
-resolved. Its snapshot remains a draft solely until current-worktree hosted CI passes.
+resolved. Snapshot `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` is finalized and passes
+validation with 100 members, 44,277 expected chunks, and no issues.
 
 Storage inspection and cleanup preview are also available. Cleanup candidates
 include old database artifacts without document references, stale unregistered
@@ -418,7 +416,8 @@ All 100 selected PDFs passed exact-source, checksum and persisted permission che
 all 100 extractions completed. Six additional private follow-up PDFs remain
 unassociated and do not count toward the accepted set. Any further full-text
 acquisition needs its own reviewed membership and source permission evidence. The
-100-paper snapshot remains a draft because hosted CI has not run on this worktree.
+accepted 100-paper snapshot is finalized; its evidence and verification are
+recorded in the [acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
 Reproduce the parser comparison and its source-scored reference measurements using
 the optional local environment described in the [extraction comparison report](docs/reference/phase-1-extraction-comparison.md). The [embedding feasibility report](docs/reference/phase-1-embedding-pilot.md) records its pinned model and reproduction settings. These model benchmarks are separate from ordinary CI.
