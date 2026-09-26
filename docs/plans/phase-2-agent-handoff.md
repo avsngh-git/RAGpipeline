@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-03 complete; P2-04 in progress.
+Updated: 2026-09-26. Plan approved; P2-01–P2-04 complete; P2-05 pending.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-04.1**.
+   whose prerequisites are satisfied. Continue at **P2-05.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -108,8 +108,20 @@ Preserve the user's existing worktree and publication workflow.
   returns only its own exact selected chunk IDs from separate indexes. See P2-03.5
   in the roadmap for details.
 - P2-03 is complete. No Phase 2 model was downloaded, no index was built outside
-  synthetic integration, the accepted source corpus was not changed, and no judgment
-  or benchmark was authored/run. Next: **P2-04.1**, ten-question family drafting.
+  synthetic integration, and the accepted source corpus was not changed.
+- **P2-04 complete:** docs/reference/phase-2-calibration.md contains ten
+  assistant-reviewed, PDF-source-checked development families across all six required
+  categories, separate paper/evidence labels, comparison groups, nine table regions
+  across five answer-bearing PDFs, and a source-audited missing-evidence case over
+  all 100 accepted papers. Nine lexical candidate papers were inspected; the clinical
+  chunking/RAG paper, public-health RAG, and clinical extraction RAG are label-1
+  near-matches, not trial positives. The table packet used stale extraction IDs for
+  two papers; calibration records current accepted extraction IDs and pins visual
+  anchors to PDF checksums. Calibration effort was about 32 minutes. The decision is
+  30 families (20 development, 10 held out), up to 200 unique evidence candidates and
+  80 paper candidates per family, with a 12-hour review budget. No retriever output or
+  held-out score exists yet. The source-review and split limitations are in the
+  calibration file.
 
 
 The roadmap owns the task status table. For each completed substep record changed
@@ -123,8 +135,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-04.1. Read the evaluation protocol before proposing questions;
-review original PDFs and extracted evidence independently. Keep private source excerpts
-under ignored local-reference storage and version only sanitized judgments/rules.
-ADR-0009 records exact selection and lineage; the P2-01 entry check records resource
-measurements, migration/restore evidence and local artifact paths.
+**Next step:** P2-05.1. Implement the deterministic calibration loader and validation
+rules before source matching or scoring. Keep private source excerpts under ignored
+local-reference storage. ADR-0009 records exact selection and lineage; the P2-01 entry
+check records resource measurements, migration/restore evidence and local artifact
+paths.

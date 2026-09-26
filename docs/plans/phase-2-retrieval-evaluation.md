@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-03 complete; P2-04 in progress.
+Status: approved 2026-09-26; P2-01–P2-04 complete; P2-05 pending.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-03 are complete. P2-04 ten-question calibration and source review is in progress. The table is the single implementation status checklist.
+P2-01–P2-04 are complete. P2-05 is the next pending task. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -63,7 +63,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-01 | Entry evidence and reproducible workspace | Approved plan | Complete |
 | P2-02 | Search contracts, filter and access policy | P2-01 | Complete |
 | P2-03 | Snapshot variants and retrieval configurations | P2-02 | Complete |
-| P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | In progress |
+| P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Pending |
 | P2-06 | BM25 lexical retrieval | P2-03 | Pending |
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Pending |
@@ -211,7 +211,7 @@ execute. Four new unit tests, the profile tests, and synthetic parent/variant an
 serving-boundary integration checks pass. P2-03 done condition is met: parent and
 variant searches return their own exact selected chunk sets and do not mix vectors.
 
-Continue with **P2-04.1**, drafting ten question families from the accepted corpus.
+Continue with **P2-05.1**, defining and validating the deterministic calibration loader.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 
@@ -264,6 +264,15 @@ model vectors; interrupted builds cannot be served; rebuild and retention tests 
 **Done:** ten traceable calibration questions and a written labeling/workload decision
 in `docs/reference/phase-2-calibration.md`. These ten remain development material.
 Private excerpts stay in ignored local-reference storage; sanitized rules are versioned.
+
+**Completed 2026-09-26:** Ten source-checked question families cover all six agreed
+categories. Paper and evidence relevance are separate, comparison evidence groups are
+explicit, and table judgments were checked against hashed original-PDF page images.
+The missing clinical-trial family was screened against all 100 accepted papers and
+nine lexical candidate papers; no direct source positive was found. The calibration
+records assistant review, the one corrected table locator, source hashes, workload,
+and a 30-family development/held-out decision. See
+[phase-2-calibration.md](../reference/phase-2-calibration.md).
 
 ## P2-05 — Build deterministic evaluation primitives
 
