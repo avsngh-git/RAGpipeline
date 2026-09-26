@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01/P2-02 and P2-03.1–P2-03.3 complete.
+Updated: 2026-09-26. Plan approved; P2-01/P2-02 and P2-03.1–P2-03.4 complete.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Begin at **P2-03.4**.
+   whose prerequisites are satisfied. Begin at **P2-03.5**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -91,9 +91,16 @@ merely by this roadmap. Preserve the user's existing worktree and publication wo
   migrations 001–012 and that test failed before applying pending migrations.
   Migration 015 was then applied successfully by the variant integration test.
   The accepted database was not migrated. Hosted CI has not run.
-- P2-03.2/03.3 code and documentation are committed as the current checkpoint. No
-  Phase 2 model was downloaded, index built, source corpus changed, judgment authored,
-  or benchmark run. Next substep: **P2-03.4**, atomic derived-index publication.
+- **P2-03.4 complete:** index builds for a configuration are serialized with a
+  PostgreSQL advisory lock. The same connection carries the lock and build-state
+  operations, avoiding pool deadlock. Before readiness, Qdrant identities/count and
+  the source snapshot's exact selection are checked again. Cancellation records
+  reconciliation_required; hard process interruption leaves building. Offline tests
+  report 204 passed / 19 deselected, and the concurrent index integration test passes.
+- P2-03.2–03.4 code and documentation are committed as the current checkpoint. No
+  Phase 2 model was downloaded, index built outside synthetic integration, source
+  corpus changed, judgment authored, or benchmark run. Next substep: **P2-03.5**,
+  serving-boundary enforcement.
 
 
 The roadmap owns the task status table. For each completed substep record changed
@@ -107,6 +114,6 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-03.4. See docs/api/phase-2-search-contract.md for the profile contract,
+**Next step:** P2-03.5. See docs/api/phase-2-search-contract.md for the profile contract,
 ADR-0009 for exact selection and lineage, and docs/reviews/phase-2-entry-check.md
 for resource measurements, migration/restore evidence and local artifact paths.

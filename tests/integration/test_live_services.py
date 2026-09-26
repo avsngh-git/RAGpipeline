@@ -1526,6 +1526,17 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 document_id,
                 extraction_id,
             )
+            await pool.executemany(
+                """
+                INSERT INTO snapshot_item_chunks
+                    (snapshot_id, paper_id, document_id, extraction_id, chunk_id)
+                VALUES ($1, $2, $3, $4, $5)
+                """,
+                [
+                    (snapshot_id, paper_id, document_id, extraction_id, unit.id)
+                    for unit in units
+                ],
+            )
 
             async with httpx.AsyncClient(
                 base_url=TEST_QDRANT_URL.rstrip("/"), timeout=10
@@ -1534,11 +1545,21 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 first = await rebuild_snapshot_index(
                     IndexRepository(pool), index, _IntegrationEmbedder(), snapshot_id
                 )
+                repository = IndexRepository(pool)
                 repeated = await rebuild_snapshot_index(
-                    IndexRepository(pool), index, _IntegrationEmbedder(), snapshot_id
+                    repository, index, _IntegrationEmbedder(), snapshot_id
+                )
+                concurrent = await asyncio.gather(
+                    rebuild_snapshot_index(
+                        repository, index, _IntegrationEmbedder(), snapshot_id
+                    ),
+                    rebuild_snapshot_index(
+                        repository, index, _IntegrationEmbedder(), snapshot_id
+                    ),
                 )
                 assert first.expected_count == repeated.expected_count == 2
                 assert first.indexed_count == repeated.indexed_count == 2
+                assert all(report.indexed_count == 2 for report in concurrent)
                 assert first.batch_count == 2
                 assert await index.count_snapshot(snapshot_id) == 2
                 evidence_ids = await index.scroll_snapshot_ids(snapshot_id)

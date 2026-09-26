@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Literal, Protocol, cast
 from urllib.parse import quote
@@ -175,6 +178,10 @@ class VectorEmbedder(Protocol):
 
 
 class IndexStateStore(Protocol):
+    def build_lock(
+        self, configuration: IndexConfiguration
+    ) -> AbstractAsyncContextManager[None]: ...
+
     async def load_snapshot_inputs(
         self, snapshot_id: UUID, configuration: IndexConfiguration
     ) -> tuple[IndexInput, ...]: ...
@@ -429,11 +436,54 @@ class IndexRepository:
 
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
+        self._build_connection: ContextVar[asyncpg.Connection | None] = ContextVar(
+            f"index-build-connection-{id(self)}", default=None
+        )
+
+    @asynccontextmanager
+    async def _connection(self) -> AsyncIterator[asyncpg.Connection]:
+        current = self._build_connection.get()
+        if current is not None:
+            yield current
+            return
+        async with self._pool.acquire() as connection:
+            yield connection
+
+    @asynccontextmanager
+    async def build_lock(
+        self, configuration: IndexConfiguration
+    ) -> AsyncIterator[None]:
+        """Serialize builds sharing one physical Qdrant collection across processes."""
+        if self._build_connection.get() is not None:
+            raise RuntimeError("index build locks cannot be nested")
+        lock_key = f"research-index-build:{configuration.configuration_id}"
+        async with self._connection() as connection:
+            try:
+                await connection.fetchval(
+                    "SELECT pg_advisory_lock(hashtextextended($1, 0))", lock_key
+                )
+            except BaseException:
+                # The server may have acquired the lock before a cancellation arrived.
+                connection.terminate()
+                raise
+            token = self._build_connection.set(connection)
+            try:
+                yield
+            finally:
+                self._build_connection.reset(token)
+                try:
+                    await connection.fetchval(
+                        "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lock_key
+                    )
+                except BaseException:
+                    # A pooled session must never return while its advisory lock is uncertain.
+                    connection.terminate()
+                    raise
 
     async def load_snapshot_inputs(
         self, snapshot_id: UUID, configuration: IndexConfiguration
     ) -> tuple[IndexInput, ...]:
-        async with self._pool.acquire() as connection:
+        async with self._connection() as connection:
             expected_papers = await connection.fetchval(
                 "SELECT count(*) FROM snapshot_items WHERE snapshot_id = $1",
                 snapshot_id,
@@ -524,7 +574,7 @@ class IndexRepository:
         if expected_count < 0 or indexed_count < 0:
             raise ValueError("index counts must not be negative")
         configuration_json = json.dumps(configuration.to_dict(), sort_keys=True)
-        async with self._pool.acquire() as connection:
+        async with self._connection() as connection:
             async with connection.transaction():
                 collection_owner = await connection.fetchval(
                     """
@@ -593,8 +643,21 @@ async def rebuild_snapshot_index(
     embedder: VectorEmbedder,
     snapshot_id: UUID,
 ) -> IndexBuildReport:
-    """Replace one snapshot's points and reconcile exact membership in Qdrant."""
+    """Build under a configuration lock and publish only after exact reconciliation."""
     configuration = index.configuration
+    async with store.build_lock(configuration):
+        return await _rebuild_snapshot_index_locked(
+            store, index, embedder, snapshot_id, configuration
+        )
+
+
+async def _rebuild_snapshot_index_locked(
+    store: IndexStateStore,
+    index: QdrantIndex,
+    embedder: VectorEmbedder,
+    snapshot_id: UUID,
+    configuration: IndexConfiguration,
+) -> IndexBuildReport:
     inputs = await store.load_snapshot_inputs(snapshot_id, configuration)
     evidence_ids = [item.evidence_id for item in inputs]
     if len(set(evidence_ids)) != len(evidence_ids):
@@ -636,10 +699,13 @@ async def rebuild_snapshot_index(
         observed_ids = await index.scroll_snapshot_ids(snapshot_id)
         expected_ids_sha256 = _evidence_ids_fingerprint(evidence_ids)
         observed_ids_sha256 = _evidence_ids_fingerprint(observed_ids)
+        current_inputs = await store.load_snapshot_inputs(snapshot_id, configuration)
+        current_evidence_ids = [item.evidence_id for item in current_inputs]
         if (
             observed_count != expected_count
             or len(observed_ids) != expected_count
             or set(observed_ids) != set(evidence_ids)
+            or _evidence_ids_fingerprint(current_evidence_ids) != expected_ids_sha256
         ):
             raise IndexReconciliationRequired(
                 "Qdrant evidence identities differ from the PostgreSQL snapshot"
@@ -664,6 +730,19 @@ async def rebuild_snapshot_index(
             indexed_count=observed_count,
             batch_count=batch_count,
         )
+    except asyncio.CancelledError:
+        await store.set_index_state(
+            snapshot_id,
+            configuration,
+            status="reconciliation_required",
+            expected_count=expected_count,
+            indexed_count=indexed_count,
+            details={
+                "operation": "snapshot_rebuild",
+                "failure_category": "CancelledError",
+            },
+        )
+        raise
     except Exception as error:
         await store.set_index_state(
             snapshot_id,

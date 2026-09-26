@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import asynccontextmanager
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -221,6 +223,23 @@ class _FakeStore(IndexStateStore):
     def __init__(self, inputs: tuple[IndexInput, ...]) -> None:
         self.inputs = inputs
         self.states: list[tuple[IndexState, int, int]] = []
+        self._build_gate = asyncio.Lock()
+        self.active_builds = 0
+        self.maximum_active_builds = 0
+
+    @asynccontextmanager
+    async def build_lock(
+        self, _configuration: IndexConfiguration
+    ) -> AsyncIterator[None]:
+        async with self._build_gate:
+            self.active_builds += 1
+            self.maximum_active_builds = max(
+                self.maximum_active_builds, self.active_builds
+            )
+            try:
+                yield
+            finally:
+                self.active_builds -= 1
 
     async def load_snapshot_inputs(
         self, _snapshot_id: UUID, _configuration: IndexConfiguration
@@ -332,5 +351,103 @@ def test_rebuild_marks_reconciliation_required_when_embedding_fails() -> None:
         assert store.states[-1][0] == "reconciliation_required"
 
     import asyncio
+
+    asyncio.run(exercise())
+
+
+def test_rebuilds_sharing_a_configuration_are_serialized() -> None:
+    config = _configuration()
+    snapshot_id = uuid4()
+    inputs = tuple(
+        IndexInput(
+            evidence_id=f"sha256:{number}",
+            text=f"evidence {number}",
+            payload={
+                "snapshot_id": str(snapshot_id),
+                "index_configuration_id": config.configuration_id,
+                "paper_id": "W123",
+                "document_id": str(uuid4()),
+                "extraction_id": str(uuid4()),
+            },
+        )
+        for number in range(3)
+    )
+    store = _FakeStore(inputs)
+    fixture = _QdrantFixture()
+
+    class YieldingEmbedder(_FakeEmbedder):
+        async def embed(
+            self, texts: Sequence[str], *, configuration: IndexConfiguration
+        ) -> Sequence[Sequence[float]]:
+            await asyncio.sleep(0.001)
+            return await super().embed(texts, configuration=configuration)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test",
+            transport=httpx.MockTransport(fixture.handle),
+        ) as http:
+            index = QdrantIndex(config, http)
+            reports = await asyncio.gather(
+                rebuild_snapshot_index(store, index, YieldingEmbedder(), snapshot_id),
+                rebuild_snapshot_index(store, index, YieldingEmbedder(), snapshot_id),
+            )
+        assert [report.indexed_count for report in reports] == [3, 3]
+        assert store.maximum_active_builds == 1
+        assert [status for status, _, _ in store.states] == [
+            "building",
+            "ready",
+            "building",
+            "ready",
+        ]
+
+    asyncio.run(exercise())
+
+
+def test_cancelled_rebuild_is_not_published_as_ready() -> None:
+    config = _configuration()
+    snapshot_id = uuid4()
+    store = _FakeStore(
+        (
+            IndexInput(
+                evidence_id="sha256:cancelled",
+                text="some evidence",
+                payload={
+                    "snapshot_id": str(snapshot_id),
+                    "index_configuration_id": config.configuration_id,
+                    "paper_id": "W123",
+                    "document_id": str(uuid4()),
+                    "extraction_id": str(uuid4()),
+                },
+            ),
+        )
+    )
+    fixture = _QdrantFixture()
+
+    class CancellingEmbedder(VectorEmbedder):
+        async def embed(
+            self,
+            _texts: Sequence[str],
+            *,
+            configuration: IndexConfiguration,
+        ) -> Sequence[Sequence[float]]:
+            raise asyncio.CancelledError
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test",
+            transport=httpx.MockTransport(fixture.handle),
+        ) as http:
+            with pytest.raises(asyncio.CancelledError):
+                await rebuild_snapshot_index(
+                    store,
+                    QdrantIndex(config, http),
+                    CancellingEmbedder(),
+                    snapshot_id,
+                )
+        assert [status for status, _, _ in store.states] == [
+            "building",
+            "reconciliation_required",
+        ]
 
     asyncio.run(exercise())

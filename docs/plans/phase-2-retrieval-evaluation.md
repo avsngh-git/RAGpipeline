@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01/P2-02 and P2-03.1–P2-03.3 complete.
+Status: approved 2026-09-26; P2-01/P2-02 and P2-03.1–P2-03.4 complete.
 
 ## Start and authority
 
@@ -189,7 +189,16 @@ database was not migrated. Lint, format, mypy and pytest -m 'not integration' pa
 research_test. The migration-runner integration test could not start from its expected
 pristine database because local research_test already contained migrations 001–012;
 migration 015 was subsequently applied by the passing variant test. No model or index
-build was run. Continue at **03.4**, atomic publication.
+build was run.
+
+**03.4 complete 2026-09-26:** rebuilds are serialized across processes by the
+versioned index configuration's PostgreSQL advisory lock. The lock connection is
+reused for PostgreSQL state reads/writes; Qdrant IDs/count and the current exact
+snapshot selection are rechecked before the single ready-state update. Cancellation
+marks the build reconciliation-required; process death leaves it building, so neither
+state is ready. Same-configuration rebuild and cancellation tests pass, including
+concurrent PostgreSQL/Qdrant integration. Continue at **03.5**, serving-boundary
+enforcement.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 
