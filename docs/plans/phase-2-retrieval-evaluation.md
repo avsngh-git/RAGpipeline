@@ -55,8 +55,8 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-09 are complete. P2-10 is in progress; 10.1–10.2 are complete,
-with 10.3 next.
+P2-01–P2-09 are complete. P2-10 is in progress; 10.1–10.3 are complete,
+with 10.4 next.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -625,6 +625,19 @@ any footnotes present in the stored chunk.
 Fourteen focused tests cover prose/table preservation, provenance, exact-limit and
 overflow behavior. The full non-integration suite passes (332 passed, 21 deselected);
 Ruff, format and strict source mypy pass.
+
+**10.3 complete; assistant-reviewed 2026-09-27:** `search/reranker.py` binds the
+adapter to the exact `RerankerIdentity` in the requested profile, enforces the
+profile and adapter candidate limits, counts complete pairs and scores bounded
+batches on a dedicated worker thread. A total inference timeout, strict output
+alignment and finite raw-score validation fail the whole request without partial
+scores. Results retain each original EvidenceHit and tie by its original fused rank.
+`tests/test_reranker.py` covers fake-model batching, event-loop isolation, profile
+mismatch, limits, stable ties, timeout, over-budget inputs, malformed scores, output
+alignment and partial-batch failure. Focused suite: 24 passed; Ruff and strict
+mypy pass. A timeout cannot terminate an already-running inference thread; a timed-out
+request returns no scores while that worker finishes. No weights or dependencies
+were added. Full verification and this limitation are recorded in the handoff.
 
 1. **10.1 Pilot both candidates.** Evaluate MS MARCO MiniLM-L6-v2 and BGE-reranker-base
    on bounded representative query/prose/table pairs. Record revisions, licenses,

@@ -1,13 +1,13 @@
 # Phase 2 — Agent handoff
 
 Updated: 2026-09-27. Plan approved; P2-01–P2-09 complete; P2-10 is in progress.
-P2-10.1–10.2 are complete; continue with 10.3.
+P2-10.1–10.3 are complete; continue with 10.4.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-10.3**.
+   whose prerequisites are satisfied. Continue at **P2-10.4**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -412,6 +412,20 @@ table associations, stable source alignment, token limits and failure behavior.
 Full non-integration suite passes (332 passed, 21 deselected); Ruff, format and
 strict source mypy pass. Quality remains unmeasured.
 
+**P2-10.3 complete; assistant-reviewed 2026-09-27:**
+`src/research_platform/search/reranker.py` adds a profile-bound scoring adapter
+with a dedicated single-worker executor, bounded batches, an inference timeout,
+finite raw-score and exact per-batch alignment checks, and deterministic score ties
+by original fused rank. It rejects candidate counts above either configured bound
+and returns no partial results after any batch failure. The existing EvidenceHit
+objects remain attached to score records. `tests/test_reranker.py` uses fake scorers
+and token counters to exercise worker-thread execution, batching, identity, ties,
+limits, timeout, over-budget pairs, malformed outputs and partial-batch failure.
+Focused checks: 24 tests pass; Ruff and strict mypy pass. Timeout cannot stop an
+already-running Python inference thread; the adapter serializes later requests behind
+that worker, and P2-10.5 will wire caller-visible fallback. No model weights or
+project dependencies changed.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -423,8 +437,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-10.3. Implement the profile-bound cross-encoder adapter with
-off-event-loop batching, inference timeout, finite-score validation, strict output
-alignment and stable tie handling. P2-09 is complete; run its PostgreSQL integration
+**Next step:** P2-10.4. Preserve fused component ranks and scores while applying
+the cross-encoder ordering to only the supplied candidate pool. P2-09 is complete; run its PostgreSQL integration
 fixtures when the dedicated research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.
