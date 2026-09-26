@@ -148,6 +148,14 @@ Preserve the user's existing worktree and publication workflow.
   identities. Scoring rules are recorded in `docs/reference/phase-2-scoring-policy.md`.
   Python AST parsing and `git diff --check` passed; Ruff and mypy were unavailable.
   P2-05.5 runtime test work remains pending.
+- **P2-05.4 complete:** `evaluation/run_records.py` defines schema v1 for per-query
+  run lineage, search attempts, result IDs/ranks/component scores, effective config
+  IDs, timings, failure categories, hardware and optional scores. Raw writes are
+  atomic, no-overwrite, private-permission JSON files under ignored
+  `local-reference/phase2-runs/`; query text, excerpts, titles and exception messages
+  are omitted. Sanitized summaries carry the raw record hash and omit result IDs.
+  The contract is documented in `docs/reference/phase-2-run-records.md`. Python AST
+  parsing and `git diff --check` passed; Ruff and mypy are unavailable. P2-05.5 remains.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -160,7 +168,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-05.4. Define reproducible run records for the calibration scorer.
-Keep private source excerpts under ignored local-reference storage. ADR-0009 records
+**Next step:** P2-05.5. Add hand-calculated scorer/source-match examples and a small
+evaluation command over fake search services. Keep raw records under ignored
+local-reference storage. ADR-0009 records
 exact selection and lineage; the P2-01 entry check records resource measurements,
 migration/restore evidence and local artifact paths.

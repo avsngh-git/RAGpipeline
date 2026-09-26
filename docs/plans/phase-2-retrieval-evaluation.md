@@ -64,7 +64,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-02 | Search contracts, filter and access policy | P2-01 | Complete |
 | P2-03 | Snapshot variants and retrieval configurations | P2-02 | Complete |
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
-| P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Pending |
+| P2-05 | Deterministic evaluation harness | P2-03, P2-04 | In progress (05.1–05.4 complete; 05.5 pending) |
 | P2-06 | BM25 lexical retrieval | P2-03 | Pending |
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Pending |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
@@ -309,8 +309,18 @@ requires materialized eligible paper IDs for metadata filters. Policy
 `evaluation-scoring-policy-v1` records its calibration/snapshot/alignment identities;
 `docs/reference/phase-2-scoring-policy.md` defines anchor-level gain, group coverage,
 empty denominators, and the no-cutoff unsupported profile. Python AST parsing and
-`git diff --check` passed. `ruff` and `mypy` are unavailable; P2-05.5 runtime test work
-remains pending. Next: **05.4 run records**.
+`git diff --check` passed. `ruff` and `mypy` are unavailable.
+
+**05.4 complete 2026-09-26:** `run_records.py` defines schema v1 for per-query runs,
+search attempts, returned paper/evidence identities, component scores, effective
+configuration IDs, timing, structured failure categories, hardware, benchmark/code
+lineage and optional scorer output. Raw records omit query text, excerpts, titles and
+free-text errors; the atomic no-overwrite writer is confined to ignored
+`local-reference/phase2-runs/`. Sanitized summaries omit result identities and include
+an exact raw-record SHA-256 link. The contract is in
+`docs/reference/phase-2-run-records.md`. Python AST parsing and `git diff --check`
+passed; `ruff` and `mypy` are unavailable. **05.5 behavioral tests and the fake-search
+evaluation command remain pending.**
 
 1. **05.1 Define loaders.** Validate query families, filters, split, judgments,
    source anchors and reviewer status. Reject duplicate IDs, invalid cross-references,
