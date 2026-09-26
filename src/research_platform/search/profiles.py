@@ -5,14 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from typing import Any, Literal, TypeVar, cast
 from uuid import UUID
 
 from research_platform.ingestion.snapshot_selection import (
-    SnapshotChunkSelection,
-    compute_chunk_selection_id,
+    SnapshotSelection,
 )
 from research_platform.search.contracts import DEFAULT_SEARCH_LIMITS
 
@@ -91,64 +90,6 @@ def _from_dataclass(
         return cast(_ConfigT, cast(Any, config_type)(**dict(data)))
     except TypeError:
         raise ValueError(f"{name} configuration is malformed") from None
-
-
-@dataclass(frozen=True)
-class SnapshotSelection:
-    """Immutable snapshot and exact searchable chunk-set identity."""
-
-    snapshot_id: UUID
-    snapshot_configuration_id: str
-    chunk_selection_id: str
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.snapshot_id, UUID):
-            raise ValueError("snapshot_id must be a UUID")
-        _require_sha256(self.snapshot_configuration_id, "snapshot_configuration_id")
-        _require_sha256(self.chunk_selection_id, "chunk_selection_id")
-
-    @classmethod
-    def from_members(
-        cls,
-        *,
-        snapshot_id: UUID,
-        snapshot_configuration_id: str,
-        members: Sequence[SnapshotChunkSelection],
-        selected_chunk_ids: Sequence[str],
-    ) -> SnapshotSelection:
-        return cls(
-            snapshot_id=snapshot_id,
-            snapshot_configuration_id=snapshot_configuration_id,
-            chunk_selection_id=compute_chunk_selection_id(
-                snapshot_id=snapshot_id,
-                snapshot_configuration_id=snapshot_configuration_id,
-                members=members,
-                selected_chunk_ids=selected_chunk_ids,
-            ),
-        )
-
-    def to_dict(self) -> dict[str, object]:
-        return _dataclass_dict(self)
-
-    @classmethod
-    def from_dict(cls, data: Mapping[str, object]) -> SnapshotSelection:
-        _require_fields(
-            data,
-            {"snapshot_id", "snapshot_configuration_id", "chunk_selection_id"},
-            "snapshot selection",
-        )
-        raw_snapshot_id = data["snapshot_id"]
-        if not isinstance(raw_snapshot_id, str):
-            raise ValueError("snapshot_id must be a UUID")
-        try:
-            snapshot_id = UUID(raw_snapshot_id)
-        except ValueError:
-            raise ValueError("snapshot_id must be a UUID") from None
-        return cls(
-            snapshot_id=snapshot_id,
-            snapshot_configuration_id=cast(str, data["snapshot_configuration_id"]),
-            chunk_selection_id=cast(str, data["chunk_selection_id"]),
-        )
 
 
 @dataclass(frozen=True)

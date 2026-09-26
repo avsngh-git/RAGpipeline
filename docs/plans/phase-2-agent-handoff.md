@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01/P2-02 and P2-03.1–P2-03.4 complete.
+Updated: 2026-09-26. Plan approved; P2-01–P2-03 complete; P2-04 in progress.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Begin at **P2-03.5**.
+   whose prerequisites are satisfied. Continue at **P2-04.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -27,8 +27,9 @@ changes beyond the approved scope, rather than routine reversible choices.
 
 The user's preference is economical model use for routine work. This handoff does
 not change the active model. Never infer that an unchecked task is complete.
-No commit, push, ticket publication, paid compute or public deployment is authorized
-merely by this roadmap. Preserve the user's existing worktree and publication workflow.
+The user explicitly authorizes local commits when they help maintain a coherent
+working tree. Do not push, publish tickets, use paid compute, or deploy publicly.
+Preserve the user's existing worktree and publication workflow.
 
 ## Current baseline and traps
 
@@ -97,10 +98,18 @@ merely by this roadmap. Preserve the user's existing worktree and publication wo
   the source snapshot's exact selection are checked again. Cancellation records
   reconciliation_required; hard process interruption leaves building. Offline tests
   report 204 passed / 19 deselected, and the concurrent index integration test passes.
-- P2-03.2–03.4 code and documentation are committed as the current checkpoint. No
-  Phase 2 model was downloaded, index built outside synthetic integration, source
-  corpus changed, judgment authored, or benchmark run. Next substep: **P2-03.5**,
-  serving-boundary enforcement.
+- **P2-03.5 complete:** dense search resolves a snapshot selection and holds a shared
+  PostgreSQL lease while checking the exact selected chunk digest, stored vector
+  configuration, ready state and Qdrant payload identities. Finalized snapshots are
+  available through serving search; drafts require the explicit evaluation method.
+  The profile-bound service rejects model/index mismatches and unavailable lexical,
+  fusion or reranking stages. Ruff, format, mypy and the offline suite pass; the two
+  targeted PostgreSQL/Qdrant integration tests pass. A synthetic parent/variant pair
+  returns only its own exact selected chunk IDs from separate indexes. See P2-03.5
+  in the roadmap for details.
+- P2-03 is complete. No Phase 2 model was downloaded, no index was built outside
+  synthetic integration, the accepted source corpus was not changed, and no judgment
+  or benchmark was authored/run. Next: **P2-04.1**, ten-question family drafting.
 
 
 The roadmap owns the task status table. For each completed substep record changed
@@ -114,6 +123,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-03.5. See docs/api/phase-2-search-contract.md for the profile contract,
-ADR-0009 for exact selection and lineage, and docs/reviews/phase-2-entry-check.md
-for resource measurements, migration/restore evidence and local artifact paths.
+**Next step:** P2-04.1. Read the evaluation protocol before proposing questions;
+review original PDFs and extracted evidence independently. Keep private source excerpts
+under ignored local-reference storage and version only sanitized judgments/rules.
+ADR-0009 records exact selection and lineage; the P2-01 entry check records resource
+measurements, migration/restore evidence and local artifact paths.

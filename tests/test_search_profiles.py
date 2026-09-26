@@ -5,6 +5,11 @@ from uuid import UUID
 
 import pytest
 
+from research_platform.ingestion.snapshot_selection import (
+    SnapshotChunkSelection,
+    SnapshotSelection,
+    compute_chunk_selection_id,
+)
 from research_platform.search.profiles import (
     CandidateLimits,
     DenseIndexIdentity,
@@ -14,9 +19,6 @@ from research_platform.search.profiles import (
     RetrievalProfile,
     RetrievalProfileProvenance,
     SelectionRules,
-    SnapshotChunkSelection,
-    SnapshotSelection,
-    compute_chunk_selection_id,
 )
 
 SNAPSHOT_ID = UUID("4b11fab3-d4a5-4e7a-a58e-8654accf2c6c")

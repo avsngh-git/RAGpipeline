@@ -18,6 +18,11 @@ from uuid import UUID, uuid5
 import asyncpg  # type: ignore[import-untyped]
 import httpx
 
+from research_platform.ingestion.snapshot_selection import (
+    SnapshotChunkSelection,
+    SnapshotSelection,
+)
+
 IndexDistance = Literal["Cosine", "Dot", "Euclid", "Manhattan"]
 IndexState = Literal[
     "pending", "building", "ready", "reconciliation_required", "failed"
@@ -156,6 +161,27 @@ class IndexBuildReport:
     expected_count: int
     indexed_count: int
     batch_count: int
+
+
+@dataclass(frozen=True)
+class ReadySnapshotIndex:
+    snapshot_status: Literal["draft", "finalized"]
+    snapshot_selection: SnapshotSelection
+    configuration_id: str
+    collection_name: str
+    expected_count: int
+
+
+class SnapshotIndexNotReady(RuntimeError):
+    """The requested snapshot/configuration pair is not currently searchable."""
+
+
+class SnapshotIndexMismatch(RuntimeError):
+    """The profile, snapshot, or persisted index identity do not agree."""
+
+
+class SnapshotAccessDenied(PermissionError):
+    """A normal serving path attempted to use a draft snapshot."""
 
 
 class IndexConfigurationMismatch(RuntimeError):
@@ -477,6 +503,212 @@ class IndexRepository:
                     )
                 except BaseException:
                     # A pooled session must never return while its advisory lock is uncertain.
+                    connection.terminate()
+                    raise
+
+    async def snapshot_selection_for(self, snapshot_id: UUID) -> SnapshotSelection:
+        async with self._connection() as connection:
+            selection, _chunk_ids = await self._snapshot_selection_on_connection(
+                connection, snapshot_id
+            )
+            return selection
+
+    @asynccontextmanager
+    async def serving_index(
+        self,
+        snapshot_selection: SnapshotSelection,
+        configuration: IndexConfiguration,
+    ) -> AsyncIterator[ReadySnapshotIndex]:
+        """Hold a shared read lease while a finalized snapshot is queried."""
+        async with self._ready_index_lease(
+            snapshot_selection, configuration, allow_draft=False
+        ) as ready:
+            yield ready
+
+    @asynccontextmanager
+    async def evaluation_index(
+        self,
+        snapshot_selection: SnapshotSelection,
+        configuration: IndexConfiguration,
+    ) -> AsyncIterator[ReadySnapshotIndex]:
+        """Hold an explicit evaluation lease that may include a draft snapshot."""
+        async with self._ready_index_lease(
+            snapshot_selection, configuration, allow_draft=True
+        ) as ready:
+            yield ready
+
+    async def _snapshot_selection_on_connection(
+        self, connection: asyncpg.Connection, snapshot_id: UUID
+    ) -> tuple[SnapshotSelection, tuple[str, ...]]:
+        snapshot = await connection.fetchrow(
+            "SELECT configuration_id FROM snapshots WHERE id = $1", snapshot_id
+        )
+        if snapshot is None:
+            raise ValueError("snapshot does not exist")
+        rows = await connection.fetch(
+            """
+            SELECT item.paper_id, item.document_id, item.extraction_id,
+                   item.chunking_configuration_id, selected.chunk_id
+            FROM snapshot_items item
+            LEFT JOIN snapshot_item_chunks selected
+              ON selected.snapshot_id = item.snapshot_id
+             AND selected.paper_id = item.paper_id
+            WHERE item.snapshot_id = $1
+            ORDER BY item.paper_id, selected.chunk_id
+            """,
+            snapshot_id,
+        )
+        members: list[SnapshotChunkSelection] = []
+        member_keys: set[tuple[str, UUID, UUID]] = set()
+        chunk_ids: list[str] = []
+        for row in rows:
+            paper_id = row["paper_id"]
+            document_id = row["document_id"]
+            extraction_id = row["extraction_id"]
+            chunk_id = row["chunk_id"]
+            if not isinstance(extraction_id, UUID) or not isinstance(chunk_id, str):
+                raise SnapshotIndexMismatch(
+                    "snapshot does not have a complete exact chunk selection"
+                )
+            key = (paper_id, document_id, extraction_id)
+            if key not in member_keys:
+                members.append(
+                    SnapshotChunkSelection(
+                        paper_id=paper_id,
+                        document_id=document_id,
+                        extraction_id=extraction_id,
+                        chunking_configuration_id=row["chunking_configuration_id"],
+                    )
+                )
+                member_keys.add(key)
+            chunk_ids.append(chunk_id)
+        selection = SnapshotSelection.from_members(
+            snapshot_id=snapshot_id,
+            snapshot_configuration_id=snapshot["configuration_id"],
+            members=members,
+            selected_chunk_ids=chunk_ids,
+        )
+        return selection, tuple(chunk_ids)
+
+    @asynccontextmanager
+    async def _ready_index_lease(
+        self,
+        snapshot_selection: SnapshotSelection,
+        configuration: IndexConfiguration,
+        *,
+        allow_draft: bool,
+    ) -> AsyncIterator[ReadySnapshotIndex]:
+        if self._build_connection.get() is not None:
+            raise RuntimeError("index read and build leases cannot be nested")
+        lock_key = f"research-index-build:{configuration.configuration_id}"
+        async with self._pool.acquire() as connection:
+            try:
+                await connection.fetchval(
+                    "SELECT pg_advisory_lock_shared(hashtextextended($1, 0))",
+                    lock_key,
+                )
+            except BaseException:
+                connection.terminate()
+                raise
+            token = self._build_connection.set(connection)
+            try:
+                async with connection.transaction():
+                    snapshot = await connection.fetchrow(
+                        "SELECT status FROM snapshots WHERE id = $1 FOR SHARE",
+                        snapshot_selection.snapshot_id,
+                    )
+                    if snapshot is None:
+                        raise ValueError("snapshot does not exist")
+                    snapshot_status = snapshot["status"]
+                    if snapshot_status not in {"draft", "finalized"}:
+                        raise SnapshotIndexMismatch("snapshot has an invalid status")
+                    if not allow_draft and snapshot_status != "finalized":
+                        raise SnapshotAccessDenied(
+                            "normal search requires a finalized snapshot"
+                        )
+
+                    (
+                        resolved_selection,
+                        selected_chunk_ids,
+                    ) = await self._snapshot_selection_on_connection(
+                        connection, snapshot_selection.snapshot_id
+                    )
+                    if resolved_selection != snapshot_selection:
+                        raise SnapshotIndexMismatch(
+                            "retrieval profile does not match the current snapshot selection"
+                        )
+
+                    stored_configuration_value = await connection.fetchval(
+                        """
+                        SELECT configuration FROM index_configurations
+                        WHERE configuration_id = $1
+                        """,
+                        configuration.configuration_id,
+                    )
+                    if stored_configuration_value is None:
+                        raise SnapshotIndexNotReady(
+                            "index configuration is not registered"
+                        )
+                    stored_configuration = (
+                        json.loads(stored_configuration_value)
+                        if isinstance(stored_configuration_value, str)
+                        else stored_configuration_value
+                    )
+                    if stored_configuration != configuration.to_dict():
+                        raise SnapshotIndexMismatch(
+                            "profile vector configuration differs from the stored configuration"
+                        )
+
+                    state = await connection.fetchrow(
+                        """
+                        SELECT collection_name, status, expected_count, indexed_count,
+                               details
+                        FROM snapshot_index_states
+                        WHERE snapshot_id = $1 AND configuration_id = $2
+                        FOR SHARE
+                        """,
+                        snapshot_selection.snapshot_id,
+                        configuration.configuration_id,
+                    )
+                    if state is None or state["status"] != "ready":
+                        state_name = "missing" if state is None else state["status"]
+                        raise SnapshotIndexNotReady(
+                            f"snapshot index state is {state_name}"
+                        )
+                    details_value = state["details"]
+                    details = (
+                        json.loads(details_value)
+                        if isinstance(details_value, str)
+                        else details_value
+                    )
+                    selected_ids_sha256 = _evidence_ids_fingerprint(selected_chunk_ids)
+                    if (
+                        state["collection_name"] != configuration.collection_name
+                        or state["expected_count"] != len(selected_chunk_ids)
+                        or state["indexed_count"] != len(selected_chunk_ids)
+                        or not isinstance(details, dict)
+                        or details.get("evidence_ids_sha256") != selected_ids_sha256
+                        or details.get("qdrant_evidence_ids_sha256")
+                        != selected_ids_sha256
+                    ):
+                        raise SnapshotIndexMismatch(
+                            "ready index metadata does not match the exact snapshot evidence"
+                        )
+                    yield ReadySnapshotIndex(
+                        snapshot_status=snapshot_status,
+                        snapshot_selection=resolved_selection,
+                        configuration_id=configuration.configuration_id,
+                        collection_name=configuration.collection_name,
+                        expected_count=len(selected_chunk_ids),
+                    )
+            finally:
+                self._build_connection.reset(token)
+                try:
+                    await connection.fetchval(
+                        "SELECT pg_advisory_unlock_shared(hashtextextended($1, 0))",
+                        lock_key,
+                    )
+                except BaseException:
                     connection.terminate()
                     raise
 

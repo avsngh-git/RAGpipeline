@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Sequence
 from uuid import UUID
 
 from research_platform.ingestion.identity import is_valid_paper_id
@@ -105,3 +105,71 @@ def compute_chunk_selection_id(
         "selected_chunk_ids": sorted(normalized_chunk_ids),
     }
     return _canonical_identity(configuration)
+
+
+@dataclass(frozen=True)
+class SnapshotSelection:
+    """Immutable snapshot and exact searchable chunk-set identity."""
+
+    snapshot_id: UUID
+    snapshot_configuration_id: str
+    chunk_selection_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.snapshot_id, UUID):
+            raise ValueError("snapshot_id must be a UUID")
+        _require_sha256(self.snapshot_configuration_id, "snapshot_configuration_id")
+        _require_sha256(self.chunk_selection_id, "chunk_selection_id")
+
+    @classmethod
+    def from_members(
+        cls,
+        *,
+        snapshot_id: UUID,
+        snapshot_configuration_id: str,
+        members: Sequence[SnapshotChunkSelection],
+        selected_chunk_ids: Sequence[str],
+    ) -> SnapshotSelection:
+        return cls(
+            snapshot_id=snapshot_id,
+            snapshot_configuration_id=snapshot_configuration_id,
+            chunk_selection_id=compute_chunk_selection_id(
+                snapshot_id=snapshot_id,
+                snapshot_configuration_id=snapshot_configuration_id,
+                members=members,
+                selected_chunk_ids=selected_chunk_ids,
+            ),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "snapshot_id": str(self.snapshot_id),
+            "snapshot_configuration_id": self.snapshot_configuration_id,
+            "chunk_selection_id": self.chunk_selection_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, object]) -> SnapshotSelection:
+        expected = {
+            "snapshot_id",
+            "snapshot_configuration_id",
+            "chunk_selection_id",
+        }
+        if set(data) != expected:
+            raise ValueError("snapshot selection fields are incomplete or unknown")
+        raw_snapshot_id = data["snapshot_id"]
+        if not isinstance(raw_snapshot_id, str):
+            raise ValueError("snapshot_id must be a UUID")
+        try:
+            snapshot_id = UUID(raw_snapshot_id)
+        except ValueError:
+            raise ValueError("snapshot_id must be a UUID") from None
+        return cls(
+            snapshot_id=snapshot_id,
+            snapshot_configuration_id=_require_sha256(
+                data["snapshot_configuration_id"], "snapshot_configuration_id"
+            ),
+            chunk_selection_id=_require_sha256(
+                data["chunk_selection_id"], "chunk_selection_id"
+            ),
+        )

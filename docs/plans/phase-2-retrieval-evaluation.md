@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01/P2-02 and P2-03.1–P2-03.4 complete.
+Status: approved 2026-09-26; P2-01–P2-03 complete; P2-04 in progress.
 
 ## Start and authority
 
@@ -55,15 +55,15 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01 and P2-02 are complete. P2-03 is in progress after its reuse inventory, profile-identity definition, and exact variant-lineage persistence. The table is the single implementation status checklist.
+P2-01–P2-03 are complete. P2-04 ten-question calibration and source review is in progress. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
 | --- | --- | --- | --- |
 | P2-01 | Entry evidence and reproducible workspace | Approved plan | Complete |
 | P2-02 | Search contracts, filter and access policy | P2-01 | Complete |
-| P2-03 | Snapshot variants and retrieval configurations | P2-02 | In progress |
-| P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Pending |
+| P2-03 | Snapshot variants and retrieval configurations | P2-02 | Complete |
+| P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | In progress |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Pending |
 | P2-06 | BM25 lexical retrieval | P2-03 | Pending |
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Pending |
@@ -197,8 +197,21 @@ reused for PostgreSQL state reads/writes; Qdrant IDs/count and the current exact
 snapshot selection are rechecked before the single ready-state update. Cancellation
 marks the build reconciliation-required; process death leaves it building, so neither
 state is ready. Same-configuration rebuild and cancellation tests pass, including
-concurrent PostgreSQL/Qdrant integration. Continue at **03.5**, serving-boundary
-enforcement.
+concurrent PostgreSQL/Qdrant integration.
+
+**03.5 complete 2026-09-26:** snapshot selection identity now lives with ingestion
+domain types. Dense search resolves and holds a PostgreSQL shared lease for one
+snapshot/profile/index while querying Qdrant. Serving rejects drafts; the explicit
+evaluation path permits a named draft. Both paths reject stale selection identities,
+unregistered or non-ready indexes, mismatched vector configurations, and result
+payloads from another snapshot/configuration. This prevents a concurrent rebuild or
+snapshot-selection edit from changing the validated index during a query. The dense
+service rejects profiles requiring lexical, fusion or reranking stages it cannot
+execute. Four new unit tests, the profile tests, and synthetic parent/variant and
+serving-boundary integration checks pass. P2-03 done condition is met: parent and
+variant searches return their own exact selected chunk sets and do not mix vectors.
+
+Continue with **P2-04.1**, drafting ten question families from the accepted corpus.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 

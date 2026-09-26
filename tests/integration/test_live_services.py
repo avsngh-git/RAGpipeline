@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -51,6 +52,9 @@ from research_platform.ingestion.indexing import (
     IndexConfigurationMismatch,
     IndexRepository,
     QdrantIndex,
+    SnapshotAccessDenied,
+    SnapshotIndexMismatch,
+    SnapshotIndexNotReady,
     VectorEmbedder,
     rebuild_snapshot_index,
 )
@@ -75,6 +79,7 @@ from research_platform.ingestion.runner import (
     StageContext,
     StageOutcome,
 )
+from research_platform.ingestion.snapshot_selection import SnapshotSelection
 from research_platform.ingestion.snapshots import (
     SnapshotRepository,
     SnapshotValidationError,
@@ -84,6 +89,12 @@ from research_platform.ingestion.stage_repository import (
     JobStateError,
 )
 from research_platform.persistence.migrations import apply_migrations
+from research_platform.search.dense_search import SnapshotDenseSearch
+from research_platform.search.profiles import (
+    CandidateLimits,
+    DenseIndexIdentity,
+    RetrievalProfile,
+)
 from research_platform.services.readiness import LiveDependencyChecker
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
@@ -1340,6 +1351,11 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             assert (
                 len(variant_chunk_ids) == second_output.resource_measurements["chunks"]
             )
+            with pytest.raises(asyncpg.ForeignKeyViolationError):
+                await pool.execute(
+                    "DELETE FROM chunks WHERE id = $1",
+                    next(iter(parent_chunk_ids)),
+                )
             assert parent_chunk_ids != variant_chunk_ids
             added_variant_chunks = variant_chunk_ids - parent_chunk_ids
             assert added_variant_chunks
@@ -1402,6 +1418,110 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             )
             assert len(index_inputs) == second_output.resource_measurements["chunks"]
             assert {item.evidence_id for item in index_inputs} == variant_chunk_ids
+
+            parent_index_configuration = IndexConfiguration(
+                collection_name=f"phase2-parent-{uuid4().hex}",
+                embedding_model="integration-fixture",
+                embedding_revision="v1",
+                preprocessing_revision="raw-text-v1",
+                vector_size=2,
+                distance="Cosine",
+                batch_size=2,
+                maximum_input_tokens=32,
+            )
+            variant_index_configuration = IndexConfiguration(
+                collection_name=f"phase2-variant-{uuid4().hex}",
+                embedding_model="integration-fixture",
+                embedding_revision="v1",
+                preprocessing_revision="raw-text-v1",
+                vector_size=2,
+                distance="Cosine",
+                batch_size=2,
+                maximum_input_tokens=32,
+            )
+            async with httpx.AsyncClient(
+                base_url=TEST_QDRANT_URL.rstrip("/"), timeout=10
+            ) as qdrant_http:
+                try:
+                    parent_index = QdrantIndex(parent_index_configuration, qdrant_http)
+                    variant_index = QdrantIndex(
+                        variant_index_configuration, qdrant_http
+                    )
+                    await rebuild_snapshot_index(
+                        IndexRepository(pool),
+                        parent_index,
+                        _IntegrationEmbedder(),
+                        snapshot_id,
+                    )
+                    await rebuild_snapshot_index(
+                        IndexRepository(pool),
+                        variant_index,
+                        _IntegrationEmbedder(),
+                        variant_snapshot_id,
+                    )
+                    parent_selection = await IndexRepository(
+                        pool
+                    ).snapshot_selection_for(snapshot_id)
+                    variant_selection = await IndexRepository(
+                        pool
+                    ).snapshot_selection_for(variant_snapshot_id)
+
+                    def dense_profile(
+                        selection: SnapshotSelection, config: IndexConfiguration
+                    ) -> RetrievalProfile:
+                        return RetrievalProfile(
+                            snapshot=selection,
+                            lexical_index=None,
+                            dense_index=DenseIndexIdentity(
+                                model=config.embedding_model,
+                                revision=config.embedding_revision,
+                                preprocessing_revision=config.preprocessing_revision,
+                                dimensions=config.vector_size,
+                                maximum_input_tokens=config.maximum_input_tokens,
+                                index_configuration_id=config.configuration_id,
+                            ),
+                            candidate_limits=CandidateLimits(
+                                lexical_top_k=None,
+                                dense_top_k=10,
+                                fused_top_k=None,
+                                rerank_top_k=None,
+                            ),
+                        )
+
+                    parent_results = await SnapshotDenseSearch(
+                        IndexRepository(pool), parent_index
+                    ).search(
+                        dense_profile(parent_selection, parent_index_configuration),
+                        (1.0, 0.0),
+                        limit=10,
+                    )
+                    variant_results = await SnapshotDenseSearch(
+                        IndexRepository(pool), variant_index
+                    ).evaluate(
+                        dense_profile(variant_selection, variant_index_configuration),
+                        (1.0, 0.0),
+                        limit=10,
+                    )
+                    assert {
+                        hit.evidence_id for hit in parent_results.hits
+                    } == parent_chunk_ids
+                    assert {
+                        hit.evidence_id for hit in variant_results.hits
+                    } == variant_chunk_ids
+                    assert (
+                        parent_results.index_configuration_id
+                        != variant_results.index_configuration_id
+                    )
+                finally:
+                    for collection_name in (
+                        parent_index_configuration.collection_name,
+                        variant_index_configuration.collection_name,
+                    ):
+                        response = await qdrant_http.delete(
+                            f"/collections/{collection_name}"
+                        )
+                        if response.status_code not in {200, 404}:
+                            response.raise_for_status()
         finally:
             await pool.close()
 
@@ -1425,7 +1545,7 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
         await apply_migrations(TEST_DATABASE_URL)
         pool = await asyncpg.create_pool(TEST_DATABASE_URL, min_size=1, max_size=2)
         assert pool is not None
-        paper_id = f"index-test-{uuid4().hex}"
+        paper_id = f"W{uuid4().int}"
         snapshot_id: UUID | None = None
         configuration = IndexConfiguration(
             collection_name=f"phase1-{uuid4().hex}",
@@ -1564,7 +1684,30 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 assert await index.count_snapshot(snapshot_id) == 2
                 evidence_ids = await index.scroll_snapshot_ids(snapshot_id)
                 assert set(evidence_ids) == {unit.id for unit in units}
-                matches = await index.query_snapshot((1.0, 0.0), snapshot_id, limit=5)
+                selection = await repository.snapshot_selection_for(snapshot_id)
+                profile = RetrievalProfile(
+                    snapshot=selection,
+                    lexical_index=None,
+                    dense_index=DenseIndexIdentity(
+                        model=configuration.embedding_model,
+                        revision=configuration.embedding_revision,
+                        preprocessing_revision=configuration.preprocessing_revision,
+                        dimensions=configuration.vector_size,
+                        maximum_input_tokens=configuration.maximum_input_tokens,
+                        index_configuration_id=configuration.configuration_id,
+                    ),
+                    candidate_limits=CandidateLimits(
+                        lexical_top_k=None,
+                        dense_top_k=10,
+                        fused_top_k=None,
+                        rerank_top_k=None,
+                    ),
+                )
+                search = SnapshotDenseSearch(repository, index)
+                with pytest.raises(SnapshotAccessDenied, match="finalized snapshot"):
+                    await search.search(profile, (1.0, 0.0), limit=5)
+                evaluation_result = await search.evaluate(profile, (1.0, 0.0), limit=5)
+                matches = evaluation_result.hits
                 assert {match.evidence_id for match in matches} == {
                     unit.id for unit in units
                 }
@@ -1573,6 +1716,37 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                     == configuration.configuration_id
                     for match in matches
                 )
+                await pool.execute(
+                    """
+                    UPDATE snapshot_index_states
+                    SET status = 'reconciliation_required'
+                    WHERE snapshot_id = $1 AND configuration_id = $2
+                    """,
+                    snapshot_id,
+                    configuration.configuration_id,
+                )
+                with pytest.raises(
+                    SnapshotIndexNotReady, match="reconciliation_required"
+                ):
+                    await search.evaluate(profile, (1.0, 0.0), limit=5)
+                await pool.execute(
+                    """
+                    UPDATE snapshot_index_states
+                    SET status = 'ready'
+                    WHERE snapshot_id = $1 AND configuration_id = $2
+                    """,
+                    snapshot_id,
+                    configuration.configuration_id,
+                )
+                mismatched_selection = replace(
+                    selection, chunk_selection_id="sha256:" + "f" * 64
+                )
+                with pytest.raises(SnapshotIndexMismatch, match="profile"):
+                    await search.evaluate(
+                        replace(profile, snapshot=mismatched_selection),
+                        (1.0, 0.0),
+                        limit=5,
+                    )
                 incompatible_configuration = IndexConfiguration(
                     collection_name=configuration.collection_name,
                     embedding_model="other-model",
