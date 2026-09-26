@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,6 +23,8 @@ from research_platform.ingestion.evidence import (
     TableCell,
 )
 
+_IDENTITY = re.compile(r"^sha256:[0-9a-f]{64}$")
+
 
 class EvidenceConflict(ValueError):
     """One extraction configuration produced different stored outputs."""
@@ -30,6 +33,7 @@ class EvidenceConflict(ValueError):
 @dataclass(frozen=True)
 class EvidencePersistenceResult:
     extraction_id: UUID
+    output_fingerprint: str
     section_count: int
     table_count: int
     evidence_unit_count: int
@@ -40,6 +44,7 @@ class EvidencePersistenceResult:
 class StoredExtraction:
     result: ExtractionResult
     source_pdf_sha256: str
+    output_fingerprint: str
 
 
 class EvidenceRepository:
@@ -56,7 +61,8 @@ class EvidenceRepository:
                 SELECT extraction.id, extraction.document_id,
                        extraction.source_artifact_id, extraction.extractor_name,
                        extraction.extractor_revision, extraction.configuration_id,
-                       extraction.configuration, extraction.status, artifact.sha256
+                       extraction.configuration, extraction.status,
+                       extraction.output_sha256, artifact.sha256
                 FROM extractions extraction
                 JOIN document_artifacts document_artifact
                   ON document_artifact.id = extraction.source_artifact_id
@@ -123,7 +129,11 @@ class EvidenceRepository:
             tables=tuple(_extracted_table(row) for row in table_rows),
             configuration=configuration,
         )
-        return StoredExtraction(result, extraction["sha256"])
+        return StoredExtraction(
+            result,
+            extraction["sha256"],
+            f"sha256:{extraction['output_sha256']}",
+        )
 
     async def persist(
         self,
@@ -225,6 +235,97 @@ class EvidenceRepository:
                 )
 
         return _result(result, evidence_units, reused=False)
+
+    async def persist_chunks(
+        self,
+        result: ExtractionResult,
+        evidence_units: Sequence[EvidenceUnit],
+        *,
+        chunking_configuration_id: str | None = None,
+    ) -> EvidencePersistenceResult:
+        """Add deterministic searchable chunks without rerunning the parser."""
+        if any(unit.document_id != result.document_id for unit in evidence_units):
+            raise ValueError("evidence units must reference the extraction document")
+        if any(unit.extraction_id != result.extraction_id for unit in evidence_units):
+            raise ValueError("evidence units must reference the extraction ID")
+        if len({unit.id for unit in evidence_units}) != len(evidence_units):
+            raise ValueError("evidence unit IDs must be unique")
+        if chunking_configuration_id is not None and not _IDENTITY.fullmatch(
+            chunking_configuration_id
+        ):
+            raise ValueError("chunking configuration ID must be a SHA-256 identity")
+        if any(
+            not isinstance(unit.metadata.get("chunking_configuration_id"), str)
+            or not _IDENTITY.fullmatch(
+                cast(str, unit.metadata.get("chunking_configuration_id"))
+            )
+            or (
+                chunking_configuration_id is not None
+                and unit.metadata.get("chunking_configuration_id")
+                != chunking_configuration_id
+            )
+            for unit in evidence_units
+        ):
+            raise ValueError("every chunk needs the selected configuration identity")
+
+        reused_existing = True
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                extraction = await connection.fetchrow(
+                    """
+                    SELECT id, document_id FROM extractions
+                    WHERE id = $1 FOR UPDATE
+                    """,
+                    result.extraction_id,
+                )
+                if (
+                    extraction is None
+                    or extraction["document_id"] != result.document_id
+                ):
+                    raise ValueError("chunking requires its persisted extraction")
+                rows = await connection.fetch(
+                    "SELECT id, ordinal FROM sections WHERE extraction_id = $1",
+                    result.extraction_id,
+                )
+                section_ids = {row["ordinal"]: row["id"] for row in rows}
+                for unit in evidence_units:
+                    existing = await connection.fetchrow(
+                        """
+                        SELECT extraction_id, content, start_offset, end_offset, kind,
+                               metadata::text AS metadata
+                        FROM evidence_units WHERE id = $1
+                        """,
+                        unit.id,
+                    )
+                    if existing is not None:
+                        expected_metadata = dict(unit.metadata)
+                        stored_metadata = _json_mapping(
+                            existing["metadata"], "stored chunk metadata"
+                        )
+                        if (
+                            existing["extraction_id"] != unit.extraction_id
+                            or existing["content"] != unit.content
+                            or existing["start_offset"] != unit.start_offset
+                            or existing["end_offset"] != unit.end_offset
+                            or existing["kind"] != unit.kind
+                            or stored_metadata != expected_metadata
+                        ):
+                            raise EvidenceConflict(
+                                "chunk identity is already bound to different output"
+                            )
+                        chunk_exists = await connection.fetchval(
+                            "SELECT EXISTS (SELECT 1 FROM chunks WHERE id = $1)",
+                            unit.id,
+                        )
+                        if not chunk_exists:
+                            raise EvidenceConflict(
+                                "persisted evidence unit has no matching searchable chunk"
+                            )
+                        continue
+                    await self._persist_units(connection, result, (unit,), section_ids)
+                    reused_existing = False
+
+        return _result(result, evidence_units, reused=reused_existing)
 
     async def _persist_sections(
         self,
@@ -460,6 +561,7 @@ def _result(
 ) -> EvidencePersistenceResult:
     return EvidencePersistenceResult(
         extraction_id=extraction.extraction_id,
+        output_fingerprint=f"sha256:{_output_fingerprint(extraction, units)}",
         section_count=len(extraction.sections),
         table_count=len(extraction.tables),
         evidence_unit_count=len(units),

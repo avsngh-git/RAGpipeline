@@ -176,6 +176,15 @@ class IngestionRunner:
             raise ValueError("targeted retries require a non-empty retry_reason")
         retry_reason = retry_reason.strip() if retry_reason is not None else None
 
+        await self._repository.record_plan(
+            job_id,
+            tuple(
+                (document.document_id, document.input_fingerprint)
+                for document in documents
+            ),
+            terminal_stage=stages[-1].name,
+            terminal_configuration_id=stages[-1].configuration_id,
+        )
         owner_token = await self._repository.claim(
             job_id, lease_seconds=self._lease_seconds
         )
@@ -291,7 +300,12 @@ class IngestionRunner:
                 documents_completed += 1
 
             summary = await self._repository.get_summary(job_id)
-            final_status = "failed" if summary.failed_documents else "completed"
+            plan_is_complete = await self._repository.plan_is_complete(job_id)
+            final_status = (
+                "completed"
+                if not summary.failed_documents and plan_is_complete
+                else "failed"
+            )
             await self._repository.finish_job(
                 job_id,
                 owner_token,

@@ -183,7 +183,7 @@ class SnapshotRepository:
                 updated = await connection.fetchval(
                     """
                     UPDATE snapshot_items
-                    SET extraction_id = $4
+                    SET extraction_id = $4, chunking_configuration_id = NULL
                     WHERE snapshot_id = $1 AND document_id = $2
                       AND extraction_id = $3
                     RETURNING paper_id
@@ -208,7 +208,11 @@ class SnapshotRepository:
                 updated = await connection.fetchval(
                     """
                     UPDATE snapshot_items
-                    SET extraction_id = $3
+                    SET chunking_configuration_id = CASE
+                            WHEN extraction_id IS DISTINCT FROM $3 THEN NULL
+                            ELSE chunking_configuration_id
+                        END,
+                        extraction_id = $3
                     WHERE snapshot_id = $1 AND document_id = $2
                     RETURNING paper_id
                     """,
@@ -218,6 +222,39 @@ class SnapshotRepository:
                 )
         if updated is None:
             raise ValueError("document is not a member of the draft snapshot")
+
+    async def set_chunking_configuration(
+        self,
+        snapshot_id: UUID,
+        document_id: UUID,
+        extraction_id: UUID,
+        configuration_id: str,
+    ) -> None:
+        """Select the active searchable chunk set for one draft member."""
+        if not isinstance(configuration_id, str) or not _SHA256_ID.fullmatch(
+            configuration_id
+        ):
+            raise ValueError("chunking configuration ID must be a SHA-256 identity")
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await self._require_draft(connection, snapshot_id)
+                updated = await connection.fetchval(
+                    """
+                    UPDATE snapshot_items
+                    SET chunking_configuration_id = $4
+                    WHERE snapshot_id = $1 AND document_id = $2
+                      AND extraction_id = $3
+                    RETURNING paper_id
+                    """,
+                    snapshot_id,
+                    document_id,
+                    extraction_id,
+                    configuration_id,
+                )
+        if updated is None:
+            raise ValueError(
+                "document extraction is not attached to the draft snapshot"
+            )
 
     async def review_flagged_table(
         self,
@@ -397,7 +434,10 @@ class SnapshotRepository:
                                 FALSE) AS indexing_permitted,
                        (SELECT count(*) FROM chunks chunk
                         WHERE chunk.document_id = item.document_id
-                          AND chunk.extraction_id = item.extraction_id) AS chunk_count,
+                          AND chunk.extraction_id = item.extraction_id
+                          AND (item.chunking_configuration_id IS NULL
+                               OR chunk.metadata ->> 'chunking_configuration_id' =
+                                  item.chunking_configuration_id)) AS chunk_count,
                        (SELECT count(*) FROM evidence_tables evidence_table
                         WHERE evidence_table.extraction_id = item.extraction_id) AS table_count
                 FROM snapshot_items item
@@ -756,7 +796,10 @@ class SnapshotRepository:
                    extraction.output_sha256, extraction.source_artifact_id,
                    (SELECT count(*) FROM chunks chunk
                     WHERE chunk.document_id = item.document_id
-                      AND chunk.extraction_id = item.extraction_id) AS chunk_count,
+                      AND chunk.extraction_id = item.extraction_id
+                      AND (item.chunking_configuration_id IS NULL
+                           OR chunk.metadata ->> 'chunking_configuration_id' =
+                              item.chunking_configuration_id)) AS chunk_count,
                    (SELECT count(*) FROM evidence_tables evidence_table
                     WHERE evidence_table.extraction_id = extraction.id
                       AND evidence_table.metadata ->> 'review_required' = 'true'
@@ -897,6 +940,9 @@ class SnapshotRepository:
                       ON chunk.document_id = item.document_id
                      AND chunk.extraction_id = item.extraction_id
                     WHERE item.snapshot_id = $1
+                      AND (item.chunking_configuration_id IS NULL
+                           OR chunk.metadata ->> 'chunking_configuration_id' =
+                              item.chunking_configuration_id)
                     ORDER BY chunk.id
                     """,
                     snapshot_id,

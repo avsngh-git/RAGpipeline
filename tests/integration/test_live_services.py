@@ -9,7 +9,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import asyncpg
 import httpx
@@ -60,12 +60,18 @@ from research_platform.ingestion.openalex import (
     OpenAlexRequestError,
 )
 from research_platform.ingestion.papers import PaperRepository
+from research_platform.ingestion.pdf_extraction import DoclingPdfConfig
+from research_platform.ingestion.processing import (
+    PdfEvidenceProcessor,
+    PreparedPdfPipeline,
+)
 from research_platform.ingestion.runner import (
     DocumentStageFailure,
     IngestionDocument,
     IngestionExecutionError,
     IngestionRunner,
     PipelineStage,
+    SharedPipelineFailure,
     StageContext,
     StageOutcome,
 )
@@ -194,6 +200,8 @@ def test_migration_is_repeatable_and_database_constraints_are_enforced(
                 "010_job_leases_and_snapshot_review",
                 "011_unique_index_collection_identity",
                 "012_targeted_retry_reasons",
+                "013_ingestion_job_plans",
+                "014_snapshot_chunking_configuration",
             ]
 
             collection_name = f"integration-{uuid4().hex}"
@@ -774,6 +782,11 @@ def test_artifact_permission_evidence_is_persisted_separately(
     asyncio.run(exercise(tmp_path))
 
 
+class _CharacterOffsetTokenizer:
+    def token_spans(self, text: str) -> tuple[TokenSpan, ...]:
+        return tuple(TokenSpan(index, index + 1) for index in range(len(text)))
+
+
 class _WordOffsetTokenizer:
     def token_spans(self, text: str) -> tuple[TokenSpan, ...]:
         return tuple(
@@ -868,10 +881,10 @@ def test_artifact_cleanup_is_retryable_and_protects_referenced_files(
 
             job_repository = IngestionJobRepository(pool)
             job_id = await job_repository.create_job(
-                configuration={"cleanup_test": True},
+                configuration={"operation": "membership_acquisition"},
                 configuration_id="sha256:" + "a" * 64,
                 code_revision="cleanup-test",
-                execution_profile="test",
+                execution_profile="membership-acquisition",
             )
             owner_token = await job_repository.claim(job_id, lease_seconds=10)
             with pytest.raises(RuntimeError, match="while an ingestion job is running"):
@@ -1099,6 +1112,210 @@ def test_extraction_evidence_persists_once_with_table_structure() -> None:
         finally:
             # Permission evidence is intentionally immutable; the disposable test
             # database owns cleanup for this fixture.
+            await pool.close()
+
+    asyncio.run(exercise())
+
+
+def test_chunks_with_new_configuration_reuse_persisted_extraction(
+    tmp_path: Path,
+) -> None:
+    assert TEST_DATABASE_URL is not None
+
+    async def exercise() -> None:
+        await apply_migrations(TEST_DATABASE_URL)
+        pool = await asyncpg.create_pool(TEST_DATABASE_URL, min_size=1, max_size=2)
+        assert pool is not None
+        paper_id = f"rechunk-persistence-{uuid4().hex}"
+        try:
+            async with pool.acquire() as connection:
+                await connection.execute(
+                    "INSERT INTO papers (id, title) VALUES ($1, 'Rechunk persistence')",
+                    paper_id,
+                )
+                document_id = await connection.fetchval(
+                    """
+                    INSERT INTO documents (paper_id, source_type, version, status)
+                    VALUES ($1, 'integration-test', 'v1', 'metadata_only')
+                    RETURNING id
+                    """,
+                    paper_id,
+                )
+            assert isinstance(document_id, UUID)
+            content = b"%PDF-1.7\nrechunk fixture\n%%EOF\n"
+            artifact = await ArtifactStore(
+                tmp_path / "rechunk-artifacts",
+                maximum_file_bytes=1024,
+                maximum_store_bytes=2048,
+            ).store_pdf(_byte_chunks(content))
+            permission = PermissionEvidence(
+                source_name="integration-test",
+                source_url=f"https://example.org/{paper_id}.pdf",
+                license_id="cc-by",
+                basis="Synthetic integration fixture permission.",
+                terms_url="https://creativecommons.org/licenses/by/4.0/",
+                checked_at=datetime.now(timezone.utc),
+                reviewer="integration-test-reviewer",
+                storage_permitted=True,
+                indexing_permitted=True,
+            )
+            association_id = await ArtifactRepository(pool).record_download(
+                document_id, artifact, permission
+            )
+            snapshot_id = await pool.fetchval(
+                """
+                INSERT INTO snapshots (name, configuration_id, configuration, code_revision)
+                VALUES ($1, $2, $3::jsonb, 'integration-test') RETURNING id
+                """,
+                f"rechunk-snapshot-{uuid4().hex}",
+                "sha256:" + "2" * 64,
+                json.dumps({"fixture": True}),
+            )
+            assert isinstance(snapshot_id, UUID)
+            await pool.execute(
+                """
+                INSERT INTO snapshot_items
+                    (snapshot_id, paper_id, document_id, selection_reason)
+                VALUES ($1, $2, $3, 'synthetic rechunk fixture')
+                """,
+                snapshot_id,
+                paper_id,
+                document_id,
+            )
+
+            class CacheOnlyParser:
+                def prepare(self) -> tuple[dict[str, object], str]:
+                    return {"parser": "cache-fixture"}, "sha256:" + "1" * 64
+
+                def extract(
+                    self, *_args: object, **_kwargs: object
+                ) -> ExtractionResult:
+                    raise AssertionError("matching stored extraction should be reused")
+
+            async def make_processor(
+                chunking: ChunkingConfig,
+            ) -> tuple[PdfEvidenceProcessor, PreparedPdfPipeline]:
+                processor = PdfEvidenceProcessor(
+                    pool,
+                    snapshot_id=snapshot_id,
+                    artifact_root=tmp_path / "rechunk-artifacts",
+                    parser_config=DoclingPdfConfig(device="cpu"),
+                    chunking_config=chunking,
+                    tokenizer=_WordOffsetTokenizer(),  # type: ignore[arg-type]
+                )
+                processor._parser = CacheOnlyParser()  # type: ignore[assignment]
+                return processor, await processor.prepare()
+
+            first_config = ChunkingConfig(2, 0, 2)
+            first_processor, first_prepared = await make_processor(first_config)
+            extraction_id = uuid5(
+                document_id, first_prepared.extraction_configuration_id
+            )
+            section = ExtractedSection(
+                ordinal=0,
+                heading_path=("Results",),
+                text="alpha beta gamma delta epsilon",
+            )
+            extraction = ExtractionResult(
+                document_id=document_id,
+                extraction_id=extraction_id,
+                extractor_name="synthetic",
+                extractor_revision="fixture-1",
+                configuration_id=first_prepared.extraction_configuration_id,
+                status="completed",
+                source_artifact_id=association_id,
+                sections=(section,),
+                configuration=dict(first_prepared.extraction_configuration),
+            )
+            repository = EvidenceRepository(pool)
+            raw_result = await repository.persist(extraction, ())
+            assert raw_result.evidence_unit_count == 0
+            stored = await repository.load_for_correction(extraction_id)
+            assert stored.result.sections == (section,)
+            assert stored.source_pdf_sha256 == artifact.sha256
+
+            async def run_stage(
+                processor: PdfEvidenceProcessor, stage: str, configuration_id: str
+            ) -> StageOutcome:
+                return await processor.process(
+                    StageContext(
+                        job_id=uuid4(),
+                        document_id=document_id,
+                        stage=stage,
+                        configuration_id=configuration_id,
+                        input_fingerprint="sha256:" + artifact.sha256,
+                        upstream_references={},
+                        retry_reason=None,
+                    )
+                )
+
+            reused_extraction = await run_stage(
+                first_processor,
+                "extraction",
+                first_prepared.extraction_configuration_id,
+            )
+            assert reused_extraction.resource_measurements["reused_existing"] is True
+            first_output = await run_stage(
+                first_processor, "chunking", first_prepared.chunking_configuration_id
+            )
+            assert first_output.resource_measurements["chunks"] > 0
+
+            second_config = ChunkingConfig(3, 0, 2)
+            second_processor, second_prepared = await make_processor(second_config)
+            assert (
+                second_prepared.extraction_configuration_id
+                == first_prepared.extraction_configuration_id
+            )
+            assert (
+                second_prepared.chunking_configuration_id
+                != first_prepared.chunking_configuration_id
+            )
+            reused_for_new_settings = await run_stage(
+                second_processor,
+                "extraction",
+                second_prepared.extraction_configuration_id,
+            )
+            assert (
+                reused_for_new_settings.resource_measurements["reused_existing"] is True
+            )
+            second_output = await run_stage(
+                second_processor, "chunking", second_prepared.chunking_configuration_id
+            )
+            repeated_output = await run_stage(
+                second_processor, "chunking", second_prepared.chunking_configuration_id
+            )
+            assert second_output.resource_measurements["chunks"] > 0
+            assert repeated_output.resource_measurements["reused_existing"] is True
+            assert (
+                await pool.fetchval(
+                    "SELECT count(*) FROM chunks WHERE extraction_id = $1",
+                    extraction_id,
+                )
+                == first_output.resource_measurements["chunks"]
+                + second_output.resource_measurements["chunks"]
+            )
+            active_chunking_id = await pool.fetchval(
+                "SELECT chunking_configuration_id FROM snapshot_items WHERE snapshot_id = $1",
+                snapshot_id,
+            )
+            assert active_chunking_id == second_prepared.chunking_configuration_id
+            member = (await SnapshotRepository(pool).inspect_members(snapshot_id))[0]
+            assert member.chunk_count == second_output.resource_measurements["chunks"]
+            index_inputs = await IndexRepository(pool).load_snapshot_inputs(
+                snapshot_id,
+                IndexConfiguration(
+                    collection_name=f"phase1-{uuid4().hex}",
+                    embedding_model="integration-fixture",
+                    embedding_revision="v1",
+                    preprocessing_revision="raw-text-v1",
+                    vector_size=2,
+                    distance="Cosine",
+                    batch_size=1,
+                    maximum_input_tokens=32,
+                ),
+            )
+            assert len(index_inputs) == second_output.resource_measurements["chunks"]
+        finally:
             await pool.close()
 
     asyncio.run(exercise())
@@ -1450,6 +1667,27 @@ def test_job_leases_recover_and_stage_attempts_checkpoint() -> None:
                 recovered_attempt.id, recovered_owner, status="skipped"
             )
             await repository.finish_job(second_job, recovered_owner, status="cancelled")
+
+            acquisition_jobs = [
+                await repository.create_job(
+                    configuration={"operation": "membership_acquisition"},
+                    configuration_id="sha256:" + digit * 64,
+                    code_revision="integration-test",
+                    execution_profile="membership-acquisition",
+                )
+                for digit in ("6", "7")
+            ]
+            acquisition_owner = await repository.claim(
+                acquisition_jobs[0], lease_seconds=60
+            )
+            content_requests_started = 0
+            with pytest.raises(JobStateError, match="another ingestion job"):
+                await repository.claim(acquisition_jobs[1], lease_seconds=60)
+                content_requests_started += 1
+            assert content_requests_started == 0
+            await repository.finish_job(
+                acquisition_jobs[0], acquisition_owner, status="cancelled"
+            )
         finally:
             await pool.close()
 
@@ -1901,6 +2139,211 @@ def test_runner_continues_after_document_failure_and_retries_only_selected_stage
     asyncio.run(exercise())
 
 
+def test_runner_persists_full_plan_across_shared_failure_targeted_retry_and_recovery() -> (
+    None
+):
+    assert TEST_DATABASE_URL is not None
+
+    async def exercise() -> None:
+        await apply_migrations(TEST_DATABASE_URL)
+        pool = await asyncpg.create_pool(TEST_DATABASE_URL, min_size=1, max_size=2)
+        assert pool is not None
+        repository = IngestionJobRepository(pool)
+        runner = IngestionRunner(repository, lease_seconds=10)
+
+        async def make_documents(label: str) -> list[IngestionDocument]:
+            documents: list[IngestionDocument] = []
+            async with pool.acquire() as connection:
+                for _ in range(2):
+                    paper_id = f"{label}-{uuid4().hex}"
+                    await connection.execute(
+                        "INSERT INTO papers (id, title) VALUES ($1, 'Plan recovery fixture')",
+                        paper_id,
+                    )
+                    document_id = await connection.fetchval(
+                        """
+                        INSERT INTO documents (paper_id, source_type, version)
+                        VALUES ($1, 'integration-test', 'v1') RETURNING id
+                        """,
+                        paper_id,
+                    )
+                    assert isinstance(document_id, UUID)
+                    documents.append(
+                        IngestionDocument(
+                            document_id=document_id,
+                            input_fingerprint="sha256:" + "a" * 64,
+                        )
+                    )
+            return documents
+
+        try:
+            # A targeted retry may repair the first failure, but cannot hide the
+            # second document that was never reached before the shared failure.
+            documents = await make_documents("shared-stop")
+            job_id = await repository.create_job(
+                configuration={"fixture": "shared-stop"},
+                configuration_id="sha256:" + "b" * 64,
+                code_revision="integration-test",
+                execution_profile="test",
+            )
+
+            class FailSharedOnce:
+                def __init__(self) -> None:
+                    self.failed = False
+                    self.calls: list[UUID] = []
+
+                async def process(self, context: StageContext) -> StageOutcome:
+                    self.calls.append(context.document_id)
+                    if (
+                        context.document_id == documents[0].document_id
+                        and not self.failed
+                    ):
+                        self.failed = True
+                        raise SharedPipelineFailure(
+                            "synthetic_shared_failure", "temporary shared failure"
+                        )
+                    return StageOutcome(
+                        output_fingerprint="sha256:" + "f" * 64,
+                    )
+
+            interrupted_stage = FailSharedOnce()
+            pipeline = (
+                PipelineStage("extraction", "sha256:" + "c" * 64, interrupted_stage),
+            )
+            with pytest.raises(IngestionExecutionError):
+                await runner.run(job_id, documents, pipeline)
+            interrupted = await repository.get_summary(job_id)
+            assert interrupted.document_count == 2
+            assert interrupted.completed_documents == 0
+            assert interrupted.failed_documents == 1
+
+            targeted = await runner.run(
+                job_id,
+                documents,
+                pipeline,
+                selected_document_ids=(documents[0].document_id,),
+                retry_reason="Repair the first document after shared outage.",
+            )
+            assert targeted.status == "failed"
+            assert targeted.documents_completed == 1
+            assert (await repository.get_summary(job_id)).document_count == 2
+
+            resumed = await runner.run(job_id, documents, pipeline)
+            assert resumed.status == "completed"
+            assert interrupted_stage.calls == [
+                documents[0].document_id,
+                documents[0].document_id,
+                documents[1].document_id,
+            ]
+            completed = await repository.get_summary(job_id)
+            assert completed.document_count == completed.completed_documents == 2
+
+            # Cancellation retains the unvisited document in the persisted plan.
+            cancelled_documents = await make_documents("cancel-stop")
+            cancelled_job = await repository.create_job(
+                configuration={"fixture": "cancel-stop"},
+                configuration_id="sha256:" + "d" * 64,
+                code_revision="integration-test",
+                execution_profile="test",
+            )
+            started = asyncio.Event()
+            cancel_task = asyncio.create_task(
+                runner.run(
+                    cancelled_job,
+                    cancelled_documents,
+                    (
+                        PipelineStage(
+                            "extraction",
+                            "sha256:" + "e" * 64,
+                            _BlockingRunnerStage(started),
+                        ),
+                    ),
+                )
+            )
+            await asyncio.wait_for(started.wait(), timeout=2)
+            cancel_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await cancel_task
+            cancelled_summary = await repository.get_summary(cancelled_job)
+            assert cancelled_summary.status == "cancelled"
+            assert cancelled_summary.document_count == 2
+            after_cancel = await runner.run(
+                cancelled_job,
+                cancelled_documents,
+                (
+                    PipelineStage(
+                        "extraction",
+                        "sha256:" + "e" * 64,
+                        _RunnerFixtureStage(),
+                    ),
+                ),
+            )
+            assert after_cancel.status == "completed"
+            assert (
+                await repository.get_summary(cancelled_job)
+            ).completed_documents == 2
+
+            # Expiry marks only the in-flight attempt failed; the full plan survives.
+            expired_documents = await make_documents("lease-expired")
+            expired_job = await repository.create_job(
+                configuration={"fixture": "lease-expired"},
+                configuration_id="sha256:" + "1" * 64,
+                code_revision="integration-test",
+                execution_profile="test",
+            )
+            await repository.record_plan(
+                expired_job,
+                tuple(
+                    (document.document_id, document.input_fingerprint)
+                    for document in expired_documents
+                ),
+                terminal_stage="extraction",
+                terminal_configuration_id="sha256:" + "2" * 64,
+            )
+            expired_owner = await repository.claim(expired_job, lease_seconds=10)
+            await repository.start_attempt(
+                expired_job,
+                expired_owner,
+                document_id=expired_documents[0].document_id,
+                stage="extraction",
+                configuration_id="sha256:" + "2" * 64,
+                input_fingerprint=expired_documents[0].input_fingerprint,
+            )
+            await pool.execute(
+                "UPDATE ingestion_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1",
+                expired_job,
+            )
+            probe_job = await repository.create_job(
+                configuration={"fixture": "lease-probe"},
+                configuration_id="sha256:" + "3" * 64,
+                code_revision="integration-test",
+                execution_profile="test",
+            )
+            probe_owner = await repository.claim(probe_job, lease_seconds=10)
+            reclaimed = await repository.get_summary(expired_job)
+            assert reclaimed.status == "pending"
+            assert reclaimed.document_count == 2
+            assert reclaimed.failed_attempts == 1
+            await repository.finish_job(probe_job, probe_owner, status="cancelled")
+            after_expiry = await runner.run(
+                expired_job,
+                expired_documents,
+                (
+                    PipelineStage(
+                        "extraction",
+                        "sha256:" + "2" * 64,
+                        _RunnerFixtureStage(),
+                    ),
+                ),
+            )
+            assert after_expiry.status == "completed"
+            assert (await repository.get_summary(expired_job)).completed_documents == 2
+        finally:
+            await pool.close()
+
+    asyncio.run(exercise())
+
+
 class _BlockingRunnerStage:
     def __init__(self, started: asyncio.Event) -> None:
         self.started = started
@@ -1909,6 +2352,216 @@ class _BlockingRunnerStage:
         self.started.set()
         await asyncio.Event().wait()
         return StageOutcome(output_fingerprint="sha256:" + "9" * 64)
+
+
+def test_runner_continues_after_unsearchable_table_to_next_document() -> None:
+    assert TEST_DATABASE_URL is not None
+
+    async def exercise() -> None:
+        await apply_migrations(TEST_DATABASE_URL)
+        pool = await asyncpg.create_pool(TEST_DATABASE_URL, min_size=1, max_size=2)
+        assert pool is not None
+        repository = IngestionJobRepository(pool)
+        documents: list[IngestionDocument] = []
+        try:
+            async with pool.acquire() as connection:
+                for _ in range(2):
+                    paper_id = f"table-limit-{uuid4().hex}"
+                    await connection.execute(
+                        "INSERT INTO papers (id, title) VALUES ($1, 'Table limit fixture')",
+                        paper_id,
+                    )
+                    document_id = await connection.fetchval(
+                        """
+                        INSERT INTO documents (paper_id, source_type, version)
+                        VALUES ($1, 'integration-test', 'v1') RETURNING id
+                        """,
+                        paper_id,
+                    )
+                    assert isinstance(document_id, UUID)
+                    documents.append(
+                        IngestionDocument(
+                            document_id=document_id,
+                            input_fingerprint="sha256:" + "a" * 64,
+                        )
+                    )
+            processor = PdfEvidenceProcessor(
+                None,  # type: ignore[arg-type]
+                snapshot_id=uuid4(),
+                artifact_root=Path("."),
+                parser_config=DoclingPdfConfig(device="cpu"),
+                chunking_config=ChunkingConfig(8, 0, 2),
+                tokenizer=_CharacterOffsetTokenizer(),  # type: ignore[arg-type]
+            )
+
+            class TableThenGoodStage:
+                def __init__(self) -> None:
+                    self.calls: list[UUID] = []
+
+                async def process(self, context: StageContext) -> StageOutcome:
+                    self.calls.append(context.document_id)
+                    if context.document_id == documents[0].document_id:
+                        table = ExtractedTable(
+                            ordinal=0,
+                            caption="Oversized table caption " * 20,
+                            units=None,
+                            footnotes=(),
+                            header_rows=1,
+                            cells=(
+                                TableCell(0, 0, "Header"),
+                                TableCell(1, 0, "Value"),
+                            ),
+                        )
+                        processor._chunk(
+                            ExtractionResult(
+                                document_id=context.document_id,
+                                extraction_id=uuid5(
+                                    context.document_id, "table-limit-fixture"
+                                ),
+                                extractor_name="synthetic",
+                                extractor_revision="fixture-1",
+                                configuration_id="sha256:" + "b" * 64,
+                                status="completed",
+                                tables=(table,),
+                            )
+                        )
+                    return StageOutcome(output_fingerprint="sha256:" + "c" * 64)
+
+            stage = TableThenGoodStage()
+            job_id = await repository.create_job(
+                configuration={"fixture": "table-limit"},
+                configuration_id="sha256:" + "d" * 64,
+                code_revision="integration-test",
+                execution_profile="test",
+            )
+            report = await IngestionRunner(repository, lease_seconds=10).run(
+                job_id,
+                documents,
+                (PipelineStage("chunking", "sha256:" + "e" * 64, stage),),
+            )
+            assert report.status == "failed"
+            assert report.documents_completed == 1
+            assert report.documents_failed == 1
+            assert report.failures[0].category == "table_chunk_limit_exceeded"
+            assert stage.calls == [document.document_id for document in documents]
+            summary = await repository.get_summary(job_id)
+            assert summary.completed_documents == 1
+            assert summary.failed_documents == 1
+        finally:
+            await pool.close()
+
+    asyncio.run(exercise())
+
+
+def test_runner_rechunks_without_repeating_matching_extraction_checkpoint() -> None:
+    assert TEST_DATABASE_URL is not None
+
+    async def exercise() -> None:
+        await apply_migrations(TEST_DATABASE_URL)
+        pool = await asyncpg.create_pool(TEST_DATABASE_URL, min_size=1, max_size=2)
+        assert pool is not None
+        repository = IngestionJobRepository(pool)
+        runner = IngestionRunner(repository, lease_seconds=10)
+        documents: list[IngestionDocument] = []
+        try:
+            async with pool.acquire() as connection:
+                for _ in range(2):
+                    paper_id = f"rechunk-test-{uuid4().hex}"
+                    await connection.execute(
+                        "INSERT INTO papers (id, title) VALUES ($1, 'Rechunk fixture')",
+                        paper_id,
+                    )
+                    document_id = await connection.fetchval(
+                        """
+                        INSERT INTO documents (paper_id, source_type, version)
+                        VALUES ($1, 'integration-test', 'v1') RETURNING id
+                        """,
+                        paper_id,
+                    )
+                    assert isinstance(document_id, UUID)
+                    documents.append(
+                        IngestionDocument(
+                            document_id=document_id,
+                            input_fingerprint="sha256:" + "a" * 64,
+                        )
+                    )
+            job_id = await repository.create_job(
+                configuration={"fixture": "rechunk"},
+                configuration_id="sha256:" + "b" * 64,
+                code_revision="docs-only-revision-one",
+                execution_profile="test",
+            )
+            extraction = _RunnerFixtureStage()
+
+            class ChunkStage:
+                def __init__(self, *, fail_second_once: bool = False) -> None:
+                    self.calls: list[UUID] = []
+                    self.fail_second_once = fail_second_once
+
+                async def process(self, context: StageContext) -> StageOutcome:
+                    self.calls.append(context.document_id)
+                    if (
+                        self.fail_second_once
+                        and context.document_id == documents[1].document_id
+                    ):
+                        self.fail_second_once = False
+                        raise SharedPipelineFailure(
+                            "synthetic_chunk_outage", "temporary chunk worker outage"
+                        )
+                    digest = hashlib.sha256(
+                        f"{context.stage}:{context.document_id}:"
+                        f"{context.configuration_id}".encode()
+                    ).hexdigest()
+                    return StageOutcome(output_fingerprint=f"sha256:{digest}")
+
+            chunking_v1 = ChunkStage(fail_second_once=True)
+            original_stages = (
+                PipelineStage("extraction", "sha256:" + "c" * 64, extraction),
+                PipelineStage("chunking", "sha256:" + "d" * 64, chunking_v1),
+            )
+            with pytest.raises(IngestionExecutionError):
+                await runner.run(job_id, documents, original_stages)
+            assert extraction.calls == [
+                documents[0].document_id,
+                documents[1].document_id,
+            ]
+
+            chunking_v2 = ChunkStage()
+            updated_stages = (
+                PipelineStage("extraction", "sha256:" + "c" * 64, extraction),
+                PipelineStage("chunking", "sha256:" + "e" * 64, chunking_v2),
+            )
+            targeted = await runner.run(
+                job_id,
+                documents,
+                updated_stages,
+                selected_document_ids=(documents[1].document_id,),
+                from_stage="chunking",
+                retry_reason="Apply the updated chunking limits.",
+            )
+            assert targeted.status == "failed"
+            assert extraction.calls == [
+                documents[0].document_id,
+                documents[1].document_id,
+            ]
+            assert chunking_v2.calls == [documents[1].document_id]
+
+            resumed = await runner.run(job_id, documents, updated_stages)
+            assert resumed.status == "completed"
+            assert extraction.calls == [
+                documents[0].document_id,
+                documents[1].document_id,
+            ]
+            assert chunking_v2.calls == [
+                documents[1].document_id,
+                documents[0].document_id,
+            ]
+            summary = await repository.get_summary(job_id)
+            assert summary.completed_documents == summary.document_count == 2
+        finally:
+            await pool.close()
+
+    asyncio.run(exercise())
 
 
 def test_runner_cancellation_closes_attempt_and_releases_job_lease() -> None:

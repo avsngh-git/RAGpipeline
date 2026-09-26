@@ -9,7 +9,7 @@ import resource
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Mapping, cast
+from typing import Mapping
 from uuid import UUID, uuid5
 
 import asyncpg  # type: ignore[import-untyped]
@@ -24,6 +24,7 @@ from research_platform.ingestion.embeddings import (
 )
 from research_platform.ingestion.evidence import (
     ChunkingConfig,
+    EvidenceChunkingError,
     EvidenceUnit,
     ExtractedSection,
     ExtractedTable,
@@ -38,7 +39,6 @@ from research_platform.ingestion.pdf_extraction import (
     PdfExtractionError,
     tables_requiring_vision_review,
 )
-from research_platform.ingestion.provenance import code_revision
 from research_platform.ingestion.runner import (
     DocumentStageFailure,
     StageContext,
@@ -49,12 +49,18 @@ from research_platform.ingestion.snapshots import SnapshotRepository
 
 @dataclass(frozen=True)
 class PreparedPdfPipeline:
-    effective_configuration: Mapping[str, object]
-    configuration_id: str
+    extraction_configuration: Mapping[str, object]
+    extraction_configuration_id: str
+    chunking_configuration: Mapping[str, object]
+    chunking_configuration_id: str
+
+
+EXTRACTION_IMPLEMENTATION_REVISION = "phase1-pdf-extraction-v2"
+CHUNKING_IMPLEMENTATION_REVISION = "phase1-evidence-chunking-v2"
 
 
 class PdfEvidenceProcessor:
-    """Extract, chunk and persist one authorized snapshot member idempotently."""
+    """Extract source evidence once, then chunk its persisted output independently."""
 
     def __init__(
         self,
@@ -92,16 +98,18 @@ class PdfEvidenceProcessor:
         self._prepared: PreparedPdfPipeline | None = None
 
     async def prepare(self) -> PreparedPdfPipeline:
-        """Load the fixed parser and offset tokenizer before leasing a job."""
+        """Prepare deterministic fingerprints for parser and chunking stages."""
         if self._prepared is not None:
             return self._prepared
         parser_configuration, parser_id = await asyncio.to_thread(self._parser.prepare)
+        if not parser_id.startswith("sha256:"):
+            raise RuntimeError("parser returned an invalid configuration identity")
         await asyncio.to_thread(self._tokenizer.token_spans, "")
-        processor_revision = await asyncio.to_thread(code_revision)
-        effective_configuration: dict[str, object] = {
+        extraction_configuration: dict[str, object] = {
             "schema_version": 1,
+            "implementation_revision": EXTRACTION_IMPLEMENTATION_REVISION,
             "parser": parser_configuration,
-            "chunking": self._chunking.to_dict(),
+            "parser_configuration_id": parser_id,
             "source_content_review": {
                 "identity": self._source_content_review_identity,
                 "excluded_source_pages_by_document": {
@@ -112,28 +120,40 @@ class PdfEvidenceProcessor:
                     )
                 },
             },
-            "processor_code_revision": processor_revision,
-            "chunk_tokenizer": {
+        }
+        chunking_configuration: dict[str, object] = {
+            "schema_version": 1,
+            "implementation_revision": CHUNKING_IMPLEMENTATION_REVISION,
+            "chunking": self._chunking.to_dict(),
+            "tokenizer": {
                 "model": E5_SMALL_V2_MODEL,
                 "revision": E5_SMALL_V2_REVISION,
                 "preprocessing_revision": E5_SMALL_V2_PREPROCESSING,
             },
         }
-        configuration_id = _identity(effective_configuration)
         self._prepared = PreparedPdfPipeline(
-            effective_configuration=effective_configuration,
-            configuration_id=configuration_id,
+            extraction_configuration=extraction_configuration,
+            extraction_configuration_id=_identity(extraction_configuration),
+            chunking_configuration=chunking_configuration,
+            chunking_configuration_id=_identity(chunking_configuration),
         )
-        if not parser_id.startswith("sha256:"):
-            raise RuntimeError("parser returned an invalid configuration identity")
         return self._prepared
 
     async def process(self, context: StageContext) -> StageOutcome:
         prepared = await self.prepare()
-        if context.configuration_id != prepared.configuration_id:
+        if context.stage == "extraction":
+            return await self._extract(context, prepared)
+        if context.stage == "chunking":
+            return await self._chunk_and_persist(context, prepared)
+        raise ValueError("PDF processor received an unsupported stage")
+
+    async def _extract(
+        self, context: StageContext, prepared: PreparedPdfPipeline
+    ) -> StageOutcome:
+        if context.configuration_id != prepared.extraction_configuration_id:
             raise DocumentStageFailure(
                 "pipeline_configuration_changed",
-                "effective extraction configuration changed; create a new job",
+                "effective parser configuration changed; create a new job",
                 retryable=False,
             )
         started = time.perf_counter()
@@ -147,6 +167,51 @@ class PdfEvidenceProcessor:
                 "the selected source PDF checksum changed after job creation",
                 retryable=False,
             )
+        extraction_id = uuid5(context.document_id, prepared.extraction_configuration_id)
+        try:
+            stored = await EvidenceRepository(self._pool).load_for_correction(
+                extraction_id
+            )
+        except ValueError:
+            stored = None
+        if stored is not None and stored.result.status == "failed":
+            stored = None
+        if stored is not None:
+            if (
+                stored.result.document_id != context.document_id
+                or stored.result.configuration_id
+                != prepared.extraction_configuration_id
+                or stored.source_pdf_sha256 != artifact.sha256
+                or stored.result.source_artifact_id != artifact.association_id
+            ):
+                raise DocumentStageFailure(
+                    "extraction_checkpoint_mismatch",
+                    "the stored extraction does not match the selected source",
+                    retryable=False,
+                )
+            await SnapshotRepository(self._pool).set_extraction(
+                self._snapshot_id, context.document_id, extraction_id
+            )
+            cached_references: dict[str, object] = {
+                "snapshot_id": str(self._snapshot_id),
+                "extraction_id": str(extraction_id),
+                "source_artifact_id": str(artifact.association_id),
+                "configuration_id": prepared.extraction_configuration_id,
+                "section_count": len(stored.result.sections),
+                "table_count": len(stored.result.tables),
+            }
+            return StageOutcome(
+                output_fingerprint=stored.output_fingerprint,
+                output_references=cached_references,
+                resource_measurements={
+                    "elapsed_seconds": round(time.perf_counter() - started, 3),
+                    "source_bytes": artifact.byte_size,
+                    "sections": len(stored.result.sections),
+                    "tables": len(stored.result.tables),
+                    "reused_existing": True,
+                },
+            )
+
         try:
             pdf_path = await asyncio.to_thread(
                 resolve_registered_pdf,
@@ -162,7 +227,6 @@ class PdfEvidenceProcessor:
                 retryable=False,
             ) from None
 
-        extraction_id = uuid5(context.document_id, prepared.configuration_id)
         try:
             result = await asyncio.to_thread(
                 self._parser.extract,
@@ -177,11 +241,10 @@ class PdfEvidenceProcessor:
                 "the selected PDF could not be processed by the pinned parser",
                 retryable=error.category in {"parser_error", "parser_partial"},
             ) from None
-        parser_id = _identity(dict(result.configuration))
-        expected_parser = _identity(
-            cast(Mapping[str, object], prepared.effective_configuration["parser"])
-        )
-        if parser_id != expected_parser:
+        expected_parser_id = prepared.extraction_configuration[
+            "parser_configuration_id"
+        ]
+        if result.configuration_id != expected_parser_id:
             raise DocumentStageFailure(
                 "parser_configuration_changed",
                 "the effective parser options changed during the run",
@@ -199,66 +262,143 @@ class PdfEvidenceProcessor:
             replace(table, requires_vision_review=table.ordinal in flagged)
             for table in result.tables
         )
-        result_configuration = dict(prepared.effective_configuration)
         result = replace(
             result,
             extraction_id=extraction_id,
-            configuration_id=prepared.configuration_id,
-            configuration=result_configuration,
+            configuration_id=prepared.extraction_configuration_id,
+            configuration=dict(prepared.extraction_configuration),
             tables=reviewed_tables,
         )
-        units = await self._chunk_async(result)
         try:
-            persisted = await EvidenceRepository(self._pool).persist(result, units)
+            persisted = await EvidenceRepository(self._pool).persist(result, ())
             await SnapshotRepository(self._pool).set_extraction(
                 self._snapshot_id, context.document_id, extraction_id
             )
-        except ValueError as error:
-            # Parser/data-controlled details are intentionally omitted from job logs.
-            category = (
-                "table_chunk_limit_exceeded"
-                if "table row exceeds" in str(error)
-                else "evidence_persistence_invalid"
-            )
+        except ValueError:
             raise DocumentStageFailure(
-                category, "evidence could not be persisted"
+                "evidence_persistence_invalid",
+                "extracted evidence could not be persisted",
             ) from None
 
         output_references: dict[str, object] = {
             "snapshot_id": str(self._snapshot_id),
             "extraction_id": str(extraction_id),
             "source_artifact_id": str(artifact.association_id),
-            "configuration_id": prepared.configuration_id,
+            "configuration_id": prepared.extraction_configuration_id,
             "section_count": persisted.section_count,
             "table_count": persisted.table_count,
-            "chunk_count": persisted.evidence_unit_count,
             "vision_review_table_ordinals": sorted(flagged),
         }
-        fingerprint = _identity(
-            {
-                **output_references,
-                "evidence_unit_ids": [unit.id for unit in units],
-            }
+        return StageOutcome(
+            output_fingerprint=persisted.output_fingerprint,
+            output_references=output_references,
+            resource_measurements={
+                "elapsed_seconds": round(time.perf_counter() - started, 3),
+                "source_bytes": artifact.byte_size,
+                "process_peak_rss_bytes": resource.getrusage(
+                    resource.RUSAGE_SELF
+                ).ru_maxrss
+                * 1024,
+                "sections": persisted.section_count,
+                "tables": persisted.table_count,
+                "reused_existing": persisted.reused_existing,
+            },
         )
-        measurements = {
-            "elapsed_seconds": round(time.perf_counter() - started, 3),
-            "source_bytes": artifact.byte_size,
-            "process_peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            * 1024,
-            "sections": persisted.section_count,
-            "tables": persisted.table_count,
-            "chunks": persisted.evidence_unit_count,
-            "flagged_tables": len(flagged),
-            "reused_existing": persisted.reused_existing,
+
+    async def _chunk_and_persist(
+        self, context: StageContext, prepared: PreparedPdfPipeline
+    ) -> StageOutcome:
+        if context.configuration_id != prepared.chunking_configuration_id:
+            raise DocumentStageFailure(
+                "chunking_configuration_changed",
+                "effective chunking configuration changed; retry the chunking stage",
+                retryable=False,
+            )
+        started = time.perf_counter()
+        artifact = await ArtifactRepository(self._pool).permitted_source_pdf(
+            context.document_id, require_indexing=True
+        )
+        if context.input_fingerprint != f"sha256:{artifact.sha256}":
+            raise DocumentStageFailure(
+                "source_artifact_changed",
+                "the selected source PDF checksum changed after job creation",
+                retryable=False,
+            )
+        extraction_id = uuid5(context.document_id, prepared.extraction_configuration_id)
+        try:
+            stored = await EvidenceRepository(self._pool).load_for_correction(
+                extraction_id
+            )
+        except ValueError:
+            raise DocumentStageFailure(
+                "extraction_checkpoint_missing",
+                "the matching extraction checkpoint is unavailable",
+                retryable=False,
+            ) from None
+        if stored.result.status == "failed":
+            raise DocumentStageFailure(
+                "extraction_checkpoint_failed",
+                "the stored extraction did not produce usable evidence",
+                retryable=False,
+            )
+        if (
+            stored.result.configuration_id != prepared.extraction_configuration_id
+            or stored.result.document_id != context.document_id
+            or stored.source_pdf_sha256 != artifact.sha256
+            or stored.result.source_artifact_id != artifact.association_id
+        ):
+            raise DocumentStageFailure(
+                "extraction_checkpoint_mismatch",
+                "the stored extraction does not match the selected source",
+                retryable=False,
+            )
+        units = await self._chunk_async(stored.result)
+        try:
+            persisted = await EvidenceRepository(self._pool).persist_chunks(
+                stored.result,
+                units,
+                chunking_configuration_id=prepared.chunking_configuration_id,
+            )
+            await SnapshotRepository(self._pool).set_chunking_configuration(
+                self._snapshot_id,
+                context.document_id,
+                extraction_id,
+                prepared.chunking_configuration_id,
+            )
+        except ValueError:
+            raise DocumentStageFailure(
+                "evidence_persistence_invalid",
+                "chunked evidence could not be persisted",
+            ) from None
+        output_references = {
+            "extraction_id": str(extraction_id),
+            "chunking_configuration_id": prepared.chunking_configuration_id,
+            "chunk_count": persisted.evidence_unit_count,
         }
         return StageOutcome(
-            output_fingerprint=fingerprint,
+            output_fingerprint=persisted.output_fingerprint,
             output_references=output_references,
-            resource_measurements=measurements,
+            resource_measurements={
+                "elapsed_seconds": round(time.perf_counter() - started, 3),
+                "source_bytes": artifact.byte_size,
+                "process_peak_rss_bytes": resource.getrusage(
+                    resource.RUSAGE_SELF
+                ).ru_maxrss
+                * 1024,
+                "sections": len(stored.result.sections),
+                "tables": len(stored.result.tables),
+                "chunks": persisted.evidence_unit_count,
+                "reused_existing": persisted.reused_existing,
+            },
         )
 
     def _chunk(self, result: ExtractionResult) -> tuple[EvidenceUnit, ...]:
         units: list[EvidenceUnit] = []
+        chunking_configuration_id = (
+            self._prepared.chunking_configuration_id
+            if self._prepared is not None
+            else self._chunking.config_id
+        )
         try:
             for section in result.sections:
                 units.extend(
@@ -268,6 +408,7 @@ class PdfEvidenceProcessor:
                         extraction_id=result.extraction_id,
                         config=self._chunking,
                         tokenizer=self._tokenizer,
+                        chunking_configuration_id=chunking_configuration_id,
                     )
                 )
             for table in result.tables:
@@ -278,16 +419,15 @@ class PdfEvidenceProcessor:
                         extraction_id=result.extraction_id,
                         config=self._chunking,
                         tokenizer=self._tokenizer,
+                        chunking_configuration_id=chunking_configuration_id,
                     )
                 )
-        except ValueError as error:
-            if "one table row exceeds" in str(error):
-                raise DocumentStageFailure(
-                    "table_chunk_limit_exceeded",
-                    "a table row is larger than the searchable token limit",
-                    retryable=False,
-                ) from None
-            raise
+        except EvidenceChunkingError:
+            raise DocumentStageFailure(
+                "table_chunk_limit_exceeded",
+                "table evidence exceeds the searchable token limit",
+                retryable=False,
+            ) from None
         return tuple(units)
 
     async def _chunk_async(self, result: ExtractionResult) -> tuple[EvidenceUnit, ...]:

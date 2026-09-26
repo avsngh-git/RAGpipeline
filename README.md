@@ -338,19 +338,23 @@ research-ingest jobs status --job-id 0e6bebc6-706d-49ec-9ad7-296ad48f1f89
 ```
 
 If a new job is interrupted while pending or failed, resume its saved checkpoints.
-Retry one terminally failed extraction from the extraction stage, with a reason:
+Extraction and chunking have separate checkpoints. Retry a terminally failed paper
+from the stage that failed (`extraction` or `chunking`), with a reason. A new job
+with changed chunking settings can reuse the same persisted extraction when its
+source and parser settings still match:
 
 ```bash
 research-ingest jobs resume --job-id JOB_UUID --artifact-root data/artifacts
 research-ingest jobs retry \
   --job-id JOB_UUID \
   --document-id DOCUMENT_UUID \
-  --from-stage extraction \
+  --from-stage chunking \
   --reason "Reviewed cause and retry rationale" \
   --artifact-root data/artifacts
 ```
 
-The accepted 100-paper job is already complete; its single expired lease was
+Use `--from-stage extraction` when the parser failed. The accepted 100-paper job
+is already complete; its single expired lease was
 recovered on the next attempt. Keep the job's recorded sources and configuration
 fixed. Source or configuration changes require a new draft/job with new identities.
 

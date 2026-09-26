@@ -388,6 +388,38 @@ def test_artifact_store_reports_capacity_and_unregistered_files(
     )
 
 
+def test_artifact_store_instances_share_the_global_byte_limit(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "shared-artifacts"
+    stores = tuple(
+        ArtifactStore(root, maximum_file_bytes=20, maximum_store_bytes=20)
+        for _ in range(2)
+    )
+    payloads = (b"%PDF-1.7" + b"a" * 5, b"%PDF-1.7" + b"b" * 5)
+
+    async def delayed_chunks(payload: bytes):
+        yield payload[:8]
+        await asyncio.sleep(0.01)
+        yield payload[8:]
+
+    async def exercise() -> None:
+        outcomes = await asyncio.gather(
+            *(
+                store.store_pdf(delayed_chunks(payload))
+                for store, payload in zip(stores, payloads, strict=True)
+            ),
+            return_exceptions=True,
+        )
+        assert sum(not isinstance(outcome, BaseException) for outcome in outcomes) == 1
+        assert (
+            sum(isinstance(outcome, ArtifactLimitExceeded) for outcome in outcomes) == 1
+        )
+        assert stores[0].inspect().stored_bytes == len(payloads[0])
+
+    asyncio.run(exercise())
+
+
 def test_artifact_store_serializes_writers_at_the_global_byte_limit(
     tmp_path: Path,
 ) -> None:

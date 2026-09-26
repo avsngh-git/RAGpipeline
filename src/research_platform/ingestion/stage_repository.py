@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -101,6 +101,140 @@ class IngestionJobRepository:
         if not isinstance(job_id, UUID):
             raise RuntimeError("database did not return an ingestion job ID")
         return job_id
+
+    async def record_plan(
+        self,
+        job_id: UUID,
+        document_inputs: Sequence[tuple[UUID, str]],
+        *,
+        terminal_stage: str,
+        terminal_configuration_id: str,
+    ) -> None:
+        """Persist and freeze all planned documents and the required final stage."""
+        if not document_inputs:
+            raise ValueError("an ingestion job plan needs at least one document")
+        if not isinstance(terminal_stage, str) or not _STAGE_NAME.fullmatch(
+            terminal_stage
+        ):
+            raise ValueError("terminal_stage must be a lowercase identifier")
+        _validate_identity(terminal_configuration_id, "terminal_configuration_id")
+        normalized: list[tuple[UUID, str]] = []
+        for document_id, input_fingerprint in document_inputs:
+            if not isinstance(document_id, UUID):
+                raise ValueError("planned document IDs must be UUID values")
+            _validate_identity(input_fingerprint, "planned input_fingerprint")
+            normalized.append((document_id, input_fingerprint))
+        if len({document_id for document_id, _fingerprint in normalized}) != len(
+            normalized
+        ):
+            raise ValueError("an ingestion job plan cannot repeat a document")
+        expected_membership = {
+            (document_id, fingerprint, terminal_stage)
+            for document_id, fingerprint in normalized
+        }
+
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                job = await connection.fetchrow(
+                    "SELECT status FROM ingestion_jobs WHERE id = $1 FOR UPDATE",
+                    job_id,
+                )
+                if job is None:
+                    raise JobStateError("ingestion job does not exist")
+                if job["status"] in {"running", "completed"}:
+                    raise JobStateError(
+                        "cannot update a plan while a job is running or completed"
+                    )
+                stored_rows = await connection.fetch(
+                    """
+                    SELECT document_id, input_fingerprint, terminal_stage,
+                           terminal_configuration_id
+                    FROM ingestion_job_plan WHERE job_id = $1
+                    """,
+                    job_id,
+                )
+                if stored_rows:
+                    stored_membership = {
+                        (
+                            row["document_id"],
+                            row["input_fingerprint"],
+                            row["terminal_stage"],
+                        )
+                        for row in stored_rows
+                    }
+                    if stored_membership != expected_membership:
+                        raise JobStateError(
+                            "ingestion job plan changed; create a new job"
+                        )
+                    await connection.execute(
+                        """
+                        UPDATE ingestion_job_plan
+                        SET terminal_configuration_id = $2
+                        WHERE job_id = $1
+                        """,
+                        job_id,
+                        terminal_configuration_id,
+                    )
+                    return
+                if job["status"] not in {"pending", "failed", "cancelled"}:
+                    raise JobStateError(
+                        "cannot add a plan while ingestion is running or completed"
+                    )
+                for document_id, input_fingerprint in normalized:
+                    await connection.execute(
+                        """
+                        INSERT INTO ingestion_job_plan
+                            (job_id, document_id, input_fingerprint, terminal_stage,
+                             terminal_configuration_id)
+                        VALUES ($1, $2, $3, $4, $5)
+                        """,
+                        job_id,
+                        document_id,
+                        input_fingerprint,
+                        terminal_stage,
+                        terminal_configuration_id,
+                    )
+                    await connection.execute(
+                        """
+                        INSERT INTO ingestion_documents
+                            (job_id, document_id, status, stage)
+                        VALUES ($1, $2, 'pending', $3)
+                        ON CONFLICT (job_id, document_id) DO NOTHING
+                        """,
+                        job_id,
+                        document_id,
+                        terminal_stage,
+                    )
+
+    async def plan_is_complete(self, job_id: UUID) -> bool:
+        """Whether every planned document reached its configured terminal stage."""
+        async with self._pool.acquire() as connection:
+            incomplete = await connection.fetchval(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM ingestion_job_plan plan
+                    LEFT JOIN ingestion_documents document
+                      ON document.job_id = plan.job_id
+                     AND document.document_id = plan.document_id
+                    WHERE plan.job_id = $1
+                      AND (
+                          document.status IS DISTINCT FROM 'completed'
+                          OR NOT EXISTS (
+                              SELECT 1 FROM ingestion_stage_attempts attempt
+                              WHERE attempt.job_id = plan.job_id
+                                AND attempt.document_id = plan.document_id
+                                AND attempt.stage = plan.terminal_stage
+                                AND attempt.configuration_id =
+                                    plan.terminal_configuration_id
+                                AND attempt.status = 'completed'
+                          )
+                      )
+                )
+                """,
+                job_id,
+            )
+        return incomplete is False
 
     async def get_configuration(self, job_id: UUID) -> Mapping[str, object]:
         """Load the non-secret configuration needed to resume a persisted job."""
@@ -474,6 +608,36 @@ class IngestionJobRepository:
                     raise JobStateError(
                         "cannot finish a job with running stage attempts"
                     )
+                if status == "completed":
+                    incomplete_plan = await connection.fetchval(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM ingestion_job_plan plan
+                            LEFT JOIN ingestion_documents document
+                              ON document.job_id = plan.job_id
+                             AND document.document_id = plan.document_id
+                            WHERE plan.job_id = $1
+                              AND (
+                                  document.status IS DISTINCT FROM 'completed'
+                                  OR NOT EXISTS (
+                                      SELECT 1 FROM ingestion_stage_attempts attempt
+                                      WHERE attempt.job_id = plan.job_id
+                                        AND attempt.document_id = plan.document_id
+                                        AND attempt.stage = plan.terminal_stage
+                                        AND attempt.configuration_id =
+                                            plan.terminal_configuration_id
+                                        AND attempt.status = 'completed'
+                                  )
+                              )
+                        )
+                        """,
+                        job_id,
+                    )
+                    if incomplete_plan:
+                        raise JobStateError(
+                            "cannot complete a job with unfinished planned documents"
+                        )
                 await connection.execute(
                     """
                     UPDATE ingestion_jobs

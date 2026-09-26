@@ -117,3 +117,26 @@ def test_extraction_fingerprint_migration_adds_output_hash() -> None:
 
     assert "ALTER TABLE extractions" in migration
     assert "output_sha256" in migration
+
+
+def test_ingestion_job_plan_migration_persists_terminal_membership() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "013_ingestion_job_plans.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE ingestion_job_plan" in migration
+    assert "input_fingerprint" in migration
+    assert "terminal_stage" in migration
+    assert "terminal_configuration_id" in migration
+
+
+def test_snapshot_chunk_configuration_migration_tracks_active_chunk_set() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "migrations"
+        / "014_snapshot_chunking_configuration.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "ALTER TABLE snapshot_items" in migration
+    assert "chunking_configuration_id" in migration
+    assert "sha256:[0-9a-f]{64}" in migration

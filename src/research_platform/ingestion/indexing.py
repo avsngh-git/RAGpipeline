@@ -465,6 +465,9 @@ class IndexRepository:
                   ON section.id = chunk.section_id
                  AND section.extraction_id = chunk.extraction_id
                 WHERE item.snapshot_id = $1
+                  AND (item.chunking_configuration_id IS NULL
+                       OR chunk.metadata ->> 'chunking_configuration_id' =
+                          item.chunking_configuration_id)
                   AND extraction.status IN ('completed', 'partial')
                   AND artifact.storage_permitted
                   AND artifact.indexing_permitted

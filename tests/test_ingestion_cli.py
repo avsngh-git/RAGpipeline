@@ -1,10 +1,13 @@
 """Tests for Phase 1 operator command parsing."""
 
+import sys
 from pathlib import Path
 from uuid import UUID
 
+import httpx
 import pytest
 
+from research_platform.ingestion import cli
 from research_platform.ingestion.cli import build_parser
 
 
@@ -283,3 +286,45 @@ def test_pdf_job_index_and_flagged_table_commands_parse_review_gates() -> None:
     assert rebuild.index_command == "rebuild"
     assert query.limit == 10
     assert review.table_ordinal == 4
+
+
+@pytest.mark.parametrize("status_code", [401, 429])
+def test_openalex_budget_http_errors_are_sanitized_in_cli_output(
+    status_code: int, monkeypatch, capsys
+) -> None:
+    secret = "fake-openalex-key-for-sanitization-test"
+
+    async def execute(_args) -> None:
+        def respond(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["api_key"] == secret
+            return httpx.Response(status_code, request=request)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            await cli._read_openalex_free_budget(http, secret)
+
+    monkeypatch.setattr(cli, "_load_local_environment", lambda: None)
+    monkeypatch.setattr(cli, "_execute", execute)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "research-ingest",
+            "membership",
+            "acquire",
+            "--decision",
+            "membership.json",
+            "--document-map",
+            "documents.json",
+            "--source-route-review",
+            "routes.json",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+
+    captured = capsys.readouterr()
+    assert error.value.code == 2
+    assert f"HTTP {status_code}" in captured.err
+    assert secret not in captured.out
+    assert secret not in captured.err

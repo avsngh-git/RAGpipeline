@@ -3,15 +3,38 @@
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import hashlib
 import os
 import re
 import shutil
 import tempfile
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+
+
+@asynccontextmanager
+async def _exclusive_file_lock(path: Path) -> AsyncIterator[None]:
+    """Coordinate artifact writers across store instances and local processes."""
+    descriptor = await asyncio.to_thread(os.open, path, os.O_CREAT | os.O_RDWR, 0o600)
+    acquire_task = asyncio.create_task(
+        asyncio.to_thread(fcntl.flock, descriptor, fcntl.LOCK_EX)
+    )
+    try:
+        await asyncio.shield(acquire_task)
+    except asyncio.CancelledError:
+        await asyncio.shield(acquire_task)
+        await asyncio.to_thread(fcntl.flock, descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+        raise
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(fcntl.flock, descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
 
 
 class ArtifactError(RuntimeError):
@@ -108,7 +131,9 @@ class ArtifactStore:
     ) -> StoredArtifact:
         """Serialize this store's writers so concurrent streams cannot exceed its cap."""
         async with self._write_lock:
-            return await self._store_pdf(chunks, declared_length=declared_length)
+            self.root.mkdir(parents=True, exist_ok=True)
+            async with _exclusive_file_lock(self.root / ".artifact-store.lock"):
+                return await self._store_pdf(chunks, declared_length=declared_length)
 
     async def _store_pdf(
         self,

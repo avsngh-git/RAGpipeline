@@ -9,12 +9,13 @@ import json
 import os
 import re
 import sys
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager, suppress
 from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 from math import isfinite
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -58,10 +59,17 @@ from research_platform.ingestion.indexing import (
 )
 from research_platform.ingestion.manifest_report import build_manifest_review_report
 from research_platform.ingestion.membership import MembershipDecision
-from research_platform.ingestion.openalex import OpenAlexClient, OpenAlexWork
+from research_platform.ingestion.openalex import (
+    OpenAlexClient,
+    OpenAlexRequestError,
+    OpenAlexWork,
+)
 from research_platform.ingestion.papers import PaperRepository
 from research_platform.ingestion.pdf_extraction import DoclingPdfConfig
-from research_platform.ingestion.processing import PdfEvidenceProcessor
+from research_platform.ingestion.processing import (
+    PdfEvidenceProcessor,
+    PreparedPdfPipeline,
+)
 from research_platform.ingestion.provenance import code_revision
 from research_platform.ingestion.reviewed_corrections import (
     ReviewedExtraction,
@@ -318,7 +326,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     job_retry.add_argument("--job-id", type=UUID, required=True)
     job_retry.add_argument("--document-id", type=UUID, required=True)
-    job_retry.add_argument("--from-stage", choices=("extraction",), required=True)
+    job_retry.add_argument(
+        "--from-stage", choices=("extraction", "chunking"), required=True
+    )
     job_retry.add_argument("--reason", required=True)
     job_retry.add_argument("--artifact-root", type=Path, default=Path("data/artifacts"))
     job_retry.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
@@ -711,7 +721,14 @@ async def _execute_jobs(
             "document_inputs": document_inputs,
             "parser_configuration": DoclingPdfConfig().to_dict(),
             "chunking_configuration": chunking.to_dict(),
-            "pipeline_configuration_id": prepared.configuration_id,
+            "extraction_configuration_id": prepared.extraction_configuration_id,
+            "chunking_configuration_id": prepared.chunking_configuration_id,
+            "pipeline_configuration_id": _configuration_identity(
+                {
+                    "extraction": prepared.extraction_configuration_id,
+                    "chunking": prepared.chunking_configuration_id,
+                }
+            ),
             "execution_profile": execution_profile,
             "membership_decision_sha256": membership_digest,
             "source_content_review_sha256": source_review_identity,
@@ -732,7 +749,7 @@ async def _execute_jobs(
             args,
             jobs,
             processor,
-            prepared.configuration_id,
+            prepared,
             job_id,
             documents,
         )
@@ -829,15 +846,18 @@ async def _execute_jobs(
         source_content_review_identity=source_review_identity,
     )
     prepared = await processor.prepare()
-    expected_pipeline_id = job_configuration.get("pipeline_configuration_id")
-    if expected_pipeline_id != prepared.configuration_id:
-        raise ValueError("effective parser or tokenizer changed; create a new job")
+    expected_extraction_id = job_configuration.get("extraction_configuration_id")
+    if (
+        isinstance(expected_extraction_id, str)
+        and expected_extraction_id != prepared.extraction_configuration_id
+    ):
+        raise ValueError("effective parser configuration changed; create a new job")
     if args.job_command == "resume":
         await _run_pdf_job(
             args,
             jobs,
             processor,
-            prepared.configuration_id,
+            prepared,
             job_id,
             expected_documents,
         )
@@ -846,7 +866,7 @@ async def _execute_jobs(
         args,
         jobs,
         processor,
-        prepared.configuration_id,
+        prepared,
         job_id,
         expected_documents,
         selected_document_ids=(args.document_id,),
@@ -859,7 +879,7 @@ async def _run_pdf_job(
     args: argparse.Namespace,
     repository: IngestionJobRepository,
     processor: PdfEvidenceProcessor,
-    configuration_id: str,
+    prepared: PreparedPdfPipeline,
     job_id: UUID,
     documents: list[IngestionDocument],
     *,
@@ -867,15 +887,22 @@ async def _run_pdf_job(
     from_stage: str | None = None,
     retry_reason: str | None = None,
 ) -> None:
-    stage = PipelineStage(
-        name="extraction",
-        configuration_id=configuration_id,
-        processor=processor,
+    stages = (
+        PipelineStage(
+            name="extraction",
+            configuration_id=prepared.extraction_configuration_id,
+            processor=processor,
+        ),
+        PipelineStage(
+            name="chunking",
+            configuration_id=prepared.chunking_configuration_id,
+            processor=processor,
+        ),
     )
     report = await IngestionRunner(repository).run(
         job_id,
         documents,
-        (stage,),
+        stages,
         selected_document_ids=selected_document_ids,
         from_stage=from_stage,
         retry_reason=retry_reason,
@@ -1412,6 +1439,60 @@ async def _execute_membership_import(
     )
 
 
+@asynccontextmanager
+async def _maintained_job_lease(
+    repository: IngestionJobRepository,
+    job_id: UUID,
+    owner_token: UUID,
+    *,
+    lease_seconds: int = 300,
+) -> AsyncIterator[None]:
+    """Keep a persisted exclusive-operation lease alive and finish it safely."""
+    owner_task = asyncio.current_task()
+    lease_error: Exception | None = None
+
+    async def maintain_lease() -> None:
+        nonlocal lease_error
+        try:
+            while True:
+                await asyncio.sleep(max(1, lease_seconds // 3))
+                await repository.heartbeat(
+                    job_id, owner_token, lease_seconds=lease_seconds
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            lease_error = error
+            if owner_task is not None:
+                owner_task.cancel()
+
+    heartbeat_task = asyncio.create_task(maintain_lease())
+    status: Literal["completed", "failed", "cancelled"] = "failed"
+    try:
+        yield
+    except asyncio.CancelledError:
+        status = "cancelled"
+        if lease_error is not None:
+            raise RuntimeError(
+                "operation stopped after its shared ingestion lease was lost"
+            ) from None
+        raise
+    except BaseException:
+        status = "failed"
+        raise
+    else:
+        status = "completed"
+    finally:
+        heartbeat_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat_task
+        try:
+            await repository.finish_job(job_id, owner_token, status=status)
+        except Exception:
+            if status == "completed":
+                raise
+
+
 async def _execute_membership_acquisition(
     args: argparse.Namespace,
     settings: Settings,
@@ -1420,6 +1501,39 @@ async def _execute_membership_acquisition(
     membership = MembershipDecision.load(args.decision).with_source_route_review(
         args.source_route_review
     )
+    operation_configuration: dict[str, object] = {
+        "schema_version": 1,
+        "operation": "membership_acquisition",
+        "membership_decision_sha256": membership.identity,
+        "source_route_review_sha256": membership.source_route_review_identity,
+        "artifact_root": str(args.artifact_root),
+        "maximum_documents": 90,
+        "maximum_requests": 87,
+    }
+    operation_jobs = IngestionJobRepository(pool)
+    operation_job_id = await operation_jobs.create_job(
+        configuration=operation_configuration,
+        configuration_id=_configuration_identity(operation_configuration),
+        code_revision=code_revision(),
+        execution_profile="membership-acquisition",
+        storage_limit_bytes=AcquisitionConfig().maximum_store_bytes,
+    )
+    owner_token = await operation_jobs.claim(operation_job_id, lease_seconds=300)
+    async with _maintained_job_lease(
+        operation_jobs, operation_job_id, owner_token, lease_seconds=300
+    ):
+        await _execute_membership_acquisition_owned(
+            args, settings, pool, membership, operation_job_id
+        )
+
+
+async def _execute_membership_acquisition_owned(
+    args: argparse.Namespace,
+    settings: Settings,
+    pool: asyncpg.Pool,
+    membership: MembershipDecision,
+    operation_job_id: UUID,
+) -> None:
     api_key = settings.openalex_api_key
     if not api_key:
         raise ValueError("set OPENALEX_API_KEY in the environment or project .env file")
@@ -1644,6 +1758,7 @@ async def _execute_membership_acquisition(
     print(
         json.dumps(
             {
+                "membership_acquisition_job_id": str(operation_job_id),
                 "membership_decision_id": membership.identity,
                 "source_route_review_id": membership.source_route_review_identity,
                 "registered_existing": already_registered,
@@ -1684,10 +1799,19 @@ async def _execute_membership_acquisition(
 async def _read_openalex_free_budget(
     http: httpx.AsyncClient, api_key: str
 ) -> dict[str, float]:
-    response = await http.get(
-        "https://api.openalex.org/rate-limit", params={"api_key": api_key}
-    )
-    response.raise_for_status()
+    try:
+        response = await http.get(
+            "https://api.openalex.org/rate-limit", params={"api_key": api_key}
+        )
+        response.raise_for_status()
+    except httpx.HTTPStatusError as error:
+        raise OpenAlexRequestError(
+            f"OpenAlex rate-limit preflight failed (HTTP {error.response.status_code})"
+        ) from None
+    except httpx.RequestError:
+        raise OpenAlexRequestError(
+            "OpenAlex rate-limit preflight failed (network error)"
+        ) from None
     payload = _mapping(response.json(), "OpenAlex rate-limit response")
     rate_limit_value = payload.get("rate_limit")
     rate_limit = rate_limit_value if isinstance(rate_limit_value, Mapping) else payload

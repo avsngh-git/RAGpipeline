@@ -17,6 +17,10 @@ ExtractionStatus = Literal["completed", "partial", "failed"]
 COORDINATE_SYSTEM = "top-left-normalized-0-1"
 
 
+class EvidenceChunkingError(ValueError):
+    """A valid evidence item cannot fit the configured searchable token limit."""
+
+
 @dataclass(frozen=True)
 class SourceLocation:
     """Location within the exact selected document version."""
@@ -459,8 +463,10 @@ def chunk_section(
     extraction_id: UUID,
     config: ChunkingConfig,
     tokenizer: OffsetTokenizer,
+    chunking_configuration_id: str | None = None,
 ) -> tuple[EvidenceUnit, ...]:
     """Split one section by the selected tokenizer while retaining text offsets."""
+    effective_configuration_id = chunking_configuration_id or config.config_id
     spans = tuple(tokenizer.token_spans(section.text))
     previous_end = 0
     for span in spans:
@@ -489,9 +495,12 @@ def chunk_section(
                 start_offset=start_offset,
                 end_offset=end_offset,
                 source_location=section.source_location,
+                identity_context={
+                    "chunking_configuration_id": effective_configuration_id,
+                },
                 metadata={
                     "heading_path": list(section.heading_path),
-                    "chunking_configuration_id": config.config_id,
+                    "chunking_configuration_id": effective_configuration_id,
                     "token_start": start_token,
                     "token_end_exclusive": end_token,
                 },
@@ -510,6 +519,7 @@ def chunk_table_rows(
     extraction_id: UUID,
     config: ChunkingConfig,
     tokenizer: OffsetTokenizer | None = None,
+    chunking_configuration_id: str | None = None,
 ) -> tuple[EvidenceUnit, ...]:
     """Render bounded row groups, splitting oversized rows into labeled cells.
 
@@ -517,6 +527,7 @@ def chunk_table_rows(
     fallback creates bounded cell chunks with the applicable row/column headers
     repeated, so text stays searchable without truncating or detaching values.
     """
+    effective_configuration_id = chunking_configuration_id or config.config_id
     if table.row_count <= table.header_rows:
         return ()
     header_lines = [
@@ -566,6 +577,7 @@ def chunk_table_rows(
                         config=config,
                         tokenizer=tokenizer,
                         ordinal_start=len(units),
+                        chunking_configuration_id=effective_configuration_id,
                     )
                 )
                 first_data_row += 1
@@ -582,7 +594,10 @@ def chunk_table_rows(
                 start_offset=None,
                 end_offset=None,
                 source_location=table.source_location,
-                identity_context={"table_ordinal": table.ordinal},
+                identity_context={
+                    "table_ordinal": table.ordinal,
+                    "chunking_configuration_id": effective_configuration_id,
+                },
                 metadata={
                     "table_ordinal": table.ordinal,
                     "row_start_inclusive": first_data_row,
@@ -591,6 +606,7 @@ def chunk_table_rows(
                     "caption": table.caption,
                     "units": table.units,
                     "footnotes": list(table.footnotes),
+                    "chunking_configuration_id": effective_configuration_id,
                 },
             )
         )
@@ -607,6 +623,7 @@ def _chunk_oversized_table_row(
     config: ChunkingConfig,
     tokenizer: OffsetTokenizer,
     ordinal_start: int,
+    chunking_configuration_id: str,
 ) -> tuple[EvidenceUnit, ...]:
     cells_by_coordinate = {(cell.row, cell.column): cell for cell in table.cells}
     units: list[EvidenceUnit] = []
@@ -676,7 +693,7 @@ def _chunk_oversized_table_row(
                     break
                 end_token -= 1
             if end_token == start_token:
-                raise ValueError(
+                raise EvidenceChunkingError(
                     "table cell header context exceeds the configured searchable token limit"
                 )
 
@@ -696,6 +713,7 @@ def _chunk_oversized_table_row(
                         "cell_row": row,
                         "cell_column": cell.column,
                         "segment_index": segment_index,
+                        "chunking_configuration_id": chunking_configuration_id,
                     },
                     metadata={
                         "table_ordinal": table.ordinal,
@@ -711,6 +729,7 @@ def _chunk_oversized_table_row(
                         "caption": table.caption,
                         "units": table.units,
                         "footnotes": list(table.footnotes),
+                        "chunking_configuration_id": chunking_configuration_id,
                     },
                 )
             )
