@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-05 complete; P2-06 pending.
+Status: approved 2026-09-26; P2-01–P2-05 complete; P2-06 in progress.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-05 are complete. P2-06 is the next pending task. The table is the single implementation status checklist.
+P2-01–P2-05 are complete. P2-06 is in progress at substep 06.2. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -65,7 +65,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-03 | Snapshot variants and retrieval configurations | P2-02 | Complete |
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
-| P2-06 | BM25 lexical retrieval | P2-03 | Pending |
+| P2-06 | BM25 lexical retrieval | P2-03 | In progress |
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Pending |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Pending |
@@ -211,7 +211,7 @@ execute. Four new unit tests, the profile tests, and synthetic parent/variant an
 serving-boundary integration checks pass. P2-03 done condition is met: parent and
 variant searches return their own exact selected chunk sets and do not mix vectors.
 
-P2-05 is complete. Continue with **P2-06.1**, piloting BM25S against the current corpus scale and local resource limits.
+P2-05 is complete. P2-06.1 confirms BM25S is feasible as a candidate; continue with **P2-06.2** to define the scientific analyzer.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 
@@ -355,6 +355,25 @@ run serialization, and a small evaluation command over fake search services. No 
 or network download is required for these tests.
 
 ## P2-06 — Implement BM25 lexical search
+
+**06.1 complete 2026-09-26:** BM25S 0.3.11's PyPI wheel hash was verified and
+installed only under `/tmp`; no project dependency was added. The read-only
+accepted-snapshot export contained 100 papers/44,277 chunks (selection fingerprint
+`sha256:a736b914cc350f60039a81b1944214983526c3423206109bf664abb985264dae`).
+On Python 3.12.14/NumPy 2.5.3, NumPy build peak RSS was 140.07 MiB; indexing
+took 0.702 s and produced a 14,136,065-byte artifact. Across two retained 250-query
+warm replays per scope, mmap reload was 0.019–0.020 s; full-corpus median/p95 ranged
+1.409–1.444/1.997–2.223 ms; a five-paper (1,329-chunk) eligible-only scope ranged
+1.192–1.229/1.689–1.975 ms.
+BM25S `weight_mask` leaks zero-score excluded rows into top-k. `get_scores` plus
+eligible-row selection before top-k passed the restrictive, singleton, zero-eligible
+and no-match probes; the global-top-50-then-filter path returned no eligible
+hits across the ten query cases while eligible-only top-k returned 260.
+Independent three-document BM25 scores/order matched. The wheel, query runs and
+pilot source are retained under the ignored local-reference/phase2-runs path.
+Details and limitations:
+[BM25S pilot research](../research/phase-2-bm25s-pilot-research.md). No project
+dependency or serving implementation is accepted yet.
 
 **Inputs:** ready variant manifest, canonical evidence, lexical candidate BM25S.
 

@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-05 complete; P2-06 pending.
+Updated: 2026-09-26. Plan approved; P2-01–P2-05 complete; P2-06 in progress.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-06.1**.
+   whose prerequisites are satisfied. Continue at **P2-06.2**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -163,6 +163,19 @@ Preserve the user's existing worktree and publication workflow.
   `pytest -m 'not integration'`: 227 passed / 19 deselected; `ruff check .`,
   `ruff format --check .`, and `mypy` all pass. No model or network was used.
 
+- **P2-06.1 complete:** PyPI release/API/license and the exact wheel were verified;
+  BM25S 0.3.11 was installed only in the private temporary pilot. The accepted
+  snapshot export was read-only and permission-gated at 100 papers/44,277 chunks.
+  Build peak RSS was 140.07 MiB; index size 14,136,065 bytes; build/save took
+  0.702/0.233 s. Across two retained 250-query warm replays per scope, mmap reload
+  was 0.019–0.020 s; full-corpus median/p95 ranged 1.409–1.444/1.997–2.223 ms;
+  five-paper restricted median/p95 ranged 1.192–1.229/1.689–1.975 ms. A synthetic test showed `weight_mask` can return excluded
+  zero-score rows; `get_scores` followed by eligible-only top-k passed full,
+  restrictive, singleton, empty-eligibility and no-match probes. A small independent
+  BM25 score/order example passed. No dependency or service code was added. See
+  `docs/research/phase-2-bm25s-pilot-research.md` for artifact, corpus and timing
+  identities, commands and limits.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -174,8 +187,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-06.1. Verify the current BM25S API, release and license, then
-measure a bounded build/query pilot against the accepted snapshot's corpus scale.
-Do not add the dependency or build a full index until the pilot supports it. ADR-0009
-records exact selection and lineage; the P2-01 entry check records resource
-measurements, migration/restore evidence and local artifact paths.
+**Next step:** P2-06.2. Define and version a conservative analyzer that preserves
+scientifically meaningful one-character terms, acronyms, numbers and punctuation
+variants while leaving source text unchanged. BM25S remains a candidate rather than
+an accepted project dependency until P2-06.2–06.5 complete the implementation gate.
+ADR-0009 records exact selection and lineage; the P2-01 entry check records
+migration/restore evidence and local artifact paths.
