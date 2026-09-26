@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-08 complete; P2-09 in progress.
+Updated: 2026-09-27. Plan approved; P2-01–P2-09 complete; P2-10 next.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-09.2**.
+   whose prerequisites are satisfied. Continue at **P2-10.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -372,6 +372,22 @@ omissions, upstream lower-bound semantics, cap/uniqueness failures and contract
 consistency. Full non-integration suite passes (313 passed, 20 deselected); Ruff,
 format and strict source mypy pass.
 
+**P2-09.5 complete; assistant-reviewed 2026-09-27:**
+`search/paper_graph.py` reads one hop from stored `citations` and
+`unresolved_citations` rows in a read-only repeatable-read transaction. The source
+and resolved endpoints are classified as in-snapshot or outside-snapshot; only
+stored title/year metadata is returned, with no document or passage text.
+Unresolved endpoints return their namespace and identifier without an invented
+title. References and incoming citations use a direction-bound keyset cursor over
+endpoint kind, canonical public ID and edge source; page size is capped at 100. The
+response states that incoming citations cover only the locally observed graph. Five
+unit tests pass for directions, cursor pagination, source/endpoint scope, unresolved
+IDs and invalid cursors. PostgreSQL integration fixtures for paper reads and graph
+reads were added but both skipped because `RESEARCH_PLATFORM_TEST_DATABASE_URL`
+is not configured. Full non-integration suite passes (318 passed, 21 deselected);
+Ruff, format and strict source mypy pass. P2-09 Done behavior is covered offline;
+database-backed SQL execution remains an environment-gated check.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -383,8 +399,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-09.5. Expose one-hop references and citations from stored graph
-links, including unresolved and out-of-snapshot endpoints with pagination and local
-coverage limits. P2-09.1–09.4 are implemented; the PostgreSQL paper-read integration
-case remains gated on the dedicated test database. Keep the accepted review DB
-read-only until its migration/readiness gate is met.
+**Next step:** P2-10.1. Research the shortlisted reranker candidates against
+primary sources and record current licenses, revisions, preprocessing constraints
+and hardware/latency feasibility. P2-09 is complete; run its PostgreSQL integration
+fixtures when the dedicated `research_test` database is configured. Keep the
+accepted review DB read-only until its migration/readiness gate is met.
