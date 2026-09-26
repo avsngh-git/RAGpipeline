@@ -4,14 +4,19 @@ An installable Python project for a scientific literature research platform.
 
 ## Project status
 
-Phase 0 is complete. Phase 1 P1-01 through P1-14 is complete: all 100 papers
-passed exact-source and permission checks, extraction and manual sampling; the
-index reconciles, and the accepted snapshot is finalized. Hosted CI passed on
-revision `ed54a046429a7b288830eca0d1a1bcf4e3de87cf` ([run
-36231611600](https://github.com/avsngh-git/RAGpipeline/actions/runs/36231611600)).
-See the [acceptance evidence report](docs/reference/phase-1-100-paper-acceptance-report.md),
-[approved plan](docs/plans/phase-1-corpus-ingestion.md) and
-[current handoff](docs/plans/phase-1-learning-handoff.md).
+Phase 0 and the Phase 1 corpus milestone are complete. The accepted 100-paper
+snapshot is finalized. Phase 1 remediation passed [hosted CI
+36238052340](https://github.com/avsngh-git/RAGpipeline/actions/runs/36238052340)
+on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
+[audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
+[corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
+
+**Phase 2 planning is approved; implementation has not started.** The
+[detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md)
+contains 20 tasks with numbered substeps, dependencies and completion gates. Start
+with the [agent handoff](docs/plans/phase-2-agent-handoff.md); benchmark work follows
+the [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Implementation
+and source review are delegated, with new judgments labeled assistant-reviewed.
 
 ## Development environment
 

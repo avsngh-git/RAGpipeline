@@ -19,9 +19,13 @@ Choose the smallest coherent implementation that serves the current phase.
 For Phase 0 work, read `docs/plans/phase-0-learning-handoff.md`.
 For Phase 1 work, read `docs/plans/phase-1-learning-handoff.md`, then follow the
 approved tasks in `docs/plans/phase-1-corpus-ingestion.md`.
-These handoffs record progress and the next exercise. The user implements the
-project to learn Python; default to tutoring and reviewing, and implement only
-when explicitly asked.
+For Phase 2 implementation, review, or evaluation, read
+`docs/plans/phase-2-agent-handoff.md`, then follow
+`docs/plans/phase-2-retrieval-evaluation.md`. Read
+`docs/plans/phase-2-evaluation-protocol.md` for benchmark and scoring work.
+The user delegated Phase 2 implementation and source review to the agent;
+record new judgments as assistant-reviewed. These handoffs own phase-specific
+progress and delegation. Otherwise default to tutoring for the user's Python learning.
 
 ### Issue tracker
 

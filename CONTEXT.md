@@ -51,3 +51,23 @@ Multiple document versions may refer to the same original artifact.
 
 **Permission evidence**:
 A reviewed record of the source, applicable license and separate decisions for storing, indexing and displaying passages from a document version.
+
+
+**Retrieval profile**:
+A fixed selection of retrieval and ranking choices bound to a particular corpus
+snapshot and its evidence representation.
+
+**Experimental variant**:
+A separately identifiable corpus representation used to compare retrieval choices
+while preserving the source selection and lineage of an accepted snapshot.
+
+**Source evidence judgment**:
+A relevance assessment of a passage or table cell in a specific document version,
+independent of the boundaries of searchable chunks.
+
+**Evidence requirement group**:
+The source evidence pieces needed together to address an information need, with
+alternative supporting passages distinguished from additional required pieces.
+
+**Question family**:
+One research information need and its paraphrases or closely related variants.

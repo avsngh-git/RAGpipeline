@@ -13,7 +13,9 @@ develop-eggs/
 dist/
 downloads/
 
-docs
+# Keep the local documentation tree out of Git.
+/docs/
+
 eggs/
 .eggs/
 lib/
