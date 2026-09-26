@@ -335,6 +335,17 @@ canonical and identifier-table resolution, but was skipped because
 passes (294 passed, 20 deselected); Ruff, format and strict source mypy pass.
 `PaperMetadataResponse`/HTTP routing remain scheduled under P2-16.
 
+**P2-09.2 complete; assistant-reviewed 2026-09-27:**
+`search/paper_grouping.py` converts ranked, filter-eligible `EvidenceHit` values into
+one paper result each. Paper order follows each paper's strongest hit rank, with
+public paper ID as a stable tie break. The selected hit's component ranks/scores are
+copied intact; scores across chunks are never summed or averaged. Supporting hits
+are distinct by chunk ID and capped by the retrieval profile's
+`paper_support_limit` (three by default). Duplicate chunk IDs fail closed. Six
+focused tests cover long-paper score bias, support caps, stable ties, duplicates and
+empty input. Full non-integration suite passes (300 passed, 20 deselected); Ruff,
+format and strict source mypy pass.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -346,8 +357,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-09.2. Group evidence into papers using the strongest eligible hit
-as the initial evidence score and retain up to three distinct supporting hits. P2-09.1
-is implemented and unit-verified; its isolated PostgreSQL integration case remains
-unrun until the dedicated test database is configured. Keep the accepted review DB
-read-only until its migration/readiness gate is met.
+**Next step:** P2-09.3. Combine metadata and evidence candidates while retaining
+their separate rankings, then apply documented rank-based fusion. P2-09.1–09.2 are
+implemented; the bounded PostgreSQL paper-read integration case still needs the
+dedicated test database. Keep the accepted review DB read-only until its
+migration/readiness gate is met.
