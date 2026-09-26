@@ -458,16 +458,19 @@ class IndexRepository:
                 JOIN document_permission_evidence AS permission
                   ON permission.id = artifact.permission_evidence_id
                  AND permission.document_id = artifact.document_id
+                JOIN snapshot_item_chunks AS selected
+                  ON selected.snapshot_id = item.snapshot_id
+                 AND selected.paper_id = item.paper_id
+                 AND selected.document_id = item.document_id
+                 AND selected.extraction_id = item.extraction_id
                 JOIN chunks AS chunk
-                  ON chunk.document_id = item.document_id
-                 AND chunk.extraction_id = item.extraction_id
+                  ON chunk.id = selected.chunk_id
+                 AND chunk.document_id = selected.document_id
+                 AND chunk.extraction_id = selected.extraction_id
                 LEFT JOIN sections AS section
                   ON section.id = chunk.section_id
                  AND section.extraction_id = chunk.extraction_id
                 WHERE item.snapshot_id = $1
-                  AND (item.chunking_configuration_id IS NULL
-                       OR chunk.metadata ->> 'chunking_configuration_id' =
-                          item.chunking_configuration_id)
                   AND extraction.status IN ('completed', 'partial')
                   AND artifact.storage_permitted
                   AND artifact.indexing_permitted

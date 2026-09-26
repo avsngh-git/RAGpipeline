@@ -83,3 +83,6 @@ alternative supporting passages distinguished from additional required pieces.
 
 **Question family**:
 One research information need and its paraphrases or closely related variants.
+
+**Variant lineage**:
+The relationship between an experimental variant and the finalized snapshot selection from which it was derived. It identifies the source snapshot and evidence selection inherited before the variant changes its representation.

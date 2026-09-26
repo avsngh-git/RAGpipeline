@@ -11,8 +11,9 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 planning is approved; P2-01/P2-02 and the P2-03.1 inventory are
-complete. The next step is canonical retrieval-profile design (P2-03.2).** See the [entry report](docs/reviews/phase-2-entry-check.md) and the
+**Phase 2 planning is approved; P2-01/P2-02 and P2-03.1–P2-03.3 are
+complete. Next is atomic index publication (P2-03.4).** See the
+[entry report](docs/reviews/phase-2-entry-check.md) and the
 [detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
 which contains 20 tasks with numbered substeps, dependencies and completion gates.
 The [agent handoff](docs/plans/phase-2-agent-handoff.md) defines the next step;

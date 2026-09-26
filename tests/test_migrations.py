@@ -140,3 +140,16 @@ def test_snapshot_chunk_configuration_migration_tracks_active_chunk_set() -> Non
     assert "ALTER TABLE snapshot_items" in migration
     assert "chunking_configuration_id" in migration
     assert "sha256:[0-9a-f]{64}" in migration
+
+
+def test_snapshot_variant_migration_freezes_exact_chunk_selection() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "015_snapshot_variant_lineage.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE snapshot_item_chunks" in migration
+    assert "snapshot_variant_lineage" in migration
+    assert "parent_chunk_selection_id" in migration
+    assert "INSERT INTO snapshot_item_chunks" in migration
+    assert "prevent_finalized_snapshot_chunk_selection_change" in migration
+    assert "ON DELETE RESTRICT" in migration

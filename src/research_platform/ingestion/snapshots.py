@@ -13,6 +13,10 @@ from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 
 from research_platform.ingestion.membership import MembershipDecision
+from research_platform.ingestion.snapshot_selection import (
+    SnapshotChunkSelection,
+    compute_chunk_selection_id,
+)
 
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 _MAX_EVIDENCE_INSPECTION_LIMIT = 100
@@ -116,6 +120,130 @@ class SnapshotRepository:
             raise RuntimeError("database did not return a snapshot ID")
         return snapshot_id
 
+    async def create_variant_draft(
+        self,
+        parent_snapshot_id: UUID,
+        *,
+        name: str,
+        configuration_id: str,
+        configuration: Mapping[str, object],
+        code_revision: str,
+    ) -> UUID:
+        """Create a draft variant inheriting a finalized snapshot's exact evidence."""
+        for field_name, value in (("name", name), ("code_revision", code_revision)):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} must be a non-empty string")
+        _validate_sha256(configuration_id, "configuration_id")
+        serialized = json.dumps(dict(configuration), sort_keys=True, ensure_ascii=False)
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                parent = await connection.fetchrow(
+                    """
+                    SELECT status, configuration_id
+                    FROM snapshots WHERE id = $1 FOR SHARE
+                    """,
+                    parent_snapshot_id,
+                )
+                if parent is None:
+                    raise ValueError("parent snapshot does not exist")
+                if parent["status"] != "finalized":
+                    raise ValueError("snapshot variants require a finalized parent")
+                rows = await connection.fetch(
+                    """
+                    SELECT item.paper_id, item.document_id, item.extraction_id,
+                           item.chunking_configuration_id, selected.chunk_id
+                    FROM snapshot_items item
+                    LEFT JOIN snapshot_item_chunks selected
+                      ON selected.snapshot_id = item.snapshot_id
+                     AND selected.paper_id = item.paper_id
+                    WHERE item.snapshot_id = $1
+                    ORDER BY item.paper_id, selected.chunk_id
+                    """,
+                    parent_snapshot_id,
+                )
+                members: list[SnapshotChunkSelection] = []
+                member_keys: set[tuple[str, UUID, UUID]] = set()
+                selected_chunk_ids: list[str] = []
+                for row in rows:
+                    paper_id = row["paper_id"]
+                    document_id = row["document_id"]
+                    extraction_id = row["extraction_id"]
+                    chunk_id = row["chunk_id"]
+                    if not isinstance(extraction_id, UUID) or not isinstance(
+                        chunk_id, str
+                    ):
+                        raise ValueError(
+                            "finalized parent lacks an exact searchable chunk selection"
+                        )
+                    key = (paper_id, document_id, extraction_id)
+                    if key not in member_keys:
+                        members.append(
+                            SnapshotChunkSelection(
+                                paper_id=paper_id,
+                                document_id=document_id,
+                                extraction_id=extraction_id,
+                                chunking_configuration_id=row[
+                                    "chunking_configuration_id"
+                                ],
+                            )
+                        )
+                        member_keys.add(key)
+                    selected_chunk_ids.append(chunk_id)
+                parent_selection_id = compute_chunk_selection_id(
+                    snapshot_id=parent_snapshot_id,
+                    snapshot_configuration_id=parent["configuration_id"],
+                    members=members,
+                    selected_chunk_ids=selected_chunk_ids,
+                )
+                variant_id = await connection.fetchval(
+                    """
+                    INSERT INTO snapshots (name, configuration_id, configuration, code_revision)
+                    VALUES ($1, $2, $3::jsonb, $4)
+                    RETURNING id
+                    """,
+                    name,
+                    configuration_id,
+                    serialized,
+                    code_revision,
+                )
+                if not isinstance(variant_id, UUID):
+                    raise RuntimeError("database did not return a snapshot ID")
+                await connection.execute(
+                    """
+                    INSERT INTO snapshot_variant_lineage
+                        (snapshot_id, parent_snapshot_id, parent_chunk_selection_id)
+                    VALUES ($1, $2, $3)
+                    """,
+                    variant_id,
+                    parent_snapshot_id,
+                    parent_selection_id,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO snapshot_items (
+                        snapshot_id, paper_id, document_id, extraction_id,
+                        selection_reason, chunking_configuration_id
+                    )
+                    SELECT $2, paper_id, document_id, extraction_id,
+                           selection_reason, chunking_configuration_id
+                    FROM snapshot_items WHERE snapshot_id = $1
+                    """,
+                    parent_snapshot_id,
+                    variant_id,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO snapshot_item_chunks (
+                        snapshot_id, paper_id, document_id, extraction_id, chunk_id
+                    )
+                    SELECT $2, paper_id, document_id, extraction_id, chunk_id
+                    FROM snapshot_item_chunks WHERE snapshot_id = $1
+                    """,
+                    parent_snapshot_id,
+                    variant_id,
+                )
+        return variant_id
+
     async def configuration_for(self, snapshot_id: UUID) -> dict[str, object]:
         """Return the immutable configuration recorded when a snapshot was created."""
         async with self._pool.acquire() as connection:
@@ -180,6 +308,20 @@ class SnapshotRepository:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 await self._require_draft(connection, snapshot_id)
+                await connection.execute(
+                    """
+                    DELETE FROM snapshot_item_chunks
+                    WHERE snapshot_id = $1 AND document_id = $2
+                      AND EXISTS (
+                          SELECT 1 FROM snapshot_items item
+                          WHERE item.snapshot_id = $1 AND item.document_id = $2
+                            AND item.extraction_id = $3
+                      )
+                    """,
+                    snapshot_id,
+                    document_id,
+                    source_extraction_id,
+                )
                 updated = await connection.fetchval(
                     """
                     UPDATE snapshot_items
@@ -205,6 +347,20 @@ class SnapshotRepository:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 await self._require_draft(connection, snapshot_id)
+                await connection.execute(
+                    """
+                    DELETE FROM snapshot_item_chunks
+                    WHERE snapshot_id = $1 AND document_id = $2
+                      AND EXISTS (
+                          SELECT 1 FROM snapshot_items item
+                          WHERE item.snapshot_id = $1 AND item.document_id = $2
+                            AND item.extraction_id IS DISTINCT FROM $3
+                      )
+                    """,
+                    snapshot_id,
+                    document_id,
+                    extraction_id,
+                )
                 updated = await connection.fetchval(
                     """
                     UPDATE snapshot_items
@@ -230,7 +386,7 @@ class SnapshotRepository:
         extraction_id: UUID,
         configuration_id: str,
     ) -> None:
-        """Select the active searchable chunk set for one draft member."""
+        """Select and freeze the configured searchable chunks for one draft member."""
         if not isinstance(configuration_id, str) or not _SHA256_ID.fullmatch(
             configuration_id
         ):
@@ -251,10 +407,37 @@ class SnapshotRepository:
                     extraction_id,
                     configuration_id,
                 )
-        if updated is None:
-            raise ValueError(
-                "document extraction is not attached to the draft snapshot"
-            )
+                if updated is None:
+                    raise ValueError(
+                        "document extraction is not attached to the draft snapshot"
+                    )
+                await connection.execute(
+                    """
+                    DELETE FROM snapshot_item_chunks
+                    WHERE snapshot_id = $1 AND document_id = $2
+                    """,
+                    snapshot_id,
+                    document_id,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO snapshot_item_chunks
+                        (snapshot_id, paper_id, document_id, extraction_id, chunk_id)
+                    SELECT item.snapshot_id, item.paper_id, chunk.document_id,
+                           chunk.extraction_id, chunk.id
+                    FROM snapshot_items item
+                    JOIN chunks chunk
+                      ON chunk.document_id = item.document_id
+                     AND chunk.extraction_id = item.extraction_id
+                    WHERE item.snapshot_id = $1 AND item.document_id = $2
+                      AND item.extraction_id = $3
+                      AND chunk.metadata ->> 'chunking_configuration_id' = $4
+                    """,
+                    snapshot_id,
+                    document_id,
+                    extraction_id,
+                    configuration_id,
+                )
 
     async def review_flagged_table(
         self,
@@ -330,6 +513,20 @@ class SnapshotRepository:
                     extraction_id,
                     selection_reason,
                 )
+                if extraction_id is not None:
+                    await connection.execute(
+                        """
+                        INSERT INTO snapshot_item_chunks
+                            (snapshot_id, paper_id, document_id, extraction_id, chunk_id)
+                        SELECT $1, $2, chunk.document_id, chunk.extraction_id, chunk.id
+                        FROM chunks chunk
+                        WHERE chunk.document_id = $3 AND chunk.extraction_id = $4
+                        """,
+                        snapshot_id,
+                        paper_id,
+                        document_id,
+                        extraction_id,
+                    )
 
     async def add_reviewed_membership(
         self,
@@ -432,12 +629,9 @@ class SnapshotRepository:
                                 FALSE) AS storage_permitted,
                        COALESCE(artifact.indexing_permitted AND permission.indexing_permitted,
                                 FALSE) AS indexing_permitted,
-                       (SELECT count(*) FROM chunks chunk
-                        WHERE chunk.document_id = item.document_id
-                          AND chunk.extraction_id = item.extraction_id
-                          AND (item.chunking_configuration_id IS NULL
-                               OR chunk.metadata ->> 'chunking_configuration_id' =
-                                  item.chunking_configuration_id)) AS chunk_count,
+                       (SELECT count(*) FROM snapshot_item_chunks selected
+                        WHERE selected.snapshot_id = item.snapshot_id
+                          AND selected.paper_id = item.paper_id) AS chunk_count,
                        (SELECT count(*) FROM evidence_tables evidence_table
                         WHERE evidence_table.extraction_id = item.extraction_id) AS table_count
                 FROM snapshot_items item
@@ -794,12 +988,9 @@ class SnapshotRepository:
             """
             SELECT item.paper_id, extraction.status AS extraction_status,
                    extraction.output_sha256, extraction.source_artifact_id,
-                   (SELECT count(*) FROM chunks chunk
-                    WHERE chunk.document_id = item.document_id
-                      AND chunk.extraction_id = item.extraction_id
-                      AND (item.chunking_configuration_id IS NULL
-                           OR chunk.metadata ->> 'chunking_configuration_id' =
-                              item.chunking_configuration_id)) AS chunk_count,
+                   (SELECT count(*) FROM snapshot_item_chunks selected
+                    WHERE selected.snapshot_id = item.snapshot_id
+                      AND selected.paper_id = item.paper_id) AS chunk_count,
                    (SELECT count(*) FROM evidence_tables evidence_table
                     WHERE evidence_table.extraction_id = extraction.id
                       AND evidence_table.metadata ->> 'review_required' = 'true'
@@ -934,16 +1125,10 @@ class SnapshotRepository:
             else:
                 evidence_ids = await connection.fetch(
                     """
-                    SELECT chunk.id
-                    FROM snapshot_items item
-                    JOIN chunks chunk
-                      ON chunk.document_id = item.document_id
-                     AND chunk.extraction_id = item.extraction_id
-                    WHERE item.snapshot_id = $1
-                      AND (item.chunking_configuration_id IS NULL
-                           OR chunk.metadata ->> 'chunking_configuration_id' =
-                              item.chunking_configuration_id)
-                    ORDER BY chunk.id
+                    SELECT selected.chunk_id AS id
+                    FROM snapshot_item_chunks selected
+                    WHERE selected.snapshot_id = $1
+                    ORDER BY selected.chunk_id
                     """,
                     snapshot_id,
                 )

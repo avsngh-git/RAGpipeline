@@ -15,6 +15,11 @@ _DOI_PATTERN = re.compile(r"^10\.[0-9]{4,9}/\S+$", re.IGNORECASE)
 _ARXIV_PATTERN = re.compile(r"^[0-9]{4}\.[0-9]{4,5}$|^[a-z-]+/[0-9]{7}$", re.IGNORECASE)
 
 
+def is_valid_paper_id(value: object) -> bool:
+    """Return whether a value is a canonical OpenAlex work identifier."""
+    return isinstance(value, str) and _OPENALEX_PATTERN.fullmatch(value) is not None
+
+
 @dataclass(frozen=True)
 class ExternalIdentifier:
     namespace: IdentifierNamespace

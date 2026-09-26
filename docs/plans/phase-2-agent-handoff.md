@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01 and P2-02 complete; P2-03.1 inventory complete.
+Updated: 2026-09-26. Plan approved; P2-01/P2-02 and P2-03.1–P2-03.3 complete.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Begin at **P2-03.2**.
+   whose prerequisites are satisfied. Begin at **P2-03.4**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -38,9 +38,9 @@ merely by this roadmap. Preserve the user's existing worktree and publication wo
   the remediation revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; no local
   test suite was rerun during P2-01.
 - P2-01 removed the root `/docs/` ignore rule. Sanitized project documents are
-  now eligible for version control but remain unstaged/uncommitted. The entry
-  report records this state. Local-only manifests, excerpts and PDFs remain
-  excluded from Git.
+  eligible for version control and were committed by the user at
+  5f2a7db5835df2fa6b89692a06701d564901a8bb. Local-only manifests, excerpts and
+  PDFs remain excluded from Git.
 - The accepted snapshot is `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` in
   **research_phase1_review**, not default **research**. P2-01 applied migrations
   013/014 after a verified local backup; read-only validation, 100 source checksums
@@ -67,22 +67,33 @@ merely by this roadmap. Preserve the user's existing worktree and publication wo
 
 ## Progress and stop rules
 
-- **P2-02 complete:** `docs/api/phase-2-search-contract.md`, framework-independent
-  search contracts, strict HTTP schemas, fail-closed filter matching, and server-owned
-  evidence access policy are in the worktree. Defaults remain provisional.
-- **P2-03.1 complete:** inspected `SnapshotRepository`, `IndexRepository`,
-  `IndexConfiguration`, `E5SmallV2Embedder`, migrations 013/014, stage checkpoint
-  persistence, and `PdfEvidenceProcessor`. Existing schema supports per-member chunk
-  selection, resumable stage outputs, configuration-specific vector collections, and
-  exact per-snapshot index reconciliation. No migration is indicated by the inventory.
-- Verification on the uncommitted worktree: `ruff check .`, `ruff format --check .`,
-  and `mypy` pass; `pytest -m 'not integration'` reports 196 passed / 19 deselected.
-  The 23 focused P2-02 tests are included. The first pass exposed a whitespace-query
-  validator ordering issue, a metadata-result generic type constraint, and formatting;
-  these were fixed before the passing reruns. Hosted CI has not run on these edits.
-  The current HEAD remains `0458c9c7f28a5eceac5ca939fe1e17a59e870c1b`; no commit was made.
-- No Phase 2 model was downloaded, index built, corpus changed, judgment authored, or
-  benchmark run. The next substep is **P2-03.2**, canonical retrieval-profile design.
+- **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,
+  strict HTTP schemas, fail-closed filter matching, and server-owned evidence access.
+- **P2-03.1 inventory complete:** existing snapshot/index/stage persistence was
+  inspected. The accepted snapshot has 100 members and 44,277 currently selected
+  chunks. All 100 member chunking IDs are null; 39,209 selected chunks carry a config
+  ID and 5,068 are legacy chunks without one. IndexRepository currently treats null
+  as every chunk under an extraction. Do not add variant chunks under those accepted
+  extractions or rebuild its index until P2-03.3 guards the exact selected set.
+- **P2-03.2 complete:** src/research_platform/search/profiles.py defines strict,
+  canonical profile and chunk-selection identities. The accepted snapshot selection
+  hashes to sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18.
+  No lexical dependency or model choice was made.
+- **P2-03.3 complete:** migration 015 persists each snapshot's exact selected chunk IDs,
+  backfills legacy selections, and blocks mutation after finalization. Variants copy
+  a finalized parent's paper/document/extraction and exact chunk selection, and retain
+  the parent's canonical selection identity in lineage. The loader, inspection and
+  finalization checks use the persisted selection. See ADR-0009 and the roadmap.
+- Verification: ruff check ., ruff format --check ., and mypy pass;
+  pytest -m 'not integration' reports 202 passed / 19 deselected; the focused
+  variant integration test passes on Compose research_test. The separate migration
+  runner test expects a pristine test DB, but local research_test already contained
+  migrations 001–012 and that test failed before applying pending migrations.
+  Migration 015 was then applied successfully by the variant integration test.
+  The accepted database was not migrated. Hosted CI has not run.
+- P2-03.2/03.3 code and documentation are committed as the current checkpoint. No
+  Phase 2 model was downloaded, index built, source corpus changed, judgment authored,
+  or benchmark run. Next substep: **P2-03.4**, atomic derived-index publication.
 
 
 The roadmap owns the task status table. For each completed substep record changed
@@ -96,8 +107,6 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-03.2. See `docs/api/phase-2-search-contract.md` for the HTTP
-contract and `docs/reviews/phase-2-entry-check.md` for resource measurements,
-migration/restore evidence and local artifact paths. Search contracts/access code is
-implemented; ranking, model downloads, index builds, annotations and benchmark runs
-remain ahead.
+**Next step:** P2-03.4. See docs/api/phase-2-search-contract.md for the profile contract,
+ADR-0009 for exact selection and lineage, and docs/reviews/phase-2-entry-check.md
+for resource measurements, migration/restore evidence and local artifact paths.

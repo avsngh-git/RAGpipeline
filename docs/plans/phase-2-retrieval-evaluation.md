@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01 and P2-02 complete; P2-03.1 inventory complete.
+Status: approved 2026-09-26; P2-01/P2-02 and P2-03.1–P2-03.3 complete.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01 and P2-02 are complete. P2-03 is in progress after its reuse inventory. The table is the single implementation status checklist.
+P2-01 and P2-02 are complete. P2-03 is in progress after its reuse inventory, profile-identity definition, and exact variant-lineage persistence. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -158,13 +158,38 @@ Focused checks and the non-integration repository suite pass; see the current
 ## P2-03 — Version experimental snapshots and retrieval profiles
 
 **03.1 inventory complete 2026-09-26:** existing snapshots freeze member selection;
-`SnapshotRepository` selects per-member extraction and chunk configuration; migrations
-013/014 provide resumable job plans and per-member chunk-set identity. `IndexConfiguration`
-is a canonical identity stored alongside per-snapshot index build state, with exact
-Qdrant reconciliation; `E5SmallV2Embedder` is already behind `VectorEmbedder`. The
-existing stage configuration/repository and `PdfEvidenceProcessor` persist resumable
-extraction/chunk outputs. No schema extension is justified by this inventory alone.
-Proceed to **03.2** and define the profile identity over these existing seams.
+SnapshotRepository selects per-member extraction and chunk configuration; migrations
+013/014 provide resumable job plans and per-member chunk-set identity. IndexConfiguration
+is stored alongside per-snapshot index build state with exact Qdrant reconciliation;
+E5SmallV2Embedder is behind VectorEmbedder. Stage configuration/checkpoint persistence
+and PdfEvidenceProcessor support resumable extraction and chunking.
+
+A read-only inspection of the accepted snapshot found 100 member rows with a null
+chunking configuration, selecting 44,277 current chunk IDs: 39,209 carry a chunk
+configuration identity and 5,068 are legacy chunks without one. IndexRepository treats
+null as all chunks for the extraction. Do not add alternate chunks under those accepted
+extractions or rebuild the accepted index until P2-03.3 adds an exact-set guard.
+
+**03.2 complete 2026-09-26:** RetrievalProfile now canonically fingerprints the snapshot
+and exact chunk selection, lexical analyzer/index, embedding and vector-index identity,
+optional reranker, RRF settings, candidate limits, and result-selection rules. Canonical
+JSON uses sorted keys and compact UTF-8 encoding. Git revision and worktree state are
+separate provenance. Candidate defaults and RRF rank constant are provisional; the
+BM25S and model choices remain unselected pending their measured pilot tasks. The
+accepted snapshot chunk-selection identity is sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18.
+
+**03.3 complete 2026-09-26:** ADR-0009 and migration 015 persist exact chunk IDs per
+snapshot member, backfill earlier snapshots under the prior selection rule, and
+prevent finalized selection changes. SnapshotRepository.create_variant_draft copies
+a finalized parent's member and chunk sets and records the parent selection identity.
+Chunk configuration updates replace only a draft's selected chunk rows atomically;
+inspection, validation and index loading read that exact relation. The accepted
+database was not migrated. Lint, format, mypy and pytest -m 'not integration' pass
+(202 passed / 19 deselected). The variant integration test passes against Compose
+research_test. The migration-runner integration test could not start from its expected
+pristine database because local research_test already contained migrations 001–012;
+migration 015 was subsequently applied by the passing variant test. No model or index
+build was run. Continue at **03.4**, atomic publication.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 

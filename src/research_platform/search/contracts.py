@@ -10,10 +10,9 @@ from typing import Generic, TypeVar
 from uuid import UUID
 
 from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
-from research_platform.ingestion.identity import DocumentVersionKind
+from research_platform.ingestion.identity import DocumentVersionKind, is_valid_paper_id
 
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
-_OPENALEX_PAPER_ID = re.compile(r"^W[0-9]+$")
 
 
 class RetrievalMode(str, Enum):
@@ -174,11 +173,6 @@ class SearchFilters:
                 else None
             ),
         }
-
-
-def is_valid_paper_id(value: object) -> bool:
-    """Return whether a value is a canonical OpenAlex work identifier."""
-    return isinstance(value, str) and _OPENALEX_PAPER_ID.fullmatch(value) is not None
 
 
 def matches_filters(

@@ -202,6 +202,7 @@ def test_migration_is_repeatable_and_database_constraints_are_enforced(
                 "012_targeted_retry_reasons",
                 "013_ingestion_job_plans",
                 "014_snapshot_chunking_configuration",
+                "015_snapshot_variant_lineage",
             ]
 
             collection_name = f"integration-{uuid4().hex}"
@@ -1126,7 +1127,7 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
         await apply_migrations(TEST_DATABASE_URL)
         pool = await asyncpg.create_pool(TEST_DATABASE_URL, min_size=1, max_size=2)
         assert pool is not None
-        paper_id = f"rechunk-persistence-{uuid4().hex}"
+        paper_id = f"W{uuid4().int}"
         try:
             async with pool.acquire() as connection:
                 await connection.execute(
@@ -1194,10 +1195,11 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
 
             async def make_processor(
                 chunking: ChunkingConfig,
+                target_snapshot_id: UUID = snapshot_id,
             ) -> tuple[PdfEvidenceProcessor, PreparedPdfPipeline]:
                 processor = PdfEvidenceProcessor(
                     pool,
-                    snapshot_id=snapshot_id,
+                    snapshot_id=target_snapshot_id,
                     artifact_root=tmp_path / "rechunk-artifacts",
                     parser_config=DoclingPdfConfig(device="cpu"),
                     chunking_config=chunking,
@@ -1260,8 +1262,26 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             )
             assert first_output.resource_measurements["chunks"] > 0
 
+            await pool.execute(
+                """
+                UPDATE snapshots
+                SET status = 'finalized', finalized_at = now(),
+                    finalized_by = 'integration-test'
+                WHERE id = $1
+                """,
+                snapshot_id,
+            )
+            variant_snapshot_id = await SnapshotRepository(pool).create_variant_draft(
+                snapshot_id,
+                name=f"rechunk-variant-{uuid4().hex}",
+                configuration_id="sha256:" + "3" * 64,
+                configuration={"fixture": True, "variant": "alternate-chunks"},
+                code_revision="integration-test",
+            )
             second_config = ChunkingConfig(3, 0, 2)
-            second_processor, second_prepared = await make_processor(second_config)
+            second_processor, second_prepared = await make_processor(
+                second_config, variant_snapshot_id
+            )
             assert (
                 second_prepared.extraction_configuration_id
                 == first_prepared.extraction_configuration_id
@@ -1294,15 +1314,81 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 == first_output.resource_measurements["chunks"]
                 + second_output.resource_measurements["chunks"]
             )
-            active_chunking_id = await pool.fetchval(
+            parent_chunking_id = await pool.fetchval(
                 "SELECT chunking_configuration_id FROM snapshot_items WHERE snapshot_id = $1",
                 snapshot_id,
             )
-            assert active_chunking_id == second_prepared.chunking_configuration_id
-            member = (await SnapshotRepository(pool).inspect_members(snapshot_id))[0]
-            assert member.chunk_count == second_output.resource_measurements["chunks"]
+            variant_chunking_id = await pool.fetchval(
+                "SELECT chunking_configuration_id FROM snapshot_items WHERE snapshot_id = $1",
+                variant_snapshot_id,
+            )
+            assert parent_chunking_id == first_prepared.chunking_configuration_id
+            assert variant_chunking_id == second_prepared.chunking_configuration_id
+            parent_chunk_ids = set(
+                await pool.fetchval(
+                    "SELECT array_agg(chunk_id ORDER BY chunk_id) FROM snapshot_item_chunks WHERE snapshot_id = $1",
+                    snapshot_id,
+                )
+            )
+            variant_chunk_ids = set(
+                await pool.fetchval(
+                    "SELECT array_agg(chunk_id ORDER BY chunk_id) FROM snapshot_item_chunks WHERE snapshot_id = $1",
+                    variant_snapshot_id,
+                )
+            )
+            assert len(parent_chunk_ids) == first_output.resource_measurements["chunks"]
+            assert (
+                len(variant_chunk_ids) == second_output.resource_measurements["chunks"]
+            )
+            assert parent_chunk_ids != variant_chunk_ids
+            added_variant_chunks = variant_chunk_ids - parent_chunk_ids
+            assert added_variant_chunks
+            variant_only_chunk_id = sorted(added_variant_chunks)[0]
+            with pytest.raises(
+                asyncpg.PostgresError,
+                match="chunk selection in a finalized snapshot is immutable",
+            ):
+                await pool.execute(
+                    """
+                    INSERT INTO snapshot_item_chunks
+                        (snapshot_id, paper_id, document_id, extraction_id, chunk_id)
+                    SELECT $1, item.paper_id, chunk.document_id, chunk.extraction_id, chunk.id
+                    FROM snapshot_items item
+                    JOIN chunks chunk
+                      ON chunk.document_id = item.document_id
+                     AND chunk.extraction_id = item.extraction_id
+                    WHERE item.snapshot_id = $1 AND chunk.id = $2
+                    """,
+                    snapshot_id,
+                    variant_only_chunk_id,
+                )
+            lineage = await pool.fetchrow(
+                """
+                SELECT parent_snapshot_id, parent_chunk_selection_id
+                FROM snapshot_variant_lineage WHERE snapshot_id = $1
+                """,
+                variant_snapshot_id,
+            )
+            assert lineage["parent_snapshot_id"] == snapshot_id
+            assert lineage["parent_chunk_selection_id"].startswith("sha256:")
+            parent_member = (
+                await SnapshotRepository(pool).inspect_members(snapshot_id)
+            )[0]
+            variant_member = (
+                await SnapshotRepository(pool).inspect_members(variant_snapshot_id)
+            )[0]
+            assert parent_member.document_id == variant_member.document_id
+            assert parent_member.extraction_id == variant_member.extraction_id
+            assert (
+                parent_member.chunk_count
+                == first_output.resource_measurements["chunks"]
+            )
+            assert (
+                variant_member.chunk_count
+                == second_output.resource_measurements["chunks"]
+            )
             index_inputs = await IndexRepository(pool).load_snapshot_inputs(
-                snapshot_id,
+                variant_snapshot_id,
                 IndexConfiguration(
                     collection_name=f"phase1-{uuid4().hex}",
                     embedding_model="integration-fixture",
@@ -1315,6 +1401,7 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 ),
             )
             assert len(index_inputs) == second_output.resource_measurements["chunks"]
+            assert {item.evidence_id for item in index_inputs} == variant_chunk_ids
         finally:
             await pool.close()
 

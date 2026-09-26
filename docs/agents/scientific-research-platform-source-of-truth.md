@@ -1,7 +1,7 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.12\
+**Version:** 1.13\
 **Last updated:** 2026-09-26\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 entry checks complete; retrieval implementation in progress\
@@ -488,7 +488,10 @@ Approved 2026-09-26 after the planning interview. The
   benchmark; preserve its finalized snapshot. Model/chunk experiments use separately
   versioned variants and indexes that share unchanged sources/extraction. Serving
   uses finalized snapshots; draft experiments require a separate explicit evaluation
-  path. Source judgments remain independent of chunk boundaries.
+  path. Source judgments remain independent of chunk boundaries. The exact selected
+  chunk IDs are persisted per snapshot; a variant records its finalized parent and
+  inherited selection identity before its draft representation changes
+  ([ADR-0009](../adr/0009-exact-snapshot-variant-lineage.md)).
 - **Search:** implement lexical BM25, dense, rank fusion and cross-encoder reranking.
   BM25S is the local lexical implementation candidate, conditional on measured
   resource, filter and reproducibility checks before dependency acceptance.

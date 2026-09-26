@@ -27,3 +27,9 @@ ingestion owner and records who finalized a snapshot.
 configurations from sharing a Qdrant collection.
 `012_targeted_retry_reasons.sql` records why an operator repeated a stage. PostgreSQL owns
 metadata and state; Qdrant remains a derived, rebuildable store.
+013_ingestion_job_plans.sql persists immutable document membership and terminal
+stage identity for resumable jobs.
+014_snapshot_chunking_configuration.sql records the selected chunk configuration per
+snapshot member.
+015_snapshot_variant_lineage.sql backfills and freezes each snapshot's exact chunk
+membership and records the finalized parent selection inherited by experimental variants.

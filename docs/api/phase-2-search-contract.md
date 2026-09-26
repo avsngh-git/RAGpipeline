@@ -44,6 +44,37 @@ controls. They must be part of the effective configuration identity used in a
 search response. The pilot may revise these values after recording latency and
 resource use.
 
+## Retrieval profile identity
+
+A profile binds these effective choices into one `sha256:` identity:
+
+| Profile section | Identity inputs |
+| --- | --- |
+| Snapshot | Snapshot UUID, snapshot configuration ID, and exact chunk-selection ID |
+| Chunk selection | Sorted member paper/document/extraction/chunk-configuration identities and sorted selected chunk IDs; no source text |
+| Lexical index | Implementation and revision, analyzer and revision, normalization revision, index-format revision |
+| Dense index | Embedding model/revision/preprocessing/dimensions/input limit plus the existing vector-index configuration ID |
+| Reranker | Optional model, revision, preprocessing revision, and input limit |
+| Fusion | Optional RRF method and rank constant |
+| Candidate limits | Lexical, dense, fused, and rerank top-k values |
+| Selection rules | Strongest-passage paper score and per-paper evidence limits |
+
+The profile is canonical JSON with sorted keys, compact separators, UTF-8 encoding,
+and a schema version. Its SHA-256 digest excludes Git revision and worktree state;
+those are separate provenance fields. The serialized profile has no secret-bearing
+fields. A profile may omit unused index stages; fusion requires both lexical and
+dense identities, and each candidate limit must match an available stage. Model and
+lexical implementation choices remain open until their approved pilot tasks.
+
+Chunk selection hashes the exact selected chunk IDs together with snapshot membership
+and per-member chunk configuration. PostgreSQL persists those IDs, including a
+backfilled exact selection for legacy members whose chunk configuration is null.
+Experimental variants record their finalized parent and the parent's selection hash,
+then can change only their own draft selection. Recompute and verify the profile
+identity when building or publishing an index; a search request uses the persisted
+selection rather than expanding a nullable configuration to all extraction chunks.
+See [ADR-0009](../adr/0009-exact-snapshot-variant-lineage.md).
+
 ## Filters
 
 | Field | Values | Semantics |
