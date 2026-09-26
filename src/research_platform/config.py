@@ -9,6 +9,10 @@ from urllib.parse import urlparse
 DEFAULT_DATABASE_URL: Final = "postgresql://research:research@localhost:5432/research"
 DEFAULT_QDRANT_URL: Final = "http://localhost:6333"
 DEFAULT_DEPENDENCY_TIMEOUT_SECONDS: Final = 2.0
+DEFAULT_EVIDENCE_ACCESS_PROFILE: Final = "disabled"
+_ALLOWED_EVIDENCE_ACCESS_PROFILES: Final = frozenset(
+    {"disabled", "trusted_private_local"}
+)
 
 _ALLOWED_ENVIRONMENTS: Final = frozenset({"development", "test", "production"})
 _ALLOWED_LOG_LEVELS: Final = frozenset(
@@ -34,6 +38,13 @@ def _qdrant_url_default() -> str:
 
 def _openalex_api_key_default() -> str | None:
     return os.environ.get("OPENALEX_API_KEY") or None
+
+
+def _evidence_access_profile_default() -> str:
+    return os.environ.get(
+        "RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE",
+        DEFAULT_EVIDENCE_ACCESS_PROFILE,
+    )
 
 
 def _dependency_timeout_default() -> float:
@@ -75,6 +86,9 @@ class Settings:
     dependency_timeout_seconds: float = field(
         default_factory=_dependency_timeout_default
     )
+    evidence_access_profile: str = field(
+        default_factory=_evidence_access_profile_default
+    )
 
     def __post_init__(self) -> None:
         environment = self.environment.strip().lower()
@@ -99,6 +113,12 @@ class Settings:
             ):
                 raise ValueError("openalex_api_key must be a non-empty secret or None")
             object.__setattr__(self, "openalex_api_key", self.openalex_api_key.strip())
+
+        evidence_access_profile = self.evidence_access_profile.strip().lower()
+        if evidence_access_profile not in _ALLOWED_EVIDENCE_ACCESS_PROFILES:
+            allowed = ", ".join(sorted(_ALLOWED_EVIDENCE_ACCESS_PROFILES))
+            raise ValueError(f"evidence_access_profile must be one of: {allowed}")
+        object.__setattr__(self, "evidence_access_profile", evidence_access_profile)
 
         if (
             not isfinite(self.dependency_timeout_seconds)

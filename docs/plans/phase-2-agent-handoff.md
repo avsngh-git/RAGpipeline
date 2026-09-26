@@ -1,0 +1,103 @@
+# Phase 2 — Agent handoff
+
+Updated: 2026-09-26. Plan approved; P2-01 and P2-02 complete; P2-03.1 inventory complete.
+
+## Start here
+
+1. Follow AGENTS.md and read the authoritative source of truth in full.
+2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
+   whose prerequisites are satisfied. Begin at **P2-03.2**.
+3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
+   judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
+
+The planning interview is complete. Preserve its decisions; investigate current
+facts yourself. Do not restart the interview or select different technology merely
+because another agent prefers it. Measured settings are deliberately deferred to
+named tasks and must be recorded there.
+
+## Delegation and working style
+
+The user explicitly delegated all Phase 2 implementation, calibration, benchmark
+preparation and source review for now. Once asked to begin Phase 2, execute bounded
+substeps autonomously, explain changes/tests briefly and update progress. The earlier
+user-writes-code default does not apply to this delegated phase. No recurring human
+annotation gate is required. Mark new judgments assistant-reviewed; record source
+checks, uncertainty and sampling limits. Escalate actual contradictions or material
+changes beyond the approved scope, rather than routine reversible choices.
+
+The user's preference is economical model use for routine work. This handoff does
+not change the active model. Never infer that an unchecked task is complete.
+No commit, push, ticket publication, paid compute or public deployment is authorized
+merely by this roadmap. Preserve the user's existing worktree and publication workflow.
+
+## Current baseline and traps
+
+- Current entry revision: `0458c9c7f28a5eceac5ca939fe1e17a59e870c1b`.
+  [Hosted CI 36241133854](https://github.com/avsngh-git/RAGpipeline/actions/runs/36241133854)
+  passed on that exact revision. It changes docs/configuration only relative to
+  the remediation revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; no local
+  test suite was rerun during P2-01.
+- P2-01 removed the root `/docs/` ignore rule. Sanitized project documents are
+  now eligible for version control but remain unstaged/uncommitted. The entry
+  report records this state. Local-only manifests, excerpts and PDFs remain
+  excluded from Git.
+- The accepted snapshot is `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` in
+  **research_phase1_review**, not default **research**. P2-01 applied migrations
+  013/014 after a verified local backup; read-only validation, 100 source checksums
+  and snapshot-scoped reconciliation all pass at 100 papers / 44,277 chunks. The
+  running API still targets `research`; bind Phase 2 operations to the review DB.
+- Qdrant `phase1-e5-small-v2` also contains the retained ten-paper draft's points.
+  Every query must bind a snapshot and compatible profile; collection count is not
+  corpus membership. New model/chunk variants must not overwrite the accepted set.
+- All 100 permission records allow storage/indexing and disable passage display.
+  The approved trusted private-local inspection policy is separate from public
+  output. Never change permissions by interpreting an API flag as authorization.
+- Reuse ingestion/indexing.py, embeddings.py, snapshots.py, evidence persistence
+  and migrations 013/014. They provide versioned indexing, query embeddings,
+  finalization checks and separate extraction/chunk checkpoints. Verify applied
+  schema before querying with newer code; tests use isolated services.
+- Existing query_snapshot handles snapshot filtering; richer filters, lexical
+  search, fusion, reranking, evaluation and the new API remain Phase 2 work.
+- Existing draft preview is not the finalized evidence service. The API currently
+  exposes health/readiness only. New routes call shared services.
+- Model shortlist and hardware memory figures are not feasibility proof. Remeasure
+  current resources. Keep synthetic CPU CI independent of model downloads.
+- JSON is broadly ignored. Use deliberately tracked sanitized config/fixture paths;
+  full text, source PDFs and private review artifacts stay outside Git.
+
+## Progress and stop rules
+
+- **P2-02 complete:** `docs/api/phase-2-search-contract.md`, framework-independent
+  search contracts, strict HTTP schemas, fail-closed filter matching, and server-owned
+  evidence access policy are in the worktree. Defaults remain provisional.
+- **P2-03.1 complete:** inspected `SnapshotRepository`, `IndexRepository`,
+  `IndexConfiguration`, `E5SmallV2Embedder`, migrations 013/014, stage checkpoint
+  persistence, and `PdfEvidenceProcessor`. Existing schema supports per-member chunk
+  selection, resumable stage outputs, configuration-specific vector collections, and
+  exact per-snapshot index reconciliation. No migration is indicated by the inventory.
+- Verification on the uncommitted worktree: `ruff check .`, `ruff format --check .`,
+  and `mypy` pass; `pytest -m 'not integration'` reports 196 passed / 19 deselected.
+  The 23 focused P2-02 tests are included. The first pass exposed a whitespace-query
+  validator ordering issue, a metadata-result generic type constraint, and formatting;
+  these were fixed before the passing reruns. Hosted CI has not run on these edits.
+  The current HEAD remains `0458c9c7f28a5eceac5ca939fe1e17a59e870c1b`; no commit was made.
+- No Phase 2 model was downloaded, index built, corpus changed, judgment authored, or
+  benchmark run. The next substep is **P2-03.2**, canonical retrieval-profile design.
+
+
+The roadmap owns the task status table. For each completed substep record changed
+paths, actual commands/results, code/config/benchmark IDs and any limitations.
+Mark a task complete only when its Done condition is met; update this file's next
+step without duplicating the full checklist. Preserve intermediate failures and
+assistant-review uncertainty. Thresholds are frozen before held-out assessment.
+
+A failed measurement or missing external input is not completion. Continue useful
+independent work and report the specific blocker. Any source/schema/permission
+change follows the source-of-truth change-control rule. Keep the original corpus
+usable throughout.
+
+**Next step:** P2-03.2. See `docs/api/phase-2-search-contract.md` for the HTTP
+contract and `docs/reviews/phase-2-entry-check.md` for resource measurements,
+migration/restore evidence and local artifact paths. Search contracts/access code is
+implemented; ranking, model downloads, index builds, annotations and benchmark runs
+remain ahead.

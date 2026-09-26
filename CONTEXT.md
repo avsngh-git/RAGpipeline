@@ -57,6 +57,18 @@ A reviewed record of the source, applicable license and separate decisions for s
 A fixed selection of retrieval and ranking choices bound to a particular corpus
 snapshot and its evidence representation.
 
+**Paper hit**:
+A search result for one logical paper that retains its paper-level and supporting-evidence contributions.
+
+**Evidence hit**:
+A ranked match to a source evidence unit, identified with its document version and source location.
+
+**Retrieval mode**:
+The named combination of search and ranking methods requested for a paper or evidence search.
+
+**Private evidence inspection**:
+Trusted local review of retained evidence when storage and indexing are permitted; this is separate from public passage display.
+
 **Experimental variant**:
 A separately identifiable corpus representation used to compare retrieval choices
 while preserving the source selection and lineage of an accepted snapshot.

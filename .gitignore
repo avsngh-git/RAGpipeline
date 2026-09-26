@@ -13,9 +13,6 @@ develop-eggs/
 dist/
 downloads/
 
-# Keep the local documentation tree out of Git.
-/docs/
-
 eggs/
 .eggs/
 lib/
@@ -228,6 +225,8 @@ __marimo__/
 /local-reference/
 /data/models/
 /data/qdrant/
+/data/phase2/lexical-indexes/
+/data/phase2/experiments/
 
 # Local agent-authored research manifests, review decisions, and acquisition records.
 /manifests/
