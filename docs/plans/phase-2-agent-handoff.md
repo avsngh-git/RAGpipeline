@@ -138,7 +138,16 @@ Preserve the user's existing worktree and publication workflow.
   anchors are aligned (942 target cells); there are no positive prose anchors in this
   calibration. Details and limitations are recorded in
   `docs/reference/phase-2-source-matching.md`. Ruff and mypy were unavailable in this
-  shell; runtime tests have not yet been run. Continue with P2-05.3 scoring.
+  shell; Python AST/TOML parsing and `git diff --check` passed.
+- **P2-05.3 complete:** `scoring.py` computes per-query paper/evidence nDCG@10, direct
+  MRR@10, judged Recall@20/@50, judgment coverage, evidence-group coverage, and
+  unsupported-query hit profiles. It preserves rank gaps, rejects duplicate ranks,
+  deduplicates papers and source anchors, accumulates source coverage across result
+  prefixes, and requires materialized eligible IDs for metadata filters. Policy
+  `evaluation-scoring-policy-v1` is linked to the calibration, snapshot, and alignment
+  identities. Scoring rules are recorded in `docs/reference/phase-2-scoring-policy.md`.
+  Python AST parsing and `git diff --check` passed; Ruff and mypy were unavailable.
+  P2-05.5 runtime test work remains pending.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -151,8 +160,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-05.3. Implement scoring over judged paper and evidence results,
-using the versioned P2-05.2 source-matching policy. Keep private source excerpts under
-ignored local-reference storage. ADR-0009 records exact selection and lineage; the
-P2-01 entry check records resource measurements, migration/restore evidence and local
-artifact paths.
+**Next step:** P2-05.4. Define reproducible run records for the calibration scorer.
+Keep private source excerpts under ignored local-reference storage. ADR-0009 records
+exact selection and lineage; the P2-01 entry check records resource measurements,
+migration/restore evidence and local artifact paths.

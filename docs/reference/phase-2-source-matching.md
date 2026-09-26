@@ -2,7 +2,9 @@
 
 Status: implemented for the `phase2-calibration-v1` calibration set on 2026-09-26.
 
-The executable policy is `source-match-policy-v1`. Its coordinate manifest is
+The executable matching policy is `source-match-policy-v1`; ranked scoring is
+specified in [phase-2-scoring-policy.md](phase-2-scoring-policy.md). Its coordinate
+manifest is
 [`source-alignment-v1.toml`](../../benchmarks/phase2/source-alignment-v1.toml),
 loaded by `research_platform.evaluation.source_alignment` and applied by
 `research_platform.evaluation.matching`.
@@ -11,9 +13,9 @@ loaded by `research_platform.evaluation.source_alignment` and applied by
 
 A returned hit is resolved through its source evidence IDs to canonical evidence
 regions. Each region must match the hit's document and extraction IDs. Evidence IDs
-are lookup keys, not relevance judgments. Matching uses canonical extraction
-coordinates, so it works across chunk boundaries and does not award extra coverage
-for duplicate IDs or overlapping regions.
+locate provenance; relevance depends on canonical extraction coordinates. Matching
+works across chunk boundaries and duplicate IDs or overlapping regions add no extra
+coverage.
 
 Text regions are unioned within the same section and clipped to each annotated span.
 Ordinary prose spans require at least 80% character coverage. A critical span requires

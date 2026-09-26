@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TypeAlias
 from uuid import UUID
@@ -116,7 +116,7 @@ SourceEvidenceRegion: TypeAlias = TextEvidenceRegion | TableEvidenceRegion
 
 @dataclass(frozen=True)
 class SourceAnchorMatch:
-    """Coverage of one canonical source anchor by one returned search hit."""
+    """Coverage of one canonical source anchor by returned search evidence."""
 
     anchor_id: str
     coverage_fraction: float
@@ -124,6 +124,13 @@ class SourceAnchorMatch:
     matched_cells: tuple[CellCoordinate, ...] = ()
     span_coverages: tuple[float, ...] = ()
     missing_context: tuple[str, ...] = ()
+
+    @property
+    def directly_supported(self) -> bool:
+        """Whether it contains direct prose or one target table cell."""
+        return self.fully_supported or (
+            bool(self.matched_cells) and not self.missing_context
+        )
 
 
 def region_from_evidence_unit(
@@ -247,58 +254,66 @@ def match_evidence_hit(
     regions_by_evidence_id: Mapping[str, SourceEvidenceRegion],
     alignments: SourceAlignmentDataset,
 ) -> tuple[SourceAnchorMatch, ...]:
-    """Map a hit to canonical spans/cells; IDs are used only to resolve provenance.
+    """Match one hit to canonical spans/cells resolved from its evidence IDs."""
+    return match_evidence_hits((hit,), regions_by_evidence_id, alignments)
 
-    Duplicate source IDs are collapsed and source-coordinate overlap is unioned, so
-    repeated chunks cannot create extra coverage. Returned ranks are untouched.
+
+def match_evidence_hits(
+    hits: Sequence[EvidenceHit],
+    regions_by_evidence_id: Mapping[str, SourceEvidenceRegion],
+    alignments: SourceAlignmentDataset,
+) -> tuple[SourceAnchorMatch, ...]:
+    """Union source coverage across hits, preserving their distinct lineage.
+
+    This supports evidence split across ranked chunks: callers can evaluate each
+    result prefix and credit an anchor when its complete annotated source is present.
+    Duplicate source IDs and overlapping coordinates are collapsed.
     """
-    if not isinstance(hit, EvidenceHit):
-        raise SourceMatchingError("hit must be an EvidenceHit")
     resolved_regions: list[SourceEvidenceRegion] = []
-    for evidence_id in dict.fromkeys(hit.source_evidence_ids):
-        region = regions_by_evidence_id.get(evidence_id)
-        if region is None:
-            raise SourceMatchingError(
-                f"source evidence ID cannot be resolved: {evidence_id}"
-            )
-        if region.evidence_id != evidence_id:
-            raise SourceMatchingError(
-                "resolved source region has a different evidence ID"
-            )
-        if (
-            region.document_id != hit.document_id
-            or region.extraction_id != hit.extraction_id
-        ):
-            raise SourceMatchingError(
-                "source region does not match hit document lineage"
-            )
-        resolved_regions.append(region)
+    seen_evidence_ids: set[str] = set()
+    for hit in hits:
+        if not isinstance(hit, EvidenceHit):
+            raise SourceMatchingError("hits must contain EvidenceHit values")
+        for evidence_id in dict.fromkeys(hit.source_evidence_ids):
+            region = regions_by_evidence_id.get(evidence_id)
+            if region is None:
+                raise SourceMatchingError(
+                    f"source evidence ID cannot be resolved: {evidence_id}"
+                )
+            if region.evidence_id != evidence_id:
+                raise SourceMatchingError(
+                    "resolved source region has a different evidence ID"
+                )
+            if (
+                region.document_id != hit.document_id
+                or region.extraction_id != hit.extraction_id
+            ):
+                raise SourceMatchingError(
+                    "source region does not match hit document lineage"
+                )
+            if evidence_id not in seen_evidence_ids:
+                resolved_regions.append(region)
+                seen_evidence_ids.add(evidence_id)
 
     matches: list[SourceAnchorMatch] = []
     for alignment in alignments.table_alignments:
-        if (alignment.document_id, alignment.extraction_id) != (
-            hit.document_id,
-            hit.extraction_id,
-        ):
-            continue
         table_regions = [
             region
             for region in resolved_regions
             if isinstance(region, TableEvidenceRegion)
+            and region.document_id == alignment.document_id
+            and region.extraction_id == alignment.extraction_id
             and region.table_ordinal == alignment.table_ordinal
         ]
         if table_regions:
             matches.append(_match_table_anchor(alignment, table_regions))
     for alignment in alignments.text_alignments:
-        if (alignment.document_id, alignment.extraction_id) != (
-            hit.document_id,
-            hit.extraction_id,
-        ):
-            continue
         text_regions = [
             region
             for region in resolved_regions
             if isinstance(region, TextEvidenceRegion)
+            and region.document_id == alignment.document_id
+            and region.extraction_id == alignment.extraction_id
         ]
         if text_regions:
             matches.append(_match_text_anchor(alignment, text_regions))

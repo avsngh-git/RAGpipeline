@@ -299,7 +299,18 @@ accepted extraction's stale caption. No units or footnotes are present in the al
 tables; the current calibration has no direct-positive prose anchors. Python AST and
 TOML parsing and `git diff --check` passed; a metadata-only accepted-snapshot query
 confirmed the table context flags. `ruff` and `mypy` are unavailable in this shell; the
-P2-05.5 runtime test work remains pending. Next: **05.3 scoring**.
+P2-05.5 runtime test work remains pending.
+
+**05.3 complete 2026-09-26:** `scoring.py` computes per-query paper/evidence nDCG@10,
+direct MRR@10, judged Recall@20/@50, judgment coverage, evidence-group coverage, and
+unsupported-query hit profiles. It preserves rank gaps, rejects rank ties, deduplicates
+papers and source anchors, accumulates source coverage across result prefixes, and
+requires materialized eligible paper IDs for metadata filters. Policy
+`evaluation-scoring-policy-v1` records its calibration/snapshot/alignment identities;
+`docs/reference/phase-2-scoring-policy.md` defines anchor-level gain, group coverage,
+empty denominators, and the no-cutoff unsupported profile. Python AST parsing and
+`git diff --check` passed. `ruff` and `mypy` are unavailable; P2-05.5 runtime test work
+remains pending. Next: **05.4 run records**.
 
 1. **05.1 Define loaders.** Validate query families, filters, split, judgments,
    source anchors and reviewer status. Reject duplicate IDs, invalid cross-references,
