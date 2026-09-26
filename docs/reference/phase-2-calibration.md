@@ -9,7 +9,9 @@
 | Snapshot | 4b11fab3-d4a5-4e7a-a58e-8654accf2c6c |
 
 This file records paraphrased questions, source-grounded judgments and workload
-decisions. It contains no source excerpts or table values. The accepted PDFs are
+decisions. Its validated machine-readable companion is
+[calibration-v1.toml](../../benchmarks/phase2/calibration-v1.toml). It contains no
+source excerpts or table values. The accepted PDFs are
 stored locally; each source below is pinned by its SHA-256 and zero-based PDF page.
 The original PDF page controls when extracted text or table metadata disagrees.
 

@@ -6,7 +6,7 @@ Updated: 2026-09-26. Plan approved; P2-01–P2-04 complete; P2-05 pending.
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-05.1**.
+   whose prerequisites are satisfied. Continue at **P2-05.2**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -122,7 +122,13 @@ Preserve the user's existing worktree and publication workflow.
   80 paper candidates per family, with a 12-hour review budget. No retriever output or
   held-out score exists yet. The source-review and split limitations are in the
   calibration file.
-
+- **P2-05.1 complete:** `src/research_platform/evaluation/calibration.py` loads
+  `benchmarks/phase2/calibration-v1.toml` into immutable typed records and rejects
+  malformed fields, duplicate IDs, cross-split family overlap, invalid source/filter
+  references, unresolved reviewer status, and malformed evidence groups. Eleven
+  focused loader tests pass; `ruff check .`, `ruff format --check .`, and `mypy` pass;
+  `pytest -m 'not integration'` reports 219 passed / 19 deselected. P2-05 remains in
+  progress; continue with source matching in 05.2.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -135,8 +141,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-05.1. Implement the deterministic calibration loader and validation
-rules before source matching or scoring. Keep private source excerpts under ignored
+**Next step:** P2-05.2. Implement source matching from returned search units to
+canonical prose/table evidence. Keep private source excerpts under ignored
 local-reference storage. ADR-0009 records exact selection and lineage; the P2-01 entry
 check records resource measurements, migration/restore evidence and local artifact
 paths.

@@ -1,0 +1,690 @@
+schema_version = 1
+dataset_id = "phase2-calibration-v1"
+dataset_kind = "calibration"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+split_policy_id = "phase2-family-split-v1"
+
+[[source_documents]]
+document_id = "d14ab068-d140-48ab-8f8d-c9745e380982"
+paper_id = "W4404782883"
+extraction_id = "11bd505f-e935-5e7e-aaee-c111d16c49bd"
+pdf_sha256 = "045d0bf2712448fcadd850760be8eb92c2576b68643a01f52704d15e13e8456e"
+
+[[source_documents]]
+document_id = "6f6b8dc9-153c-4f31-9443-7f1496bdc523"
+paper_id = "W4402671832"
+extraction_id = "a1ec3b86-a125-5e36-a9ba-c4dd5c6e0d68"
+pdf_sha256 = "1c6ef8eb4a223db760ff2243addd357fc6094d0b5d6c62635439fad7f9900396"
+
+[[source_documents]]
+document_id = "9d3572dd-32b5-4874-acb9-a38330498295"
+paper_id = "W4404783040"
+extraction_id = "715e72c5-0466-5dbb-9a3d-aeb54efd177b"
+pdf_sha256 = "28296441e7a995a64436dd9e065814faac24a395fd6754ccd2c58149f3ace660"
+
+[[source_documents]]
+document_id = "0a465448-2b15-48ca-a7ee-3cc2c075ca7d"
+paper_id = "W4402853403"
+extraction_id = "089489b7-97cf-50bf-9893-b38c40c36807"
+pdf_sha256 = "131faf4e0770f295b274b1b6d7fc8e7089b176f6de5aab70c17614aff0a51cc7"
+
+[[source_documents]]
+document_id = "1fb2e6de-6e8e-40de-b5da-1c46b77b1bda"
+paper_id = "W4411113004"
+extraction_id = "ff2f4911-65e0-5d8f-a1dc-80b56a57193b"
+pdf_sha256 = "6e6b45b3d08b08f514df36544bd15564dc9153e56d0313a811f83246764e8657"
+
+[[source_documents]]
+document_id = "b7e2c317-a747-4f84-965d-dae8b608945d"
+paper_id = "W4415813536"
+extraction_id = "a9edaee6-5e3d-5bf9-a5dc-8fd7bb0df13c"
+pdf_sha256 = "9f908ec5832122c08f3f37b8373d111bd64c37bfaf67e66a410adcbb7dcb3b50"
+
+[[source_documents]]
+document_id = "ea3d87b9-f647-4256-aa92-3c8605ccc2b3"
+paper_id = "W4414925442"
+extraction_id = "5a0e45f9-6a00-5eb1-9b65-ee010c9ba30d"
+pdf_sha256 = "06062b5fbb4a21b513020e64e0f9d501e3abfbe3861e3a7e20649ee3acd52741"
+
+[[source_documents]]
+document_id = "122388d0-892e-4a6c-9e58-a7357151d473"
+paper_id = "W4406596702"
+extraction_id = "15cc707a-d0db-519c-9fb2-d1cba7729893"
+pdf_sha256 = "16eb0c33415b3cf8d22112d98998110b0f67b3f54978f0a3825ecee5194a15b2"
+
+[[source_documents]]
+document_id = "baca0764-8f59-457d-8893-43b0ca831ca7"
+paper_id = "W3121076170"
+extraction_id = "e69e8de5-0f02-5ca1-a09a-1ca0bcaa9a14"
+pdf_sha256 = "fc8b2f668c5c9585d1fddf6cced827c608d7a4809011634aa3b6d14188f78d69"
+
+[[source_documents]]
+document_id = "28c349ee-c79c-4e97-8822-88ffeda97563"
+paper_id = "W4403006857"
+extraction_id = "3968664d-6854-5073-9552-4498d5a90bfd"
+pdf_sha256 = "49f456c744cac4048018588550bf5ccb68ad29b49442d7bd227f21c9398824cd"
+
+[[source_documents]]
+document_id = "9ae81271-8629-49a0-8115-e66554f4fd6f"
+paper_id = "W3204250176"
+extraction_id = "0c412c28-f723-511b-9de2-ad75a1707a5b"
+pdf_sha256 = "686024497fb84050880405acd9197094adfa7ac8ea2c1450eb975840fa756eb7"
+
+[[source_documents]]
+document_id = "99b5e309-be96-4a41-9528-bdfb1344e4e6"
+paper_id = "W4402671970"
+extraction_id = "27a7a023-c879-52d1-b21d-5e3452328c02"
+pdf_sha256 = "f7c2cb7cb070a2143062bd6a7762fb25ccd4b4582899ff64ab5ddd0b6163bb74"
+
+[[source_documents]]
+document_id = "68a0d60f-0e1e-4719-8dd6-cce5e5535152"
+paper_id = "W4412886806"
+extraction_id = "b3d5123c-2415-5948-8bce-d8dbf1ab0df5"
+pdf_sha256 = "c1a987e84a5ed60b5cf244480e3c68a728da636ab90cab315b58bbf203bebde3"
+
+[[source_anchors]]
+id = "b-table1"
+document_id = "d14ab068-d140-48ab-8f8d-c9745e380982"
+page_index_zero_based = 7
+region_type = "table"
+locator = "Table 1; task rows, average-quality column, and latency column"
+source_check = "original_pdf_visual"
+table_label = "Table 1"
+row_context = "retrieval and generation configurations by task"
+column_context = "task metrics, average quality, and latency"
+
+[[source_anchors]]
+id = "b-table7"
+document_id = "d14ab068-d140-48ab-8f8d-c9745e380982"
+page_index_zero_based = 15
+region_type = "table"
+locator = "Table 7; retrieval-method rows under TREC-DL19 and TREC-DL20"
+source_check = "original_pdf_visual"
+table_label = "Table 7"
+row_context = "retrieval methods"
+column_context = "benchmark, ranking metric, and latency"
+
+[[source_anchors]]
+id = "b-table9"
+document_id = "d14ab068-d140-48ab-8f8d-c9745e380982"
+page_index_zero_based = 16
+region_type = "table"
+locator = "Table 9; hybrid-search alpha rows under both benchmark blocks"
+source_check = "original_pdf_visual"
+table_label = "Table 9"
+row_context = "hybrid-search alpha settings"
+column_context = "benchmark, mAP, nDCG@10, recall, and latency"
+
+[[source_anchors]]
+id = "l-table4"
+document_id = "6f6b8dc9-153c-4f31-9443-7f1496bdc523"
+page_index_zero_based = 6
+region_type = "table"
+locator = "Table 4; dataset blocks, method rows, and positive-passage positions"
+source_check = "original_pdf_visual"
+table_label = "Table 4"
+row_context = "reranking methods"
+column_context = "TREC-COVID and FiQA, passage position, variability, and agreement"
+
+[[source_anchors]]
+id = "d-table3"
+document_id = "9d3572dd-32b5-4874-acb9-a38330498295"
+page_index_zero_based = 4
+region_type = "table"
+locator = "Table 3; retriever, granularity, dataset, and recall columns"
+source_check = "original_pdf_visual"
+table_label = "Table 3"
+row_context = "dense retrievers and passage, sentence, proposition granularities"
+column_context = "open-domain QA dataset and recall cutoff"
+interpretive_context = "table note marks possible overlap between target training data and retriever training data"
+
+[[source_anchors]]
+id = "d-table5"
+document_id = "9d3572dd-32b5-4874-acb9-a38330498295"
+page_index_zero_based = 7
+region_type = "table"
+locator = "Table 5; retriever and granularity rows under dataset and context-limit columns"
+source_check = "original_pdf_visual"
+table_label = "Table 5"
+row_context = "closed-book comparator and dense retrievers by granularity"
+column_context = "QA dataset, Exact Match, and context limit"
+
+[[source_anchors]]
+id = "r-table3"
+document_id = "0a465448-2b15-48ca-a7ee-3cc2c075ca7d"
+page_index_zero_based = 14
+region_type = "table"
+locator = "Table 3; accuracy and pairwise p-value blocks for both datasets"
+source_check = "original_pdf_visual"
+table_label = "Table 3"
+row_context = "RAG and non-RAG model variants"
+column_context = "RSNA-RadioQA and ExtendedQA accuracy and pairwise p-values"
+interpretive_context = "table note defines the p-value comparisons and N/A cells"
+
+[[source_anchors]]
+id = "s-table10"
+document_id = "1fb2e6de-6e8e-40de-b5da-1c46b77b1bda"
+page_index_zero_based = 12
+region_type = "table"
+locator = "Table 10 QA Similarity; dataset rows and chunker columns"
+source_check = "original_pdf_visual"
+table_label = "Table 10: QA Similarity"
+row_context = "answer-generation datasets"
+column_context = "Fixed-size, Breakpoint, and Clustering"
+interpretive_context = "the crop shows a table label that conflicts with the ignored extraction packet caption"
+
+[[source_anchors]]
+id = "cc-abstract"
+document_id = "b7e2c317-a747-4f84-965d-dae8b608945d"
+page_index_zero_based = 0
+region_type = "prose"
+locator = "PDF p.0; abstract and evaluation setup"
+source_check = "publisher_fulltext"
+interpretive_context = "clinical RAG evaluated on postoperative questions"
+
+[[source_anchors]]
+id = "cc-future-design"
+document_id = "b7e2c317-a747-4f84-965d-dae8b608945d"
+page_index_zero_based = 16
+region_type = "prose"
+locator = "PDF p.16; discussion of future clinical evaluation"
+source_check = "publisher_fulltext"
+interpretive_context = "a randomized clinical design is discussed as future work"
+
+[[source_anchors]]
+id = "mega-rct-sources"
+document_id = "ea3d87b9-f647-4256-aa92-3c8605ccc2b3"
+page_index_zero_based = 1
+region_type = "prose"
+locator = "PDF p.1; retrieval source types"
+source_check = "publisher_fulltext"
+interpretive_context = "clinical-trial literature is a retrieved source type"
+
+[[source_anchors]]
+id = "clear-methods"
+document_id = "122388d0-892e-4a6c-9e58-a7357151d473"
+page_index_zero_based = 2
+region_type = "prose"
+locator = "PDF p.2; clinical information-extraction evaluation"
+source_check = "publisher_fulltext"
+interpretive_context = "clinical notes and extraction labels are evaluated"
+
+[[source_anchors]]
+id = "clear-funding"
+document_id = "122388d0-892e-4a6c-9e58-a7357151d473"
+page_index_zero_based = 9
+region_type = "prose"
+locator = "PDF p.9; acknowledgements"
+source_check = "original_pdf_text_crosschecked"
+interpretive_context = "clinical-trials-network phrase occurs in a funding acknowledgement"
+
+[[source_anchors]]
+id = "fidex-rct-input"
+document_id = "baca0764-8f59-457d-8893-43b0ca831ca7"
+page_index_zero_based = 4
+region_type = "prose"
+locator = "PDF p.4; task inputs"
+source_check = "publisher_fulltext"
+interpretive_context = "randomized-trial articles are source inputs to a rationale-generation task"
+
+[[source_anchors]]
+id = "legal-rcts"
+document_id = "28c349ee-c79c-4e97-8822-88ffeda97563"
+page_index_zero_based = 5
+region_type = "prose"
+locator = "PDF p.5; chunking-method definition"
+source_check = "original_pdf_text_crosschecked"
+interpretive_context = "RCTS names a recursive text splitter"
+
+[[source_anchors]]
+id = "sdr-random-transform"
+document_id = "9ae81271-8629-49a0-8115-e66554f4fd6f"
+page_index_zero_based = 7
+region_type = "prose"
+locator = "PDF p.7; model transform description"
+source_check = "original_pdf_text_crosschecked"
+interpretive_context = "randomized transform is unrelated to a clinical trial"
+
+[[source_anchors]]
+id = "listt5-random-sampling"
+document_id = "6f6b8dc9-153c-4f31-9443-7f1496bdc523"
+page_index_zero_based = 3
+region_type = "prose"
+locator = "PDF p.3; training example construction"
+source_check = "original_pdf_text_crosschecked"
+interpretive_context = "random passage sampling is part of training"
+
+[[source_anchors]]
+id = "mrag-randomization"
+document_id = "99b5e309-be96-4a41-9528-bdfb1344e4e6"
+page_index_zero_based = 3
+region_type = "prose"
+locator = "PDF p.3; retrieval-index strategy"
+source_check = "original_pdf_text_crosschecked"
+interpretive_context = "randomization refers to an indexing strategy"
+
+[[source_anchors]]
+id = "mainrag-shuffle"
+document_id = "68a0d60f-0e1e-4719-8dd6-cce5e5535152"
+page_index_zero_based = 3
+region_type = "prose"
+locator = "PDF p.3; benchmark evaluation setup"
+source_check = "original_pdf_text_crosschecked"
+interpretive_context = "random shuffling is used in a benchmark evaluation"
+
+[[families]]
+id = "q01"
+split = "development"
+categories = ["discovery", "specific_evidence"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q01-v1"
+role = "canonical"
+text = "Which paper in this snapshot evaluates retrieval methods on TREC-DL19 and TREC-DL20, and what methods and ranking metrics does its results table compare?"
+
+[[families.paper_judgments]]
+paper_id = "W4404782883"
+label = 2
+rationale = "The paper directly evaluates retrieval methods on both named benchmarks."
+
+[[families.evidence_judgments]]
+paper_id = "W4404782883"
+source_anchor_id = "b-table7"
+label = 2
+rationale = "The table directly reports the requested benchmark, methods, ranking measures, and latency."
+
+[[families.evidence_groups]]
+id = "q01-results"
+required_pieces = [["b-table7"]]
+
+[[families]]
+id = "q02"
+split = "development"
+categories = ["specific_evidence", "table_result"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q02-v1"
+role = "canonical"
+text = "How does ListT5 behave when the positive passage moves among the input positions on TREC-COVID and FiQA, compared with the listed reranking baselines?"
+
+[[families.paper_judgments]]
+paper_id = "W4402671832"
+label = 2
+rationale = "The paper directly evaluates ListT5 on positive-passage position sensitivity."
+
+[[families.evidence_judgments]]
+paper_id = "W4402671832"
+source_anchor_id = "l-table4"
+label = 2
+rationale = "The table directly reports each named dataset, method, position, variability, and agreement."
+
+[[families.evidence_groups]]
+id = "q02-position"
+required_pieces = [["l-table4"]]
+
+[[families]]
+id = "q03"
+split = "development"
+categories = ["table_result"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q03-v1"
+role = "canonical"
+text = "Does one hybrid-search alpha maximize both mAP and nDCG@10 on both TREC-DL test sets?"
+
+[[families.paper_judgments]]
+paper_id = "W4404782883"
+label = 2
+rationale = "The paper directly compares hybrid-search settings on both requested measures and benchmarks."
+
+[[families.evidence_judgments]]
+paper_id = "W4404782883"
+source_anchor_id = "b-table9"
+label = 2
+rationale = "The table directly associates alpha settings with both measures under each benchmark."
+
+[[families.evidence_groups]]
+id = "q03-alpha"
+required_pieces = [["b-table9"]]
+
+[[families]]
+id = "q04"
+split = "development"
+categories = ["cross_paper_comparison"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q04-v1"
+role = "canonical"
+text = "What does the TREC retrieval table in Searching for Best Practices measure, and how does that differ from RadioRAG’s radiology-QA statistical table? What can each table establish, and why should their scores not be compared directly?"
+
+[[families.paper_judgments]]
+paper_id = "W4404782883"
+label = 2
+rationale = "This paper supplies the TREC retrieval-ranking evidence."
+
+[[families.paper_judgments]]
+paper_id = "W4402853403"
+label = 2
+rationale = "This paper supplies the radiology-QA accuracy and statistical-test evidence."
+
+[[families.evidence_judgments]]
+paper_id = "W4404782883"
+source_anchor_id = "b-table7"
+label = 2
+rationale = "The source table reports retrieval-ranking metrics and latency on TREC-DL benchmarks."
+
+[[families.evidence_judgments]]
+paper_id = "W4402853403"
+source_anchor_id = "r-table3"
+label = 2
+rationale = "The source table reports radiology-QA accuracy and pairwise p-values with dataset context."
+
+[[families.evidence_groups]]
+id = "q04-trec-scope"
+required_pieces = [["b-table7"]]
+
+[[families.evidence_groups]]
+id = "q04-radiology-scope"
+required_pieces = [["r-table3"]]
+
+[[families]]
+id = "q05"
+split = "development"
+categories = ["filters", "specific_evidence"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = { year_from = 2024, year_to = 2024 }
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q05-v1"
+role = "canonical"
+text = "Among papers published in 2024, which zero-shot listwise reranking study tests sensitivity to positive-passage position, and on which datasets?"
+
+[[families.paper_judgments]]
+paper_id = "W4402671832"
+label = 2
+rationale = "The 2024 paper directly reports the requested reranking study."
+
+[[families.paper_judgments]]
+paper_id = "W4411113004"
+label = 0
+rationale = "This retrieval-related paper is outside the inclusive 2024 year filter and does not study positive-passage position."
+
+[[families.evidence_judgments]]
+paper_id = "W4402671832"
+source_anchor_id = "l-table4"
+label = 2
+rationale = "The table directly reports the two datasets and passage-position conditions."
+
+[[families.evidence_groups]]
+id = "q05-position"
+required_pieces = [["l-table4"]]
+
+[[families]]
+id = "q06"
+split = "development"
+categories = ["missing_evidence", "filters"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = true
+requires_evidence = false
+evidence_groups = []
+
+[[families.queries]]
+id = "q06-v1"
+role = "canonical"
+text = "Does any paper in the accepted snapshot report a randomized clinical trial comparing a RAG system with usual care using patient outcomes? Distinguish an evaluation of clinical queries or clinical/RCT source documents from a trial of the RAG system in care."
+
+[[families.paper_judgments]]
+paper_id = "W4415813536"
+label = 1
+rationale = "The clinical RAG pipeline is evaluated on postoperative questions but not as a patient-outcome trial against usual care."
+
+[[families.paper_judgments]]
+paper_id = "W4414925442"
+label = 1
+rationale = "The public-health RAG paper retrieves trial literature but does not test the system as a clinical intervention."
+
+[[families.paper_judgments]]
+paper_id = "W4406596702"
+label = 1
+rationale = "The clinical-information RAG pipeline is evaluated on note-extraction tasks, not as a trial against usual care."
+
+[[families.paper_judgments]]
+paper_id = "W3121076170"
+label = 0
+rationale = "Randomized-trial articles are task inputs to rationale generation, not a clinical RAG intervention."
+
+[[families.paper_judgments]]
+paper_id = "W4403006857"
+label = 0
+rationale = "RCTS names a recursive text splitter, not a randomized clinical trial."
+
+[[families.paper_judgments]]
+paper_id = "W3204250176"
+label = 0
+rationale = "The randomization mention concerns a model transform."
+
+[[families.paper_judgments]]
+paper_id = "W4402671832"
+label = 0
+rationale = "The randomization mentions concern training-example sampling and ordering."
+
+[[families.paper_judgments]]
+paper_id = "W4402671970"
+label = 0
+rationale = "The randomization mention concerns an indexing method."
+
+[[families.paper_judgments]]
+paper_id = "W4412886806"
+label = 0
+rationale = "The randomization mention concerns benchmark input shuffling."
+
+[[families.evidence_judgments]]
+paper_id = "W4415813536"
+source_anchor_id = "cc-abstract"
+label = 1
+rationale = "The abstract describes a clinical RAG experiment on queries, not patient outcomes or usual-care comparison."
+
+[[families.evidence_judgments]]
+paper_id = "W4415813536"
+source_anchor_id = "cc-future-design"
+label = 1
+rationale = "The source frames randomized clinical evaluation as future work rather than reporting such a trial."
+
+[[families.evidence_judgments]]
+paper_id = "W4414925442"
+source_anchor_id = "mega-rct-sources"
+label = 1
+rationale = "The paper uses clinical-trial literature as retrieved evidence, not as a trial of its RAG system."
+
+[[families.evidence_judgments]]
+paper_id = "W4406596702"
+source_anchor_id = "clear-methods"
+label = 1
+rationale = "The paper evaluates clinical-note extraction with RAG but not patient outcomes against usual care."
+
+[[families.evidence_judgments]]
+paper_id = "W4406596702"
+source_anchor_id = "clear-funding"
+label = 0
+rationale = "The clinical-trials phrase is in an acknowledgement, not evidence about the evaluated system."
+
+[[families.evidence_judgments]]
+paper_id = "W3121076170"
+source_anchor_id = "fidex-rct-input"
+label = 0
+rationale = "The randomized-trial material is an input corpus for a different task."
+
+[[families.evidence_judgments]]
+paper_id = "W4403006857"
+source_anchor_id = "legal-rcts"
+label = 0
+rationale = "The acronym refers to text splitting, not trial assignment."
+
+[[families.evidence_judgments]]
+paper_id = "W3204250176"
+source_anchor_id = "sdr-random-transform"
+label = 0
+rationale = "The source discusses a randomized model transform, unrelated to clinical evaluation."
+
+[[families.evidence_judgments]]
+paper_id = "W4402671832"
+source_anchor_id = "listt5-random-sampling"
+label = 0
+rationale = "Randomness is part of training-data construction."
+
+[[families.evidence_judgments]]
+paper_id = "W4402671970"
+source_anchor_id = "mrag-randomization"
+label = 0
+rationale = "Randomization is an indexing strategy in the retrieval system."
+
+[[families.evidence_judgments]]
+paper_id = "W4412886806"
+source_anchor_id = "mainrag-shuffle"
+label = 0
+rationale = "Random shuffling is part of benchmark evaluation, not a clinical trial."
+
+[[families]]
+id = "q07"
+split = "development"
+categories = ["table_result", "specific_evidence"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q07-v1"
+role = "canonical"
+text = "In Dense X Retrieval, does proposition-level indexing lead every retriever to the best downstream QA result across all datasets and both context limits?"
+
+[[families.paper_judgments]]
+paper_id = "W4404783040"
+label = 2
+rationale = "The paper directly compares retrieval granularities for downstream QA."
+
+[[families.evidence_judgments]]
+paper_id = "W4404783040"
+source_anchor_id = "d-table5"
+label = 2
+rationale = "The table directly reports downstream QA Exact Match by retriever, granularity, dataset, and context limit."
+
+[[families.evidence_groups]]
+id = "q07-granularity"
+required_pieces = [["d-table5"]]
+
+[[families]]
+id = "q08"
+split = "development"
+categories = ["table_result"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q08-v1"
+role = "canonical"
+text = "In the semantic-chunking paper’s QA Similarity table, does one chunking strategy have the highest result for every dataset?"
+
+[[families.paper_judgments]]
+paper_id = "W4411113004"
+label = 2
+rationale = "The paper directly reports QA Similarity by dataset and chunking strategy."
+
+[[families.evidence_judgments]]
+paper_id = "W4411113004"
+source_anchor_id = "s-table10"
+label = 2
+rationale = "The source PDF directly associates each dataset row with its chunker columns."
+
+[[families.evidence_groups]]
+id = "q08-chunk-results"
+required_pieces = [["s-table10"]]
+
+[[families]]
+id = "q09"
+split = "development"
+categories = ["table_result"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q09-v1"
+role = "canonical"
+text = "Does RadioRAG Table 3 show a statistically significant difference for every listed comparison on both datasets?"
+
+[[families.paper_judgments]]
+paper_id = "W4402853403"
+label = 2
+rationale = "The paper directly reports the requested pairwise comparisons."
+
+[[families.evidence_judgments]]
+paper_id = "W4402853403"
+source_anchor_id = "r-table3"
+label = 2
+rationale = "The table contains accuracy context, both dataset sections, and the defined p-value comparisons."
+
+[[families.evidence_groups]]
+id = "q09-significance"
+required_pieces = [["r-table3"]]
+
+[[families]]
+id = "q10"
+split = "development"
+categories = ["table_result", "specific_evidence"]
+reviewer_status = "assistant_reviewed"
+reviewed_on = "2026-09-26"
+filters = {}
+unsupported = false
+requires_evidence = true
+
+[[families.queries]]
+id = "q10-v1"
+role = "canonical"
+text = "In Searching for Best Practices Table 1, does the configuration with the strongest average quality also minimize latency and lead every individual task?"
+
+[[families.paper_judgments]]
+paper_id = "W4404782883"
+label = 2
+rationale = "The paper directly reports per-task, average-quality, and latency results."
+
+[[families.evidence_judgments]]
+paper_id = "W4404782883"
+source_anchor_id = "b-table1"
+label = 2
+rationale = "The table directly associates configuration rows with per-task measures, average quality, and latency."
+
+[[families.evidence_groups]]
+id = "q10-quality-latency"
+required_pieces = [["b-table1"]]

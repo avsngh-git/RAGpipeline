@@ -211,7 +211,7 @@ execute. Four new unit tests, the profile tests, and synthetic parent/variant an
 serving-boundary integration checks pass. P2-03 done condition is met: parent and
 variant searches return their own exact selected chunk sets and do not mix vectors.
 
-Continue with **P2-05.1**, defining and validating the deterministic calibration loader.
+Continue with **P2-05.2**, mapping returned search units to canonical source evidence.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 
@@ -277,6 +277,16 @@ and a 30-family development/held-out decision. See
 ## P2-05 — Build deterministic evaluation primitives
 
 **Inputs:** calibration schema and [evaluation protocol](phase-2-evaluation-protocol.md).
+
+**05.1 complete 2026-09-26:** `load_calibration` reads the tracked TOML
+`calibration-v1` dataset into immutable domain records. It validates schema and field
+sets, IDs, source checksums/anchors, filters through `SearchFilters`, development-only
+family assignment, reviewer status, labels, cross-references, and non-empty evidence
+requirement groups. Eleven focused cases cover invalid IDs/references, split overlap,
+invalid filters, unreviewed records and unsupported-family constraints. Verification:
+`ruff check .`, `ruff format --check .`, and `mypy` pass; `pytest -m 'not integration'`
+reports 219 passed / 19 deselected. No source excerpts are included. Next: **05.2
+source matching**.
 
 1. **05.1 Define loaders.** Validate query families, filters, split, judgments,
    source anchors and reviewer status. Reject duplicate IDs, invalid cross-references,
