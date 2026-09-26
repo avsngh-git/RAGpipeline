@@ -87,7 +87,13 @@ class LexicalEvidenceBranch(Protocol):
     @property
     def manifest(self) -> LexicalIndexManifest: ...
 
-    def search_with_stats(self, query: str, *, limit: int) -> LexicalSearchResult: ...
+    def search_with_stats(
+        self,
+        query: str,
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
+    ) -> LexicalSearchResult: ...
 
 
 class DenseEvidenceBranch(Protocol):
@@ -161,8 +167,6 @@ class HybridEvidenceSearch:
             raise ValueError("query text exceeds the configured character limit")
         if not isinstance(filters, SearchFilters):
             raise ValueError("filters must be SearchFilters")
-        if _has_active_filters(filters):
-            raise ValueError("hybrid metadata filters are not available yet")
         filters.validate_for(SearchOperation.EVIDENCE_SEARCH)
 
         if (
@@ -204,7 +208,13 @@ class HybridEvidenceSearch:
             raise HybridProfileMismatch(
                 "lexical artifact candidate limit differs from the profile"
             )
-        lexical_result = self._lexical.search_with_stats(query, limit=lexical_limit)
+        lexical_result = self._lexical.search_with_stats(
+            query, limit=lexical_limit, filters=filters
+        )
+        if lexical_result.applied_filters != filters:
+            raise HybridProfileMismatch(
+                "lexical branch did not apply requested filters"
+            )
         if lexical_result.limit != lexical_limit:
             raise HybridProfileMismatch(
                 "lexical results do not report the requested candidate limit"
@@ -227,6 +237,7 @@ class HybridEvidenceSearch:
             dense_result,
             profile=profile,
             limit=dense_limit,
+            filters=filters,
         )
         fused = reciprocal_rank_fusion(
             lexical_result.hits,
@@ -246,18 +257,16 @@ class HybridEvidenceSearch:
             ),
             dense_pool=CandidatePoolStats(
                 limit=dense_limit,
-                available_count=_required_count(dense_result),
+                available_count=dense_result.candidate_count,
                 returned_count=len(dense_result.hydrated_hits),
-                truncated=_required_truncated(dense_result),
+                truncated=dense_result.truncated,
             ),
             fused_pool=CandidatePoolStats(
                 limit=fused_limit,
                 available_count=len(fused),
                 returned_count=len(returned),
                 truncated=len(fused) > fused_limit,
-                count_exact=not (
-                    lexical_result.truncated or _required_truncated(dense_result)
-                ),
+                count_exact=not (lexical_result.truncated or dense_result.truncated),
             ),
             hits=returned,
         )
@@ -268,6 +277,7 @@ def _validate_dense_branch_response(
     *,
     profile: RetrievalProfile,
     limit: int,
+    filters: SearchFilters,
 ) -> None:
     dense_identity = profile.dense_index
     if (
@@ -276,6 +286,7 @@ def _validate_dense_branch_response(
         or response.profile_id != profile.profile_id
         or response.index_configuration_id != dense_identity.index_configuration_id
         or response.requested_limit != limit
+        or response.applied_filters != filters
     ):
         raise HybridProfileMismatch(
             "dense results differ from the requested profile or candidate limit"
@@ -286,36 +297,9 @@ def _validate_dense_branch_response(
         hit.evidence.evidence_id for hit in response.hydrated_hits
     ):
         raise HybridProfileMismatch("dense matches and hydrated evidence do not align")
-    if response.candidate_count is None or response.truncated is None:
-        raise HybridProfileMismatch("dense branch did not report exact pool statistics")
     if len(response.hits) != min(response.candidate_count, limit):
         raise HybridProfileMismatch(
             "dense returned count differs from its exact pool stats"
         )
     if response.truncated != (response.candidate_count > limit):
         raise HybridProfileMismatch("dense truncation metadata is inconsistent")
-
-
-def _required_count(response: DenseSearchResponse) -> int:
-    if response.candidate_count is None:
-        raise HybridProfileMismatch("dense branch candidate count is unavailable")
-    return response.candidate_count
-
-
-def _required_truncated(response: DenseSearchResponse) -> bool:
-    if response.truncated is None:
-        raise HybridProfileMismatch("dense branch truncation is unavailable")
-    return response.truncated
-
-
-def _has_active_filters(filters: SearchFilters) -> bool:
-    return any(
-        value is not None
-        for value in (
-            filters.year_from,
-            filters.year_to,
-            filters.paper_ids,
-            filters.evidence_kinds,
-            filters.document_version_kinds,
-        )
-    )

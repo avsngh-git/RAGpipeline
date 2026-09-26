@@ -14,8 +14,17 @@ from uuid import UUID
 import bm25s  # type: ignore[import-untyped]
 import numpy as np
 
-from research_platform.ingestion.identity import is_valid_paper_id
+from research_platform.ingestion.evidence import EvidenceKind
+from research_platform.ingestion.identity import (
+    DocumentVersionKind,
+    is_valid_paper_id,
+)
 from research_platform.ingestion.snapshot_selection import SnapshotSelection
+from research_platform.search.contracts import (
+    SearchFilters,
+    SearchOperation,
+    matches_filters,
+)
 from research_platform.search.lexical_analyzer import (
     ANALYZER_ID,
     ANALYZER_REVISION,
@@ -29,8 +38,8 @@ BM25S_IMPLEMENTATION_REVISION = (
     "0.3.11-k1.5-b0.75-delta0.5-lucene-idf-lucene-"
     "float32-int32-numpy-csc-numpy-auto-compile-true"
 )
-LEXICAL_INDEX_FORMAT_REVISION = "bm25s-csc-numpy-row-map-v1"
-LEXICAL_INDEX_SCHEMA_VERSION = 1
+LEXICAL_INDEX_FORMAT_REVISION = "bm25s-csc-numpy-row-map-v2"
+LEXICAL_INDEX_SCHEMA_VERSION = 2
 _HEX_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _STABLE_EVIDENCE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 IndexRole = Literal["evidence", "paper"]
@@ -94,6 +103,50 @@ def _require_sha256(value: object, name: str) -> str:
     return value
 
 
+def _has_active_filters(filters: SearchFilters) -> bool:
+    return any(
+        value is not None
+        for value in (
+            filters.year_from,
+            filters.year_to,
+            filters.paper_ids,
+            filters.evidence_kinds,
+            filters.document_version_kinds,
+        )
+    )
+
+
+def _validate_filter_metadata(
+    publication_year: object,
+    evidence_kind: object,
+    document_version_kind: object,
+) -> None:
+    if publication_year is not None and (
+        isinstance(publication_year, bool)
+        or not isinstance(publication_year, int)
+        or publication_year < 0
+    ):
+        raise ValueError("publication_year must be a non-negative integer or null")
+    valid_evidence_kinds = {
+        "text",
+        "table",
+        "table_row_group",
+        "caption",
+        "figure",
+        "equation",
+    }
+    if evidence_kind is not None and (
+        not isinstance(evidence_kind, str) or evidence_kind not in valid_evidence_kinds
+    ):
+        raise ValueError("evidence_kind is unsupported")
+    valid_document_kinds = {"published", "preprint", "other", "unknown"}
+    if document_version_kind is not None and (
+        not isinstance(document_version_kind, str)
+        or document_version_kind not in valid_document_kinds
+    ):
+        raise ValueError("document_version_kind is unsupported")
+
+
 @dataclass(frozen=True)
 class EvidenceLexicalDocument:
     """One permission-checked selected chunk passed by the snapshot loader."""
@@ -104,6 +157,9 @@ class EvidenceLexicalDocument:
     extraction_id: UUID
     source_artifact_sha256: str
     text: str
+    publication_year: int | None = None
+    evidence_kind: EvidenceKind | None = None
+    document_version_kind: DocumentVersionKind | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.evidence_id, str) or not _STABLE_EVIDENCE_ID.fullmatch(
@@ -119,6 +175,11 @@ class EvidenceLexicalDocument:
         _require_sha256(self.source_artifact_sha256, "source_artifact_sha256")
         if not isinstance(self.text, str):
             raise ValueError("evidence text must be a string")
+        _validate_filter_metadata(
+            self.publication_year,
+            self.evidence_kind,
+            self.document_version_kind,
+        )
 
 
 @dataclass(frozen=True)
@@ -160,6 +221,9 @@ class LexicalIndexRow:
     abstract_sha256: str | None = None
     has_title: bool | None = None
     has_abstract: bool | None = None
+    publication_year: int | None = None
+    evidence_kind: EvidenceKind | None = None
+    document_version_kind: DocumentVersionKind | None = None
 
     @classmethod
     def from_dict(cls, value: Mapping[str, object]) -> LexicalIndexRow:
@@ -175,6 +239,9 @@ class LexicalIndexRow:
             "abstract_sha256",
             "has_title",
             "has_abstract",
+            "publication_year",
+            "evidence_kind",
+            "document_version_kind",
         }
         if set(value) != expected:
             raise ValueError("lexical row map fields are incomplete or unknown")
@@ -210,6 +277,12 @@ class LexicalIndexRow:
             item = value[name]
             if item is not None and not isinstance(item, bool):
                 raise ValueError(f"lexical row {name} must be boolean or null")
+        publication_year = value["publication_year"]
+        evidence_kind = value["evidence_kind"]
+        document_version_kind = value["document_version_kind"]
+        _validate_filter_metadata(
+            publication_year, evidence_kind, document_version_kind
+        )
         if optional_text["source_artifact_sha256"] is not None:
             _require_sha256(
                 optional_text["source_artifact_sha256"], "source_artifact_sha256"
@@ -240,6 +313,11 @@ class LexicalIndexRow:
             abstract_sha256=optional_text["abstract_sha256"],
             has_title=cast(bool | None, value["has_title"]),
             has_abstract=cast(bool | None, value["has_abstract"]),
+            publication_year=cast(int | None, publication_year),
+            evidence_kind=cast(EvidenceKind | None, evidence_kind),
+            document_version_kind=cast(
+                DocumentVersionKind | None, document_version_kind
+            ),
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -255,6 +333,9 @@ class LexicalIndexRow:
             "abstract_sha256": self.abstract_sha256,
             "has_title": self.has_title,
             "has_abstract": self.has_abstract,
+            "publication_year": self.publication_year,
+            "evidence_kind": self.evidence_kind,
+            "document_version_kind": self.document_version_kind,
         }
 
 
@@ -410,6 +491,9 @@ def build_evidence_index(
             source_artifact_sha256=document.source_artifact_sha256,
             document_id=str(document.document_id),
             extraction_id=str(document.extraction_id),
+            publication_year=document.publication_year,
+            evidence_kind=document.evidence_kind,
+            document_version_kind=document.document_version_kind,
         )
         for row, document in enumerate(ordered)
     ]
@@ -482,6 +566,7 @@ class LexicalSearchResult:
     available_count: int
     limit: int
     truncated: bool
+    applied_filters: SearchFilters = SearchFilters()
 
     def __post_init__(self) -> None:
         if (
@@ -498,6 +583,8 @@ class LexicalSearchResult:
             raise ValueError("available_count must be a non-negative integer")
         if not isinstance(self.truncated, bool):
             raise ValueError("truncated must be boolean")
+        if not isinstance(self.applied_filters, SearchFilters):
+            raise ValueError("applied_filters must be SearchFilters")
         if self.available_count < len(self.hits):
             raise ValueError("available_count cannot be smaller than returned hits")
         if len(self.hits) > self.limit:
@@ -531,10 +618,11 @@ class LexicalRetriever:
         *,
         eligible_ids: Collection[str] | None = None,
         limit: int = 10,
+        filters: SearchFilters = SearchFilters(),
     ) -> tuple[LexicalHit, ...]:
         """Return positive matches from the eligible set with stable score ties."""
         return self.search_with_stats(
-            query, eligible_ids=eligible_ids, limit=limit
+            query, eligible_ids=eligible_ids, limit=limit, filters=filters
         ).hits
 
     def search_with_stats(
@@ -543,17 +631,21 @@ class LexicalRetriever:
         *,
         eligible_ids: Collection[str] | None = None,
         limit: int = 10,
+        filters: SearchFilters = SearchFilters(),
     ) -> LexicalSearchResult:
         """Return bounded hits plus the exact positive-match count."""
         if not isinstance(query, str):
             raise TypeError("query must be text")
+        if not isinstance(filters, SearchFilters):
+            raise ValueError("filters must be SearchFilters")
+        filters.validate_for(SearchOperation.EVIDENCE_SEARCH)
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise ValueError("limit must be a positive integer")
         if limit > self._index.manifest.candidate_limit:
             raise ValueError("limit exceeds the profile lexical candidate limit")
         tokens = tokenize_scientific_english(query)
         if not tokens:
-            return LexicalSearchResult((), 0, limit, False)
+            return LexicalSearchResult((), 0, limit, False, filters)
 
         if eligible_ids is None:
             eligible_rows = set(range(len(self._index.rows)))
@@ -565,10 +657,27 @@ class LexicalRetriever:
             if unknown_ids:
                 raise ValueError("eligible IDs are outside this lexical index")
             if not requested_ids:
-                return LexicalSearchResult((), 0, limit, False)
+                return LexicalSearchResult((), 0, limit, False, filters)
             eligible_rows = {
                 self._row_by_id[stable_id].row for stable_id in requested_ids
             }
+
+        if _has_active_filters(filters):
+            eligible_rows = {
+                row.row
+                for row in self._index.rows
+                if row.row in eligible_rows
+                and matches_filters(
+                    filters,
+                    operation=SearchOperation.EVIDENCE_SEARCH,
+                    paper_id=row.paper_id,
+                    publication_year=row.publication_year,
+                    evidence_kind=row.evidence_kind,
+                    document_version_kind=row.document_version_kind,
+                )
+            }
+        if not eligible_rows:
+            return LexicalSearchResult((), 0, limit, False, filters)
 
         score_array = np.asarray(self._index.engine.get_scores(list(tokens)))
         if score_array.shape != (len(self._index.rows),):
@@ -596,4 +705,5 @@ class LexicalRetriever:
             available_count=available_count,
             limit=limit,
             truncated=available_count > limit,
+            applied_filters=filters,
         )

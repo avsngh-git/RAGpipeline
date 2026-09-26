@@ -52,8 +52,9 @@ from research_platform.ingestion.embeddings import (
     E5SmallV2Embedder,
     create_embedder_for_configuration,
 )
-from research_platform.ingestion.evidence import ChunkingConfig
+from research_platform.ingestion.evidence import ChunkingConfig, EvidenceKind
 from research_platform.ingestion.evidence_repository import EvidenceRepository
+from research_platform.ingestion.identity import DocumentVersionKind
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
     IndexRepository,
@@ -668,6 +669,12 @@ async def _execute_lexical_build(args: argparse.Namespace, pool: asyncpg.Pool) -
             extraction_id=UUID(str(item.payload["extraction_id"])),
             source_artifact_sha256=str(item.payload["source_artifact_sha256"]),
             text=item.text,
+            publication_year=cast(int | None, item.payload.get("publication_year")),
+            evidence_kind=cast(EvidenceKind | None, item.payload.get("evidence_kind")),
+            document_version_kind=cast(
+                DocumentVersionKind | None,
+                item.payload.get("document_version_kind"),
+            ),
         )
         for item in corpus.evidence
     )

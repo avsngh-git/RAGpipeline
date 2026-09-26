@@ -1675,6 +1675,17 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 item.payload["source_artifact_sha256"]
                 for item in lexical_inputs.evidence
             } == {artifact.sha256}
+            assert {
+                item.payload["publication_year"] for item in lexical_inputs.evidence
+            } == {2024}
+            assert {
+                item.payload["evidence_kind"] for item in lexical_inputs.evidence
+            } == {"text"}
+            assert all(
+                item.payload["document_version_kind"]
+                in {"published", "preprint", "other", "unknown"}
+                for item in lexical_inputs.evidence
+            )
 
             async with httpx.AsyncClient(
                 base_url=TEST_QDRANT_URL.rstrip("/"), timeout=10

@@ -91,11 +91,17 @@ class _LexicalBranch:
             candidate_limit=profile.candidate_limits.lexical_top_k,
         )
         self.result = result
-        self.calls: list[tuple[str, int]] = []
+        self.calls: list[tuple[str, int, SearchFilters]] = []
 
-    def search_with_stats(self, query: str, *, limit: int) -> LexicalSearchResult:
-        self.calls.append((query, limit))
-        return self.result
+    def search_with_stats(
+        self,
+        query: str,
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
+    ) -> LexicalSearchResult:
+        self.calls.append((query, limit, filters))
+        return replace(self.result, applied_filters=filters)
 
 
 class _DenseBranch:
@@ -115,8 +121,10 @@ class _DenseBranch:
         evaluation: bool,
     ) -> DenseSearchResponse:
         self.calls.append((profile, query, limit, filters, evaluation))
+        selected_hits = self.hits if filters == SearchFilters() else ()
+        available_count = self.available_count if filters == SearchFilters() else 0
         matches = tuple(
-            IndexMatch(hit.evidence.evidence_id, hit.score, {}) for hit in self.hits
+            IndexMatch(hit.evidence.evidence_id, hit.score, {}) for hit in selected_hits
         )
         return DenseSearchResponse(
             snapshot_id=profile.snapshot.snapshot_id,
@@ -124,9 +132,10 @@ class _DenseBranch:
             index_configuration_id=profile.dense_index.index_configuration_id,
             requested_limit=limit,
             hits=matches,
-            hydrated_hits=self.hits,
-            candidate_count=self.available_count,
-            truncated=self.available_count > limit,
+            hydrated_hits=selected_hits,
+            candidate_count=available_count,
+            truncated=available_count > limit,
+            applied_filters=filters,
         )
 
     async def search_hybrid_component_query(
@@ -173,7 +182,7 @@ def test_hybrid_search_caps_each_branch_and_fused_union_with_exact_stats() -> No
 
     result = asyncio.run(service.search_query(profile, "query"))
 
-    assert lexical.calls == [("query", 2)]
+    assert lexical.calls == [("query", 2, SearchFilters())]
     assert dense.calls == [(profile, "query", 3, SearchFilters(), False)]
     assert [hit.evidence_id for hit in result.hits] == ["b", "a"]
     assert result.snapshot_id == SNAPSHOT_ID
@@ -208,19 +217,39 @@ def test_hybrid_search_rejects_profile_mismatch_before_dense_call() -> None:
     assert not dense.calls
 
 
-def test_hybrid_search_rejects_filters_until_both_branches_apply_them() -> None:
+def test_hybrid_search_applies_and_records_filters_in_both_branches() -> None:
     profile = _profile()
     service, lexical, dense = _service(profile)
+    filters = SearchFilters(
+        year_from=2020,
+        year_to=2024,
+        paper_ids=("W123", "W456"),
+        evidence_kinds=("table", "table_row_group"),
+        document_version_kinds=("preprint", "published"),
+    )
 
-    with pytest.raises(ValueError, match="filters are not available yet"):
-        asyncio.run(
-            service.search_query(
-                profile, "query", filters=SearchFilters(year_from=2020)
-            )
-        )
+    result = asyncio.run(service.search_query(profile, "query", filters=filters))
 
-    assert not lexical.calls
-    assert not dense.calls
+    assert lexical.calls == [("query", 2, filters)]
+    assert dense.calls == [(profile, "query", 3, filters, False)]
+    assert result.applied_filters == filters
+
+
+def test_hybrid_search_returns_empty_when_filters_have_no_eligible_evidence() -> None:
+    profile = _profile()
+    service, lexical, dense = _service(profile)
+    filters = SearchFilters(paper_ids=("W999",))
+    lexical.result = LexicalSearchResult((), 0, 2, False)
+
+    result = asyncio.run(service.search_query(profile, "query", filters=filters))
+
+    assert result.hits == ()
+    assert result.lexical_pool.available_count == 0
+    assert result.dense_pool.available_count == 0
+    assert result.fused_pool.available_count == 0
+    assert result.applied_filters == filters
+    assert lexical.calls == [("query", 2, filters)]
+    assert dense.calls == [(profile, "query", 3, filters, False)]
 
 
 def test_hybrid_evaluation_uses_the_explicit_evaluation_branch() -> None:

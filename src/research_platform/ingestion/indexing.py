@@ -397,17 +397,26 @@ class QdrantIndex:
             )
         return tuple(matches)
 
-    async def count_snapshot(self, snapshot_id: UUID) -> int:
+    async def count_snapshot(
+        self,
+        snapshot_id: UUID,
+        *,
+        payload_conditions: Sequence[Mapping[str, object]] = (),
+    ) -> int:
+        """Return the exact point count for one snapshot and payload filter."""
         response = await self._http.post(
             f"{self._collection_url}/points/count",
-            json={"filter": _snapshot_filter(snapshot_id), "exact": True},
+            json={
+                "filter": _snapshot_filter(snapshot_id, payload_conditions),
+                "exact": True,
+            },
         )
         response.raise_for_status()
         body = response.json()
         result = body.get("result") if isinstance(body, dict) else None
         count = result.get("count") if isinstance(result, dict) else None
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-            raise RuntimeError("Qdrant returned an invalid exact count")
+            raise RuntimeError("Qdrant returned an invalid exact point count")
         return count
 
     async def scroll_snapshot_payloads(
@@ -1113,7 +1122,9 @@ class IndexRepository:
                     """
                     SELECT chunk.id AS evidence_id, chunk.text, paper.id AS paper_id,
                            document.id AS document_id, extraction.id AS extraction_id,
-                           source_file.sha256 AS source_artifact_sha256
+                           source_file.sha256 AS source_artifact_sha256,
+                           paper.publication_year, chunk.kind AS evidence_kind,
+                           document.version_kind AS document_version_kind
                     FROM snapshot_items AS item
                     JOIN papers AS paper ON paper.id = item.paper_id
                     JOIN documents AS document
@@ -1205,6 +1216,9 @@ class IndexRepository:
                             "document_id": str(row["document_id"]),
                             "extraction_id": str(row["extraction_id"]),
                             "source_artifact_sha256": row["source_artifact_sha256"],
+                            "publication_year": row["publication_year"],
+                            "evidence_kind": row["evidence_kind"],
+                            "document_version_kind": row["document_version_kind"],
                         },
                     )
                     for row in rows

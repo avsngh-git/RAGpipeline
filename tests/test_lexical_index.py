@@ -7,9 +7,12 @@ from uuid import UUID
 import pytest
 
 from research_platform.ingestion.snapshot_selection import SnapshotSelection
+from research_platform.search.contracts import SearchFilters
 from research_platform.search.lexical import (
     SCIENTIFIC_BM25_IDENTITY,
     EvidenceLexicalDocument,
+    LexicalIndexRow,
+    LexicalRetriever,
     PaperLexicalDocument,
     build_evidence_index,
     build_paper_index,
@@ -40,7 +43,15 @@ def _profile() -> RetrievalProfile:
     )
 
 
-def _evidence(stable_id: str, paper_id: str, text: str) -> EvidenceLexicalDocument:
+def _evidence(
+    stable_id: str,
+    paper_id: str,
+    text: str,
+    *,
+    publication_year: int | None = None,
+    evidence_kind: str | None = None,
+    document_version_kind: str | None = None,
+) -> EvidenceLexicalDocument:
     return EvidenceLexicalDocument(
         evidence_id=stable_id,
         paper_id=paper_id,
@@ -48,6 +59,9 @@ def _evidence(stable_id: str, paper_id: str, text: str) -> EvidenceLexicalDocume
         extraction_id=UUID("00000000-0000-0000-0000-000000000002"),
         source_artifact_sha256="a" * 64,
         text=text,
+        publication_year=publication_year,
+        evidence_kind=evidence_kind,
+        document_version_kind=document_version_kind,
     )
 
 
@@ -80,6 +94,95 @@ def test_evidence_index_has_deterministic_rows_and_preserves_duplicate_text() ->
         {"manifest": index.to_manifest_dict(), "rows": index.to_row_map()}
     )
     assert "same source text" not in serialized
+
+
+def test_lexical_filters_apply_before_top_k_and_fail_closed_on_missing_metadata() -> (
+    None
+):
+    index = build_evidence_index(
+        (
+            _evidence(
+                "sha256:" + "1" * 64,
+                "W1",
+                "needle needle needle",
+                publication_year=2019,
+                evidence_kind="text",
+                document_version_kind="published",
+            ),
+            _evidence(
+                "sha256:" + "2" * 64,
+                "W2",
+                "needle",
+                publication_year=2022,
+                evidence_kind="table_row_group",
+                document_version_kind="preprint",
+            ),
+            _evidence(
+                "sha256:" + "3" * 64,
+                "W3",
+                "needle additional",
+                publication_year=2023,
+                evidence_kind="table",
+                document_version_kind="published",
+            ),
+            _evidence(
+                "sha256:" + "4" * 64,
+                "W4",
+                "needle",
+                publication_year=None,
+                evidence_kind="table",
+                document_version_kind="published",
+            ),
+            _evidence(
+                "sha256:" + "5" * 64,
+                "W5",
+                "needle",
+                publication_year=2022,
+                evidence_kind=None,
+                document_version_kind=None,
+            ),
+        ),
+        _profile(),
+    )
+    retriever = LexicalRetriever(index)
+
+    assert retriever.search("needle", limit=1)[0].stable_id == "sha256:" + "1" * 64
+    filters = SearchFilters(
+        year_from=2020,
+        year_to=2023,
+        paper_ids=("W2", "W3", "W4"),
+        evidence_kinds=("table", "table_row_group"),
+        document_version_kinds=("published", "preprint"),
+    )
+    filtered = retriever.search_with_stats("needle", limit=1, filters=filters)
+    empty = retriever.search_with_stats(
+        "needle", limit=1, filters=SearchFilters(paper_ids=("W999",))
+    )
+    missing = retriever.search_with_stats(
+        "needle",
+        limit=1,
+        filters=SearchFilters(
+            year_from=2020,
+            paper_ids=("W5",),
+            evidence_kinds=("table",),
+            document_version_kinds=("published",),
+        ),
+    )
+
+    assert [hit.stable_id for hit in filtered.hits] == ["sha256:" + "2" * 64]
+    assert filtered.available_count == 2
+    assert filtered.truncated is True
+    assert filtered.applied_filters == filters
+    selected_row = next(row for row in index.rows if row.paper_id == "W2")
+    restored_row = LexicalIndexRow.from_dict(selected_row.to_dict())
+    assert restored_row.publication_year == 2022
+    assert restored_row.evidence_kind == "table_row_group"
+    assert restored_row.document_version_kind == "preprint"
+    assert empty.hits == ()
+    assert empty.available_count == 0
+    assert empty.truncated is False
+    assert missing.hits == ()
+    assert missing.available_count == 0
 
 
 def test_paper_index_keeps_missing_fields_and_empty_paper_rows() -> None:

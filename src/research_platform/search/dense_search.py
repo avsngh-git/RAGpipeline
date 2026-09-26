@@ -88,9 +88,10 @@ class DenseSearchResponse:
     index_configuration_id: str
     requested_limit: int
     hits: tuple[IndexMatch, ...]
+    candidate_count: int
+    truncated: bool
+    applied_filters: SearchFilters
     hydrated_hits: tuple[HydratedDenseHit, ...] = ()
-    candidate_count: int | None = None
-    truncated: bool | None = None
 
 
 class UnsupportedRetrievalProfile(ValueError):
@@ -305,11 +306,24 @@ class SnapshotDenseSearch:
                 raise SnapshotIndexMismatch(
                     "dense index filter metadata is stale; rebuild the index before filtering"
                 )
+            payload_conditions = _qdrant_payload_conditions(filters)
+            candidate_count = (
+                await self._index.count_snapshot(
+                    profile.snapshot.snapshot_id,
+                    payload_conditions=payload_conditions,
+                )
+                if _has_active_filters(filters)
+                else ready.expected_count
+            )
+            if candidate_count > ready.expected_count:
+                raise SnapshotIndexMismatch(
+                    "filtered point count exceeds the ready snapshot count"
+                )
             hits = await self._index.query_snapshot(
                 vector,
                 profile.snapshot.snapshot_id,
                 limit=limit,
-                payload_conditions=_qdrant_payload_conditions(filters),
+                payload_conditions=payload_conditions,
             )
             for hit in hits:
                 if (
@@ -321,10 +335,7 @@ class SnapshotDenseSearch:
                         "vector result payload does not match the resolved profile"
                     )
             hydrated_hits: tuple[HydratedDenseHit, ...] = ()
-            candidate_count = (
-                None if _has_active_filters(filters) else ready.expected_count
-            )
-            truncated = None if candidate_count is None else candidate_count > limit
+            truncated = candidate_count > limit
             if hydrate or _has_active_filters(filters):
                 assert self._evidence_hydrator is not None
                 hydrated_inputs = (
@@ -357,6 +368,7 @@ class SnapshotDenseSearch:
             hydrated_hits=hydrated_hits,
             candidate_count=candidate_count,
             truncated=truncated,
+            applied_filters=filters,
         )
 
 

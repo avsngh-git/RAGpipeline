@@ -49,9 +49,11 @@ class _Gate:
         self,
         snapshot_status: str = "finalized",
         filter_payload_revision: str | None = DENSE_FILTER_PAYLOAD_REVISION,
+        expected_count: int = 1,
     ) -> None:
         self.snapshot_status = snapshot_status
         self.filter_payload_revision = filter_payload_revision
+        self.expected_count = expected_count
         self.serving_calls = 0
         self.evaluation_calls = 0
 
@@ -67,7 +69,7 @@ class _Gate:
             snapshot_selection=snapshot_selection,
             configuration_id=configuration.configuration_id,
             collection_name=configuration.collection_name,
-            expected_count=1,
+            expected_count=self.expected_count,
             filter_payload_revision=self.filter_payload_revision,
         )
 
@@ -83,7 +85,7 @@ class _Gate:
             snapshot_selection=snapshot_selection,
             configuration_id=configuration.configuration_id,
             collection_name=configuration.collection_name,
-            expected_count=1,
+            expected_count=self.expected_count,
             filter_payload_revision=self.filter_payload_revision,
         )
 
@@ -312,7 +314,7 @@ class _Hydrator:
         if allow_draft:
             assert self.gate.evaluation_calls == 1
         else:
-            assert self.gate.serving_calls == 1
+            assert self.gate.serving_calls >= 1
         self.calls.append((snapshot_selection, tuple(matches)))
         self.allow_draft_calls.append(allow_draft)
         hydrated: list[IndexInput] = []
@@ -367,8 +369,12 @@ def test_e5_query_search_hydrates_ranked_hits_from_the_authoritative_source(
         "score": 0.875,
     }
     requests: list[dict[str, object]] = []
+    count_requests: list[dict[str, object]] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path.endswith("/points/count"):
+            count_requests.append(json.loads(request.content))
+            return httpx.Response(200, json={"result": {"count": 1}})
         if request.method == "POST" and request.url.path.endswith("/points/query"):
             requests.append(json.loads(request.content))
             return httpx.Response(200, json={"result": {"points": [fixture_point]}})
@@ -687,8 +693,21 @@ def test_dense_query_sends_all_metadata_filters_to_qdrant_before_top_k(
             collection_name="dense-bge-filter-test", batch_size=2
         )
         dimensions = 768
-    gate = _Gate()
+    gate = _Gate(expected_count=2)
     evidence_id = "sha256:" + "f" * 64
+    global_top_point = {
+        "payload": {
+            "snapshot_id": str(SNAPSHOT_ID),
+            "index_configuration_id": configuration.configuration_id,
+            "filter_payload_revision": DENSE_FILTER_PAYLOAD_REVISION,
+            "paper_id": "W999",
+            "publication_year": 2018,
+            "evidence_kind": "text",
+            "document_version_kind": "published",
+            "evidence_id": "sha256:" + "e" * 64,
+        },
+        "score": 0.99,
+    }
     fixture_point = {
         "payload": {
             "snapshot_id": str(SNAPSHOT_ID),
@@ -703,11 +722,24 @@ def test_dense_query_sends_all_metadata_filters_to_qdrant_before_top_k(
         "score": 0.93,
     }
     requests: list[dict[str, object]] = []
+    count_requests: list[dict[str, object]] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path.endswith("/points/count"):
+            count_requests.append(json.loads(request.content))
+            return httpx.Response(200, json={"result": {"count": 1}})
         if request.method == "POST" and request.url.path.endswith("/points/query"):
-            requests.append(json.loads(request.content))
-            return httpx.Response(200, json={"result": {"points": [fixture_point]}})
+            query = json.loads(request.content)
+            requests.append(query)
+            filter_keys = {
+                item.get("key")
+                for item in query["filter"]["must"]
+                if isinstance(item, dict)
+            }
+            point = (
+                fixture_point if "publication_year" in filter_keys else global_top_point
+            )
+            return httpx.Response(200, json={"result": {"points": [point]}})
         if request.method == "GET":
             return httpx.Response(
                 200,
@@ -744,11 +776,17 @@ def test_dense_query_sends_all_metadata_filters_to_qdrant_before_top_k(
                 query_embedder=_QueryEmbedder((1.0,) + (0.0,) * (dimensions - 1)),
                 evidence_hydrator=_Hydrator(gate),
             )
+            profile = _profile(configuration)
+            unfiltered = await service.search_query(profile, "filtered query", limit=1)
             result = await service.search_query(
-                _profile(configuration), "filtered query", limit=1, filters=filters
+                profile, "filtered query", limit=1, filters=filters
             )
-        assert requests[0]["limit"] == 1
-        assert requests[0]["filter"] == {
+        assert unfiltered.hits[0].evidence_id == "sha256:" + "e" * 64
+        assert unfiltered.truncated is True
+        assert requests[0]["limit"] == requests[1]["limit"] == 1
+        assert count_requests[0]["exact"] is True
+        assert count_requests[0]["filter"] == requests[1]["filter"]
+        assert requests[1]["filter"] == {
             "must": [
                 {"key": "snapshot_id", "match": {"value": str(SNAPSHOT_ID)}},
                 {
@@ -772,6 +810,9 @@ def test_dense_query_sends_all_metadata_filters_to_qdrant_before_top_k(
         }
         assert result.hits[0].evidence_id == evidence_id
         assert result.hydrated_hits[0].evidence.payload["publication_year"] == 2024
+        assert result.candidate_count == 1
+        assert result.truncated is False
+        assert result.applied_filters == filters
 
     asyncio.run(exercise())
 
@@ -792,7 +833,9 @@ def test_dense_query_rechecks_filters_against_authoritative_hydration() -> None:
     }
 
     def respond(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST":
+        if request.method == "POST" and request.url.path.endswith("/points/count"):
+            return httpx.Response(200, json={"result": {"count": 1}})
+        if request.method == "POST" and request.url.path.endswith("/points/query"):
             return httpx.Response(200, json={"result": {"points": [fixture_point]}})
         return httpx.Response(
             200,
@@ -822,6 +865,69 @@ def test_dense_query_rechecks_filters_against_authoritative_hydration() -> None:
                     limit=1,
                     filters=SearchFilters(year_from=2020),
                 )
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    ("filters", "missing_field"),
+    [
+        (SearchFilters(year_from=2020), "publication_year"),
+        (SearchFilters(evidence_kinds=("table",)), "evidence_kind"),
+        (SearchFilters(document_version_kinds=("preprint",)), "document_version_kind"),
+    ],
+)
+def test_dense_filters_return_empty_when_required_payload_metadata_is_missing(
+    filters: SearchFilters, missing_field: str
+) -> None:
+    configuration = _e5_configuration()
+    gate = _Gate()
+    calls: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            calls.append(request)
+            if request.url.path.endswith("/points/count"):
+                return httpx.Response(200, json={"result": {"count": 0}})
+            if request.url.path.endswith("/points/query"):
+                return httpx.Response(200, json={"result": {"points": []}})
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "result": {
+                        "config": {
+                            "params": {"vectors": {"size": 384, "distance": "Cosine"}}
+                        }
+                    }
+                },
+            )
+        return httpx.Response(200, json={"result": {}})
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            base_url="http://qdrant.test", transport=httpx.MockTransport(respond)
+        ) as http:
+            service = SnapshotDenseSearch(
+                gate,
+                QdrantIndex(configuration, http),
+                query_embedder=_QueryEmbedder((1.0,) + (0.0,) * 383),
+                evidence_hydrator=_Hydrator(gate),
+            )
+            result = await service.search_query(
+                _profile(configuration), "filtered query", limit=5, filters=filters
+            )
+        assert result.hits == ()
+        assert result.hydrated_hits == ()
+        assert result.candidate_count == 0
+        assert result.truncated is False
+        assert result.applied_filters == filters
+        count_body = json.loads(calls[0].content)
+        assert count_body["exact"] is True
+        assert any(
+            condition.get("key") == missing_field
+            for condition in count_body["filter"]["must"]
+        )
 
     asyncio.run(exercise())
 

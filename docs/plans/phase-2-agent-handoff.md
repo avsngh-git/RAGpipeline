@@ -281,12 +281,12 @@ Preserve the user's existing worktree and publication workflow.
   The first test collection lacked `bm25s` in the existing Conda environment; rerunning
   with the cached `/tmp` verification dependency path passed without modifying that
   environment. An initial mypy loop-variable collision was fixed and the rerun passed.
-  Candidate-pool bounds, caller-level same-profile enforcement, shared filters and
-  branch failure semantics remain open under P2-08.3–08.5.
+  At that checkpoint, pool bounds, caller-level profile enforcement, shared filters
+  and branch failure semantics were still unfinished under P2-08.3–08.5.
 - **P2-08.3 complete; assistant-reviewed 2026-09-26:** `HybridEvidenceSearch`
   runs lexical and dense branches with the profile's lexical/dense limits, then applies
   its fused-union cap. It rejects paper indexes, draft indexes on serving calls,
-  unsupported stages, active filters pending P2-08.4, and any lexical or dense response
+  unsupported stages, active filters until P2-08.4, and any lexical or dense response
   whose profile, snapshot, index configuration or limit differs. Lexical reports the
   exact count of positive matches; the unfiltered dense branch reports the exact
   snapshot index count. Each pool records its limit, available/observed count, returned
@@ -294,8 +294,24 @@ Preserve the user's existing worktree and publication workflow.
   branch was itself truncated. The response records applied filters (empty in this
   substep). Focused hybrid/dense/lexical/fusion checks pass (38); full non-integration
   suite passes (281 passed, 19 deselected), with Ruff, format and strict source mypy.
-  Filtered dense counts and hybrid filtering remain for P2-08.4; structured branch
-  failures remain for P2-08.5.
+  At that checkpoint filtered counts and hybrid filters were still open; structured
+  branch failures remain for P2-08.5.
+- **P2-08.4 complete; assistant-reviewed 2026-09-27:** lexical row-map format/schema
+  moved to v2 and now carries source-loaded publication year, evidence kind and
+  document-version kind. The exact version is part of the lexical profile identity;
+  previously built v1 lexical artifacts must be rebuilt. Lexical filtering uses the
+  shared `SearchFilters` contract before candidate slicing and fails closed on missing
+  values. Dense search sends the same payload conditions before Qdrant top-k and uses
+  Qdrant's exact filtered count endpoint for candidate totals and truncation
+  ([API reference](https://api.qdrant.tech/api-reference/points/count-points)). The
+  hybrid response verifies both branches applied the requested filters and records
+  them. Tests cover all filter fields, eligible results below an unfiltered top-1,
+  empty eligibility and absent metadata. Full non-integration suite passes (286 passed,
+  19 deselected); Ruff, format and strict source mypy pass. Initial focused checks found
+  a missing lexical helper and a duplicate count-method definition; both were repaired
+  before the passing rerun. The DB-backed lexical-loader assertion was added but not
+  run because dedicated PostgreSQL/Qdrant URLs are unavailable. The accepted review DB
+  and its indexes remain untouched.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -308,9 +324,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-08.4. Apply restrictive metadata filters consistently before
-lexical/dense top-k, including empty eligibility and missing metadata. P2-08.1–08.3
-provide profile-bound RRF and bounded pool reporting. The BGE/E5 filter path is complete;
-retrieval quality comparison and full-index cost remain open for the development
-experiments. Keep the accepted review DB untouched until its migration/readiness gate
-is met.
+**Next step:** P2-08.5. Make failures from either requested branch explicit and
+structured; do not report partial lexical-only output as successful hybrid search.
+P2-08.1–08.4 now provide profile-bound RRF, bounded pools and consistent filters. The
+BGE/E5 filter path is complete; retrieval quality comparison and full-index cost remain
+open for development experiments. Keep the accepted review DB untouched until its
+migration/readiness gate is met.
