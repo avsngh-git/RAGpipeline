@@ -74,6 +74,14 @@ def profile(*, reranker: RerankerIdentity | None = None) -> RetrievalProfile:
     )
 
 
+def test_fusion_method_revision_and_rank_constant_bind_profile_identity() -> None:
+    base = profile()
+    assert base.fusion is not None
+    assert base.fusion.method == "rrf-v1"
+    assert base.fusion.rank_constant == 60
+    assert base.to_dict()["fusion"] == {"method": "rrf-v1", "rank_constant": 60}
+
+
 def test_chunk_selection_id_is_order_independent_and_binds_exact_chunk_ids() -> None:
     members = selection_members()
     chunks = ("sha256:" + "d" * 64, "sha256:" + "e" * 64)

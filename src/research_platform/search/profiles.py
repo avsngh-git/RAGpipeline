@@ -157,12 +157,12 @@ class RerankerIdentity:
 class FusionSettings:
     """Rank-fusion settings; RRF parameters are provisional until calibration."""
 
-    method: Literal["rrf"] = "rrf"
+    method: Literal["rrf-v1"] = "rrf-v1"
     rank_constant: int = 60
 
     def __post_init__(self) -> None:
-        if self.method != "rrf":
-            raise ValueError("only reciprocal-rank fusion is supported")
+        if self.method != "rrf-v1":
+            raise ValueError("only rrf-v1 reciprocal-rank fusion is supported")
         _require_positive_integer(self.rank_constant, "rank_constant")
 
 

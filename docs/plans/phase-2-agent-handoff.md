@@ -268,6 +268,21 @@ Preserve the user's existing worktree and publication workflow.
   stale filter payloads require rebuild. Both E5 and BGE have known-neighbor filter
   tests. Shared checks pass (270 passed, 19 deselected; Ruff, format and mypy). The
   accepted DB remains unmigrated to 015, so no accepted-index backfill was run.
+- **P2-08.1–08.2 complete; assistant-reviewed 2026-09-26:**
+  `search/fusion.py` implements reciprocal-rank fusion over lexical and hydrated dense
+  evidence candidates. Lexical positions and dense ranks are 1-based; duplicate IDs
+  within a branch fail, shared IDs receive both terms, and equal fused scores sort by
+  stable evidence ID. Results preserve each raw branch rank/score and the fused rank/
+  score. The profile records method `rrf-v1` and a positive rank constant (development
+  default 60; not selected as the final value). Five focused fusion tests cover the
+  hand-computed sum, overlap, disjoint and empty branches, missing-component
+  provenance, duplicate IDs and stable ties. Full non-integration checks pass
+  (276 passed, 19 deselected), as do Ruff, formatting and strict source mypy.
+  The first test collection lacked `bm25s` in the existing Conda environment; rerunning
+  with the cached `/tmp` verification dependency path passed without modifying that
+  environment. An initial mypy loop-variable collision was fixed and the rerun passed.
+  Candidate-pool bounds, caller-level same-profile enforcement, shared filters and
+  branch failure semantics remain open under P2-08.3–08.5.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -280,8 +295,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-08.1. Implement deterministic reciprocal rank fusion over the
-profile-bound lexical and dense candidate lists. The BGE/E5 filter path is complete;
+**Next step:** P2-08.3. Bound lexical, dense and fused candidate pools and ensure
+both branches share the requested snapshot/profile. P2-08.1–08.2 provide the RRF
+function and provenance contract. The BGE/E5 filter path is complete;
 retrieval quality comparison and full-index cost remain open for the development
 experiments. Keep the accepted review DB untouched until its migration/readiness gate
 is met.

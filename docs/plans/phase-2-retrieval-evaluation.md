@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-07 complete; P2-08 pending.
+Status: approved 2026-09-26; P2-01–P2-07 complete; P2-08 in progress.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-07 are complete. P2-08 is next. The table is the single implementation status checklist.
+P2-01–P2-07 are complete. P2-08 is in progress. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -67,7 +67,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
 | P2-06 | BM25 lexical retrieval | P2-03 | Complete |
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Complete |
-| P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
+| P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | In progress |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Pending |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Pending |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Pending |
