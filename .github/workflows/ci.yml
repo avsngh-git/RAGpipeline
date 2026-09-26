@@ -45,6 +45,8 @@ jobs:
       - name: Create the locked Conda environment
         run: conda create --yes --name sci_research_agent --file environment-linux-64.lock
 
+      - name: Install pinned BM25S wheel
+        run: conda run --name sci_research_agent python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
       - name: Install the package
         run: conda run --name sci_research_agent python -m pip install --no-build-isolation --no-deps -e .
 

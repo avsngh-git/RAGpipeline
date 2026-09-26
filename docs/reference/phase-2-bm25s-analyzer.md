@@ -19,7 +19,7 @@ retrieval profile when the lexical index is built.
 | Token-pattern revision | scientific-compound-number-operator-v1 |
 | Stopword removal | None |
 | Stemming | None |
-| BM25S baseline implementation | 0.3.11 candidate; project dependency not yet accepted |
+| BM25S implementation | 0.3.11 accepted for Phase 2; final default remains open |
 
 ## Tokenization policy
 
@@ -87,8 +87,7 @@ normalization, punctuation-only inputs and invalid types. On this revision:
 - ruff format --check on the analyzer and test: passed
 - mypy on the analyzer and test: passed
 
-P2-06.3 will use this analyzer for the evidence index and apply a separately named
-representation to paper title/abstract records. Later development evaluation may
-select a different analyzer, but the change must receive a new versioned identity
-and rebuild its lexical artifacts. BM25S remains a candidate until P2-06.3–06.5
-complete index, filter, reload, rebuild and CLI validation.
+P2-06.3–06.5 complete the separate evidence and paper indexes, filter-before-top-k,
+artifact reload, rebuild and CLI smoke gate. ADR-0010 accepts BM25S 0.3.11 with this
+analyzer for Phase 2 implementation; P2-14/P2-15 still choose or replace the final
+default from relevance evaluation.

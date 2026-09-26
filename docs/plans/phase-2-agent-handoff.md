@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-05 complete; P2-06 in progress.
+Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 next.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-06.3**.
+   whose prerequisites are satisfied. Continue at **P2-07.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -172,7 +172,8 @@ Preserve the user's existing worktree and publication workflow.
   five-paper restricted median/p95 ranged 1.192–1.229/1.689–1.975 ms. A synthetic test showed `weight_mask` can return excluded
   zero-score rows; `get_scores` followed by eligible-only top-k passed full,
   restrictive, singleton, empty-eligibility and no-match probes. A small independent
-  BM25 score/order example passed. No dependency or service code was added. See
+  BM25 score/order example passed. The pilot itself did not add a dependency or
+  service code. P2-06.3 later pinned the measured wheel for implementation. See
   `docs/research/phase-2-bm25s-pilot-research.md` for artifact, corpus and timing
   identities, commands and limits.
 
@@ -185,6 +186,36 @@ Preserve the user's existing worktree and publication workflow.
   diagnostic features survive, compared with one under the default tokenizer. This
   is token-retention evidence, not a quality result. Ruff, format, mypy and all nine
   focused tests pass; see `docs/reference/phase-2-bm25s-analyzer.md`.
+- **P2-06.3 complete:** `search/lexical.py` builds separate stable-row evidence and
+  paper indexes, bound to the exact profile and snapshot selection. The read-only
+  loader verifies exact selected chunk IDs, both permission records, and source PDF
+  checksums in one repeatable-read transaction; draft loading requires explicit
+  evaluation access. Row maps contain no source text, keep duplicate content under
+  distinct IDs, and account for missing/empty paper fields. OpenAlex abstract
+  reconstruction is shared with manifest export. BM25S 0.3.11 is declared in
+  `pyproject.toml` and `environment.yaml`; `requirements-bm25s.txt` pins the verified
+  wheel hash for CI/Docker installation alongside the Conda-only explicit lock.
+- **P2-06.4 complete:** `LexicalRetriever` applies the resolved eligible IDs before
+  top-k, discards zero scores and deterministically sorts ties. It handles empty
+  eligibility, empty analyzer output and zero matches; unknown IDs fail closed. A
+  three-document independent Okapi score/order example and restrictive singleton
+  scope pass.
+- **P2-06.5 complete:** `search/lexical_artifacts.py` publishes immutable
+  content-addressed BM25 arrays and sidecars by atomic directory rename, without
+  storing a text corpus. Load checks expected profile, exact snapshot/status, analyzer,
+  scoring settings, row-map identity and all file checksums; draft loads require
+  explicit evaluation access. Identical rebuilds reuse a verified artifact and report
+  storage use. The `index lexical-build` command
+  reads without applying migrations; `index lexical-query` uses `LexicalRetriever`,
+  the same module planned for API search. Eleven lexical tests and fifteen OpenAlex
+  tests pass (26 focused tests total), covering save/load, tamper, rebuild, draft
+  access and a synthetic CLI query;
+  Ruff, format and source mypy pass. The DB loader integration assertion was added
+  but not run because dedicated PostgreSQL/Qdrant URLs are not configured.
+- **P2-06 accepted for implementation:** [ADR-0010](../adr/0010-phase2-bm25s-lexical-index.md)
+  records BM25S 0.3.11 and scientific-en-v1 as a reversible Phase 2 choice, not the
+  final retrieval default. No profile-compatible artifact was published from the
+  accepted review DB because it is not migrated to 015; the CLI never migrates it.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -197,9 +228,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-06.3. Build separate evidence and paper title/abstract lexical
-representations under the exact snapshot/profile identities. Use scientific-en-v1
-for evidence and preserve stable row-to-ID mapping; BM25S remains a candidate rather
-than an accepted project dependency until P2-06.3–06.5 complete the implementation
-gate. ADR-0009 records exact selection and lineage; the P2-01 entry check records
-migration/restore evidence and local artifact paths.
+**Next step:** P2-07.1. Reuse the pinned E5-small-v2 adapter for dense query
+embedding and authoritative evidence hydration. BM25 lexical implementation is
+complete for the synthetic behavior gate, and ADR-0010 records the reversible
+BM25S/analyzer choice. The accepted review database remains unmigrated to 015; its
+real profile-bound lexical artifact is not built until an exact-selection-capable
+database is available.

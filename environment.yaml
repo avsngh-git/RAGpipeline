@@ -15,3 +15,5 @@ dependencies:
   - asyncpg
   - pip-audit
   - filelock
+  - pip:
+      - bm25s==0.3.11

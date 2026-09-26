@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-05 complete; P2-06 in progress.
+Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 next.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-05 are complete. P2-06 is in progress at substep 06.3. The table is the single implementation status checklist.
+P2-01–P2-06 are complete. P2-07 is next. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -65,7 +65,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-03 | Snapshot variants and retrieval configurations | P2-02 | Complete |
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
-| P2-06 | BM25 lexical retrieval | P2-03 | In progress |
+| P2-06 | BM25 lexical retrieval | P2-03 | Complete |
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Pending |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Pending |
@@ -372,8 +372,9 @@ hits across the ten query cases while eligible-only top-k returned 260.
 Independent three-document BM25 scores/order matched. The wheel, query runs and
 pilot source are retained under the ignored local-reference/phase2-runs path.
 Details and limitations:
-[BM25S pilot research](../research/phase-2-bm25s-pilot-research.md). No project
-dependency or serving implementation is accepted yet.
+[BM25S pilot research](../research/phase-2-bm25s-pilot-research.md). The pilot
+alone did not add a dependency or serving code. P2-06.3 adds the verified pin for
+the implementation, with acceptance gated on P2-06.5.
 
 **06.2 complete 2026-09-26:** `search/lexical_analyzer.py` defines the
 versioned `scientific-en-v1` analyzer. It applies Unicode NFC/casefold and narrow
@@ -388,6 +389,42 @@ calibration families contain a one-character query token. These are token-retent
 and cost measurements, not retrieval-quality results. Policy and caveats:
 [BM25S analyzer v1](../reference/phase-2-bm25s-analyzer.md). Development retrieval
 evaluation may select a later analyzer revision.
+
+**06.3 complete 2026-09-26:** `search/lexical.py` builds separate evidence and paper
+BM25S indexes bound to the full retrieval profile and exact snapshot selection. Stable
+row maps carry authoritative paper/evidence/document/extraction IDs and source/content
+checksums, but no source text; missing title/abstract and zero-token rows are retained,
+duplicate authoritative IDs fail, and repeated content under distinct IDs stays
+separate. `IndexRepository.load_snapshot_lexical_inputs` reads the exact selected
+chunks and both indexing-permission records in one repeatable-read, read-only
+transaction; draft inputs require explicit evaluation access. OpenAlex abstracts are
+reconstructed through the shared metadata helper. Five initial builder tests and two
+abstract tests passed; broader builder, retriever and artifact checks are recorded below.
+
+**06.4 complete 2026-09-26:** `LexicalRetriever` uses the versioned analyzer, computes
+BM25 scores, resolves only the supplied eligible stable IDs, removes zero scores, and
+then sorts/caps the eligible set. Empty eligibility, empty analyzed queries, no term
+matches, unknown IDs and deterministic score ties are covered. Independent tiny-corpus
+Okapi scores and ordering match within float32 tolerance.
+
+**06.5 complete 2026-09-26:** `search/lexical_artifacts.py` writes immutable
+content-addressed artifacts by atomic directory rename, saves BM25 arrays without a
+text corpus, records hashes for every index file and row map, enforces private local
+permissions, validates profile/snapshot/status/analyzer/scoring/row identities on
+load, and reports artifact bytes. Draft artifacts require an explicit evaluation
+flag. Rebuilding identical inputs resolves to the existing checked artifact.
+`research-ingest index lexical-build` reads without running migrations;
+`research-ingest index lexical-query` loads the same `LexicalRetriever` used by the
+future search layer and supports a pre-resolved eligible-ID file. BM25S 0.3.11 is
+version- and wheel-hash-pinned for runtime install. ADR-0010 records the reversible
+implementation decision.
+
+Focused builder/retriever/store/CLI/abstract tests pass (26 total); Ruff, format and
+mypy pass for affected source. The loader integration assertion was added to the
+disposable-services suite but not run because this workspace has no dedicated
+PostgreSQL/Qdrant test URLs. The accepted review DB remains unmigrated to 015, so no
+profile-compatible index was published from that DB; the lexical build command never
+runs migrations and requires the persisted exact-chunk relation.
 
 **Inputs:** ready variant manifest, canonical evidence, lexical candidate BM25S.
 
@@ -408,9 +445,10 @@ evaluation may select a later analyzer revision.
    compatibility on load, publish completed builds atomically and report storage use.
    Provide a CLI smoke query through the same search service the API will use.
 
-**Done:** lexical scores/order match a small independent example; rare terms,
-acronyms, numbers, empty matches, restrictive filters, save/load and rebuild pass.
-Record measured BM25S acceptance and pinned analyzer choices in an implementation ADR.
+**Done:** met for the implementation and synthetic behavior gate. The approved
+BM25S implementation and analyzer identities are recorded in
+[ADR-0010](../adr/0010-phase2-bm25s-lexical-index.md); relevance-based final
+selection remains P2-14/P2-15.
 
 ## P2-07 — Implement dense search and embedding feasibility
 

@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "A scientific literature research platform"
 dependencies = [
     "asyncpg",
+    "bm25s==0.3.11",
     "fastapi",
     "httpx",
     "uvicorn",

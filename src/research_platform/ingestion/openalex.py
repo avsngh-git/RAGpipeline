@@ -49,6 +49,27 @@ class OpenAlexResponseError(ValueError):
     """OpenAlex returned malformed data that cannot be safely normalized."""
 
 
+def abstract_from_openalex_metadata(metadata: Mapping[str, object]) -> str | None:
+    """Reconstruct an OpenAlex abstract from its word-position index."""
+    inverted_index = metadata.get("abstract_inverted_index")
+    if not isinstance(inverted_index, Mapping):
+        return None
+    words: dict[int, str] = {}
+    for word, positions in inverted_index.items():
+        if not isinstance(word, str) or not isinstance(positions, list):
+            continue
+        for position in positions:
+            if (
+                isinstance(position, int)
+                and not isinstance(position, bool)
+                and position >= 0
+            ):
+                words[position] = word
+    if not words:
+        return None
+    return " ".join(words[position] for position in sorted(words))
+
+
 @dataclass(frozen=True)
 class OpenAlexWork:
     openalex_id: str

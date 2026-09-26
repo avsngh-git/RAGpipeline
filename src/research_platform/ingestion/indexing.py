@@ -141,6 +141,21 @@ class IndexInput:
 
 
 @dataclass(frozen=True)
+class SnapshotLexicalPaperInput:
+    paper_id: str
+    title: str | None
+    abstract: str | None
+
+
+@dataclass(frozen=True)
+class SnapshotLexicalInputs:
+    selection: SnapshotSelection
+    snapshot_status: Literal["draft", "finalized"]
+    evidence: tuple[IndexInput, ...]
+    papers: tuple[SnapshotLexicalPaperInput, ...]
+
+
+@dataclass(frozen=True)
 class IndexPoint:
     evidence_id: str
     vector: Sequence[float]
@@ -724,7 +739,8 @@ class IndexRepository:
                 """
                 SELECT chunk.id AS evidence_id, chunk.text, paper.id AS paper_id,
                        document.id AS document_id, extraction.id AS extraction_id,
-                       extraction.source_artifact_id, document.version,
+                       extraction.source_artifact_id,
+                       source_file.sha256 AS source_artifact_sha256, document.version,
                        paper.publication_year, paper.title,
                        section.id AS section_id, section.title AS section_title
                 FROM snapshot_items AS item
@@ -737,6 +753,8 @@ class IndexRepository:
                 JOIN document_artifacts AS artifact
                   ON artifact.id = extraction.source_artifact_id
                  AND artifact.document_id = extraction.document_id
+                JOIN artifacts AS source_file
+                  ON source_file.id = artifact.artifact_id
                 JOIN document_permission_evidence AS permission
                   ON permission.id = artifact.permission_evidence_id
                  AND permission.document_id = artifact.document_id
@@ -782,6 +800,7 @@ class IndexRepository:
                     "document_version": row["version"],
                     "extraction_id": str(row["extraction_id"]),
                     "source_artifact_id": str(row["source_artifact_id"]),
+                    "source_artifact_sha256": row["source_artifact_sha256"],
                     "publication_year": row["publication_year"],
                     "paper_title": row["title"],
                     "section_id": str(row["section_id"])
@@ -792,6 +811,154 @@ class IndexRepository:
             )
             for row in rows
         )
+
+    async def load_snapshot_lexical_inputs(
+        self,
+        snapshot_selection: SnapshotSelection,
+        *,
+        allow_draft: bool = False,
+    ) -> SnapshotLexicalInputs:
+        """Read exact snapshot text and paper fields under one repeatable-read view."""
+        async with self._connection() as connection:
+            async with connection.transaction(
+                isolation="repeatable_read", readonly=True
+            ):
+                (
+                    resolved_selection,
+                    selected_chunk_ids,
+                ) = await self._snapshot_selection_on_connection(
+                    connection, snapshot_selection.snapshot_id
+                )
+                if resolved_selection != snapshot_selection:
+                    raise SnapshotIndexMismatch(
+                        "lexical profile does not match the exact snapshot selection"
+                    )
+                snapshot_status = await connection.fetchval(
+                    "SELECT status FROM snapshots WHERE id = $1",
+                    snapshot_selection.snapshot_id,
+                )
+                if snapshot_status is None:
+                    raise ValueError("snapshot does not exist")
+                if snapshot_status not in {"draft", "finalized"}:
+                    raise ValueError("snapshot has an unsupported status")
+                if snapshot_status != "finalized" and not allow_draft:
+                    raise SnapshotAccessDenied(
+                        "draft lexical input requires explicit evaluation access"
+                    )
+                member_count = await connection.fetchval(
+                    "SELECT count(*) FROM snapshot_items WHERE snapshot_id = $1",
+                    snapshot_selection.snapshot_id,
+                )
+                if member_count == 0:
+                    raise ValueError(
+                        "cannot build a lexical index for an empty snapshot"
+                    )
+                rows = await connection.fetch(
+                    """
+                    SELECT chunk.id AS evidence_id, chunk.text, paper.id AS paper_id,
+                           document.id AS document_id, extraction.id AS extraction_id,
+                           source_file.sha256 AS source_artifact_sha256
+                    FROM snapshot_items AS item
+                    JOIN papers AS paper ON paper.id = item.paper_id
+                    JOIN documents AS document
+                      ON document.id = item.document_id
+                     AND document.paper_id = item.paper_id
+                    JOIN extractions AS extraction
+                      ON extraction.id = item.extraction_id
+                     AND extraction.document_id = item.document_id
+                    JOIN document_artifacts AS artifact
+                      ON artifact.id = extraction.source_artifact_id
+                     AND artifact.document_id = extraction.document_id
+                    JOIN artifacts AS source_file
+                      ON source_file.id = artifact.artifact_id
+                    JOIN document_permission_evidence AS permission
+                      ON permission.id = artifact.permission_evidence_id
+                     AND permission.document_id = artifact.document_id
+                    JOIN snapshot_item_chunks AS selected
+                      ON selected.snapshot_id = item.snapshot_id
+                     AND selected.paper_id = item.paper_id
+                     AND selected.document_id = item.document_id
+                     AND selected.extraction_id = item.extraction_id
+                    JOIN chunks AS chunk
+                      ON chunk.id = selected.chunk_id
+                     AND chunk.document_id = selected.document_id
+                     AND chunk.extraction_id = selected.extraction_id
+                    WHERE item.snapshot_id = $1
+                      AND extraction.status IN ('completed', 'partial')
+                      AND artifact.storage_permitted
+                      AND artifact.indexing_permitted
+                      AND permission.storage_permitted
+                      AND permission.indexing_permitted
+                    ORDER BY paper.id, chunk.id
+                    """,
+                    snapshot_selection.snapshot_id,
+                )
+                observed_ids = tuple(str(row["evidence_id"]) for row in rows)
+                if len(observed_ids) != len(selected_chunk_ids) or set(
+                    observed_ids
+                ) != set(selected_chunk_ids):
+                    raise PermissionError(
+                        "selected snapshot evidence is missing or not indexing-permitted"
+                    )
+                paper_rows = await connection.fetch(
+                    """
+                    SELECT DISTINCT paper.id AS paper_id, paper.title, paper.metadata
+                    FROM snapshot_items AS item
+                    JOIN papers AS paper ON paper.id = item.paper_id
+                    WHERE item.snapshot_id = $1
+                    ORDER BY paper.id
+                    """,
+                    snapshot_selection.snapshot_id,
+                )
+                expected_paper_ids = {str(row["paper_id"]) for row in paper_rows}
+                observed_paper_ids = {str(row["paper_id"]) for row in rows}
+                if (
+                    len(paper_rows) == 0
+                    or len(expected_paper_ids) != len(paper_rows)
+                    or observed_paper_ids != expected_paper_ids
+                ):
+                    raise PermissionError(
+                        "every snapshot paper must have permitted selected evidence"
+                    )
+                from research_platform.ingestion.openalex import (
+                    abstract_from_openalex_metadata,
+                )
+
+                papers: list[SnapshotLexicalPaperInput] = []
+                for row in paper_rows:
+                    metadata = row["metadata"]
+                    abstract = (
+                        abstract_from_openalex_metadata(metadata)
+                        if isinstance(metadata, Mapping)
+                        else None
+                    )
+                    papers.append(
+                        SnapshotLexicalPaperInput(
+                            paper_id=str(row["paper_id"]),
+                            title=row["title"],
+                            abstract=abstract,
+                        )
+                    )
+                evidence = tuple(
+                    IndexInput(
+                        evidence_id=row["evidence_id"],
+                        text=row["text"],
+                        payload={
+                            "snapshot_id": str(snapshot_selection.snapshot_id),
+                            "paper_id": row["paper_id"],
+                            "document_id": str(row["document_id"]),
+                            "extraction_id": str(row["extraction_id"]),
+                            "source_artifact_sha256": row["source_artifact_sha256"],
+                        },
+                    )
+                    for row in rows
+                )
+                return SnapshotLexicalInputs(
+                    selection=resolved_selection,
+                    snapshot_status=snapshot_status,
+                    evidence=evidence,
+                    papers=tuple(papers),
+                )
 
     async def set_index_state(
         self,

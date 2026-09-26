@@ -1657,6 +1657,24 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                     for unit in units
                 ],
             )
+            repository = IndexRepository(pool)
+            selection = await repository.snapshot_selection_for(snapshot_id)
+            with pytest.raises(SnapshotAccessDenied, match="explicit evaluation"):
+                await repository.load_snapshot_lexical_inputs(selection)
+            lexical_inputs = await repository.load_snapshot_lexical_inputs(
+                selection, allow_draft=True
+            )
+            assert lexical_inputs.selection == selection
+            assert {item.evidence_id for item in lexical_inputs.evidence} == {
+                unit.id for unit in units
+            }
+            assert lexical_inputs.papers[0].paper_id == paper_id
+            assert lexical_inputs.papers[0].title == "Index fixture"
+            assert lexical_inputs.papers[0].abstract is None
+            assert {
+                item.payload["source_artifact_sha256"]
+                for item in lexical_inputs.evidence
+            } == {artifact.sha256}
 
             async with httpx.AsyncClient(
                 base_url=TEST_QDRANT_URL.rstrip("/"), timeout=10

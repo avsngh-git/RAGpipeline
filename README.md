@@ -61,11 +61,15 @@ conda create \
   --file environment-linux-64.lock
 
 conda run -n sci_research_agent_linux \
+  python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
+
+conda run -n sci_research_agent_linux \
   python -m pip install --no-build-isolation --no-deps -e .
 ```
 
-The local package is installed separately because the lock file contains the
-Conda environment packages, not the repository's editable source tree.
+The lock file contains exact Conda packages, not PyPI distributions. The
+BM25S runtime wheel is separately version- and hash-pinned in
+`requirements-bm25s.txt`; install it before the local package as shown above.
 
 ## Application configuration
 

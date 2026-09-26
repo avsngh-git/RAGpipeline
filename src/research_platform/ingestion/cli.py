@@ -63,6 +63,7 @@ from research_platform.ingestion.openalex import (
     OpenAlexClient,
     OpenAlexRequestError,
     OpenAlexWork,
+    abstract_from_openalex_metadata,
 )
 from research_platform.ingestion.papers import PaperRepository
 from research_platform.ingestion.pdf_extraction import DoclingPdfConfig
@@ -84,6 +85,18 @@ from research_platform.ingestion.snapshots import SnapshotRepository
 from research_platform.ingestion.source_content_review import SourceContentReview
 from research_platform.ingestion.stage_repository import IngestionJobRepository
 from research_platform.persistence.migrations import apply_migrations
+from research_platform.search.lexical import (
+    EvidenceLexicalDocument,
+    LexicalRetriever,
+    PaperLexicalDocument,
+    build_evidence_index,
+    build_paper_index,
+)
+from research_platform.search.lexical_artifacts import (
+    load_lexical_index,
+    save_lexical_index,
+)
+from research_platform.search.profiles import RetrievalProfile
 
 _COVERAGE_QUESTIONS: tuple[tuple[CoverageQuestion, str], ...] = (
     ("hybrid_dense", "When does hybrid retrieval outperform dense-only retrieval?"),
@@ -285,6 +298,40 @@ def build_parser() -> argparse.ArgumentParser:
         "--device", choices=("auto", "cpu", "cuda"), default="auto"
     )
 
+    lexical_build = index_subcommands.add_parser(
+        "lexical-build", help="build and publish local evidence and paper indexes"
+    )
+    lexical_build.add_argument("--profile", type=Path, required=True)
+    lexical_build.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("local-reference/phase2-runs/lexical-indexes"),
+    )
+    lexical_build.add_argument(
+        "--evaluation",
+        action="store_true",
+        help="permit loading a draft snapshot for explicit evaluation work",
+    )
+
+    lexical_query = index_subcommands.add_parser(
+        "lexical-query", help="run the shared lexical search service on a saved index"
+    )
+    lexical_query.add_argument("--artifact-dir", type=Path, required=True)
+    lexical_query.add_argument("--profile", type=Path, required=True)
+    lexical_query.add_argument("--role", choices=("evidence", "paper"), required=True)
+    lexical_query.add_argument("--query", required=True)
+    lexical_query.add_argument("--limit", type=int, default=10)
+    lexical_query.add_argument(
+        "--evaluation",
+        action="store_true",
+        help="permit querying a saved draft index for explicit evaluation work",
+    )
+    lexical_query.add_argument(
+        "--eligible-ids",
+        type=Path,
+        help="JSON array of authoritative stable IDs eligible before top-k",
+    )
+
     jobs = commands.add_parser("jobs", help="run and inspect ingestion jobs")
     job_commands = jobs.add_subparsers(dest="job_command", required=True)
     job_start = job_commands.add_parser(
@@ -406,26 +453,6 @@ def _load_discovery_config(path: Path) -> DiscoveryConfig:
     return DiscoveryConfig.from_dict(cast(Mapping[str, object], raw))
 
 
-def _abstract_text(metadata: Mapping[str, object]) -> str | None:
-    inverted_index = metadata.get("abstract_inverted_index")
-    if not isinstance(inverted_index, Mapping):
-        return None
-    words: dict[int, str] = {}
-    for word, positions in inverted_index.items():
-        if not isinstance(word, str) or not isinstance(positions, list):
-            continue
-        for position in positions:
-            if (
-                isinstance(position, int)
-                and not isinstance(position, bool)
-                and position >= 0
-            ):
-                words[position] = word
-    if not words:
-        return None
-    return " ".join(words[position] for position in sorted(words))
-
-
 def _review_manifest_payload(
     manifest_header: ManifestHeader,
     manifest_items: tuple[ManifestItem, ...],
@@ -443,7 +470,7 @@ def _review_manifest_payload(
                 "work_type": item.work_type,
                 "doi": metadata.get("doi"),
                 "cited_by_count": metadata.get("cited_by_count"),
-                "abstract": _abstract_text(metadata),
+                "abstract": abstract_from_openalex_metadata(metadata),
                 "primary_location": metadata.get("primary_location"),
                 "authorships": metadata.get("authorships"),
                 "referenced_works": metadata.get("referenced_works"),
@@ -487,6 +514,19 @@ def _review_manifest_payload(
 
 
 async def _execute(args: argparse.Namespace) -> None:
+    if args.command == "index" and args.index_command == "lexical-query":
+        _execute_lexical_query(args)
+        return
+    if args.command == "index" and args.index_command == "lexical-build":
+        settings = Settings()
+        pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=2)
+        if pool is None:
+            raise RuntimeError("could not create a PostgreSQL connection pool")
+        try:
+            await _execute_lexical_build(args, pool)
+        finally:
+            await pool.close()
+        return
     if args.command == "storage" and args.storage_command == "inspect":
         await _execute_storage_inspect(args)
         return
@@ -556,6 +596,117 @@ async def _execute_index_inspect(args: argparse.Namespace, settings: Settings) -
                 "collection_name": configuration.collection_name,
                 "point_count": count,
                 "evidence_ids_sample": list(evidence_ids[:20]),
+            },
+            indent=2,
+        )
+    )
+
+
+def _load_retrieval_profile(path: Path) -> RetrievalProfile:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return RetrievalProfile.from_dict(_mapping(raw, "retrieval profile"))
+
+
+def _execute_lexical_query(args: argparse.Namespace) -> None:
+    profile = _load_retrieval_profile(args.profile)
+    index = load_lexical_index(
+        args.artifact_dir,
+        expected_profile=profile,
+        expected_role=args.role,
+        allow_draft=args.evaluation,
+    )
+    eligible_ids: set[str] | None = None
+    if args.eligible_ids is not None:
+        raw_ids = json.loads(args.eligible_ids.read_text(encoding="utf-8"))
+        if not isinstance(raw_ids, list) or any(
+            not isinstance(stable_id, str) for stable_id in raw_ids
+        ):
+            raise ValueError("eligible ID file must contain a JSON array of strings")
+        eligible_ids = set(raw_ids)
+    hits = LexicalRetriever(index).search(
+        args.query, eligible_ids=eligible_ids, limit=args.limit
+    )
+    print(
+        json.dumps(
+            {
+                "artifact_id": "sha256:" + args.artifact_dir.name,
+                "snapshot_id": str(profile.snapshot.snapshot_id),
+                "profile_id": profile.profile_id,
+                "snapshot_status": index.manifest.snapshot_status,
+                "role": args.role,
+                "matches": [
+                    {
+                        "stable_id": hit.stable_id,
+                        "paper_id": hit.paper_id,
+                        "row": hit.row,
+                        "score": hit.score,
+                    }
+                    for hit in hits
+                ],
+            },
+            indent=2,
+        )
+    )
+
+
+async def _execute_lexical_build(args: argparse.Namespace, pool: asyncpg.Pool) -> None:
+    profile = _load_retrieval_profile(args.profile)
+    if profile.lexical_index is None:
+        raise ValueError("retrieval profile has no lexical index")
+    repository = IndexRepository(pool)
+    corpus = await repository.load_snapshot_lexical_inputs(
+        profile.snapshot, allow_draft=args.evaluation
+    )
+    evidence_documents = tuple(
+        EvidenceLexicalDocument(
+            evidence_id=item.evidence_id,
+            paper_id=str(item.payload["paper_id"]),
+            document_id=UUID(str(item.payload["document_id"])),
+            extraction_id=UUID(str(item.payload["extraction_id"])),
+            source_artifact_sha256=str(item.payload["source_artifact_sha256"]),
+            text=item.text,
+        )
+        for item in corpus.evidence
+    )
+    paper_documents = tuple(
+        PaperLexicalDocument(
+            paper_id=item.paper_id, title=item.title, abstract=item.abstract
+        )
+        for item in corpus.papers
+    )
+    evidence_index = build_evidence_index(
+        evidence_documents, profile, snapshot_status=corpus.snapshot_status
+    )
+    paper_index = build_paper_index(
+        paper_documents, profile, snapshot_status=corpus.snapshot_status
+    )
+    if (
+        await repository.snapshot_selection_for(profile.snapshot.snapshot_id)
+        != profile.snapshot
+    ):
+        raise ValueError("snapshot selection changed while lexical indexes were built")
+    profile_root = args.output_root / profile.profile_id.removeprefix("sha256:")
+    evidence_saved = save_lexical_index(evidence_index, profile_root / "evidence")
+    paper_saved = save_lexical_index(paper_index, profile_root / "paper")
+    print(
+        json.dumps(
+            {
+                "snapshot_id": str(profile.snapshot.snapshot_id),
+                "profile_id": profile.profile_id,
+                "evidence": {
+                    "artifact_id": evidence_saved.artifact_id,
+                    "path": str(evidence_saved.path),
+                    "row_count": evidence_index.manifest.row_count,
+                    "storage_bytes": evidence_saved.storage_bytes,
+                    "file_count": evidence_saved.file_count,
+                },
+                "paper": {
+                    "artifact_id": paper_saved.artifact_id,
+                    "path": str(paper_saved.path),
+                    "row_count": paper_index.manifest.row_count,
+                    "storage_bytes": paper_saved.storage_bytes,
+                    "file_count": paper_saved.file_count,
+                },
             },
             indent=2,
         )

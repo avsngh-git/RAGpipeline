@@ -17,6 +17,7 @@ from research_platform.ingestion.openalex import (
     OpenAlexRequestError,
     OpenAlexResponseError,
     OpenAlexWork,
+    abstract_from_openalex_metadata,
 )
 
 
@@ -363,3 +364,17 @@ def test_direct_work_lookup_marks_unknown_citation_ids_not_found() -> None:
                 await client.get_work_metadata("W999")
 
     asyncio.run(exercise())
+
+
+def test_reconstructs_openalex_abstract_from_word_positions() -> None:
+    assert (
+        abstract_from_openalex_metadata(
+            {"abstract_inverted_index": {"retrieval": [1], "Hybrid": [0]}}
+        )
+        == "Hybrid retrieval"
+    )
+
+
+def test_missing_or_empty_openalex_abstract_is_none() -> None:
+    assert abstract_from_openalex_metadata({}) is None
+    assert abstract_from_openalex_metadata({"abstract_inverted_index": {}}) is None
