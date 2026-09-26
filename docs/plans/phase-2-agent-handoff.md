@@ -1,6 +1,6 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 in progress at 07.2.
+Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 in progress at 07.4.
 
 ## Start here
 
@@ -229,6 +229,23 @@ Preserve the user's existing worktree and publication workflow.
   pass. A live database hydration assertion was added but not run because the
   dedicated PostgreSQL/Qdrant URLs are not configured.
 
+- **P2-07.2 complete; assistant-reviewed 2026-09-26:** pinned BGE-base-en-v1.5
+  was run on CPU and the RTX 3050 using the same 12 local chunks (four prose, four
+  pipe-table-like, four near the accepted input maximum). At batch size 4 and five
+  warm repetitions, the GPU completed the longest group at 0.141 s per four chunks;
+  allocator peak was 490 MiB allocated / 574 MiB reserved. CPU peak RSS was 1.34 GiB.
+  The active CUDA 13.0 PyTorch build failed against driver 12.9; an official PyTorch
+  CUDA 12.6 wheel was installed only under `/tmp` and successfully used for GPU
+  measurement. Project dependencies remain unchanged. This establishes feasibility,
+  not retrieval quality or full-index cost.
+- **P2-07.3 complete; assistant-reviewed 2026-09-26:** exact pinned tokenizers
+  audited all 44,277 unique accepted chunks and the E5 `passage: ` prefix. No chunk
+  exceeds 512 tokens under either candidate (E5 max 485; BGE max 483), so the exact
+  accepted selection is a common-compatible set. Sorted chunk-ID digest:
+  `823bd7cd64ed89f555add9ec4967777118b8c1845b4b949e260f88987c9016f8`. Raw IDs
+  and counts remain private under ignored local-reference.
+  See `docs/research/phase-2-bge-base-en-v1-5-pilot-research.md`.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -240,8 +257,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-07.2. Pilot BGE-base-en-v1.5 against E5-small-v2 on the same
-source chunk set. Verify the immutable model revision, license, tokenizer, query
-instructions and input limit, then measure small-batch CPU/GPU latency and peak
-memory before indexing the full corpus. The accepted review database remains
-unmigrated to 015, so a real profile-bound lexical artifact is still unavailable.
+**Next step:** P2-07.4. Implement the BGE embedding adapter and a separately
+identified dense index path, then verify synthetic known-neighbor retrieval and
+profile/filter invariants. The BGE pilot and full input-token compatibility audit
+are complete; quality comparison and full-index cost remain open. The accepted
+review database remains unmigrated to 015, so a real profile-bound lexical artifact
+is still unavailable.

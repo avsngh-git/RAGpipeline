@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 in progress at 07.2.
+Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 in progress at 07.4.
 
 ## Start and authority
 
@@ -66,7 +66,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
 | P2-06 | BM25 lexical retrieval | P2-03 | Complete |
-| P2-07 | Dense retrieval and embedding pilots | P2-03 | In progress |
+| P2-07 | Dense retrieval and embedding pilots | P2-03 | In progress (07.4) |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Pending |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Pending |
@@ -494,6 +494,23 @@ measurement was taken.
 **Done:** both feasible adapters retrieve synthetic known neighbors and obey the
 same filter truth table; real-model pilot measurements and index identities recorded.
 A deterministic adapter substitute supports CI.
+
+**07.2 complete; assistant-reviewed 2026-09-26:** pinned BGE-base-en-v1.5 and
+measured a deterministic 12-chunk prose/table/near-limit sample on CPU and the local
+RTX 3050, with batch size 4, five warm repetitions per group, explicit normalization,
+peak RSS and allocator VRAM. CUDA ran using an isolated official PyTorch 2.14 CUDA
+12.6 install under `/tmp`; project dependencies were unchanged. See
+[the BGE pilot report](../research/phase-2-bge-base-en-v1-5-pilot-research.md).
+The pilot supports hardware feasibility only, not retrieval quality or full-index
+build-time claims.
+
+**07.3 complete; assistant-reviewed 2026-09-26:** exact pinned fast tokenizers
+counted the accepted 44,277 unique chunks with model-specific passage formatting
+and special tokens. E5 maximum was 485/512; BGE maximum was 483/512; no input
+exceeds either limit. The common compatible selection is the complete accepted set,
+with sorted-ID SHA-256
+`823bd7cd64ed89f555add9ec4967777118b8c1845b4b949e260f88987c9016f8`. Private
+per-chunk records remain under ignored `local-reference/`.
 
 ## P2-08 — Fuse candidate lists
 
