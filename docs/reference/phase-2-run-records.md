@@ -1,6 +1,6 @@
 # Phase 2 run records
 
-Status: schema v1 implemented for P2-05.4; the P2-05.5 behavioral gate remains.
+Status: schema v1 and the fake-service evaluation runner completed for P2-05.
 
 `research_platform.evaluation.run_records` captures one calibrated query and its
 search attempts in an immutable, versioned record. The dataset hash and split policy
@@ -33,6 +33,17 @@ status/counts and scores while omitting returned result identities and locations
 `raw_record_sha256` hashes the exact canonical bytes emitted by the writer, linking a
 report summary to the local record. A report should include only examples already
 cleared for sharing; use aggregate summaries otherwise.
+
+## Evaluation runner
+
+`research_platform.evaluation.runner.evaluate_calibration` is the async execution
+entry point. Its `SearchService` protocol receives ordinary typed `SearchRequest`
+values, so an adapter and a fake use the same boundary. The runner sends one paper
+search and one evidence search for each canonical or paraphrase query, preserves
+structured failures, and scores only when both responses are valid. Callers provide
+the exact calibration/alignment file hashes, retrieval profile, source-region lookup,
+and eligible paper IDs for metadata-filtered queries. The P2-05.5 suite exercises this
+entry point with a deterministic fake and no corpus service.
 
 The record schema version is `1`. Additive or incompatible persisted fields require a
 schema-version decision and a reference update. Run IDs identify query runs;

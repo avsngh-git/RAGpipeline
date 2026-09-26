@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import math
 import re
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 from uuid import UUID
+
+import tomllib
 
 from research_platform.evaluation.calibration import (
     CalibrationDataset,
@@ -117,10 +118,11 @@ class SourceAlignmentDataset:
     @property
     def by_anchor_id(self) -> dict[str, TableAnchorAlignment | TextAnchorAlignment]:
         """Return a fresh anchor-to-alignment lookup."""
-        return {
-            alignment.anchor_id: alignment
-            for alignment in (*self.table_alignments, *self.text_alignments)
-        }
+        alignments: tuple[TableAnchorAlignment | TextAnchorAlignment, ...] = (
+            *self.table_alignments,
+            *self.text_alignments,
+        )
+        return {alignment.anchor_id: alignment for alignment in alignments}
 
 
 def load_source_alignment(
@@ -196,7 +198,10 @@ def parse_source_alignment(
             _records(record["text_alignments"], "text_alignments")
         )
     )
-    all_alignments = (*table_alignments, *text_alignments)
+    all_alignments: tuple[TableAnchorAlignment | TextAnchorAlignment, ...] = (
+        *table_alignments,
+        *text_alignments,
+    )
     _unique((alignment.anchor_id for alignment in all_alignments), "aligned anchor ID")
     aligned_anchor_ids = {alignment.anchor_id for alignment in all_alignments}
     positive_anchor_ids = {
@@ -247,9 +252,7 @@ def _parse_table_alignment(
         raise SourceAlignmentLoadError(
             f"{path}.anchor_id must reference a calibration table anchor"
         )
-    document_id, extraction_id = _source_identity(
-        record, path, anchor, documents
-    )
+    document_id, extraction_id = _source_identity(record, path, anchor, documents)
     table_ordinal = _integer(record["table_ordinal"], f"{path}.table_ordinal")
     raw_context = _string_array(record["required_context"], f"{path}.required_context")
     if len(set(raw_context)) != len(raw_context) or any(
@@ -320,13 +323,9 @@ def _parse_text_alignment(
         raise SourceAlignmentLoadError(
             f"{path}.anchor_id must reference a calibration prose anchor"
         )
-    document_id, extraction_id = _source_identity(
-        record, path, anchor, documents
-    )
+    document_id, extraction_id = _source_identity(record, path, anchor, documents)
     spans: list[TextSpanRequirement] = []
-    for span_index, raw_span in enumerate(
-        _records(record["spans"], f"{path}.spans")
-    ):
+    for span_index, raw_span in enumerate(_records(record["spans"], f"{path}.spans")):
         span_path = f"{path}.spans[{span_index}]"
         span = _mapping(
             raw_span,
@@ -460,8 +459,7 @@ def _record_id(raw: object, path: str) -> str:
 def _string_array(raw: object, path: str) -> tuple[str, ...]:
     values = _arrays(raw, path)
     return tuple(
-        _string(value, f"{path}[{index}]")
-        for index, value in enumerate(values)
+        _string(value, f"{path}[{index}]") for index, value in enumerate(values)
     )
 
 

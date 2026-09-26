@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-04 complete; P2-05 pending.
+Status: approved 2026-09-26; P2-01–P2-05 complete; P2-06 pending.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-04 are complete. P2-05 is the next pending task. The table is the single implementation status checklist.
+P2-01–P2-05 are complete. P2-06 is the next pending task. The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
 | ID | Deliverable | Prerequisites | Status |
@@ -64,7 +64,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-02 | Search contracts, filter and access policy | P2-01 | Complete |
 | P2-03 | Snapshot variants and retrieval configurations | P2-02 | Complete |
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
-| P2-05 | Deterministic evaluation harness | P2-03, P2-04 | In progress (05.1–05.4 complete; 05.5 pending) |
+| P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
 | P2-06 | BM25 lexical retrieval | P2-03 | Pending |
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Pending |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
@@ -211,7 +211,7 @@ execute. Four new unit tests, the profile tests, and synthetic parent/variant an
 serving-boundary integration checks pass. P2-03 done condition is met: parent and
 variant searches return their own exact selected chunk sets and do not mix vectors.
 
-Continue with **P2-05.2**, mapping returned search units to canonical source evidence.
+P2-05 is complete. Continue with **P2-06.1**, piloting BM25S against the current corpus scale and local resource limits.
 
 **Inputs:** snapshot/index/chunk persistence from Phase 1, new contracts.
 
@@ -298,8 +298,8 @@ tables require caption context; the semantic-chunking Table 10 alignment omits t
 accepted extraction's stale caption. No units or footnotes are present in the aligned
 tables; the current calibration has no direct-positive prose anchors. Python AST and
 TOML parsing and `git diff --check` passed; a metadata-only accepted-snapshot query
-confirmed the table context flags. `ruff` and `mypy` are unavailable in this shell; the
-P2-05.5 runtime test work remains pending.
+confirmed the table context flags. `ruff` and `mypy` were unavailable in that shell;
+the full evaluation-package checks later passed under P2-05.5.
 
 **05.3 complete 2026-09-26:** `scoring.py` computes per-query paper/evidence nDCG@10,
 direct MRR@10, judged Recall@20/@50, judgment coverage, evidence-group coverage, and
@@ -309,7 +309,8 @@ requires materialized eligible paper IDs for metadata filters. Policy
 `evaluation-scoring-policy-v1` records its calibration/snapshot/alignment identities;
 `docs/reference/phase-2-scoring-policy.md` defines anchor-level gain, group coverage,
 empty denominators, and the no-cutoff unsupported profile. Python AST parsing and
-`git diff --check` passed. `ruff` and `mypy` are unavailable.
+`git diff --check` passed at implementation time. The shared evaluation package now
+passes Ruff, format, mypy and the non-integration suite; final results are under 05.5.
 
 **05.4 complete 2026-09-26:** `run_records.py` defines schema v1 for per-query runs,
 search attempts, returned paper/evidence identities, component scores, effective
@@ -319,8 +320,17 @@ free-text errors; the atomic no-overwrite writer is confined to ignored
 `local-reference/phase2-runs/`. Sanitized summaries omit result identities and include
 an exact raw-record SHA-256 link. The contract is in
 `docs/reference/phase-2-run-records.md`. Python AST parsing and `git diff --check`
-passed; `ruff` and `mypy` are unavailable. **05.5 behavioral tests and the fake-search
-evaluation command remain pending.**
+passed at implementation time.
+
+**05.5 complete 2026-09-26:** `runner.py` exposes async `evaluate_calibration` over a
+`SearchService` protocol; it runs paper and evidence searches for each calibration
+query, retains failed/degraded attempts, and scores only complete response pairs. Eight
+synthetic behavioral tests hand-check split-boundary text matching (direct rank 2,
+nDCG 0.63093), partial table support versus full group coverage, repeated-paper rank
+gaps (nDCG 0.944848), duplicate chunks, ties, empty-positive denominators, unjudged
+hits, failed searches and private no-overwrite run serialization. No model or network
+was used. The full non-integration suite reports 227 passed / 19 deselected; `ruff
+check .`, `ruff format --check .`, and `mypy` pass. P2-05's Done condition is met.
 
 1. **05.1 Define loaders.** Validate query families, filters, split, judgments,
    source anchors and reviewer status. Reject duplicate IDs, invalid cross-references,

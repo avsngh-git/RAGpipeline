@@ -11,7 +11,6 @@ from uuid import UUID
 from research_platform.evaluation.calibration import (
     CalibrationDataset,
     EvidenceJudgment,
-    PaperJudgment,
     QuestionFamily,
 )
 from research_platform.evaluation.matching import (
@@ -127,9 +126,7 @@ def score_query_family(
             "source alignment belongs to a different calibration dataset"
         )
     if alignments.snapshot_id != calibration.snapshot_id:
-        raise EvaluationScoringError(
-            "source alignment belongs to a different snapshot"
-        )
+        raise EvaluationScoringError("source alignment belongs to a different snapshot")
     if alignments.policy_id != "source-match-policy-v1":
         raise EvaluationScoringError("unsupported source matching policy")
     if paper_result_snapshot_id != calibration.snapshot_id:
@@ -233,20 +230,12 @@ def _validate_hit_scope(
     evidence_hits: Sequence[EvidenceHit],
     eligible: frozenset[str] | None,
 ) -> None:
-    for hit in (*paper_hits, *evidence_hits):
-        if eligible is not None and hit.paper_id not in eligible:
-            raise EvaluationScoringError(
-                f"returned paper {hit.paper_id} is outside the eligible filter scope"
-            )
-        if (
-            family.filters.paper_ids is not None
-            and hit.paper_id not in family.filters.paper_ids
-        ):
-            raise EvaluationScoringError(
-                f"returned paper {hit.paper_id} is outside the explicit paper filter"
-            )
-    for hit in paper_hits:
-        year = hit.publication_year
+    for paper_hit in paper_hits:
+        _validate_paper_scope(family, paper_hit.paper_id, eligible)
+    for evidence_hit in evidence_hits:
+        _validate_paper_scope(family, evidence_hit.paper_id, eligible)
+    for paper_hit in paper_hits:
+        year = paper_hit.publication_year
         if family.filters.year_from is not None and (
             year is None or year < family.filters.year_from
         ):
@@ -255,21 +244,38 @@ def _validate_hit_scope(
             year is None or year > family.filters.year_to
         ):
             raise EvaluationScoringError("paper hit is outside the year_to filter")
-    for hit in evidence_hits:
+    for evidence_hit in evidence_hits:
         if (
             family.filters.evidence_kinds is not None
-            and hit.kind not in family.filters.evidence_kinds
+            and evidence_hit.kind not in family.filters.evidence_kinds
         ):
             raise EvaluationScoringError(
                 "evidence hit is outside the evidence_kinds filter"
             )
         if (
             family.filters.document_version_kinds is not None
-            and hit.document_version_kind not in family.filters.document_version_kinds
+            and evidence_hit.document_version_kind
+            not in family.filters.document_version_kinds
         ):
             raise EvaluationScoringError(
                 "evidence hit is outside the document_version_kinds filter"
             )
+
+
+def _validate_paper_scope(
+    family: QuestionFamily, paper_id: str, eligible: frozenset[str] | None
+) -> None:
+    if eligible is not None and paper_id not in eligible:
+        raise EvaluationScoringError(
+            f"returned paper {paper_id} is outside the eligible filter scope"
+        )
+    if (
+        family.filters.paper_ids is not None
+        and paper_id not in family.filters.paper_ids
+    ):
+        raise EvaluationScoringError(
+            f"returned paper {paper_id} is outside the explicit paper filter"
+        )
 
 
 def _paper_labels(
@@ -306,9 +312,7 @@ def _score_papers(
         (_gain(label) for label in labels.values() if label > 0), reverse=True
     )
     ndcg = _ndcg_metric(actual_dcg, ideal_gains)
-    positive_papers = {
-        paper_id for paper_id, label in labels.items() if label == 2
-    }
+    positive_papers = {paper_id for paper_id, label in labels.items() if label == 2}
     first_positive_rank = min(
         (hit.rank for hit in hits if hit.paper_id in positive_papers), default=None
     )
@@ -347,10 +351,7 @@ def _score_evidence(
         match_evidence_hit(hit, regions_by_evidence_id, alignments) for hit in hits
     )
     judged_count = sum(
-        any(
-            match.directly_supported and match.anchor_id in labels
-            for match in matches
-        )
+        any(match.directly_supported and match.anchor_id in labels for match in matches)
         for matches in per_hit_matches
     )
     coverage = _ratio(float(judged_count), float(len(hits)))
@@ -443,9 +444,7 @@ def _score_evidence_groups(
     scores: list[EvidenceGroupCoverage] = []
     for cutoff in _CUTOFFS:
         supported = {
-            anchor_id
-            for anchor_id, rank in first_full_rank.items()
-            if rank <= cutoff
+            anchor_id for anchor_id, rank in first_full_rank.items() if rank <= cutoff
         }
         total_pieces = sum(len(group) for group in eligible_groups)
         satisfied_pieces = sum(
@@ -460,9 +459,7 @@ def _score_evidence_groups(
         scores.append(
             EvidenceGroupCoverage(
                 cutoff=cutoff,
-                required_pieces=_ratio(
-                    float(satisfied_pieces), float(total_pieces)
-                ),
+                required_pieces=_ratio(float(satisfied_pieces), float(total_pieces)),
                 complete_groups=_ratio(
                     float(complete_groups), float(len(eligible_groups))
                 ),
@@ -499,7 +496,7 @@ def _grade_counts(labels: Iterable[int | None]) -> HitGradeCounts:
 
 
 def _gain(label: int) -> int:
-    return 2**label - 1
+    return (1 << label) - 1
 
 
 def _ndcg_metric(actual_dcg: float, ideal_gains: Sequence[int]) -> MetricValue:

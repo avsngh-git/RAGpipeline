@@ -82,14 +82,14 @@ class HardwareDescriptor:
     accelerator_memory_bytes: int | None = None
 
     def __post_init__(self) -> None:
-        for name, value in (
+        for name, text_value in (
             ("platform_system", self.platform_system),
             ("platform_release", self.platform_release),
             ("machine_architecture", self.machine_architecture),
             ("processor", self.processor),
             ("python_version", self.python_version),
         ):
-            if not isinstance(value, str) or not value.strip():
+            if not isinstance(text_value, str) or not text_value.strip():
                 raise ValueError(f"{name} must be a non-empty string")
         if (
             isinstance(self.logical_cpu_count, bool)
@@ -97,12 +97,14 @@ class HardwareDescriptor:
             or self.logical_cpu_count <= 0
         ):
             raise ValueError("logical_cpu_count must be a positive integer")
-        for name, value in (
+        for name, memory_bytes in (
             ("ram_bytes", self.ram_bytes),
             ("accelerator_memory_bytes", self.accelerator_memory_bytes),
         ):
-            if value is not None and (
-                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            if memory_bytes is not None and (
+                isinstance(memory_bytes, bool)
+                or not isinstance(memory_bytes, int)
+                or memory_bytes <= 0
             ):
                 raise ValueError(f"{name} must be a positive integer or null")
         if self.accelerator_name is not None and (
@@ -189,11 +191,14 @@ class EvidenceResultRecord:
             raise ValueError("document_id and extraction_id must be UUIDs")
         if not isinstance(self.document_version, str) or not self.document_version:
             raise ValueError("document_version must be non-empty")
-        if (
-            not isinstance(self.document_version_kind, str)
-            or self.document_version_kind
-            not in {"published", "preprint", "other", "unknown"}
-        ):
+        if not isinstance(
+            self.document_version_kind, str
+        ) or self.document_version_kind not in {
+            "published",
+            "preprint",
+            "other",
+            "unknown",
+        }:
             raise ValueError("document_version_kind is unsupported")
         if self.chunking_configuration_id is not None and (
             not isinstance(self.chunking_configuration_id, str)
@@ -307,9 +312,8 @@ class SearchAttemptRecord:
     peak_accelerator_memory_bytes: int | None = None
 
     def __post_init__(self) -> None:
-        if (
-            not isinstance(self.attempt_id, UUID)
-            or not isinstance(self.snapshot_id, UUID)
+        if not isinstance(self.attempt_id, UUID) or not isinstance(
+            self.snapshot_id, UUID
         ):
             raise ValueError("attempt_id and snapshot_id must be UUIDs")
         if not isinstance(self.operation, SearchOperation):
@@ -317,9 +321,7 @@ class SearchAttemptRecord:
         if (
             not isinstance(self.retrieval_profile_id, str)
             or not self.retrieval_profile_id.startswith("sha256:")
-            or not _HASH.fullmatch(
-                self.retrieval_profile_id.removeprefix("sha256:")
-            )
+            or not _HASH.fullmatch(self.retrieval_profile_id.removeprefix("sha256:"))
         ):
             raise ValueError("retrieval_profile_id must be a SHA-256 identity")
         if not isinstance(self.requested_mode, RetrievalMode):
@@ -345,7 +347,9 @@ class SearchAttemptRecord:
         ):
             raise ValueError("latency_kind must be cold or warm")
         if not isinstance(self.status, str) or self.status not in {
-            "success", "degraded", "failed"
+            "success",
+            "degraded",
+            "failed",
         }:
             raise ValueError("status is unsupported")
         if self.request_id is not None and (
@@ -364,20 +368,26 @@ class SearchAttemptRecord:
             )
         ):
             raise ValueError("effective_configuration_id must be a SHA-256 identity")
-        for name, value in (
+        for name, count_value in (
             ("warning_count", self.warning_count),
             ("omitted_count", self.omitted_count),
         ):
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            if (
+                isinstance(count_value, bool)
+                or not isinstance(count_value, int)
+                or count_value < 0
+            ):
                 raise ValueError(f"{name} must be a non-negative integer")
         if not isinstance(self.truncated, bool):
             raise ValueError("truncated must be a boolean")
-        for name, value in (
+        for name, memory_bytes in (
             ("peak_ram_bytes", self.peak_ram_bytes),
             ("peak_accelerator_memory_bytes", self.peak_accelerator_memory_bytes),
         ):
-            if value is not None and (
-                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            if memory_bytes is not None and (
+                isinstance(memory_bytes, bool)
+                or not isinstance(memory_bytes, int)
+                or memory_bytes <= 0
             ):
                 raise ValueError(f"{name} must be a positive integer or null")
         if self.failure_category is not None and (
@@ -414,8 +424,7 @@ class SearchAttemptRecord:
         ):
             raise ValueError("paper_results must contain PaperResultRecord values")
         if not isinstance(self.evidence_results, tuple) or any(
-            not isinstance(item, EvidenceResultRecord)
-            for item in self.evidence_results
+            not isinstance(item, EvidenceResultRecord) for item in self.evidence_results
         ):
             raise ValueError(
                 "evidence_results must contain EvidenceResultRecord values"
@@ -509,10 +518,7 @@ class QueryRunRecord:
             or self.schema_version != _RUN_SCHEMA_VERSION
         ):
             raise ValueError("unsupported query run schema version")
-        if (
-            not isinstance(self.run_id, UUID)
-            or not isinstance(self.snapshot_id, UUID)
-        ):
+        if not isinstance(self.run_id, UUID) or not isinstance(self.snapshot_id, UUID):
             raise ValueError("run_id and snapshot_id must be UUIDs")
         if (
             not isinstance(self.started_at, datetime)
@@ -534,10 +540,9 @@ class QueryRunRecord:
         if not isinstance(self.working_tree_dirty, bool):
             raise ValueError("working_tree_dirty must be a boolean")
         if self.working_tree_dirty:
-            if (
-                not isinstance(self.working_tree_diff_sha256, str)
-                or not _HASH.fullmatch(self.working_tree_diff_sha256)
-            ):
+            if not isinstance(
+                self.working_tree_diff_sha256, str
+            ) or not _HASH.fullmatch(self.working_tree_diff_sha256):
                 raise ValueError("dirty working trees require a diff checksum")
         elif self.working_tree_diff_sha256 is not None:
             raise ValueError("clean working trees cannot have a diff checksum")
@@ -553,7 +558,8 @@ class QueryRunRecord:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be a non-empty string")
         if not isinstance(self.split, str) or self.split not in {
-            "development", "held_out"
+            "development",
+            "held_out",
         }:
             raise ValueError("split must be development or held_out")
         if self.experiment_id is not None and (
@@ -666,22 +672,20 @@ def successful_search_attempt(
     if request.operation is SearchOperation.EVIDENCE_SEARCH:
         if any(not isinstance(hit, EvidenceHit) for hit in response.hits):
             raise RunRecordError("evidence search returned a non-evidence result")
-        typed_response = cast(SearchResponse[EvidenceHit], response)
+        evidence_response = cast(SearchResponse[EvidenceHit], response)
         evidence_results = tuple(
-            _evidence_result(hit) for hit in typed_response.hits
+            _evidence_result(hit) for hit in evidence_response.hits
         )
     elif request.operation is SearchOperation.PAPER_SEARCH:
         if any(not isinstance(hit, PaperHit) for hit in response.hits):
             raise RunRecordError("paper search returned a non-paper result")
-        typed_response = cast(SearchResponse[PaperHit], response)
-        paper_results = tuple(_paper_result(hit) for hit in typed_response.hits)
+        paper_response = cast(SearchResponse[PaperHit], response)
+        paper_results = tuple(_paper_result(hit) for hit in paper_response.hits)
     else:
         if any(not isinstance(hit, PaperMetadataHit) for hit in response.hits):
             raise RunRecordError("paper metadata search returned a non-metadata result")
-        typed_response = cast(SearchResponse[PaperMetadataHit], response)
-        paper_results = tuple(
-            _metadata_result(hit) for hit in typed_response.hits
-        )
+        metadata_response = cast(SearchResponse[PaperMetadataHit], response)
+        paper_results = tuple(_metadata_result(hit) for hit in metadata_response.hits)
     status: AttemptStatus = (
         "degraded"
         if response.effective_mode is not request.mode or response.warnings

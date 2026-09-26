@@ -72,10 +72,7 @@ class TableCellCoverage:
         ):
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValueError(f"{name} must be an integer")
-        if (
-            self.total_units <= 0
-            or not 0 <= self.start < self.end <= self.total_units
-        ):
+        if self.total_units <= 0 or not 0 <= self.start < self.end <= self.total_units:
             raise ValueError("cell coverage must be a non-empty in-range interval")
 
 
@@ -296,27 +293,27 @@ def match_evidence_hits(
                 seen_evidence_ids.add(evidence_id)
 
     matches: list[SourceAnchorMatch] = []
-    for alignment in alignments.table_alignments:
+    for table_alignment in alignments.table_alignments:
         table_regions = [
             region
             for region in resolved_regions
             if isinstance(region, TableEvidenceRegion)
-            and region.document_id == alignment.document_id
-            and region.extraction_id == alignment.extraction_id
-            and region.table_ordinal == alignment.table_ordinal
+            and region.document_id == table_alignment.document_id
+            and region.extraction_id == table_alignment.extraction_id
+            and region.table_ordinal == table_alignment.table_ordinal
         ]
         if table_regions:
-            matches.append(_match_table_anchor(alignment, table_regions))
-    for alignment in alignments.text_alignments:
+            matches.append(_match_table_anchor(table_alignment, table_regions))
+    for text_alignment in alignments.text_alignments:
         text_regions = [
             region
             for region in resolved_regions
             if isinstance(region, TextEvidenceRegion)
-            and region.document_id == alignment.document_id
-            and region.extraction_id == alignment.extraction_id
+            and region.document_id == text_alignment.document_id
+            and region.extraction_id == text_alignment.extraction_id
         ]
         if text_regions:
-            matches.append(_match_text_anchor(alignment, text_regions))
+            matches.append(_match_text_anchor(text_alignment, text_regions))
     return tuple(matches)
 
 
@@ -428,9 +425,7 @@ def _table_cell(table: ExtractedTable, coordinate: CellCoordinate) -> TableCell:
     return cell
 
 
-def _cell_context(
-    cell: TableCell, table: ExtractedTable
-) -> tuple[CellCoordinate, ...]:
+def _cell_context(cell: TableCell, table: ExtractedTable) -> tuple[CellCoordinate, ...]:
     row = cell.row
     column = cell.column
     row_headers = cell.row_header_cells
