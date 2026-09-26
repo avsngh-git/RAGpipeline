@@ -176,6 +176,12 @@ def test_retriever_matches_independent_bm25_scores_and_order() -> None:
     assert math.isclose(hits[0].score, expected[1], rel_tol=1e-5)
     assert math.isclose(hits[1].score, expected[0], rel_tol=1e-5)
 
+    stats = LexicalRetriever(index).search_with_stats("alpha", limit=1)
+    assert stats.available_count == 2
+    assert stats.limit == 1
+    assert len(stats.hits) == 1
+    assert stats.truncated is True
+
 
 def test_retriever_applies_eligibility_before_top_k_and_handles_empty_results() -> None:
     from research_platform.search.lexical import LexicalRetriever

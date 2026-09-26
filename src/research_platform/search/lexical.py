@@ -474,6 +474,38 @@ class LexicalHit:
     score: float
 
 
+@dataclass(frozen=True)
+class LexicalSearchResult:
+    """Exact positive-match count and bounded results from one lexical query."""
+
+    hits: tuple[LexicalHit, ...]
+    available_count: int
+    limit: int
+    truncated: bool
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.limit, bool)
+            or not isinstance(self.limit, int)
+            or self.limit <= 0
+        ):
+            raise ValueError("limit must be a positive integer")
+        if (
+            isinstance(self.available_count, bool)
+            or not isinstance(self.available_count, int)
+            or self.available_count < 0
+        ):
+            raise ValueError("available_count must be a non-negative integer")
+        if not isinstance(self.truncated, bool):
+            raise ValueError("truncated must be boolean")
+        if self.available_count < len(self.hits):
+            raise ValueError("available_count cannot be smaller than returned hits")
+        if len(self.hits) > self.limit:
+            raise ValueError("returned lexical hits exceed the query limit")
+        if self.truncated != (self.available_count > self.limit):
+            raise ValueError("truncated must match the available hit count and limit")
+
+
 class LexicalRetriever:
     """Score an index, applying its authoritative eligible row IDs before top-k."""
 
@@ -483,6 +515,16 @@ class LexicalRetriever:
         if len(self._row_by_id) != len(index.rows):
             raise ValueError("lexical row map contains duplicate stable IDs")
 
+    @property
+    def profile(self) -> RetrievalProfile:
+        """The exact retrieval profile used to build this lexical index."""
+        return self._index.profile
+
+    @property
+    def manifest(self) -> LexicalIndexManifest:
+        """The immutable role, snapshot and candidate bound for this index."""
+        return self._index.manifest
+
     def search(
         self,
         query: str,
@@ -491,6 +533,18 @@ class LexicalRetriever:
         limit: int = 10,
     ) -> tuple[LexicalHit, ...]:
         """Return positive matches from the eligible set with stable score ties."""
+        return self.search_with_stats(
+            query, eligible_ids=eligible_ids, limit=limit
+        ).hits
+
+    def search_with_stats(
+        self,
+        query: str,
+        *,
+        eligible_ids: Collection[str] | None = None,
+        limit: int = 10,
+    ) -> LexicalSearchResult:
+        """Return bounded hits plus the exact positive-match count."""
         if not isinstance(query, str):
             raise TypeError("query must be text")
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
@@ -499,7 +553,7 @@ class LexicalRetriever:
             raise ValueError("limit exceeds the profile lexical candidate limit")
         tokens = tokenize_scientific_english(query)
         if not tokens:
-            return ()
+            return LexicalSearchResult((), 0, limit, False)
 
         if eligible_ids is None:
             eligible_rows = set(range(len(self._index.rows)))
@@ -511,7 +565,7 @@ class LexicalRetriever:
             if unknown_ids:
                 raise ValueError("eligible IDs are outside this lexical index")
             if not requested_ids:
-                return ()
+                return LexicalSearchResult((), 0, limit, False)
             eligible_rows = {
                 self._row_by_id[stable_id].row for stable_id in requested_ids
             }
@@ -535,4 +589,11 @@ class LexicalRetriever:
                     )
                 )
         scored.sort(key=lambda hit: (-hit.score, hit.stable_id))
-        return tuple(scored[:limit])
+        available_count = len(scored)
+        hits = tuple(scored[:limit])
+        return LexicalSearchResult(
+            hits=hits,
+            available_count=available_count,
+            limit=limit,
+            truncated=available_count > limit,
+        )

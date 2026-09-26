@@ -34,6 +34,7 @@ from research_platform.search.dense_search import (
 from research_platform.search.profiles import (
     CandidateLimits,
     DenseIndexIdentity,
+    FusionSettings,
     LexicalIndexIdentity,
     RetrievalProfile,
 )
@@ -105,6 +106,7 @@ def _profile(
     *,
     dense_identity: DenseIndexIdentity | None = None,
     lexical: bool = False,
+    fusion: bool = False,
 ) -> RetrievalProfile:
     snapshot = SnapshotSelection(
         snapshot_id=SNAPSHOT_ID,
@@ -135,10 +137,11 @@ def _profile(
         snapshot=snapshot,
         lexical_index=lexical_identity,
         dense_index=identity,
+        fusion=FusionSettings() if fusion else None,
         candidate_limits=CandidateLimits(
             lexical_top_k=10 if lexical else None,
             dense_top_k=10,
-            fused_top_k=None,
+            fused_top_k=10 if fusion else None,
             rerank_top_k=None,
         ),
     )
@@ -347,7 +350,10 @@ def _e5_configuration() -> IndexConfiguration:
     )
 
 
-def test_e5_query_search_hydrates_ranked_hits_from_the_authoritative_source() -> None:
+@pytest.mark.parametrize("hybrid_component", [False, True])
+def test_e5_query_search_hydrates_ranked_hits_from_the_authoritative_source(
+    hybrid_component: bool,
+) -> None:
     configuration = _e5_configuration()
     gate = _Gate()
     evidence_id = "sha256:" + "c" * 64
@@ -391,9 +397,17 @@ def test_e5_query_search_hydrates_ranked_hits_from_the_authoritative_source() ->
                 query_embedder=embedder,
                 evidence_hydrator=hydrator,
             )
-            result = await service.search_query(
-                _profile(configuration), "retrieval query", limit=5
+            profile = _profile(
+                configuration,
+                lexical=hybrid_component,
+                fusion=hybrid_component,
             )
+            search = (
+                service.search_hybrid_component_query
+                if hybrid_component
+                else service.search_query
+            )
+            result = await search(profile, "retrieval query", limit=5)
         assert embedder.calls == [("retrieval query", configuration)]
         assert gate.serving_calls == 1
         assert gate.evaluation_calls == 0
@@ -402,6 +416,9 @@ def test_e5_query_search_hydrates_ranked_hits_from_the_authoritative_source() ->
             "must": [{"key": "snapshot_id", "match": {"value": str(SNAPSHOT_ID)}}]
         }
         assert len(hydrator.calls) == 1
+        assert result.profile_id == profile.profile_id
+        assert result.candidate_count == 1
+        assert result.truncated is False
         assert result.hits[0].evidence_id == evidence_id
         assert result.hydrated_hits[0].rank == 1
         assert result.hydrated_hits[0].score == 0.875

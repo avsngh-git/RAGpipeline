@@ -81,12 +81,16 @@ class HydratedDenseHit:
 
 @dataclass(frozen=True)
 class DenseSearchResponse:
+    """Dense matches and exact unfiltered counts, if available for this query."""
+
     snapshot_id: UUID
     profile_id: str
     index_configuration_id: str
     requested_limit: int
     hits: tuple[IndexMatch, ...]
     hydrated_hits: tuple[HydratedDenseHit, ...] = ()
+    candidate_count: int | None = None
+    truncated: bool | None = None
 
 
 class UnsupportedRetrievalProfile(ValueError):
@@ -98,7 +102,7 @@ class ProfileDenseIndexMismatch(SnapshotIndexMismatch):
 
 
 class SnapshotDenseSearch:
-    """Execute dense-only profiles after resolving and leasing their exact index."""
+    """Execute dense-only searches or one branch of an explicit hybrid profile."""
 
     def __init__(
         self,
@@ -129,6 +133,7 @@ class SnapshotDenseSearch:
             filters=filters,
             evaluation=False,
             hydrate=False,
+            hybrid_component=False,
         )
 
     async def search_query(
@@ -141,7 +146,12 @@ class SnapshotDenseSearch:
     ) -> DenseSearchResponse:
         """Embed a pinned-model query, retrieve candidates and hydrate source rows."""
         return await self._search_query(
-            profile, query, limit=limit, filters=filters, evaluation=False
+            profile,
+            query,
+            limit=limit,
+            filters=filters,
+            evaluation=False,
+            hybrid_component=False,
         )
 
     async def evaluate_query(
@@ -154,7 +164,48 @@ class SnapshotDenseSearch:
     ) -> DenseSearchResponse:
         """Run a named evaluation query, including explicit draft snapshots."""
         return await self._search_query(
-            profile, query, limit=limit, filters=filters, evaluation=True
+            profile,
+            query,
+            limit=limit,
+            filters=filters,
+            evaluation=True,
+            hybrid_component=False,
+        )
+
+    async def search_hybrid_component_query(
+        self,
+        profile: RetrievalProfile,
+        query: str,
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
+    ) -> DenseSearchResponse:
+        """Run the dense branch of a profile that also requires lexical fusion."""
+        return await self._search_query(
+            profile,
+            query,
+            limit=limit,
+            filters=filters,
+            evaluation=False,
+            hybrid_component=True,
+        )
+
+    async def evaluate_hybrid_component_query(
+        self,
+        profile: RetrievalProfile,
+        query: str,
+        *,
+        limit: int,
+        filters: SearchFilters = SearchFilters(),
+    ) -> DenseSearchResponse:
+        """Run the dense branch for a named hybrid evaluation profile."""
+        return await self._search_query(
+            profile,
+            query,
+            limit=limit,
+            filters=filters,
+            evaluation=True,
+            hybrid_component=True,
         )
 
     async def _search_query(
@@ -165,6 +216,7 @@ class SnapshotDenseSearch:
         limit: int,
         filters: SearchFilters,
         evaluation: bool,
+        hybrid_component: bool,
     ) -> DenseSearchResponse:
         if self._query_embedder is None or self._evidence_hydrator is None:
             raise RuntimeError(
@@ -175,7 +227,9 @@ class SnapshotDenseSearch:
         if len(query) > DEFAULT_SEARCH_LIMITS.max_query_characters:
             raise ValueError("query text exceeds the configured character limit")
         configuration = self._index.configuration
-        _validate_search_request(profile, configuration, limit)
+        _validate_search_request(
+            profile, configuration, limit, hybrid_component=hybrid_component
+        )
         filters.validate_for(SearchOperation.EVIDENCE_SEARCH)
         try:
             validate_supported_embedding_configuration(configuration)
@@ -192,6 +246,7 @@ class SnapshotDenseSearch:
             filters=filters,
             evaluation=evaluation,
             hydrate=True,
+            hybrid_component=hybrid_component,
         )
 
     async def evaluate(
@@ -210,6 +265,7 @@ class SnapshotDenseSearch:
             filters=filters,
             evaluation=True,
             hydrate=False,
+            hybrid_component=False,
         )
 
     async def _search(
@@ -221,9 +277,12 @@ class SnapshotDenseSearch:
         filters: SearchFilters,
         evaluation: bool,
         hydrate: bool,
+        hybrid_component: bool,
     ) -> DenseSearchResponse:
         configuration = self._index.configuration
-        _validate_search_request(profile, configuration, limit)
+        _validate_search_request(
+            profile, configuration, limit, hybrid_component=hybrid_component
+        )
         filters.validate_for(SearchOperation.EVIDENCE_SEARCH)
         if _has_active_filters(filters) and self._evidence_hydrator is None:
             raise RuntimeError("filtered dense search requires authoritative hydration")
@@ -262,6 +321,10 @@ class SnapshotDenseSearch:
                         "vector result payload does not match the resolved profile"
                     )
             hydrated_hits: tuple[HydratedDenseHit, ...] = ()
+            candidate_count = (
+                None if _has_active_filters(filters) else ready.expected_count
+            )
+            truncated = None if candidate_count is None else candidate_count > limit
             if hydrate or _has_active_filters(filters):
                 assert self._evidence_hydrator is not None
                 hydrated_inputs = (
@@ -292,6 +355,8 @@ class SnapshotDenseSearch:
             requested_limit=limit,
             hits=hits,
             hydrated_hits=hydrated_hits,
+            candidate_count=candidate_count,
+            truncated=truncated,
         )
 
 
@@ -316,16 +381,23 @@ def _validate_search_request(
     profile: RetrievalProfile,
     configuration: IndexConfiguration,
     limit: int,
+    *,
+    hybrid_component: bool = False,
 ) -> None:
     if not isinstance(profile, RetrievalProfile):
         raise ValueError("profile must be a RetrievalProfile")
-    if (
-        profile.lexical_index is not None
-        or profile.fusion is not None
-        or profile.reranker is not None
-    ):
+    if profile.reranker is not None:
         raise UnsupportedRetrievalProfile(
-            "dense search cannot execute a profile requiring lexical, fusion, or reranking stages"
+            "dense search cannot execute a profile requiring reranking"
+        )
+    if hybrid_component:
+        if profile.lexical_index is None or profile.fusion is None:
+            raise UnsupportedRetrievalProfile(
+                "hybrid dense component requires lexical and fusion profile stages"
+            )
+    elif profile.lexical_index is not None or profile.fusion is not None:
+        raise UnsupportedRetrievalProfile(
+            "dense-only search cannot execute a profile requiring lexical or fusion stages"
         )
     dense_identity = profile.dense_index
     if dense_identity is None:

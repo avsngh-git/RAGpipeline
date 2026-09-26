@@ -283,6 +283,19 @@ Preserve the user's existing worktree and publication workflow.
   environment. An initial mypy loop-variable collision was fixed and the rerun passed.
   Candidate-pool bounds, caller-level same-profile enforcement, shared filters and
   branch failure semantics remain open under P2-08.3–08.5.
+- **P2-08.3 complete; assistant-reviewed 2026-09-26:** `HybridEvidenceSearch`
+  runs lexical and dense branches with the profile's lexical/dense limits, then applies
+  its fused-union cap. It rejects paper indexes, draft indexes on serving calls,
+  unsupported stages, active filters pending P2-08.4, and any lexical or dense response
+  whose profile, snapshot, index configuration or limit differs. Lexical reports the
+  exact count of positive matches; the unfiltered dense branch reports the exact
+  snapshot index count. Each pool records its limit, available/observed count, returned
+  count and truncation; a fused-union count is marked as a lower bound when an upstream
+  branch was itself truncated. The response records applied filters (empty in this
+  substep). Focused hybrid/dense/lexical/fusion checks pass (38); full non-integration
+  suite passes (281 passed, 19 deselected), with Ruff, format and strict source mypy.
+  Filtered dense counts and hybrid filtering remain for P2-08.4; structured branch
+  failures remain for P2-08.5.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -295,9 +308,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-08.3. Bound lexical, dense and fused candidate pools and ensure
-both branches share the requested snapshot/profile. P2-08.1–08.2 provide the RRF
-function and provenance contract. The BGE/E5 filter path is complete;
+**Next step:** P2-08.4. Apply restrictive metadata filters consistently before
+lexical/dense top-k, including empty eligibility and missing metadata. P2-08.1–08.3
+provide profile-bound RRF and bounded pool reporting. The BGE/E5 filter path is complete;
 retrieval quality comparison and full-index cost remain open for the development
 experiments. Keep the accepted review DB untouched until its migration/readiness gate
 is met.
