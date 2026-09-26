@@ -360,6 +360,18 @@ score separation, metadata-only results, deterministic ties, and invalid duplica
 IDs/ranks; typed response serialization preserves branch ranks. Full non-integration
 suite passes (307 passed, 20 deselected); Ruff, format and strict source mypy pass.
 
+**P2-09.4 complete; assistant-reviewed 2026-09-27:**
+`search/paper_selection.py` derives the maximum paper-candidate union from the
+profile metadata/evidence stage caps (each stage remains at or below the existing
+200-candidate maximum), rejects an over-cap or duplicate-paper list, and selects a
+bounded requested page. `PaperResultSelection` reports truncation, observed
+`omitted_count`, and whether that count is exact. If an upstream pool was truncated,
+the result remains truncated even when underfilled and warns that omitted count
+covers only observed candidates. Six tests cover profile-derived bounds, exact page
+omissions, upstream lower-bound semantics, cap/uniqueness failures and contract
+consistency. Full non-integration suite passes (313 passed, 20 deselected); Ruff,
+format and strict source mypy pass.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -371,7 +383,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-09.4. Define bounded paper diversity and candidate scanning, and
-report truncation honestly. P2-09.1–09.3 are implemented; the PostgreSQL paper-read
-integration case remains gated on the dedicated test database. Keep the accepted
-review DB read-only until its migration/readiness gate is met.
+**Next step:** P2-09.5. Expose one-hop references and citations from stored graph
+links, including unresolved and out-of-snapshot endpoints with pagination and local
+coverage limits. P2-09.1–09.4 are implemented; the PostgreSQL paper-read integration
+case remains gated on the dedicated test database. Keep the accepted review DB
+read-only until its migration/readiness gate is met.
