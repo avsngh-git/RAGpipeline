@@ -812,6 +812,156 @@ class IndexRepository:
             for row in rows
         )
 
+    async def hydrate_snapshot_matches(
+        self,
+        snapshot_selection: SnapshotSelection,
+        configuration: IndexConfiguration,
+        matches: Sequence[IndexMatch],
+        *,
+        allow_draft: bool = False,
+    ) -> tuple[IndexInput, ...]:
+        """Resolve ranked vector IDs to selected source text under serving/eval policy."""
+        if not isinstance(allow_draft, bool):
+            raise ValueError("allow_draft must be a boolean")
+        evidence_ids = tuple(match.evidence_id for match in matches)
+        if any(not isinstance(value, str) or not value for value in evidence_ids):
+            raise ValueError("dense matches must include evidence IDs")
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise SnapshotIndexMismatch("dense results contain duplicate evidence IDs")
+        if not evidence_ids:
+            return ()
+
+        leased_connection = self._build_connection.get()
+        if leased_connection is not None:
+            return await self._hydrate_snapshot_matches_on_connection(
+                leased_connection,
+                snapshot_selection,
+                configuration,
+                evidence_ids,
+                allow_draft=allow_draft,
+            )
+        async with self._pool.acquire() as connection:
+            async with connection.transaction(
+                isolation="repeatable_read", readonly=True
+            ):
+                return await self._hydrate_snapshot_matches_on_connection(
+                    connection,
+                    snapshot_selection,
+                    configuration,
+                    evidence_ids,
+                    allow_draft=allow_draft,
+                )
+
+    async def _hydrate_snapshot_matches_on_connection(
+        self,
+        connection: asyncpg.Connection,
+        snapshot_selection: SnapshotSelection,
+        configuration: IndexConfiguration,
+        evidence_ids: tuple[str, ...],
+        *,
+        allow_draft: bool,
+    ) -> tuple[IndexInput, ...]:
+        snapshot_status = await connection.fetchval(
+            "SELECT status FROM snapshots WHERE id = $1",
+            snapshot_selection.snapshot_id,
+        )
+        if snapshot_status is None:
+            raise ValueError("snapshot does not exist")
+        if snapshot_status not in {"draft", "finalized"}:
+            raise SnapshotIndexMismatch("snapshot has an invalid status")
+        if snapshot_status != "finalized" and not allow_draft:
+            raise SnapshotAccessDenied(
+                "draft evidence hydration requires explicit evaluation access"
+            )
+        resolved_selection, selected_ids = await self._snapshot_selection_on_connection(
+            connection, snapshot_selection.snapshot_id
+        )
+        if resolved_selection != snapshot_selection:
+            raise SnapshotIndexMismatch(
+                "dense profile does not match the exact snapshot selection"
+            )
+        if not set(evidence_ids).issubset(selected_ids):
+            raise IndexReconciliationRequired(
+                "dense results contain evidence outside the exact snapshot selection"
+            )
+        rows = await connection.fetch(
+            """
+            SELECT chunk.id AS evidence_id, chunk.text, paper.id AS paper_id,
+                   document.id AS document_id, document.version,
+                   extraction.id AS extraction_id, extraction.source_artifact_id,
+                   source_file.sha256 AS source_artifact_sha256,
+                   paper.publication_year, paper.title,
+                   section.id AS section_id, section.title AS section_title
+            FROM snapshot_items AS item
+            JOIN papers AS paper ON paper.id = item.paper_id
+            JOIN documents AS document
+              ON document.id = item.document_id AND document.paper_id = item.paper_id
+            JOIN extractions AS extraction
+              ON extraction.id = item.extraction_id
+             AND extraction.document_id = item.document_id
+            JOIN document_artifacts AS artifact
+              ON artifact.id = extraction.source_artifact_id
+             AND artifact.document_id = extraction.document_id
+            JOIN artifacts AS source_file ON source_file.id = artifact.artifact_id
+            JOIN document_permission_evidence AS permission
+              ON permission.id = artifact.permission_evidence_id
+             AND permission.document_id = artifact.document_id
+            JOIN snapshot_item_chunks AS selected
+              ON selected.snapshot_id = item.snapshot_id
+             AND selected.paper_id = item.paper_id
+             AND selected.document_id = item.document_id
+             AND selected.extraction_id = item.extraction_id
+            JOIN chunks AS chunk
+              ON chunk.id = selected.chunk_id
+             AND chunk.document_id = selected.document_id
+             AND chunk.extraction_id = selected.extraction_id
+            LEFT JOIN sections AS section
+              ON section.id = chunk.section_id
+             AND section.extraction_id = chunk.extraction_id
+            WHERE item.snapshot_id = $1
+              AND chunk.id = ANY($2::text[])
+              AND extraction.status IN ('completed', 'partial')
+              AND artifact.storage_permitted
+              AND artifact.indexing_permitted
+              AND permission.storage_permitted
+              AND permission.indexing_permitted
+            ORDER BY array_position($2::text[], chunk.id)
+            """,
+            snapshot_selection.snapshot_id,
+            list(evidence_ids),
+        )
+        observed_ids = tuple(str(row["evidence_id"]) for row in rows)
+        if len(observed_ids) != len(evidence_ids) or set(observed_ids) != set(
+            evidence_ids
+        ):
+            raise PermissionError(
+                "dense results include missing or non-indexing-permitted evidence"
+            )
+        configuration_id = configuration.configuration_id
+        return tuple(
+            IndexInput(
+                evidence_id=row["evidence_id"],
+                text=row["text"],
+                payload={
+                    "snapshot_id": str(snapshot_selection.snapshot_id),
+                    "index_configuration_id": configuration_id,
+                    "paper_id": row["paper_id"],
+                    "document_id": str(row["document_id"]),
+                    "document_version": row["version"],
+                    "extraction_id": str(row["extraction_id"]),
+                    "source_artifact_id": str(row["source_artifact_id"]),
+                    "source_artifact_sha256": row["source_artifact_sha256"],
+                    "publication_year": row["publication_year"],
+                    "paper_title": row["title"],
+                    "section_id": str(row["section_id"])
+                    if row["section_id"] is not None
+                    else None,
+                    "section_title": row["section_title"],
+                },
+            )
+            for row in rows
+        )
+
     async def load_snapshot_lexical_inputs(
         self,
         snapshot_selection: SnapshotSelection,

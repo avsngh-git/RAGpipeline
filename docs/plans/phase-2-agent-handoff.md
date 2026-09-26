@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 next.
+Updated: 2026-09-26. Plan approved; P2-01–P2-06 complete; P2-07 in progress at 07.2.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-07.1**.
+   whose prerequisites are satisfied. Continue at **P2-07.2**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -216,6 +216,18 @@ Preserve the user's existing worktree and publication workflow.
   records BM25S 0.3.11 and scientific-en-v1 as a reversible Phase 2 choice, not the
   final retrieval default. No profile-compatible artifact was published from the
   accepted review DB because it is not migrated to 015; the CLI never migrates it.
+- **P2-07.1 complete; assistant-reviewed:** `SnapshotDenseSearch.search_query` and
+  `evaluate_query` reuse E5-small-v2's pinned query adapter and required prefix.
+  Candidate limit, exact profile/configuration identity and E5 model, revision,
+  preprocessing, dimensions, distance and token limit are checked before embedding
+  or Qdrant access. Query vectors must contain 384 finite values and have unit L2
+  norm. Ranked matches are hydrated before the profile lease ends through the exact
+  selected chunk relation; the loader rechecks snapshot identity and both storage/
+  indexing permission records and returns source text and lineage from PostgreSQL.
+  Draft hydration requires the explicit evaluation path. Focused dense/index tests
+  pass (19); full non-integration tests pass (256). Ruff, format and source mypy
+  pass. A live database hydration assertion was added but not run because the
+  dedicated PostgreSQL/Qdrant URLs are not configured.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -228,9 +240,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-07.1. Reuse the pinned E5-small-v2 adapter for dense query
-embedding and authoritative evidence hydration. BM25 lexical implementation is
-complete for the synthetic behavior gate, and ADR-0010 records the reversible
-BM25S/analyzer choice. The accepted review database remains unmigrated to 015; its
-real profile-bound lexical artifact is not built until an exact-selection-capable
-database is available.
+**Next step:** P2-07.2. Pilot BGE-base-en-v1.5 against E5-small-v2 on the same
+source chunk set. Verify the immutable model revision, license, tokenizer, query
+instructions and input limit, then measure small-batch CPU/GPU latency and peak
+memory before indexing the full corpus. The accepted review database remains
+unmigrated to 015, so a real profile-bound lexical artifact is still unavailable.

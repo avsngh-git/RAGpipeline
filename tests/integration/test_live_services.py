@@ -1734,6 +1734,22 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                     == configuration.configuration_id
                     for match in matches
                 )
+                with pytest.raises(SnapshotAccessDenied, match="explicit evaluation"):
+                    await repository.hydrate_snapshot_matches(
+                        selection, configuration, matches
+                    )
+                hydrated = await repository.hydrate_snapshot_matches(
+                    selection, configuration, matches, allow_draft=True
+                )
+                assert tuple(item.evidence_id for item in hydrated) == tuple(
+                    match.evidence_id for match in matches
+                )
+                assert {item.text for item in hydrated} == {
+                    unit.content for unit in units
+                }
+                assert {
+                    item.payload["source_artifact_sha256"] for item in hydrated
+                } == {artifact.sha256}
                 await pool.execute(
                     """
                     UPDATE snapshot_index_states

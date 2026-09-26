@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 next.
+Status: approved 2026-09-26; P2-01–P2-06 complete; P2-07 in progress at 07.2.
 
 ## Start and authority
 
@@ -66,7 +66,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-04 | Ten-question calibration and source judgments | P2-01, P2-02 | Complete |
 | P2-05 | Deterministic evaluation harness | P2-03, P2-04 | Complete |
 | P2-06 | BM25 lexical retrieval | P2-03 | Complete |
-| P2-07 | Dense retrieval and embedding pilots | P2-03 | Pending |
+| P2-07 | Dense retrieval and embedding pilots | P2-03 | In progress |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Pending |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Pending |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Pending |
@@ -472,6 +472,24 @@ selection remains P2-14/P2-15.
    retrieval, backfill/rebuild required payloads safely, and verify authoritative
    eligibility again when hydrating. Deleted/stale/wrong-snapshot references are
    integrity errors, not silently returned text.
+
+**07.1 complete; assistant-reviewed 2026-09-26:** the existing pinned
+E5-small-v2 adapter's query/passage prefixes and model revision are reused by
+`SnapshotDenseSearch.search_query` and `evaluate_query`. Search validates the
+candidate bound and exact profile/index identity before embedding, checks the E5
+revision, preprocessing, dimensions, cosine distance and token limit, then rejects
+query vectors with a wrong dimension, non-finite values or non-unit L2 norm before
+Qdrant access. The service hydrates ranked IDs while holding the profile lease.
+`IndexRepository.hydrate_snapshot_matches` verifies exact current snapshot selection,
+selected membership and both artifact and permission-review storage/indexing rights;
+returned text and lineage come from PostgreSQL. Draft hydration requires explicit
+evaluation access. Focused pytest of `tests/test_dense_search.py` and
+`tests/test_ingestion_indexing.py`: 19 passed. Full `pytest -m 'not integration' -q`:
+256 passed, 19 deselected; `ruff check .`, `ruff format --check .` and `mypy src`
+pass. A live
+PostgreSQL/Qdrant hydration assertion was added but not run because test service URLs
+are unavailable. The implementation is synthetic-gate complete; no live E5 query
+measurement was taken.
 
 **Done:** both feasible adapters retrieve synthetic known neighbors and obey the
 same filter truth table; real-model pilot measurements and index identities recorded.
