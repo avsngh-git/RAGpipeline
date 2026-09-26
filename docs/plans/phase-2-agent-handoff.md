@@ -312,6 +312,15 @@ Preserve the user's existing worktree and publication workflow.
   before the passing rerun. The DB-backed lexical-loader assertion was added but not
   run because dedicated PostgreSQL/Qdrant URLs are unavailable. The accepted review DB
   and its indexes remain untouched.
+- **P2-08.5 complete; assistant-reviewed 2026-09-27:** `HybridSearchFailure`
+  provides a structured stage (`lexical`, `dense` or `fusion`), requested mode, null
+  effective mode, profile/snapshot IDs and error class. Its serialized message is safe
+  and generic; the original exception remains chained for internal diagnostics. A
+  failed requested branch or fusion stage yields no partial candidates, and no degraded
+  single-branch path is enabled. Seven focused hybrid tests pass, including lexical and
+  dense failures with no successful partial result. Full non-integration suite passes
+  (288 passed, 19 deselected), with Ruff, formatting and strict source mypy. P2-08's
+  Done condition is met; P2-09.1 is next.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -324,9 +333,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-08.5. Make failures from either requested branch explicit and
-structured; do not report partial lexical-only output as successful hybrid search.
-P2-08.1–08.4 now provide profile-bound RRF, bounded pools and consistent filters. The
-BGE/E5 filter path is complete; retrieval quality comparison and full-index cost remain
-open for development experiments. Keep the accepted review DB untouched until its
+**Next step:** P2-09.1. Implement bounded paper reads that resolve public paper IDs,
+report actual document version and metadata availability, and distinguish unknown IDs
+from records outside the selected snapshot. P2-08 is complete; the BGE/E5 filter path
+is ready for this service work. Keep the accepted review DB read-only until its
 migration/readiness gate is met.

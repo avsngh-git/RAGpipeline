@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 from research_platform.search.contracts import (
@@ -26,6 +26,38 @@ class HybridProfileMismatch(RuntimeError):
 
 class UnsupportedHybridProfile(ValueError):
     """The requested profile contains stages this candidate service cannot run."""
+
+
+HybridFailureStage = Literal["lexical", "dense", "fusion"]
+
+
+@dataclass(frozen=True)
+class HybridFailureDetails:
+    """Safe structured failure metadata with no partial candidate results."""
+
+    stage: HybridFailureStage
+    profile_id: str
+    snapshot_id: UUID
+    error_type: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "requested_mode": "hybrid",
+            "effective_mode": None,
+            "stage": self.stage,
+            "profile_id": self.profile_id,
+            "snapshot_id": str(self.snapshot_id),
+            "error_type": self.error_type,
+            "message": "hybrid retrieval failed; no partial results were returned",
+        }
+
+
+class HybridSearchFailure(RuntimeError):
+    """One requested hybrid stage failed; partial branch output is discarded."""
+
+    def __init__(self, details: HybridFailureDetails) -> None:
+        self.details = details
+        super().__init__(details.to_dict()["message"])
 
 
 @dataclass(frozen=True)
@@ -208,42 +240,51 @@ class HybridEvidenceSearch:
             raise HybridProfileMismatch(
                 "lexical artifact candidate limit differs from the profile"
             )
-        lexical_result = self._lexical.search_with_stats(
-            query, limit=lexical_limit, filters=filters
-        )
-        if lexical_result.applied_filters != filters:
-            raise HybridProfileMismatch(
-                "lexical branch did not apply requested filters"
+        try:
+            lexical_result = self._lexical.search_with_stats(
+                query, limit=lexical_limit, filters=filters
             )
-        if lexical_result.limit != lexical_limit:
-            raise HybridProfileMismatch(
-                "lexical results do not report the requested candidate limit"
-            )
-        if len(lexical_result.hits) != min(
-            lexical_result.available_count, lexical_limit
-        ):
-            raise HybridProfileMismatch(
-                "lexical returned count differs from its exact pool stats"
-            )
+            if lexical_result.applied_filters != filters:
+                raise HybridProfileMismatch(
+                    "lexical branch did not apply requested filters"
+                )
+            if lexical_result.limit != lexical_limit:
+                raise HybridProfileMismatch(
+                    "lexical results do not report the requested candidate limit"
+                )
+            if len(lexical_result.hits) != min(
+                lexical_result.available_count, lexical_limit
+            ):
+                raise HybridProfileMismatch(
+                    "lexical returned count differs from its exact pool stats"
+                )
+        except Exception as cause:
+            raise _hybrid_failure("lexical", profile, cause) from cause
         dense_method = (
             self._dense.evaluate_hybrid_component_query
             if evaluation
             else self._dense.search_hybrid_component_query
         )
-        dense_result = await dense_method(
-            profile, query, limit=dense_limit, filters=filters
-        )
-        _validate_dense_branch_response(
-            dense_result,
-            profile=profile,
-            limit=dense_limit,
-            filters=filters,
-        )
-        fused = reciprocal_rank_fusion(
-            lexical_result.hits,
-            dense_result.hydrated_hits,
-            settings=profile.fusion,
-        )
+        try:
+            dense_result = await dense_method(
+                profile, query, limit=dense_limit, filters=filters
+            )
+            _validate_dense_branch_response(
+                dense_result,
+                profile=profile,
+                limit=dense_limit,
+                filters=filters,
+            )
+        except Exception as cause:
+            raise _hybrid_failure("dense", profile, cause) from cause
+        try:
+            fused = reciprocal_rank_fusion(
+                lexical_result.hits,
+                dense_result.hydrated_hits,
+                settings=profile.fusion,
+            )
+        except Exception as cause:
+            raise _hybrid_failure("fusion", profile, cause) from cause
         returned = fused[:fused_limit]
         return HybridEvidenceSearchResponse(
             snapshot_id=profile.snapshot.snapshot_id,
@@ -270,6 +311,21 @@ class HybridEvidenceSearch:
             ),
             hits=returned,
         )
+
+
+def _hybrid_failure(
+    stage: HybridFailureStage,
+    profile: RetrievalProfile,
+    cause: Exception,
+) -> HybridSearchFailure:
+    return HybridSearchFailure(
+        HybridFailureDetails(
+            stage=stage,
+            profile_id=profile.profile_id,
+            snapshot_id=profile.snapshot.snapshot_id,
+            error_type=type(cause).__name__,
+        )
+    )
 
 
 def _validate_dense_branch_response(

@@ -17,6 +17,7 @@ from research_platform.search.dense_search import (
 from research_platform.search.hybrid_search import (
     HybridEvidenceSearch,
     HybridProfileMismatch,
+    HybridSearchFailure,
 )
 from research_platform.search.lexical import (
     SCIENTIFIC_BM25_IDENTITY,
@@ -91,6 +92,7 @@ class _LexicalBranch:
             candidate_limit=profile.candidate_limits.lexical_top_k,
         )
         self.result = result
+        self.error: Exception | None = None
         self.calls: list[tuple[str, int, SearchFilters]] = []
 
     def search_with_stats(
@@ -101,6 +103,8 @@ class _LexicalBranch:
         filters: SearchFilters = SearchFilters(),
     ) -> LexicalSearchResult:
         self.calls.append((query, limit, filters))
+        if self.error is not None:
+            raise self.error
         return replace(self.result, applied_filters=filters)
 
 
@@ -110,6 +114,7 @@ class _DenseBranch:
     ) -> None:
         self.hits = hits
         self.available_count = available_count
+        self.error: Exception | None = None
         self.calls: list[tuple[RetrievalProfile, str, int, SearchFilters, bool]] = []
 
     def _response(
@@ -121,6 +126,8 @@ class _DenseBranch:
         evaluation: bool,
     ) -> DenseSearchResponse:
         self.calls.append((profile, query, limit, filters, evaluation))
+        if self.error is not None:
+            raise self.error
         selected_hits = self.hits if filters == SearchFilters() else ()
         available_count = self.available_count if filters == SearchFilters() else 0
         matches = tuple(
@@ -259,3 +266,38 @@ def test_hybrid_evaluation_uses_the_explicit_evaluation_branch() -> None:
     asyncio.run(service.evaluate_query(profile, "query"))
 
     assert dense.calls[0] == (profile, "query", 3, SearchFilters(), True)
+
+
+def test_hybrid_search_reports_lexical_failure_without_partial_results() -> None:
+    profile = _profile()
+    service, lexical, dense = _service(profile)
+    lexical.error = RuntimeError("private backend detail")
+
+    with pytest.raises(HybridSearchFailure) as error:
+        asyncio.run(service.search_query(profile, "query"))
+
+    assert error.value.details.to_dict() == {
+        "requested_mode": "hybrid",
+        "effective_mode": None,
+        "stage": "lexical",
+        "profile_id": profile.profile_id,
+        "snapshot_id": str(SNAPSHOT_ID),
+        "error_type": "RuntimeError",
+        "message": "hybrid retrieval failed; no partial results were returned",
+    }
+    assert "private backend detail" not in str(error.value)
+    assert not dense.calls
+
+
+def test_hybrid_search_reports_dense_failure_without_lexical_only_output() -> None:
+    profile = _profile()
+    service, lexical, dense = _service(profile)
+    dense.error = TimeoutError("private backend detail")
+
+    with pytest.raises(HybridSearchFailure) as error:
+        asyncio.run(service.search_query(profile, "query"))
+
+    assert error.value.details.stage == "dense"
+    assert error.value.details.error_type == "TimeoutError"
+    assert "hits" not in error.value.details.to_dict()
+    assert lexical.calls == [("query", 2, SearchFilters())]
