@@ -194,6 +194,13 @@ def test_profile_round_trip_and_identity_include_every_result_choice() -> None:
     assert (
         replace(
             base,
+            selection_rules=replace(base.selection_rules, evidence_per_paper_limit=2),
+        ).profile_id
+        != base.profile_id
+    )
+    assert (
+        replace(
+            base,
             snapshot=replace(base.snapshot, chunk_selection_id="sha256:" + "f" * 64),
         ).profile_id
         != base.profile_id

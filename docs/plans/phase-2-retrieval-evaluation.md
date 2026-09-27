@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-10 and P2-11.1 are complete. Continue with P2-11.2.
+P2-01–P2-10 and P2-11.1–P2-11.2 are complete. Continue with P2-11.3.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -721,6 +721,18 @@ deselected; Ruff check and format pass (165 files), strict mypy passes (71 sourc
 files), and `git diff --check` passes. See the
 [evidence deduplication policy](../reference/phase-2-evidence-deduplication.md).
 Continue with configurable per-paper bounds in 11.2.
+
+**11.2 complete; assistant-reviewed 2026-09-27:** `evidence_selection.py` applies
+the profile-bound `evidence_per_paper_limit` independently to each paper, keeps
+the highest-ranked hits in global rank order, and records each cap omission with
+chunk and source IDs. The provisional default is 3, maximum 5; changing the cap
+changes the retrieval-profile ID. This is distinct from `paper_support_limit`,
+which bounds passages attached to a paper result. Eighteen focused selector,
+profile-identity and grouping tests pass. The offline suite reports 377 passed / 21
+deselected; Ruff check and format pass (168 files), strict mypy passes (72 source
+files), and `git diff --check` passes. Quality/diversity tradeoffs remain for P2-14.
+See the [per-paper evidence selection policy](../reference/phase-2-evidence-selection.md).
+Continue with table context preservation in 11.3.
 
 ## P2-12 — Construct the larger benchmark
 

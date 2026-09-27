@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1 complete; continue with P2-11.2.
+Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1–P2-11.2 complete; continue with P2-11.3.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-11.2**.
+   whose prerequisites are satisfied. Continue at **P2-11.3**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -472,6 +472,18 @@ lineage and table-header cases. The offline suite reports 371 passed / 21 desele
 Ruff check and format pass (165 files), strict mypy passes (71 source files), and
 `git diff --check` passes. Continue with P2-11.2 (configurable per-paper bounds).
 
+**P2-11.2 complete; assistant-reviewed 2026-09-27:** `search/evidence_selection.py`
+applies the profile's `evidence_per_paper_limit` (default 3, maximum 5) independently
+per paper, retaining global rank order and original scores/ranks. Omission records
+retain chunk IDs, paper IDs, ranks and source evidence IDs. This cap is separately
+profile-bound from `paper_support_limit`, which controls passages attached to
+paper-level results. The API/search contract and
+`docs/reference/phase-2-evidence-selection.md` describe both bounds. Eighteen
+focused selection/profile/grouping tests pass. The offline suite reports 377 passed /
+21 deselected; Ruff check and format pass (168 files), strict mypy passes (72 source
+files), and `git diff --check` passes. The default remains provisional pending P2-14.
+Continue with P2-11.3.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -483,7 +495,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-11.2. Bound per-paper evidence results with a configurable cap.
+**Next step:** P2-11.3. Preserve table context in selected evidence.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.

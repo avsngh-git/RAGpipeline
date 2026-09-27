@@ -35,14 +35,17 @@ Provisional work bounds are serialized by `SearchLimits.to_dict()`:
 | Query characters | 2,000 | 2,000 |
 | Returned results | 10 | 50 |
 | Internal candidate pool | 50 | 200 |
-| Supporting evidence per paper | 3 | 5 |
+| Supporting evidence per paper result | 3 | 5 |
+| Evidence search hits per paper | 3 | 5 |
 | Paper IDs in one filter | — | 100 |
 | Request timeout | 30 seconds | 30 seconds |
 
 Internal candidate and per-paper limits are server configuration, not client
-controls. They must be part of the effective configuration identity used in a
-search response. The pilot may revise these values after recording latency and
-resource use.
+controls. The two per-paper limits are separately profile-bound: one limits
+supporting passages inside a paper result, and the other limits hits returned by
+evidence search. They must be part of the effective configuration identity used
+in a search response. The pilot may revise these values after measuring retrieval
+quality, result diversity, latency and resource use.
 
 ## Retrieval profile identity
 
