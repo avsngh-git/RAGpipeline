@@ -889,13 +889,17 @@ them from authoritative PostgreSQL rows. No migration was needed.
 
 The existing extraction fingerprint is shared across chunk strategies; the fixed
 strategy has its own chunking revision and therefore selects new variant chunks.
-The reprocessing integration test now uses two sections and checks multi-span
-hydration, but it could not run because no isolated PostgreSQL/Qdrant test URLs are
-configured in this environment. The focused CPU suite reports 75 passed; Ruff check
-and format check pass. Project-wide mypy is blocked because the recreated Conda
-environment lacks the declared BM25S and NumPy packages. Paired development
-evaluation, index/storage measurement, and the live variant lifecycle check remain
-open, so P2-13 is not complete. Details are in
+The reprocessing integration test uses two sections and checks multi-span
+hydration. It passes against a disposable PostgreSQL/Qdrant project. A full fresh-DB
+integration run also exposed an outdated snapshot-finalization fixture: it inserted
+snapshot members directly but omitted the exact selected-chunk rows required by
+migration 015. The fixture now uses `SnapshotRepository.add_member`; all 19 live
+integration tests pass. Current offline verification reports Ruff and formatting
+clean, mypy clean across 74 source files, and 403 tests passed / 21 integration tests
+deselected. The local `sci_research_agent` environment still lacks BM25S; checks used
+the already hash-verified 0.3.11 package staged under `/tmp`. Paired development
+evaluation and real-variant storage/index measurement remain open, so P2-13 is not
+complete. Details are in
 [fixed-window chunking](../reference/phase-2-fixed-window-chunking.md).
 
 ## P2-13 — Add the controlled chunking baseline

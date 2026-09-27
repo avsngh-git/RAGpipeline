@@ -81,10 +81,13 @@ scoring. Do not read any origins JSON file; q20 remains recorded as partially
 unblinded after an earlier accidental rank-metadata exposure.
 
 P2-13 fixed-window code is implemented but remains in progress pending benchmark
-source review, paired development evaluation, storage/index measurement, and the
-isolated lifecycle integration check. The implementation details and verification
-limits are recorded in the roadmap and
-[fixed-window chunking note](../reference/phase-2-fixed-window-chunking.md).
+source review, paired development evaluation, and real-variant storage/index
+measurement. The isolated fixed-window lifecycle integration test passes; the full
+live PostgreSQL/Qdrant module passes 19 tests after correcting a fixture to persist
+the exact selected chunks through `SnapshotRepository.add_member`. Offline checks
+pass with the hash-verified BM25S package staged under `/tmp`; the project Conda
+environment itself still needs dependency reconciliation. Details are recorded in
+the roadmap and [fixed-window chunking note](../reference/phase-2-fixed-window-chunking.md).
 API work remains gated on the P2-15 experiment freeze.
 
 ## Progress and stop rules

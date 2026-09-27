@@ -2214,19 +2214,16 @@ def test_snapshot_finalization_requires_100_indexed_permitted_papers() -> None:
                 },
                 code_revision="integration-test",
             )
-            await pool.executemany(
-                """
-                INSERT INTO snapshot_items
-                    (snapshot_id, paper_id, document_id, extraction_id, selection_reason)
-                VALUES ($1, $2, $3, $4, 'Synthetic finalization fixture')
-                """,
-                [
-                    (snapshot_id, paper_id, document_id, extraction_id)
-                    for paper_id, document_id, extraction_id in zip(
-                        paper_ids, document_ids, extraction_ids, strict=True
-                    )
-                ],
-            )
+            for paper_id, document_id, extraction_id in zip(
+                paper_ids, document_ids, extraction_ids, strict=True
+            ):
+                await repository.add_member(
+                    snapshot_id,
+                    paper_id=paper_id,
+                    document_id=document_id,
+                    extraction_id=extraction_id,
+                    selection_reason="Synthetic finalization fixture",
+                )
             await pool.execute(
                 "INSERT INTO index_configurations (configuration_id, configuration) VALUES ($1, $2::jsonb)",
                 index_configuration.configuration_id,
