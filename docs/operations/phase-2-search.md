@@ -1,7 +1,10 @@
 # Phase 2 search operations
 
 **Status:** assistant-reviewed 2026-09-27. This runbook describes the local Phase 2
-profile and its current private-local data requirements.
+profile and its current private-local data requirements. The held-out evaluation
+failed four frozen acceptance gates; see the
+[acceptance report](../reference/phase-2-acceptance-report.md). Treat the configured
+profile as provisional until a new frozen assessment passes.
 
 ## Service boundary
 

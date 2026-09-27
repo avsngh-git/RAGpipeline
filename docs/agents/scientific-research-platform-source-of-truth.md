@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.15\
+**Version:** 1.16\
 **Last updated:** 2026-09-27\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 entry checks complete; retrieval implementation in progress\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation and held-out assessment complete; frozen acceptance gate failed; Phase 3 not started\
 
 ---
 
@@ -1202,11 +1202,14 @@ storage costs. Metadata-only and failed records are counted separately.
 
 ### Phase 2 — Retrieval and evaluation
 
-Status: detailed plan approved 2026-09-26; P2-01 entry evidence complete and retrieval implementation in progress. Follow the
-[20-task roadmap](../plans/phase-2-retrieval-evaluation.md) and
-[agent handoff](../plans/phase-2-agent-handoff.md). Policy is in section 9.4.
-The user delegated implementation and benchmark source review; record that reviewer
-identity and preserve uncertainty. See the [P2-01 entry check](../reviews/phase-2-entry-check.md).
+Status: implementation and P2-20 assessment completed 2026-09-27. P2-19 hosted CI
+passed on the sanitized implementation revision. The frozen v3 acceptance gate failed
+four thresholds, so Phase 2 is not accepted and its selected profile is provisional.
+See the [20-task roadmap](../plans/phase-2-retrieval-evaluation.md),
+[agent handoff](../plans/phase-2-agent-handoff.md), and
+[held-out acceptance report](../reference/phase-2-acceptance-report.md). Policy is in
+section 9.4. The user delegated implementation and benchmark source review; record
+reviewer identity and preserve uncertainty. See the [P2-01 entry check](../reviews/phase-2-entry-check.md).
 
 Deliver:
 
@@ -1220,7 +1223,10 @@ Gate: private local paper/evidence services pass correctness, permission, filter
 rebuild and failure tests; reproducible held-out results satisfy the useful-quality
 and operational limits frozen after development evaluation. Report the measured
 quality/latency effects of hybrid retrieval and reranking even if a simpler method
-wins. Keep benchmark coverage and assistant-review limitations explicit.
+wins. Keep benchmark coverage and assistant-review limitations explicit. The v3
+assessment failed paper and evidence nDCG, reranker fallback, and warm p95 gates; its
+results are disclosed and cannot be reused for tuning or as an unseen test. Further
+selection requires development-only changes and a newly frozen held-out set.
 
 ### Phase 3 — Agent and structured answers
 

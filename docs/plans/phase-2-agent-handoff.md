@@ -1,12 +1,14 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. P2-01–P2-18 complete; P2-19 local checks passed / hosted CI pending; P2-20 pending.
+Updated: 2026-09-27. P2-01–P2-19 complete; P2-20 assessment recorded four failed frozen gates. Phase 2 remains unaccepted.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
-2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Resume at **P2-19.5**: run hosted CI on the final implementation revision, then proceed to P2-20 only after it passes.
+2. Read the [roadmap](phase-2-retrieval-evaluation.md) and the
+   [held-out acceptance report](../reference/phase-2-acceptance-report.md). The v3
+   held-out set is now disclosed and must not be reused for tuning or as an unseen
+   test. Any renewed selection work must use development data and a new held-out set.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -27,9 +29,10 @@ changes beyond the approved scope, rather than routine reversible choices.
 
 The user's preference is economical model use for routine work. This handoff does
 not change the active model. Never infer that an unchecked task is complete.
-The user explicitly authorizes local commits when they help maintain a coherent
-working tree. Do not push, publish tickets, use paid compute, or deploy publicly.
-Preserve the user's existing worktree and publication workflow.
+The user explicitly authorizes local commits and has authorized publishing the
+sanitized Phase 2 work through the existing draft PR. Do not merge without explicit
+approval, publish tickets, use paid compute, or deploy publicly. Preserve the user's
+existing worktree and publication workflow.
 
 ## Current baseline and traps
 
@@ -78,15 +81,17 @@ the source-only Table 1/Table 2 anchors, which are not inserted into ranked resu
 
 The v3 split excludes q21 after private held-out rank/score exposure and replaces it
 with source-checked q31. q20 is disclosed as partially unblinded and its origins and
-results are excluded from tuning. No held-out scores have informed configuration
-choices. Never read any `*origins.json` file.
+results are excluded from tuning. The v3 held-out set has since been assessed after
+hosted CI passed; its aggregate results and failed gates are in the
+[acceptance report](../reference/phase-2-acceptance-report.md). Do not use v3 results
+for tuning or as an unseen test. Never read any `*origins.json` file.
 
 P2-13 is complete: the fixed-window variant reuses the accepted extractions and
 table units, passes source-span/tokenizer fairness checks, and has a paired q11–q19
 dense-E5 development comparison. The section-aware baseline supported one more
 reviewed prose anchor at rank 10; both chunkers supported 13/27 by rank 50. The
 [fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md)
-records the comparison and limitations. P2-14 through P2-18 are now complete; local P2-19 verification passed. Keep held-out material sealed until hosted CI passes.
+records the comparison and limitations. P2-14 through P2-19 are complete, and hosted CI passed. P2-20 assessed v3 and failed four frozen gates; the aggregate result is documented in the acceptance report. Do not tune on v3 or treat it as an unseen test.
 ## Progress and stop rules
 
 - **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,
@@ -731,6 +736,12 @@ strict mypy (79 source files), the complete CI-equivalent suite (445 passed, inc
 The Docker build passed with a 47.45 KB context; image BM25S/NumPy import, CLI smoke,
 and image `pip check` passed. Image smoke found the missing NumPy runtime dependency;
 NumPy 2.5.3 and its BLAS libraries are now pinned in the Conda specification and
-Linux lock. `git diff --check` passes. The final published revision still needs
-hosted CI. The implementation has not been pushed. Do not inspect held-out material
-or any `*origins.json`; P2-20 remains pending until P2-19's hosted CI gate passes.
+Linux lock. `git diff --check` passes. Hosted P2-19 CI passed on sanitized revision `b1c12320c223518dca926f4de128d25a4c6ff4eb`
+([run 36344475763](https://github.com/avsngh-git/RAGpipeline/actions/runs/36344475763)).
+The v3 P2-20 assessment ran on code revision `0ea87098608f24c14f518c370f2f5a65c488d7c5`.
+Paper nDCG@10, evidence nDCG@10, reranker fallback fraction, and warm p95 failed;
+other frozen gates passed. The assessment is documented in the acceptance report.
+P2-20's evidence collection is complete, but its Done condition is not met and Phase 2
+is not accepted. Do not tune on v3 or inspect any `*origins.json`. Future selection
+requires development evaluation followed by a fresh held-out set frozen before the
+next acceptance run.

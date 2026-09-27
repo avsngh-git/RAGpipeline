@@ -11,11 +11,11 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 implementation is locally complete through P2-18.** Development results,
-selection and acceptance limits are recorded; the private-local search API and
-[operations runbook](docs/operations/phase-2-search.md) are ready. Local P2-19
-verification passes. Hosted CI on the final revision is pending, so the held-out
-P2-20 gate remains sealed. See the
+**Phase 2 implementation and held-out assessment are complete, but Phase 2 is not
+accepted.** P2-19 passed hosted CI on the sanitized implementation. The frozen P2-20
+assessment failed four quality/operations gates; the selected profile remains
+provisional and v3 must not be reused for tuning or as an unseen test. See the
+[held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
 [detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
 [agent handoff](docs/plans/phase-2-agent-handoff.md), and
 [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). New source

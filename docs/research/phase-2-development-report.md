@@ -84,3 +84,12 @@ limit. The first warm request after startup is included; this is a small local s
 sample, not a replacement for held-out timing. The isolated dense collection was
 rebuilt and reconciled against all 44,277 selected evidence units. No held-out query,
 label, score or result was inspected.
+
+
+## Held-out status update — 2026-09-27
+
+The P2-15 profile was frozen for v3 assessment, not accepted as the final quality
+default. The held-out run failed paper nDCG@10, evidence nDCG@10, reranker fallback,
+and warm p95 gates. See the [P2-20 acceptance report](../reference/phase-2-acceptance-report.md).
+Do not tune from v3 results; new selection work must use development data and a newly
+frozen held-out question set.
