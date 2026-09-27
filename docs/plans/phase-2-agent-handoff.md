@@ -1,6 +1,6 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-11 and P2-12.1–P2-12.2 complete; continue with P2-12.3.
+Updated: 2026-09-27. Plan approved; P2-01–P2-11 and P2-12.1–P2-12.2 complete; P2-12.3 source review continues.
 
 ## Start here
 
@@ -69,7 +69,11 @@ Preserve the user's existing worktree and publication workflow.
 ## Phase 2 active checkpoint
 
 P2-12.1–P2-12.2 are complete. q11–q20 development pools have partial source
-reviews, with unjudged candidates explicitly excluded from gold labels. q21–q30
+reviews, with unjudged candidates explicitly excluded from gold labels. The
+q12/q14 table-candidate audit is recorded in
+[phase-2-q12-q14-table-candidate-audit.md](../research/phase-2-q12-q14-table-candidate-audit.md):
+it identifies a missing q12 Table 1 row mapping and an unmapped q14 Table 7 lead.
+PDF screenshot calls returned no viewable image, so no table labels were added. q21–q30
 held-out question families and pools have not yet been created. Continue P2-12.3:
 complete the delegated source review, maintain explicit uncertainty and pool
 coverage, then finish the held-out family records and audit before development

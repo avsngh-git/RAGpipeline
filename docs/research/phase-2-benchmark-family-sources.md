@@ -35,11 +35,13 @@
   claims need direct local-PDF review.
 
 These additional checks supported question wording only. They do not assign
-relevance labels, source anchors, or unsupported status. q11 has since received a
-partial source reviews recorded privately under
-`local-reference/phase2-runs/benchmark-v1/source-reviews-v1/`; q12 table rows await
-visual review, q13 has a documented source-version count inconsistency, and q14–q20
-remain pending source review.
+relevance labels, source anchors, or unsupported status. Partial source reviews for
+q11–q20 are recorded privately under
+`local-reference/phase2-runs/benchmark-v1/source-reviews-v1/`. q12 and q14 table
+candidate mapping and visual-review limitations are recorded in the
+[q12/q14 table audit](phase-2-q12-q14-table-candidate-audit.md); q13 has a
+documented source-version count inconsistency, and q20 remains partially unblinded
+as disclosed in the handoff.
 
 ## Primary-source register
 

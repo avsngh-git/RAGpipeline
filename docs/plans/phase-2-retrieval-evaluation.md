@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-08 complete; P2-09 pending.
+Status: approved 2026-09-26; P2-01–P2-11 and P2-12.1–P2-12.2 complete; P2-12 and P2-13 in progress.
 
 ## Start and authority
 
@@ -821,7 +821,14 @@ private pool manifest and origin maps under
 `local-reference/phase2-runs/benchmark-v1/review-pools-v1/`. Source review is
 underway: q11 has one paper and two evidence anchors judged. q12 has one paper and
 three prose evidence candidates judged; its table row groups await visual review.
-All other q11 candidates, 15 q12 papers, and 103 q12 evidence candidates remain
+The q12/q14 table-candidate audit found q12's reviewed Table 1 anchor has no
+corresponding pooled row-group card, the three Table 2 cards cover only partial
+row blocks, and q14's Table 7 source-list lead is absent from the pool. Exact
+accepted-PDF checksums and candidate identities are recorded in [the table audit]
+(../research/phase-2-q12-q14-table-candidate-audit.md). Official-PDF screenshot
+calls returned no viewable image in this environment, so table candidates remain
+unjudged; text-only suggestions in that note are not labels. All other q11
+candidates, 15 q12 papers, and 103 q12 evidence candidates remain
 unjudged. q13 has two papers and six pooled evidence candidates source-reviewed; a
 seventh source anchor has no current pooled candidate mapping, and 40 papers / 103
 evidence candidates remain unjudged. Its two LongRAG table leads remain unjudged. q14
