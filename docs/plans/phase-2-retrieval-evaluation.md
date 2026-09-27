@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-12 complete; P2-13 in progress; P2-14–P2-20 pending.
+Status: approved 2026-09-26; P2-01–P2-13 complete; P2-14 in progress; P2-15–P2-20 pending.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-12 are complete. The active v3 split has 20 development families and 10 held-out families; all q11–q20 and q22–q31 candidate cards are source-reviewed and labeled. q20 is excluded from tuning after partial unblinding; q21 is excluded after held-out rank/score exposure. The split, label totals, category floors, and source mappings are recorded in the [dataset card](../reference/phase-2-benchmark-dataset-card.md) and [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md). P2-13's fixed-window implementation and isolated indexes are complete; source-span fairness and paired development evaluation remain open.
+P2-01–P2-13 are complete. The active v3 split has 20 development families and 10 held-out families; all q11–q20 and q22–q31 candidate cards are source-reviewed and labeled. q20 is excluded from tuning after partial unblinding; q21 is excluded after held-out rank/score exposure. The split, label totals, category floors, and source mappings are recorded in the [dataset card](../reference/phase-2-benchmark-dataset-card.md) and [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md). P2-13's fixed-window implementation, source-span fairness checks, tokenizer checks, and paired q11–q19 development comparison are complete; see the [fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md). Continue with P2-14 development experiments and predeclared acceptance limits.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -73,8 +73,8 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Complete |
 | P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Complete |
-| P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | In progress |
-| P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Pending |
+| P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Complete |
+| P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | In progress |
 | P2-15 | Default selection and experiment freeze | P2-14 | Pending |
 | P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Pending |
 | P2-17 | Failure, fallback and observability checks | P2-16 | Pending |
@@ -918,9 +918,11 @@ migration 015. The fixture now uses `SnapshotRepository.add_member`; all 19 live
 integration tests pass. Current offline verification reports Ruff and formatting
 clean, mypy clean across 74 source files, and 403 tests passed / 21 integration tests
 deselected. The local `sci_research_agent` environment still lacks BM25S; checks used
-the already hash-verified 0.3.11 package staged under `/tmp`. Paired development evaluation and the chunk-to-source fairness check remain open,
-so P2-13 is not complete. Real-variant index measurement is recorded below. Details
-are in [fixed-window chunking](../reference/phase-2-fixed-window-chunking.md).
+the already hash-verified 0.3.11 package staged under `/tmp`. This implementation
+checkpoint is superseded by the P2-13 completion record below. Real-variant index
+measurement is recorded here; final fairness and paired results are in the
+[fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md) and
+[fixed-window chunking note](../reference/phase-2-fixed-window-chunking.md).
 
 **P2-13.4 variant build and resource measurement; assistant-reviewed 2026-09-27:**
 The isolated 100-paper variant `c3447473-a9f7-4d8c-93c0-e45ebcab763f` reuses the
@@ -931,8 +933,9 @@ VRAM 459 MiB, process RSS 1.43 GiB and Qdrant storage delta 708,175,469 bytes.
 BM25S 0.3.11 built 8,495 evidence rows and 100 paper rows in 4.27 seconds; artifact
 sizes were 17.1 MB and 67.5 KB. Private run manifests and measurements are under
 `local-reference/phase2-runs/fixed-window-20260927/`. The accepted snapshot and its
-retained indexes were unchanged. Paired development quality, source-match fairness,
-and tokenizer-budget checks remain before P2-13 completion.
+retained indexes were unchanged. At this earlier checkpoint, paired development
+quality, source-match fairness, and tokenizer checks remained open; the P2-13
+completion record below closes them.
 
 ## P2-13 — Add the controlled chunking baseline
 
@@ -956,6 +959,39 @@ and tokenizer-budget checks remain before P2-13 completion.
 
 **Done:** variant lineage, reprocessing test, source coverage/mapping tests and a
 paired development evaluation. Accepted snapshot and extraction remain unchanged.
+
+**P2-13 complete; assistant-reviewed 2026-09-27:** variant
+`c3447473-a9f7-4d8c-93c0-e45ebcab763f` reuses the accepted 100-paper selection
+and extraction rows while selecting 3,427 fixed-window prose chunks and the same
+5,068 table/figure chunks (8,495 total). Its E5 index configuration is
+`sha256:93ca6395843fe829fa58e550c24ecfceddf79c39874927c7e948fd08ac973844`.
+Existing fixed-window, extraction-reuse, table-invariance, source-mapping, and
+deduplication tests pass (46 focused tests); the live synthetic rechunk/reuse test
+passes against disposable PostgreSQL/Qdrant (1 passed). Both tokenizer checks stay
+under 512 tokens: the longest mapped anchor inputs were 359 E5 tokens / 357 BGE
+tokens; all 301 fixed-window chunks in anchor-bearing papers were at most 485 E5 /
+483 BGE tokens. All 27 reviewed positive prose candidate intervals map exactly to
+their source text and reach full source coverage in both chunk sets.
+
+The paired dense-E5 run uses q11–q19, identical queries and filters, pinned
+`intfloat/e5-small-v2` revision
+`e8b23a92af33fd81c865283d505f8f058a570cc8`, and top 50. Seven families
+contribute 27 reviewed positive prose anchors; q15 and q19 have no positive prose
+anchors. Source-anchor recall at ranks 1/5/10/20/50 is section-aware 2/4/7/9/13 of
+27 and fixed-window 1/4/6/9/13 of 27. At rank 10, one positive family improved,
+five tied, and one declined; mean paired family change was -1.9 percentage points.
+This sample does not support a fixed-window quality advantage. Calibration table-only
+questions were not part of this prose-specific comparison; table chunks are identical
+and remain in ranked candidate positions.
+
+The paired run used a disposable database and Qdrant. To apply the same filters, the
+accepted parent vectors were read-only mirrored into the test collection; all 44,277
+point IDs matched the exact selected parent IDs, and only test metadata was enriched
+with the current filter marker. The accepted database and Qdrant collection were not
+changed. q20, q21, all held-out families and held-out scores were excluded. Raw
+development ranks/scores remain mode-0600 under ignored `local-reference/`; the
+sanitized metric table, profile identities, artifact hashes, reproduction paths and
+limitations are in the [fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md).
 
 ## P2-14 — Run development experiments
 

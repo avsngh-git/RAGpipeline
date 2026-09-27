@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-12 complete; P2-13 in progress.
+Updated: 2026-09-27. Plan approved; P2-01–P2-13 complete; P2-14 in progress.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-13.5**.
+   whose prerequisites are satisfied. Continue at **P2-14.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -81,10 +81,12 @@ with source-checked q31. q20 is disclosed as partially unblinded and its origins
 results are excluded from tuning. No held-out scores have informed configuration
 choices. Never read any `*origins.json` file.
 
-P2-13's fixed-window implementation and isolated 100-paper dense/lexical indexes
-are built and measured. Continue with its chunk-to-source fairness and tokenizer
-budget checks, then the paired development evaluation. See the roadmap and
-[fixed-window chunking note](../reference/phase-2-fixed-window-chunking.md).
+P2-13 is complete: the fixed-window variant reuses the accepted extractions and
+table units, passes source-span/tokenizer fairness checks, and has a paired q11–q19
+dense-E5 development comparison. The section-aware baseline supported one more
+reviewed prose anchor at rank 10; both chunkers supported 13/27 by rank 50. The
+[fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md)
+records the comparison and limitations. Continue with P2-14.1.
 ## Progress and stop rules
 
 - **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,
@@ -540,9 +542,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Current next step:** P2-13.5. Map both chunk configurations to the same reviewed
-source judgments and verify evidence budgets under both embedding tokenizers before
-running the paired development comparison.
+**Current next step:** P2-14.1. Validate the development harness on a tiny subset,
+then run the declared model, fusion, reranker, chunking, selection and runtime
+comparisons. Keep q20 excluded from tuning and keep every held-out score sealed.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.
@@ -676,5 +678,27 @@ and six remain explicitly source-only/out-of-scope. Held-out coverage has three
 numeric-table families, three direct-positive-prose families and four negative/mixed
 families. q20 is excluded from tuning after partial unblinding; q21 is excluded after
 held-out rank/score exposure. No held-out scores were used for choices. See the
-dataset card and source coverage audit linked above. P2-13 fairness checks remain
-open.
+dataset card and source coverage audit linked above. P2-13 is complete; continue
+with the development experiment gate.
+
+
+**P2-13 complete; assistant-reviewed 2026-09-27:** the fixed-window draft
+`c3447473-a9f7-4d8c-93c0-e45ebcab763f` shares the accepted paper, document and
+extraction membership and retains all 5,068 table/figure IDs. It selects 3,427
+fixed-window prose chunks (8,495 total). Exact candidate/source mapping and
+whole-snapshot coverage passed for all 27 direct-positive prose intervals. E5 and
+BGE tokenizers both fit the 27 reviewed anchor inputs and the 301 fixed-window
+chunks in anchor-bearing papers under 512 tokens. Focused tests: 46 passed. The live
+synthetic extraction-reuse/rechunk integration test: 1 passed.
+
+The q11–q19 paired E5 comparison used the same queries, metadata filters, model
+revision and top-50 limit. For 27 prose anchors across seven positive families,
+section-aware/fixed-window supported counts were 2/1 at rank 1, 4/4 at rank 5,
+7/6 at rank 10, 9/9 at rank 20, and 13/13 at rank 50. q15 and q19 had no positive
+prose anchors. The sample shows no fixed-window retrieval gain and remains
+directional. The accepted parent vectors were copied read-only to an isolated
+Qdrant test collection and reconciled against all 44,277 selected IDs to make the
+year-filtered families executable; no accepted DB/index was changed. q20, q21 and
+held-out result data were excluded. Raw private results and mode-0600 reproduction
+scripts are under ignored `local-reference/phase2-runs/fixed-window-20260927/`.
+See `docs/research/phase-2-fixed-window-source-fairness-audit.md`.

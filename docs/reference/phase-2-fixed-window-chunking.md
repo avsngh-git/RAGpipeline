@@ -1,6 +1,6 @@
 # Phase 2 fixed-window prose chunking
 
-Status: implementation checkpoint 2026-09-27; development comparison pending. The
+Status: P2-13 complete 2026-09-27; dense-E5 development comparison completed. The
 tracked baseline is
 [phase2-fixed-window-chunking-v1.example.toml](../../configs/phase2-fixed-window-chunking-v1.example.toml).
 
@@ -32,16 +32,30 @@ same typed representation. Evaluation source matching and evidence deduplication
 union all section-local ranges, including overlaps, by their original section and
 offsets.
 
-## Verification checkpoint
+## Verification and paired development result
 
-The focused CPU suite reports 75 passing tests across ingestion, dense indexing,
-source matching, deduplication, search contracts, and API schemas. Ruff check and
-repository-wide Ruff format checks pass. The snapshot-variant integration test was
-extended to verify extraction reuse, cross-section span hydration, and separate
-selection identities. It was not run because isolated PostgreSQL and Qdrant test
-URLs are not configured in the current environment. Project-wide mypy could not
-complete because the recreated Conda environment lacks the declared BM25S and NumPy
-packages.
+The focused fixed-window, extraction-reuse, source-deduplication, and matcher unit
+checks pass (46 tests). The live synthetic rechunk test passes against the disposable
+PostgreSQL/Qdrant services (1 passed). The variant preserves the accepted extraction
+rows and all 5,068 table/figure chunk IDs; it selects 3,427 fixed-window prose chunks.
 
-No accepted snapshot or source extraction was changed. A paired development run,
-index/storage measurements, and live variant integration remain required by P2-13.
+The source-span fairness audit maps 27 reviewed positive prose candidate intervals
+to the exact accepted source text. Every anchor has full coverage under both chunk
+sets. All 27 full-span anchor inputs fit within 512 tokens for both pinned E5 and BGE
+tokenizers. All 301 fixed-window text chunks in anchor-bearing papers also fit under
+both tokenizers.
+
+On q11–q19 with identical dense E5 revision, filters, and top-50 limit, the
+section-aware/fixed-window source-anchor recall counts were 2/1 at rank 1, 4/4 at
+rank 5, 7/6 at rank 10, 9/9 at rank 20, and 13/13 at rank 50 (27 anchors across
+seven positive families). q15 and q19 contribute no positive prose anchor. This
+small comparison does not show a fixed-window quality improvement. The tracked
+[paired audit](../research/phase-2-fixed-window-source-fairness-audit.md) records
+metric definitions, profile identities, private artifact hashes, and limitations.
+
+The paired run used an isolated test database and Qdrant. The parent E5 vectors were
+read-only copied into the isolated Qdrant collection and reconciled against the exact
+44,277 selected IDs so the same year filters could run. The accepted database and
+index were not changed. Raw ranks and scores, plus mode-0600 scripts/results, remain
+under ignored `local-reference/phase2-runs/fixed-window-20260927/`. No held-out
+result or q20/q21 result was used.
