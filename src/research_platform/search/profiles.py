@@ -16,7 +16,7 @@ from research_platform.ingestion.snapshot_selection import (
 from research_platform.search.contracts import DEFAULT_SEARCH_LIMITS
 
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
-_PROFILE_SCHEMA_VERSION = 1
+_PROFILE_SCHEMA_VERSION = 2
 _ConfigT = TypeVar("_ConfigT")
 
 
@@ -197,6 +197,13 @@ class SelectionRules:
     paper_score_policy: Literal["strongest_passage"] = "strongest_passage"
     paper_support_limit: int = 3
     evidence_per_paper_limit: int = 3
+    evidence_result_character_budget: int = (
+        DEFAULT_SEARCH_LIMITS.default_evidence_context_characters
+    )
+    evidence_result_token_budget: int = (
+        DEFAULT_SEARCH_LIMITS.default_evidence_context_tokens
+    )
+    text_budget_tokenizer: Literal["unicode-token-v1"] = "unicode-token-v1"
 
     def __post_init__(self) -> None:
         if self.paper_score_policy != "strongest_passage":
@@ -205,6 +212,21 @@ class SelectionRules:
             limit = _require_positive_integer(getattr(self, name), name)
             if limit > DEFAULT_SEARCH_LIMITS.max_per_paper_evidence_limit:
                 raise ValueError(f"{name} exceeds the configured per-paper maximum")
+        for name, maximum in (
+            (
+                "evidence_result_character_budget",
+                DEFAULT_SEARCH_LIMITS.max_evidence_context_characters,
+            ),
+            (
+                "evidence_result_token_budget",
+                DEFAULT_SEARCH_LIMITS.max_evidence_context_tokens,
+            ),
+        ):
+            budget = _require_positive_integer(getattr(self, name), name)
+            if budget > maximum:
+                raise ValueError(f"{name} exceeds the configured result maximum")
+        if self.text_budget_tokenizer != "unicode-token-v1":
+            raise ValueError("unsupported text budget tokenizer")
 
 
 @dataclass(frozen=True)

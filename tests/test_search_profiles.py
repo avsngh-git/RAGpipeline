@@ -148,6 +148,7 @@ def test_profile_round_trip_and_identity_include_every_result_choice() -> None:
     restored = RetrievalProfile.from_dict(base.to_dict())
     assert restored == base
     assert restored.profile_id == base.profile_id
+    assert base.to_dict()["schema_version"] == 2
 
     assert (
         replace(
@@ -195,6 +196,24 @@ def test_profile_round_trip_and_identity_include_every_result_choice() -> None:
         replace(
             base,
             selection_rules=replace(base.selection_rules, evidence_per_paper_limit=2),
+        ).profile_id
+        != base.profile_id
+    )
+    assert (
+        replace(
+            base,
+            selection_rules=replace(
+                base.selection_rules, evidence_result_character_budget=8_000
+            ),
+        ).profile_id
+        != base.profile_id
+    )
+    assert (
+        replace(
+            base,
+            selection_rules=replace(
+                base.selection_rules, evidence_result_token_budget=2_000
+            ),
         ).profile_id
         != base.profile_id
     )

@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-10 and P2-11.1–P2-11.3 are complete. Continue with P2-11.4.
+P2-01–P2-10 and P2-11.1–P2-11.4 are complete. Continue with P2-11.5.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -745,6 +745,20 @@ check and format pass (171 files), strict mypy passes (73 source files), and
 `git diff --check` passes. See the
 [table evidence context policy](../reference/phase-2-table-evidence-context.md).
 Continue with total result and context budgets in 11.4.
+
+**11.4 complete; assistant-reviewed 2026-09-27:** `evidence_budgets.py` applies a
+50-hit page maximum, the profile's per-paper cap, and shared character/token budgets
+to evidence search. Paper search applies the same budgets across supporting evidence
+while preserving paper ranks and scores. The provisional budgets are 12,000 characters
+and 4,000 unicode-token-v1 tokens (hard maxima 24,000 / 8,000); changing either budget
+or token policy changes retrieval-profile schema 2 identity. Whole hits that do not
+fit are omitted with chunk/source IDs and each exceeded reason; lower-ranked complete
+hits may still fit. Existing source-linked oversized-cell segments may be selected
+intact. Nine focused budget cases pass. The offline suite reports 394 passed / 21
+deselected; Ruff check and format pass (174 files), strict mypy passes (74 source
+files), and `git diff --check` passes. Quality tradeoffs remain for P2-14. See the
+[evidence result budget policy](../reference/phase-2-evidence-result-budgets.md).
+Continue with weak-match semantics in 11.5.
 
 ## P2-12 — Construct the larger benchmark
 

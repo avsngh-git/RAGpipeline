@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1–P2-11.3 complete; continue with P2-11.4.
+Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1–P2-11.4 complete; continue with P2-11.5.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-11.4**.
+   whose prerequisites are satisfied. Continue at **P2-11.5**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -497,6 +497,19 @@ and format pass (171 files), strict mypy passes (73 source files), and
 `git diff --check` passes. See
 `docs/reference/phase-2-table-evidence-context.md`. Continue with P2-11.4.
 
+**P2-11.4 complete; assistant-reviewed 2026-09-27:** `search/evidence_budgets.py`
+bounds evidence pages by the requested item count, profile per-paper limit, and
+profile character/token budgets. A second helper applies one shared budget to all
+supporting passages in a paper-result page without changing paper rows, scores or
+ranks. It counts hit text and every structured table string using the versioned
+`unicode-token-v1` policy. Whole evidence units are kept intact or omitted with
+chunk/source IDs and each exceeded reason; upstream-pool truncation makes omitted
+counts explicitly inexact. Defaults are 12,000 characters / 4,000 tokens, maxima
+24,000 / 8,000, all profile-bound under schema 2. Nine focused budget cases pass.
+The offline suite reports 394 passed / 21 deselected; Ruff check and format pass
+(174 files), strict mypy passes (74 source files), and `git diff --check` passes.
+See `docs/reference/phase-2-evidence-result-budgets.md`. Continue with P2-11.5.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -508,7 +521,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-11.4. Enforce result and context budgets without cutting evidence.
+**Next step:** P2-11.5. Make weak-match and empty-eligibility semantics explicit.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.

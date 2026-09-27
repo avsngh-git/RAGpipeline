@@ -37,14 +37,18 @@ Provisional work bounds are serialized by `SearchLimits.to_dict()`:
 | Internal candidate pool | 50 | 200 |
 | Supporting evidence per paper result | 3 | 5 |
 | Evidence search hits per paper | 3 | 5 |
+| Evidence context characters per page | 12,000 | 24,000 |
+| Evidence context tokens per page | 4,000 | 8,000 |
 | Paper IDs in one filter | — | 100 |
 | Request timeout | 30 seconds | 30 seconds |
 
 Internal candidate and per-paper limits are server configuration, not client
-controls. The two per-paper limits are separately profile-bound: one limits
-supporting passages inside a paper result, and the other limits hits returned by
-evidence search. They must be part of the effective configuration identity used
-in a search response. The pilot may revise these values after measuring retrieval
+controls. The two per-paper limits are separately profile-bound: one limits supporting
+passages inside a paper result, and the other limits hits returned by evidence
+search. Evidence text and structured table context also share page-wide character
+and token budgets. Token counting uses the profile's deterministic
+`unicode-token-v1` policy. These limits are part of the effective retrieval
+configuration identity. The pilot may revise them after measuring retrieval
 quality, result diversity, latency and resource use.
 
 ## Retrieval profile identity
@@ -103,7 +107,8 @@ rank, component scores, and text when private inspection is allowed.
 A table evidence hit may include structured selected rows or oversized-cell
 segments with caption, units, footnotes, header associations and source evidence IDs.
 Its `text` field remains the bounded indexed chunk rendering; structured context
-does not replace or clip it. See the
+does not replace or clip it. Complete units that exceed a page budget are omitted
+with source IDs and an explicit reason. See the
 [table evidence context policy](../reference/phase-2-table-evidence-context.md).
 
 Each response includes `request_id`, resolved `snapshot_id`, retrieval profile and

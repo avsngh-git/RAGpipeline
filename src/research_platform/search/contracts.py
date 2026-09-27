@@ -43,6 +43,10 @@ class SearchLimits:
     max_candidate_limit: int = 200
     default_per_paper_evidence_limit: int = 3
     max_per_paper_evidence_limit: int = 5
+    default_evidence_context_characters: int = 12_000
+    max_evidence_context_characters: int = 24_000
+    default_evidence_context_tokens: int = 4_000
+    max_evidence_context_tokens: int = 8_000
     max_filter_paper_ids: int = 100
     request_timeout_seconds: float = 30.0
 
@@ -55,6 +59,10 @@ class SearchLimits:
             "max_candidate_limit",
             "default_per_paper_evidence_limit",
             "max_per_paper_evidence_limit",
+            "default_evidence_context_characters",
+            "max_evidence_context_characters",
+            "default_evidence_context_tokens",
+            "max_evidence_context_tokens",
             "max_filter_paper_ids",
         ):
             value = getattr(self, name)
@@ -69,6 +77,17 @@ class SearchLimits:
         if self.default_per_paper_evidence_limit > self.max_per_paper_evidence_limit:
             raise ValueError(
                 "default_per_paper_evidence_limit cannot exceed its maximum"
+            )
+        if (
+            self.default_evidence_context_characters
+            > self.max_evidence_context_characters
+        ):
+            raise ValueError(
+                "default_evidence_context_characters cannot exceed its maximum"
+            )
+        if self.default_evidence_context_tokens > self.max_evidence_context_tokens:
+            raise ValueError(
+                "default_evidence_context_tokens cannot exceed its maximum"
             )
         if (
             isinstance(self.request_timeout_seconds, bool)
