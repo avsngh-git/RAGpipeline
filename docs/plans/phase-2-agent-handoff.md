@@ -586,7 +586,10 @@ candidates remain unjudged pending visual review. q15 has four near-match papers
 four evidence cards source-checked; the full-corpus scan matched one MTEB passage about
 SPECTER training on citation graphs, not citation-edge traversal for RAG. Its accepted
 snapshot-bounded audit found no direct supporting work; 44 papers and 137 evidence
-candidates remain unjudged. q16–q20 remain unjudged. The q13 review records a
+candidates remain unjudged. q16 has one paper and 11 prose evidence cards source-checked; 14 papers and 92
+q16 evidence candidates remain unjudged. Its RAGEval review distinguishes generated-
+answer metrics from human ratings of synthetic-document quality and records naming
+variations in the paper. q17–q20 remain unjudged. The q13 review records a
 PDFTriage document-count inconsistency in its accepted paper. See the tracked
 question/split manifests and `docs/reference/phase-2-pooling-procedure.md`. Continue
 with P2-12.3.

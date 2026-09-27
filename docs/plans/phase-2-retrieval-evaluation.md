@@ -829,8 +829,10 @@ has one paper and eight prose evidence candidates source-checked, with 15 papers
 has four near-match papers and four evidence cards source-checked; the full-corpus scan
 matched one MTEB passage about SPECTER training on citation graphs, not citation-edge
 traversal for RAG. No direct supporting work was found within the snapshot under this
-review procedure; 44 papers and 137 evidence candidates remain unjudged. q16–q20
-remain unjudged. Continue with 12.3.
+review procedure; 44 papers and 137 evidence candidates remain unjudged. q16 has one paper and 11 prose evidence cards source-checked, with 14 papers and 92
+q16 evidence candidates unjudged; the review separates response metrics from generated-
+document human ratings and records terminology variations. q17–q20 remain unjudged.
+Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 
