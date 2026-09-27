@@ -1,9 +1,12 @@
 """Tests for source locations, evidence identities and chunk boundaries."""
 
+from pathlib import Path
 from uuid import UUID
 
 import pytest
+import tomllib
 
+from research_platform.evaluation.matching import region_from_evidence_unit
 from research_platform.ingestion.evidence import (
     ChunkingConfig,
     ExtractedSection,
@@ -12,7 +15,9 @@ from research_platform.ingestion.evidence import (
     TableCell,
     TokenSpan,
     chunk_section,
+    chunk_sections_fixed_window,
     chunk_table_rows,
+    source_spans_for_evidence_unit,
 )
 
 DOCUMENT_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -95,6 +100,60 @@ def test_text_chunks_keep_offsets_and_repeat_identically() -> None:
     ]
     assert [chunk.id for chunk in retries] == [chunk.id for chunk in chunks]
     assert chunks[0].section_ordinal == 3
+
+
+def test_fixed_windows_cross_sections_and_keep_each_source_locator() -> None:
+    sections = (
+        ExtractedSection(
+            ordinal=1,
+            heading_path=("Results", "Second"),
+            text="gamma delta epsilon",
+            source_location=SourceLocation(
+                page_index_zero_based=4,
+                bounding_box=(0.1, 0.2, 0.8, 0.7),
+                coordinate_system="top-left-normalized-0-1",
+            ),
+        ),
+        ExtractedSection(
+            ordinal=0,
+            heading_path=("Methods",),
+            text="alpha beta",
+            source_location=SourceLocation(page_index_zero_based=2),
+        ),
+    )
+    config = ChunkingConfig(3, 1, 2, strategy="fixed-window")
+
+    chunks = chunk_sections_fixed_window(
+        sections,
+        document_id=DOCUMENT_ID,
+        extraction_id=EXTRACTION_ID,
+        config=config,
+        tokenizer=WhitespaceTokenizer(),
+    )
+
+    assert chunks[0].content == "alpha beta\n\ngamma"
+    assert chunks[0].section_ordinal is None
+    assert chunks[0].start_offset is None
+    assert chunks[0].end_offset is None
+    assert chunks[0].source_location == SourceLocation()
+    spans = source_spans_for_evidence_unit(chunks[0])
+    assert [
+        (span.section_ordinal, span.start_offset, span.end_offset) for span in spans
+    ] == [
+        (0, 0, 10),
+        (1, 0, 5),
+    ]
+    assert spans[0].source_location.page_index_zero_based == 2
+    assert spans[1].source_location.bounding_box == (0.1, 0.2, 0.8, 0.7)
+    assert spans[1].chunk_start_offset == 12
+    region = region_from_evidence_unit(chunks[0])
+    assert region.section_ordinal == 0
+    assert [
+        (span.section_ordinal, span.start_offset, span.end_offset)
+        for span in region.additional_spans
+    ] == [(1, 0, 5)]
+    assert config == ChunkingConfig.from_dict(config.to_dict())
+    assert config.config_id != ChunkingConfig(3, 1, 2).config_id
 
 
 def test_changed_content_has_a_different_evidence_identity() -> None:
@@ -321,3 +380,45 @@ def test_evidence_contracts_reject_non_integer_or_non_finite_coordinates() -> No
         TableCell(0, 0, "invalid reference", row_header_cells=((True, 1),))
     with pytest.raises(ValueError, match="integer ranges"):
         TokenSpan(0.0, 2)
+
+
+def test_fixed_window_configuration_leaves_table_rendering_unchanged() -> None:
+    table = ExtractedTable(
+        ordinal=0,
+        caption="Results",
+        units=None,
+        footnotes=(),
+        header_rows=1,
+        cells=(TableCell(0, 0, "Method"), TableCell(1, 0, "A")),
+    )
+    section_aware = chunk_table_rows(
+        table,
+        document_id=DOCUMENT_ID,
+        extraction_id=EXTRACTION_ID,
+        config=ChunkingConfig(20, 0, 2),
+    )
+    fixed_window = chunk_table_rows(
+        table,
+        document_id=DOCUMENT_ID,
+        extraction_id=EXTRACTION_ID,
+        config=ChunkingConfig(20, 0, 2, strategy="fixed-window"),
+    )
+
+    assert [unit.content for unit in fixed_window] == [
+        unit.content for unit in section_aware
+    ]
+
+
+def test_phase2_fixed_window_example_config_is_versioned_and_loadable() -> None:
+    data = tomllib.loads(
+        Path("configs/phase2-fixed-window-chunking-v1.example.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    configuration = ChunkingConfig.from_dict(data)
+
+    assert configuration.strategy == "fixed-window"
+    assert configuration.maximum_text_tokens == 480
+    assert configuration.overlapping_text_tokens == 64
+    assert configuration.maximum_table_rows_per_group == 6

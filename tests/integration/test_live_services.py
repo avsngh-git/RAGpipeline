@@ -50,6 +50,7 @@ from research_platform.ingestion.evidence_repository import (
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
     IndexConfigurationMismatch,
+    IndexMatch,
     IndexRepository,
     QdrantIndex,
     SnapshotAccessDenied,
@@ -1226,8 +1227,15 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             )
             section = ExtractedSection(
                 ordinal=0,
+                heading_path=("Methods",),
+                text="alpha beta",
+                source_location=SourceLocation(page_index_zero_based=1),
+            )
+            second_section = ExtractedSection(
+                ordinal=1,
                 heading_path=("Results",),
-                text="alpha beta gamma delta epsilon",
+                text="gamma delta epsilon",
+                source_location=SourceLocation(page_index_zero_based=4),
             )
             extraction = ExtractionResult(
                 document_id=document_id,
@@ -1237,14 +1245,14 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 configuration_id=first_prepared.extraction_configuration_id,
                 status="completed",
                 source_artifact_id=association_id,
-                sections=(section,),
+                sections=(section, second_section),
                 configuration=dict(first_prepared.extraction_configuration),
             )
             repository = EvidenceRepository(pool)
             raw_result = await repository.persist(extraction, ())
             assert raw_result.evidence_unit_count == 0
             stored = await repository.load_for_correction(extraction_id)
-            assert stored.result.sections == (section,)
+            assert stored.result.sections == (section, second_section)
             assert stored.source_pdf_sha256 == artifact.sha256
 
             async def run_stage(
@@ -1289,7 +1297,7 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 configuration={"fixture": True, "variant": "alternate-chunks"},
                 code_revision="integration-test",
             )
-            second_config = ChunkingConfig(3, 0, 2)
+            second_config = ChunkingConfig(3, 0, 2, strategy="fixed-window")
             second_processor, second_prepared = await make_processor(
                 second_config, variant_snapshot_id
             )
@@ -1403,21 +1411,32 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 variant_member.chunk_count
                 == second_output.resource_measurements["chunks"]
             )
-            index_inputs = await IndexRepository(pool).load_snapshot_inputs(
-                variant_snapshot_id,
-                IndexConfiguration(
-                    collection_name=f"phase1-{uuid4().hex}",
-                    embedding_model="integration-fixture",
-                    embedding_revision="v1",
-                    preprocessing_revision="raw-text-v1",
-                    vector_size=2,
-                    distance="Cosine",
-                    batch_size=1,
-                    maximum_input_tokens=32,
-                ),
+            variant_index_configuration = IndexConfiguration(
+                collection_name=f"phase1-{uuid4().hex}",
+                embedding_model="integration-fixture",
+                embedding_revision="v1",
+                preprocessing_revision="raw-text-v1",
+                vector_size=2,
+                distance="Cosine",
+                batch_size=1,
+                maximum_input_tokens=32,
+            )
+            index_repository = IndexRepository(pool)
+            index_inputs = await index_repository.load_snapshot_inputs(
+                variant_snapshot_id, variant_index_configuration
             )
             assert len(index_inputs) == second_output.resource_measurements["chunks"]
             assert {item.evidence_id for item in index_inputs} == variant_chunk_ids
+            snapshot_selection = await index_repository.snapshot_selection_for(
+                variant_snapshot_id
+            )
+            hydrated = await index_repository.hydrate_snapshot_matches(
+                snapshot_selection,
+                variant_index_configuration,
+                tuple(IndexMatch(item.evidence_id, 0.5, {}) for item in index_inputs),
+                allow_draft=True,
+            )
+            assert any(len(item.payload["source_spans"]) > 1 for item in hydrated)
 
             parent_index_configuration = IndexConfiguration(
                 collection_name=f"phase2-parent-{uuid4().hex}",

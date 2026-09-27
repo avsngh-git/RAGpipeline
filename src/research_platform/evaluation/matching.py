@@ -13,12 +13,40 @@ from research_platform.evaluation.source_alignment import (
     TableAnchorAlignment,
     TextAnchorAlignment,
 )
-from research_platform.ingestion.evidence import EvidenceUnit, ExtractedTable, TableCell
+from research_platform.ingestion.evidence import (
+    EvidenceUnit,
+    ExtractedTable,
+    TableCell,
+    source_spans_for_evidence_unit,
+)
 from research_platform.search.contracts import EvidenceHit
 
 
 class SourceMatchingError(ValueError):
     """Returned evidence cannot be reconciled to its canonical source units."""
+
+
+@dataclass(frozen=True)
+class TextEvidenceSpan:
+    """One section-local range within a possibly cross-section chunk."""
+
+    section_ordinal: int
+    start_offset: int
+    end_offset: int
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.section_ordinal, bool)
+            or not isinstance(self.section_ordinal, int)
+            or self.section_ordinal < 0
+            or isinstance(self.start_offset, bool)
+            or not isinstance(self.start_offset, int)
+            or self.start_offset < 0
+            or isinstance(self.end_offset, bool)
+            or not isinstance(self.end_offset, int)
+            or self.end_offset <= self.start_offset
+        ):
+            raise ValueError("text evidence span must be a non-empty source range")
 
 
 @dataclass(frozen=True)
@@ -31,6 +59,7 @@ class TextEvidenceRegion:
     section_ordinal: int
     start_offset: int
     end_offset: int
+    additional_spans: tuple[TextEvidenceSpan, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_region_identity(
@@ -51,6 +80,10 @@ class TextEvidenceRegion:
             or self.end_offset <= self.start_offset
         ):
             raise ValueError("text source offsets must be an ordered non-empty range")
+        if not isinstance(self.additional_spans, tuple) or any(
+            not isinstance(span, TextEvidenceSpan) for span in self.additional_spans
+        ):
+            raise ValueError("additional_spans must contain TextEvidenceSpan values")
 
 
 @dataclass(frozen=True)
@@ -143,19 +176,26 @@ def region_from_evidence_unit(
     partial cell a complete result.
     """
     if unit.kind == "text":
-        if (
-            unit.section_ordinal is None
-            or unit.start_offset is None
-            or unit.end_offset is None
-        ):
-            raise SourceMatchingError("text evidence is missing section offsets")
+        try:
+            source_spans = source_spans_for_evidence_unit(unit)
+        except ValueError as error:
+            raise SourceMatchingError(str(error)) from error
+        if not source_spans:
+            raise SourceMatchingError("text evidence has no valid source spans")
+        first, *additional = source_spans
         return TextEvidenceRegion(
             evidence_id=unit.id,
             document_id=unit.document_id,
             extraction_id=unit.extraction_id,
-            section_ordinal=unit.section_ordinal,
-            start_offset=unit.start_offset,
-            end_offset=unit.end_offset,
+            section_ordinal=first.section_ordinal,
+            start_offset=first.start_offset,
+            end_offset=first.end_offset,
+            additional_spans=tuple(
+                TextEvidenceSpan(
+                    span.section_ordinal, span.start_offset, span.end_offset
+                )
+                for span in additional
+            ),
         )
     if unit.kind not in {"table", "table_row_group"}:
         raise SourceMatchingError(
@@ -358,14 +398,22 @@ def _match_text_anchor(
     complete = True
     for span in alignment.spans:
         intervals = [
-            (
-                max(region.start_offset, span.start_offset),
-                min(region.end_offset, span.end_offset),
-            )
+            (max(start, span.start_offset), min(end, span.end_offset))
             for region in regions
-            if region.section_ordinal == span.section_ordinal
-            and region.start_offset < span.end_offset
-            and region.end_offset > span.start_offset
+            for section_ordinal, start, end in (
+                (
+                    region.section_ordinal,
+                    region.start_offset,
+                    region.end_offset,
+                ),
+                *(
+                    (item.section_ordinal, item.start_offset, item.end_offset)
+                    for item in region.additional_spans
+                ),
+            )
+            if section_ordinal == span.section_ordinal
+            and start < span.end_offset
+            and end > span.start_offset
         ]
         covered = _union_length(intervals)
         total = span.end_offset - span.start_offset

@@ -73,6 +73,76 @@ class SourceLocation:
 
 
 @dataclass(frozen=True)
+class EvidenceSourceSpan:
+    """A chunk-local character range mapped to one extracted source section."""
+
+    section_ordinal: int
+    start_offset: int
+    end_offset: int
+    chunk_start_offset: int
+    chunk_end_offset: int
+    heading_path: tuple[str, ...]
+    source_location: SourceLocation = SourceLocation()
+
+    def __post_init__(self) -> None:
+        for name in (
+            "section_ordinal",
+            "start_offset",
+            "end_offset",
+            "chunk_start_offset",
+            "chunk_end_offset",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+        if self.end_offset <= self.start_offset:
+            raise ValueError("source span must be a non-empty half-open range")
+        if self.chunk_end_offset <= self.chunk_start_offset:
+            raise ValueError("chunk span must be a non-empty half-open range")
+        if not isinstance(self.heading_path, tuple) or any(
+            not isinstance(title, str) or not title.strip()
+            for title in self.heading_path
+        ):
+            raise ValueError("heading_path must contain non-empty strings")
+        if not isinstance(self.source_location, SourceLocation):
+            raise ValueError("source_location must be a SourceLocation")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "section_ordinal": self.section_ordinal,
+            "start_offset": self.start_offset,
+            "end_offset": self.end_offset,
+            "chunk_start_offset": self.chunk_start_offset,
+            "chunk_end_offset": self.chunk_end_offset,
+            "heading_path": list(self.heading_path),
+            "source_location": self.source_location.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> EvidenceSourceSpan:
+        expected = {
+            "section_ordinal",
+            "start_offset",
+            "end_offset",
+            "chunk_start_offset",
+            "chunk_end_offset",
+            "heading_path",
+            "source_location",
+        }
+        if set(value) != expected:
+            raise ValueError("source span metadata fields are invalid")
+        return cls(
+            section_ordinal=_metadata_nonnegative_int(value["section_ordinal"]),
+            start_offset=_metadata_nonnegative_int(value["start_offset"]),
+            end_offset=_metadata_nonnegative_int(value["end_offset"]),
+            chunk_start_offset=_metadata_nonnegative_int(value["chunk_start_offset"]),
+            chunk_end_offset=_metadata_nonnegative_int(value["chunk_end_offset"]),
+            heading_path=_validated_heading_path(value["heading_path"]),
+            source_location=_source_location_from_mapping(value["source_location"]),
+        )
+
+
+@dataclass(frozen=True)
 class ExtractedSection:
     ordinal: int
     heading_path: tuple[str, ...]
@@ -400,6 +470,7 @@ class ChunkingConfig:
     maximum_text_tokens: int
     overlapping_text_tokens: int
     maximum_table_rows_per_group: int
+    strategy: Literal["section-aware", "fixed-window"] = "section-aware"
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -413,10 +484,24 @@ class ChunkingConfig:
             raise ValueError("text and table chunk limits must be positive")
         if not 0 <= self.overlapping_text_tokens < self.maximum_text_tokens:
             raise ValueError("text overlap must be non-negative and below the maximum")
+        if not isinstance(self.strategy, str) or self.strategy not in {
+            "section-aware",
+            "fixed-window",
+        }:
+            raise ValueError("unsupported prose chunking strategy")
 
-    def to_dict(self) -> dict[str, int]:
+    def to_dict(self) -> dict[str, int | str]:
+        if self.strategy == "section-aware":
+            # Preserve existing section-aware configuration IDs exactly.
+            return {
+                "schema_version": 1,
+                "maximum_text_tokens": self.maximum_text_tokens,
+                "overlapping_text_tokens": self.overlapping_text_tokens,
+                "maximum_table_rows_per_group": self.maximum_table_rows_per_group,
+            }
         return {
-            "schema_version": 1,
+            "schema_version": 2,
+            "strategy": self.strategy,
             "maximum_text_tokens": self.maximum_text_tokens,
             "overlapping_text_tokens": self.overlapping_text_tokens,
             "maximum_table_rows_per_group": self.maximum_table_rows_per_group,
@@ -424,16 +509,30 @@ class ChunkingConfig:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> ChunkingConfig:
-        expected = {
+        legacy_fields = {
             "schema_version",
             "maximum_text_tokens",
             "overlapping_text_tokens",
             "maximum_table_rows_per_group",
         }
-        if set(data) != expected:
-            raise ValueError("chunking configuration fields are incomplete or unknown")
-        if data["schema_version"] != 1 or isinstance(data["schema_version"], bool):
-            raise ValueError("unsupported chunking configuration schema version")
+        version = data.get("schema_version")
+        if (
+            version == 1
+            and not isinstance(version, bool)
+            and set(data) == legacy_fields
+        ):
+            strategy: Literal["section-aware", "fixed-window"] = "section-aware"
+        elif (
+            version == 2
+            and not isinstance(version, bool)
+            and set(data) == legacy_fields | {"strategy"}
+            and data.get("strategy") == "fixed-window"
+        ):
+            strategy = "fixed-window"
+        else:
+            raise ValueError(
+                "chunking configuration fields are unknown or version is unsupported"
+            )
         integer_fields = (
             "maximum_text_tokens",
             "overlapping_text_tokens",
@@ -448,6 +547,7 @@ class ChunkingConfig:
             maximum_text_tokens=data["maximum_text_tokens"],  # type: ignore[arg-type]
             overlapping_text_tokens=data["overlapping_text_tokens"],  # type: ignore[arg-type]
             maximum_table_rows_per_group=data["maximum_table_rows_per_group"],  # type: ignore[arg-type]
+            strategy=strategy,
         )
 
     @property
@@ -510,6 +610,223 @@ def chunk_section(
             break
         start_token += step
     return tuple(units)
+
+
+def chunk_sections_fixed_window(
+    sections: Sequence[ExtractedSection],
+    *,
+    document_id: UUID,
+    extraction_id: UUID,
+    config: ChunkingConfig,
+    tokenizer: OffsetTokenizer,
+    chunking_configuration_id: str | None = None,
+) -> tuple[EvidenceUnit, ...]:
+    """Chunk normalized prose in ordinal reading order, crossing section joins.
+
+    Two newlines separate extracted sections in the flattened text. They are
+    reading-order separators and have no source mapping. Every intersected source
+    range is recorded; multi-section chunks have no fabricated single location.
+    """
+    if config.strategy != "fixed-window":
+        raise ValueError("fixed-window chunking requires the fixed-window strategy")
+    if any(not isinstance(section, ExtractedSection) for section in sections):
+        raise TypeError("sections must contain ExtractedSection values")
+    ordered = tuple(sorted(sections, key=lambda section: section.ordinal))
+    if len({section.ordinal for section in ordered}) != len(ordered):
+        raise ValueError("section ordinals must be unique")
+
+    pieces: list[str] = []
+    section_ranges: list[tuple[ExtractedSection, int, int]] = []
+    cursor = 0
+    for section in ordered:
+        if not section.text:
+            continue
+        if pieces:
+            pieces.append("\n\n")
+            cursor += 2
+        start = cursor
+        pieces.append(section.text)
+        cursor += len(section.text)
+        section_ranges.append((section, start, cursor))
+    flattened = "".join(pieces)
+    token_spans = tuple(tokenizer.token_spans(flattened))
+    _validate_token_spans(token_spans, len(flattened))
+    if not token_spans:
+        return ()
+
+    effective_configuration_id = chunking_configuration_id or config.config_id
+    units: list[EvidenceUnit] = []
+    step = config.maximum_text_tokens - config.overlapping_text_tokens
+    token_start = 0
+    while token_start < len(token_spans):
+        token_end = min(token_start + config.maximum_text_tokens, len(token_spans))
+        flat_start = token_spans[token_start].start
+        flat_end = token_spans[token_end - 1].end
+        content = flattened[flat_start:flat_end]
+        source_spans: list[EvidenceSourceSpan] = []
+        for section, section_start, section_end in section_ranges:
+            mapped_start = max(flat_start, section_start)
+            mapped_end = min(flat_end, section_end)
+            if mapped_end <= mapped_start:
+                continue
+            source_spans.append(
+                EvidenceSourceSpan(
+                    section_ordinal=section.ordinal,
+                    start_offset=mapped_start - section_start,
+                    end_offset=mapped_end - section_start,
+                    chunk_start_offset=mapped_start - flat_start,
+                    chunk_end_offset=mapped_end - flat_start,
+                    heading_path=section.heading_path,
+                    source_location=section.source_location,
+                )
+            )
+        if not source_spans:
+            if token_end == len(token_spans):
+                break
+            token_start += step
+            continue
+
+        single_source = source_spans[0] if len(source_spans) == 1 else None
+        units.append(
+            EvidenceUnit.create(
+                document_id=document_id,
+                extraction_id=extraction_id,
+                section_ordinal=(
+                    single_source.section_ordinal if single_source is not None else None
+                ),
+                ordinal=len(units),
+                kind="text",
+                content=content,
+                start_offset=(single_source.start_offset if single_source else None),
+                end_offset=(single_source.end_offset if single_source else None),
+                source_location=(
+                    single_source.source_location if single_source else SourceLocation()
+                ),
+                identity_context={
+                    "chunking_configuration_id": effective_configuration_id,
+                    "chunking_strategy": "fixed-window",
+                },
+                metadata={
+                    "heading_path": (
+                        list(source_spans[0].heading_path)
+                        if single_source is not None
+                        else []
+                    ),
+                    "heading_paths": [list(span.heading_path) for span in source_spans],
+                    "chunking_configuration_id": effective_configuration_id,
+                    "chunking_strategy": "fixed-window",
+                    "token_start": token_start,
+                    "token_end_exclusive": token_end,
+                    "source_spans": [span.to_dict() for span in source_spans],
+                },
+            )
+        )
+        if token_end == len(token_spans):
+            break
+        token_start += step
+    return tuple(units)
+
+
+def source_spans_for_evidence_unit(
+    unit: EvidenceUnit,
+) -> tuple[EvidenceSourceSpan, ...]:
+    """Read validated per-section spans, falling back to the legacy single span."""
+    raw_spans = unit.metadata.get("source_spans")
+    if raw_spans is None:
+        if (
+            unit.kind != "text"
+            or unit.section_ordinal is None
+            or unit.start_offset is None
+            or unit.end_offset is None
+            or unit.end_offset <= unit.start_offset
+        ):
+            return ()
+        raw_heading_path = unit.metadata.get("heading_path", [])
+        heading_path = _validated_heading_path(raw_heading_path)
+        return (
+            EvidenceSourceSpan(
+                section_ordinal=unit.section_ordinal,
+                start_offset=unit.start_offset,
+                end_offset=unit.end_offset,
+                chunk_start_offset=0,
+                chunk_end_offset=len(unit.content),
+                heading_path=heading_path,
+                source_location=unit.source_location,
+            ),
+        )
+    if not isinstance(raw_spans, list) or not raw_spans:
+        raise ValueError("source_spans metadata must be a non-empty list")
+    spans: list[EvidenceSourceSpan] = []
+    for raw in raw_spans:
+        if not isinstance(raw, Mapping):
+            raise ValueError("source span metadata entries must be objects")
+        span = EvidenceSourceSpan.from_dict(raw)
+        if span.chunk_end_offset > len(unit.content):
+            raise ValueError("source span exceeds its evidence chunk text")
+        spans.append(span)
+    previous_chunk_end = 0
+    for span in spans:
+        if span.chunk_start_offset < previous_chunk_end:
+            raise ValueError("source spans overlap or are out of chunk reading order")
+        previous_chunk_end = span.chunk_end_offset
+    return tuple(spans)
+
+
+def _validate_token_spans(spans: Sequence[TokenSpan], text_length: int) -> None:
+    previous_end = 0
+    for span in spans:
+        if span.end > text_length or span.start < previous_end:
+            raise ValueError("tokenizer returned invalid or overlapping source offsets")
+        previous_end = span.end
+
+
+def _validated_heading_path(value: object) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("source span heading_path must be a list")
+    if any(not isinstance(title, str) or not title.strip() for title in value):
+        raise ValueError("source span heading_path contains an invalid title")
+    return tuple(value)
+
+
+def _metadata_nonnegative_int(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("source span coordinates must be non-negative integers")
+    return value
+
+
+def _source_location_from_mapping(value: object) -> SourceLocation:
+    expected = {
+        "page_index_zero_based",
+        "printed_page_label",
+        "bounding_box",
+        "coordinate_system",
+    }
+    if not isinstance(value, Mapping) or set(value) != expected:
+        raise ValueError("source span location is malformed")
+    page = value["page_index_zero_based"]
+    printed = value["printed_page_label"]
+    box = value["bounding_box"]
+    coordinates = value["coordinate_system"]
+    if page is not None and (isinstance(page, bool) or not isinstance(page, int)):
+        raise ValueError("source span page index is invalid")
+    if printed is not None and not isinstance(printed, str):
+        raise ValueError("source span printed page label is invalid")
+    if box is not None and (
+        not isinstance(box, list)
+        or len(box) != 4
+        or any(
+            isinstance(part, bool) or not isinstance(part, (int, float)) for part in box
+        )
+    ):
+        raise ValueError("source span bounding box is invalid")
+    if coordinates is not None and not isinstance(coordinates, str):
+        raise ValueError("source span coordinate system is invalid")
+    return SourceLocation(
+        page_index_zero_based=page,
+        printed_page_label=printed,
+        bounding_box=tuple(box) if box is not None else None,
+        coordinate_system=coordinates,
+    )
 
 
 def chunk_table_rows(

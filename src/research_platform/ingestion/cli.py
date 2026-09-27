@@ -21,6 +21,7 @@ from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 import httpx
+import tomllib
 
 from research_platform.config import Settings
 from research_platform.ingestion.acquisition import (
@@ -729,7 +730,12 @@ def _load_index_configuration(path: Path) -> IndexConfiguration:
 
 
 def _load_chunking_configuration(path: Path) -> ChunkingConfig:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    contents = path.read_text(encoding="utf-8")
+    raw = (
+        tomllib.loads(contents)
+        if path.suffix.lower() == ".toml"
+        else json.loads(contents)
+    )
     return ChunkingConfig.from_dict(_mapping(raw, "chunking configuration"))
 
 

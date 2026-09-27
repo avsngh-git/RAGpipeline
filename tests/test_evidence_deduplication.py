@@ -6,9 +6,13 @@ from uuid import UUID
 import pytest
 
 from research_platform.ingestion.evidence import (
+    ChunkingConfig,
     EvidenceKind,
     EvidenceUnit,
+    ExtractedSection,
     SourceLocation,
+    TokenSpan,
+    chunk_sections_fixed_window,
 )
 from research_platform.search.contracts import ComponentScores, EvidenceHit
 from research_platform.search.evidence_deduplication import (
@@ -190,6 +194,45 @@ def test_equal_offsets_in_another_section_are_distinct_source() -> None:
     )
 
     assert len(result.hits) == 2
+
+
+def test_cross_section_window_deduplicates_covered_source_ranges() -> None:
+    class WordTokenizer:
+        def token_spans(self, text: str) -> tuple[TokenSpan, ...]:
+            spans = []
+            start = None
+            for index, character in enumerate(text):
+                if character.isspace():
+                    if start is not None:
+                        spans.append(TokenSpan(start, index))
+                        start = None
+                elif start is None:
+                    start = index
+            if start is not None:
+                spans.append(TokenSpan(start, len(text)))
+            return tuple(spans)
+
+    (cross_section,) = chunk_sections_fixed_window(
+        (
+            ExtractedSection(0, (), "alpha beta"),
+            ExtractedSection(1, (), "gamma"),
+        ),
+        document_id=DOCUMENT_ID,
+        extraction_id=EXTRACTION_ID,
+        config=ChunkingConfig(3, 0, 2, strategy="fixed-window"),
+        tokenizer=WordTokenizer(),
+    )
+    covered = _text_unit("covered", 0, 5, section=1)
+    result = _deduplicate(
+        (
+            _hit((cross_section.id,), 1),
+            _hit(("covered",), 2),
+        ),
+        (cross_section, covered),
+    )
+
+    assert [hit.chunk_id for hit in result.hits] == ["chunk-1"]
+    assert result.omissions[0].chunk_id == "chunk-2"
 
 
 def test_repeated_table_headers_do_not_make_body_rows_overlap() -> None:

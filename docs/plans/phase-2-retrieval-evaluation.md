@@ -55,7 +55,8 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-11 and P2-12.1–P2-12.2 are complete. Continue with P2-12.3.
+P2-01–P2-11 and P2-12.1–P2-12.2 are complete. P2-13 implementation is in
+progress; return to P2-12.3 source review before its paired development evaluation.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -73,7 +74,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Complete |
 | P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | In progress |
-| P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Pending |
+| P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | In progress |
 | P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Pending |
 | P2-15 | Default selection and experiment freeze | P2-14 | Pending |
 | P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Pending |
@@ -866,6 +867,29 @@ was text-extracted but not visually verified because this WSL environment has no
 PDF renderer. q20 remains partial: 25 paper and 104 evidence candidates are
 unjudged, its lexical scan is bounded, and its review is marked partially
 unblinded after accidental origin-map output exposure; no labels used rank or score. Continue with 12.3.
+
+**P2-13 implementation checkpoint, assistant-reviewed 2026-09-27:** the
+versioned fixed-window prose strategy is implemented in the existing ingestion
+processor. Its tracked baseline uses 480 E5-small-v2 tokens with 64-token overlap,
+six table rows per group, section-ordinal reading order, and a two-newline synthetic
+separator. Existing section-aware configuration IDs remain stable. Fixed windows
+store every section-local source range, chunk-local range, heading path, and
+available source location in chunk metadata; cross-section units leave the legacy
+single-section offsets and location empty. Table rendering still uses the existing
+path. Source matching and deduplication now union the constituent spans, the
+framework-independent evidence contract carries them, and dense hydration restores
+them from authoritative PostgreSQL rows. No migration was needed.
+
+The existing extraction fingerprint is shared across chunk strategies; the fixed
+strategy has its own chunking revision and therefore selects new variant chunks.
+The reprocessing integration test now uses two sections and checks multi-span
+hydration, but it could not run because no isolated PostgreSQL/Qdrant test URLs are
+configured in this environment. The focused CPU suite reports 75 passed; Ruff check
+and format check pass. Project-wide mypy is blocked because the recreated Conda
+environment lacks the declared BM25S and NumPy packages. Paired development
+evaluation, index/storage measurement, and the live variant lifecycle check remain
+open, so P2-13 is not complete. Details are in
+[fixed-window chunking](../reference/phase-2-fixed-window-chunking.md).
 
 ## P2-13 — Add the controlled chunking baseline
 

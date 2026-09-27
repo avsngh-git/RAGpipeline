@@ -98,6 +98,41 @@ def test_stage_fingerprints_separate_parser_from_chunking_settings() -> None:
     assert "processor_code_revision" not in first.extraction_configuration
 
 
+def test_fixed_window_has_distinct_chunking_but_reuses_extraction_identity() -> None:
+    class PreparedParser:
+        def prepare(self) -> tuple[dict[str, object], str]:
+            return {"parser": "stable-fixture"}, "sha256:" + "1" * 64
+
+    async def prepare(config: ChunkingConfig) -> PreparedPdfPipeline:
+        processor = PdfEvidenceProcessor(
+            None,  # type: ignore[arg-type]
+            snapshot_id=SNAPSHOT_ID,
+            artifact_root=Path("."),
+            parser_config=DoclingPdfConfig(device="cpu"),
+            chunking_config=config,
+            tokenizer=CharacterTokenizer(),  # type: ignore[arg-type]
+        )
+        processor._parser = PreparedParser()  # type: ignore[assignment]
+        return await processor.prepare()
+
+    section_aware = asyncio.run(prepare(ChunkingConfig(8, 2, 2)))
+    fixed_window = asyncio.run(
+        prepare(ChunkingConfig(8, 2, 2, strategy="fixed-window"))
+    )
+
+    assert (
+        section_aware.extraction_configuration_id
+        == fixed_window.extraction_configuration_id
+    )
+    assert (
+        section_aware.chunking_configuration_id
+        != fixed_window.chunking_configuration_id
+    )
+    assert fixed_window.chunking_configuration["implementation_revision"] == (
+        "phase2-fixed-window-chunking-v1"
+    )
+
+
 def test_unfittable_table_context_becomes_document_stage_failure() -> None:
     table = ExtractedTable(
         ordinal=0,

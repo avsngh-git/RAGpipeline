@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 from uuid import UUID
 
-from research_platform.ingestion.evidence import EvidenceUnit
+from research_platform.ingestion.evidence import (
+    EvidenceUnit,
+    source_spans_for_evidence_unit,
+)
 from research_platform.search.contracts import EvidenceHit
 
 EvidenceOmissionReason = Literal["duplicate_chunk_id", "source_coverage_subsumed"]
@@ -327,31 +330,31 @@ def _resolve_source_regions(
             raise EvidenceDeduplicationError(
                 "source unit document does not match the evidence hit"
             )
-        region = _region_from_source_unit(unit)
-        if region is None:
+        source_regions = _regions_from_source_unit(unit)
+        if not source_regions:
             missing.append(evidence_id)
         else:
-            regions.append(region)
+            regions.extend(source_regions)
     return tuple(regions), tuple(missing)
 
 
-def _region_from_source_unit(unit: EvidenceUnit) -> _SourceRegion | None:
+def _regions_from_source_unit(unit: EvidenceUnit) -> tuple[_SourceRegion, ...]:
     if unit.kind == "text":
-        if (
-            unit.section_ordinal is None
-            or unit.start_offset is None
-            or unit.end_offset is None
-            or unit.start_offset == unit.end_offset
-        ):
-            return None
-        return _TextSpan(
-            unit.extraction_id,
-            unit.section_ordinal,
-            unit.start_offset,
-            unit.end_offset,
+        try:
+            spans = source_spans_for_evidence_unit(unit)
+        except ValueError as error:
+            raise EvidenceDeduplicationError(str(error)) from error
+        return tuple(
+            _TextSpan(
+                unit.extraction_id,
+                span.section_ordinal,
+                span.start_offset,
+                span.end_offset,
+            )
+            for span in spans
         )
     if unit.kind not in {"table", "table_row_group"}:
-        return None
+        return ()
 
     table_ordinal = _metadata_int(unit.metadata, "table_ordinal")
     cell_row = unit.metadata.get("cell_row")
@@ -362,17 +365,17 @@ def _region_from_source_unit(unit: EvidenceUnit) -> _SourceRegion | None:
         start = _metadata_int(unit.metadata, "cell_token_start")
         end = _metadata_int(unit.metadata, "cell_token_end_exclusive")
         if row < 0 or column < 0 or start < 0 or end <= start:
-            return None
-        return _TableCellSpan(
-            unit.extraction_id, table_ordinal, row, column, start, end
+            return ()
+        return (
+            _TableCellSpan(unit.extraction_id, table_ordinal, row, column, start, end),
         )
 
     start_row = _metadata_int(unit.metadata, "row_start_inclusive")
     end_row = _metadata_int(unit.metadata, "row_end_exclusive")
     repeated_headers = _metadata_int(unit.metadata, "header_rows_repeated")
     if start_row < repeated_headers or end_row <= start_row:
-        return None
-    return _TableRows(unit.extraction_id, table_ordinal, start_row, end_row)
+        return ()
+    return (_TableRows(unit.extraction_id, table_ordinal, start_row, end_row),)
 
 
 def _metadata_int(metadata: Mapping[str, object], name: str) -> int:

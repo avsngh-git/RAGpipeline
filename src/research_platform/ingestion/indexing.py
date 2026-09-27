@@ -18,6 +18,7 @@ from uuid import UUID, uuid5
 import asyncpg  # type: ignore[import-untyped]
 import httpx
 
+from research_platform.ingestion.evidence import EvidenceSourceSpan
 from research_platform.ingestion.snapshot_selection import (
     SnapshotChunkSelection,
     SnapshotSelection,
@@ -1003,7 +1004,11 @@ class IndexRepository:
                    document.version_kind AS document_version_kind,
                    chunk.kind AS evidence_kind,
                    paper.publication_year, paper.title,
-                   section.id AS section_id, section.title AS section_title
+                   section.id AS section_id, section.title AS section_title,
+                   section.ordinal AS section_ordinal,
+                   chunk.start_offset, chunk.end_offset,
+                   chunk.source_location AS evidence_source_location,
+                   chunk.metadata AS evidence_metadata
             FROM snapshot_items AS item
             JOIN papers AS paper ON paper.id = item.paper_id
             JOIN documents AS document
@@ -1072,6 +1077,7 @@ class IndexRepository:
                     if row["section_id"] is not None
                     else None,
                     "section_title": row["section_title"],
+                    **_evidence_locator_payload(row),
                 },
             )
             for row in rows
@@ -1488,6 +1494,79 @@ async def _rebuild_snapshot_index_locked(
             },
         )
         raise
+
+
+def _jsonb_object(value: object, field_name: str) -> dict[str, object]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise SnapshotIndexMismatch(
+                f"stored {field_name} is invalid JSON"
+            ) from error
+    if not isinstance(value, Mapping):
+        raise SnapshotIndexMismatch(f"stored {field_name} is not a JSON object")
+    return dict(value)
+
+
+def _evidence_locator_payload(row: Mapping[str, object]) -> dict[str, object]:
+    text = row["text"]
+    if not isinstance(text, str):
+        raise SnapshotIndexMismatch("stored evidence text is malformed")
+    metadata = _jsonb_object(row["evidence_metadata"], "evidence metadata")
+    source_location = _jsonb_object(
+        row["evidence_source_location"], "evidence source location"
+    )
+    raw_spans = metadata.get("source_spans")
+    if raw_spans is None:
+        section_ordinal = row["section_ordinal"]
+        start_offset = row["start_offset"]
+        end_offset = row["end_offset"]
+        raw_spans = []
+        if (
+            isinstance(section_ordinal, int)
+            and not isinstance(section_ordinal, bool)
+            and isinstance(start_offset, int)
+            and not isinstance(start_offset, bool)
+            and isinstance(end_offset, int)
+            and not isinstance(end_offset, bool)
+            and end_offset > start_offset
+        ):
+            heading_path = metadata.get("heading_path", [])
+            raw_spans = [
+                {
+                    "section_ordinal": section_ordinal,
+                    "start_offset": start_offset,
+                    "end_offset": end_offset,
+                    "chunk_start_offset": 0,
+                    "chunk_end_offset": len(text),
+                    "heading_path": heading_path,
+                    "source_location": source_location,
+                }
+            ]
+    if not isinstance(raw_spans, list) or any(
+        not isinstance(span, Mapping) for span in raw_spans
+    ):
+        raise SnapshotIndexMismatch("stored evidence source spans are malformed")
+    try:
+        spans = tuple(EvidenceSourceSpan.from_dict(span) for span in raw_spans)
+    except (TypeError, ValueError) as error:
+        raise SnapshotIndexMismatch(
+            "stored evidence source spans are invalid"
+        ) from error
+    previous_chunk_end = 0
+    for span in spans:
+        if span.chunk_end_offset > len(text):
+            raise SnapshotIndexMismatch("stored evidence source span exceeds its text")
+        if span.chunk_start_offset < previous_chunk_end:
+            raise SnapshotIndexMismatch(
+                "stored evidence source spans overlap or change reading order"
+            )
+        previous_chunk_end = span.chunk_end_offset
+    return {
+        "source_location": source_location,
+        "source_spans": [span.to_dict() for span in spans],
+    }
 
 
 def _evidence_ids_fingerprint(evidence_ids: Sequence[str]) -> str:

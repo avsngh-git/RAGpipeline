@@ -30,6 +30,7 @@ from research_platform.ingestion.evidence import (
     ExtractedTable,
     ExtractionResult,
     chunk_section,
+    chunk_sections_fixed_window,
     chunk_table_rows,
 )
 from research_platform.ingestion.evidence_repository import EvidenceRepository
@@ -57,6 +58,7 @@ class PreparedPdfPipeline:
 
 EXTRACTION_IMPLEMENTATION_REVISION = "phase1-pdf-extraction-v2"
 CHUNKING_IMPLEMENTATION_REVISION = "phase1-evidence-chunking-v2"
+FIXED_WINDOW_IMPLEMENTATION_REVISION = "phase2-fixed-window-chunking-v1"
 
 
 class PdfEvidenceProcessor:
@@ -121,16 +123,30 @@ class PdfEvidenceProcessor:
                 },
             },
         }
-        chunking_configuration: dict[str, object] = {
-            "schema_version": 1,
-            "implementation_revision": CHUNKING_IMPLEMENTATION_REVISION,
-            "chunking": self._chunking.to_dict(),
-            "tokenizer": {
-                "model": E5_SMALL_V2_MODEL,
-                "revision": E5_SMALL_V2_REVISION,
-                "preprocessing_revision": E5_SMALL_V2_PREPROCESSING,
-            },
-        }
+        if self._chunking.strategy == "section-aware":
+            chunking_configuration: dict[str, object] = {
+                "schema_version": 1,
+                "implementation_revision": CHUNKING_IMPLEMENTATION_REVISION,
+                "chunking": self._chunking.to_dict(),
+                "tokenizer": {
+                    "model": E5_SMALL_V2_MODEL,
+                    "revision": E5_SMALL_V2_REVISION,
+                    "preprocessing_revision": E5_SMALL_V2_PREPROCESSING,
+                },
+            }
+        else:
+            chunking_configuration = {
+                "schema_version": 2,
+                "implementation_revision": FIXED_WINDOW_IMPLEMENTATION_REVISION,
+                "chunking": self._chunking.to_dict(),
+                "reading_order": "section-ordinal-ascending-v1",
+                "section_separator": "\n\n",
+                "tokenizer": {
+                    "model": E5_SMALL_V2_MODEL,
+                    "revision": E5_SMALL_V2_REVISION,
+                    "preprocessing_revision": E5_SMALL_V2_PREPROCESSING,
+                },
+            }
         self._prepared = PreparedPdfPipeline(
             extraction_configuration=extraction_configuration,
             extraction_configuration_id=_identity(extraction_configuration),
@@ -400,10 +416,10 @@ class PdfEvidenceProcessor:
             else self._chunking.config_id
         )
         try:
-            for section in result.sections:
+            if self._chunking.strategy == "fixed-window":
                 units.extend(
-                    chunk_section(
-                        section,
+                    chunk_sections_fixed_window(
+                        result.sections,
                         document_id=result.document_id,
                         extraction_id=result.extraction_id,
                         config=self._chunking,
@@ -411,6 +427,18 @@ class PdfEvidenceProcessor:
                         chunking_configuration_id=chunking_configuration_id,
                     )
                 )
+            else:
+                for section in result.sections:
+                    units.extend(
+                        chunk_section(
+                            section,
+                            document_id=result.document_id,
+                            extraction_id=result.extraction_id,
+                            config=self._chunking,
+                            tokenizer=self._tokenizer,
+                            chunking_configuration_id=chunking_configuration_id,
+                        )
+                    )
             for table in result.tables:
                 units.extend(
                     chunk_table_rows(

@@ -66,6 +66,23 @@ Preserve the user's existing worktree and publication workflow.
 - JSON is broadly ignored. Use deliberately tracked sanitized config/fixture paths;
   full text, source PDFs and private review artifacts stay outside Git.
 
+## Phase 2 active checkpoint
+
+P2-12.1–P2-12.2 are complete. q11–q20 development pools have partial source
+reviews, with unjudged candidates explicitly excluded from gold labels. q21–q30
+held-out question families and pools have not yet been created. Continue P2-12.3:
+complete the delegated source review, maintain explicit uncertainty and pool
+coverage, then finish the held-out family records and audit before development
+scoring. Do not read any origins JSON file; q20 remains recorded as partially
+unblinded after an earlier accidental rank-metadata exposure.
+
+P2-13 fixed-window code is implemented but remains in progress pending benchmark
+source review, paired development evaluation, storage/index measurement, and the
+isolated lifecycle integration check. The implementation details and verification
+limits are recorded in the roadmap and
+[fixed-window chunking note](../reference/phase-2-fixed-window-chunking.md).
+API work remains gated on the P2-15 experiment freeze.
+
 ## Progress and stop rules
 
 - **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,

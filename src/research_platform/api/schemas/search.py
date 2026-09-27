@@ -7,7 +7,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
+from research_platform.ingestion.evidence import (
+    EvidenceKind,
+    EvidenceSourceSpan,
+    SourceLocation,
+)
 from research_platform.ingestion.identity import DocumentVersionKind
 from research_platform.search.contracts import (
     DEFAULT_SEARCH_LIMITS,
@@ -177,6 +181,37 @@ class SourceLocationModel(_StrictModel):
         return self
 
 
+class EvidenceSourceSpanModel(_StrictModel):
+    section_ordinal: int = Field(strict=True, ge=0)
+    start_offset: int = Field(strict=True, ge=0)
+    end_offset: int = Field(strict=True, ge=1)
+    chunk_start_offset: int = Field(strict=True, ge=0)
+    chunk_end_offset: int = Field(strict=True, ge=1)
+    heading_path: tuple[str, ...]
+    source_location: SourceLocationModel
+
+    @model_validator(mode="after")
+    def validate_span(self) -> EvidenceSourceSpanModel:
+        try:
+            EvidenceSourceSpan(
+                section_ordinal=self.section_ordinal,
+                start_offset=self.start_offset,
+                end_offset=self.end_offset,
+                chunk_start_offset=self.chunk_start_offset,
+                chunk_end_offset=self.chunk_end_offset,
+                heading_path=self.heading_path,
+                source_location=SourceLocation(
+                    page_index_zero_based=self.source_location.page_index_zero_based,
+                    printed_page_label=self.source_location.printed_page_label,
+                    bounding_box=self.source_location.bounding_box,
+                    coordinate_system=self.source_location.coordinate_system,
+                ),
+            )
+        except ValueError as error:
+            raise ValueError(str(error)) from None
+        return self
+
+
 class TableCellEvidenceModel(_StrictModel):
     row_index: int = Field(strict=True, ge=0)
     column_index: int = Field(strict=True, ge=0)
@@ -231,6 +266,7 @@ class EvidenceHitModel(_StrictModel):
     chunking_configuration_id: str | None
     kind: EvidenceKind
     source_location: SourceLocationModel
+    source_spans: tuple[EvidenceSourceSpanModel, ...] = ()
     rank: int = Field(strict=True, ge=1)
     component_scores: ComponentScoresModel
     text: str

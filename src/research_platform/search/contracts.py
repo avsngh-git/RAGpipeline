@@ -9,7 +9,11 @@ from enum import Enum
 from typing import Generic, Literal, TypeVar
 from uuid import UUID
 
-from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
+from research_platform.ingestion.evidence import (
+    EvidenceKind,
+    EvidenceSourceSpan,
+    SourceLocation,
+)
 from research_platform.ingestion.identity import DocumentVersionKind, is_valid_paper_id
 
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -532,6 +536,7 @@ class EvidenceHit:
     component_scores: ComponentScores
     text: str
     table_context: TableEvidenceContext | None = None
+    source_spans: tuple[EvidenceSourceSpan, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.chunk_id, str) or not self.chunk_id.strip():
@@ -572,6 +577,19 @@ class EvidenceHit:
             raise ValueError("component_scores must be ComponentScores")
         if not isinstance(self.text, str):
             raise ValueError("text must be a string")
+        if not isinstance(self.source_spans, tuple) or any(
+            not isinstance(span, EvidenceSourceSpan) for span in self.source_spans
+        ):
+            raise ValueError("source_spans must contain EvidenceSourceSpan values")
+        previous_chunk_end = 0
+        for span in self.source_spans:
+            if span.chunk_end_offset > len(self.text):
+                raise ValueError("source spans must fit within the evidence text")
+            if span.chunk_start_offset < previous_chunk_end:
+                raise ValueError(
+                    "source spans must not overlap or change reading order"
+                )
+            previous_chunk_end = span.chunk_end_offset
         if self.table_context is not None:
             if not isinstance(self.table_context, TableEvidenceContext):
                 raise ValueError("table_context must be TableEvidenceContext or null")
