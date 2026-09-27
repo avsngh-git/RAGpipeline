@@ -347,6 +347,11 @@ def build_parser() -> argparse.ArgumentParser:
     job_start.add_argument("--artifact-root", type=Path, default=Path("data/artifacts"))
     job_start.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     job_start.add_argument(
+        "--reuse-snapshot-extractions",
+        action="store_true",
+        help="rechunk each draft member's exact selected extraction without loading the PDF parser",
+    )
+    job_start.add_argument(
         "--membership-decision",
         type=Path,
         help="required for a 100-paper job; binds it to the approved membership record",
@@ -796,6 +801,10 @@ async def _execute_jobs(
     if args.job_command == "start":
         snapshot_id = args.snapshot_id
         chunking = _load_chunking_configuration(args.chunking_configuration)
+        if args.reuse_snapshot_extractions and chunking.strategy != "fixed-window":
+            raise ValueError(
+                "snapshot extraction reuse is currently limited to fixed-window jobs"
+            )
         document_ids = await snapshots.document_ids_for_processing(snapshot_id)
         snapshot_configuration = await snapshots.configuration_for(snapshot_id)
         membership_digest: str | None = None
@@ -879,6 +888,7 @@ async def _execute_jobs(
             tokenizer=E5SmallV2Embedder(device=args.device),
             excluded_source_pages_by_document=excluded_source_pages,
             source_content_review_identity=source_review_identity,
+            reuse_snapshot_extractions=args.reuse_snapshot_extractions,
         )
         prepared = await processor.prepare()
         configuration: dict[str, object] = {
@@ -888,6 +898,7 @@ async def _execute_jobs(
             "document_inputs": document_inputs,
             "parser_configuration": DoclingPdfConfig().to_dict(),
             "chunking_configuration": chunking.to_dict(),
+            "reuse_snapshot_extractions": args.reuse_snapshot_extractions,
             "extraction_configuration_id": prepared.extraction_configuration_id,
             "chunking_configuration_id": prepared.chunking_configuration_id,
             "pipeline_configuration_id": _configuration_identity(
@@ -997,6 +1008,15 @@ async def _execute_jobs(
     chunking = ChunkingConfig.from_dict(
         _mapping(raw_chunking, "chunking configuration")
     )
+    reuse_snapshot_extractions = job_configuration.get(
+        "reuse_snapshot_extractions", False
+    )
+    if not isinstance(reuse_snapshot_extractions, bool):
+        raise ValueError("job extraction reuse setting is invalid")
+    if reuse_snapshot_extractions and chunking.strategy != "fixed-window":
+        raise ValueError(
+            "snapshot extraction reuse is currently limited to fixed-window jobs"
+        )
     raw_parser = _mapping(
         job_configuration.get("parser_configuration"), "parser configuration"
     )
@@ -1011,6 +1031,7 @@ async def _execute_jobs(
         tokenizer=E5SmallV2Embedder(device=args.device),
         excluded_source_pages_by_document=excluded_source_pages,
         source_content_review_identity=source_review_identity,
+        reuse_snapshot_extractions=reuse_snapshot_extractions,
     )
     prepared = await processor.prepare()
     expected_extraction_id = job_configuration.get("extraction_configuration_id")
@@ -1018,7 +1039,12 @@ async def _execute_jobs(
         isinstance(expected_extraction_id, str)
         and expected_extraction_id != prepared.extraction_configuration_id
     ):
-        raise ValueError("effective parser configuration changed; create a new job")
+        message = (
+            "snapshot-selected extraction plan changed; create a new job"
+            if reuse_snapshot_extractions
+            else "effective parser configuration changed; create a new job"
+        )
+        raise ValueError(message)
     if args.job_command == "resume":
         await _run_pdf_job(
             args,

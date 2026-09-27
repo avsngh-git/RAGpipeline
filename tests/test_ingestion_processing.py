@@ -1,6 +1,8 @@
 """Tests for asynchronous orchestration around PDF evidence processing."""
 
 import asyncio
+import hashlib
+import json
 import threading
 import time
 from pathlib import Path
@@ -69,6 +71,120 @@ def test_evidence_chunking_does_not_block_async_job_heartbeats() -> None:
 class CharacterTokenizer:
     def token_spans(self, text: str) -> tuple[TokenSpan, ...]:
         return tuple(TokenSpan(index, index + 1) for index in range(len(text)))
+
+
+class _ExtractionPlanConnection:
+    def __init__(self, rows: list[dict[str, object]]) -> None:
+        self._rows = rows
+
+    async def fetch(self, query: str, snapshot_id: UUID) -> list[dict[str, object]]:
+        del query, snapshot_id
+        return self._rows
+
+
+class _ExtractionPlanAcquire:
+    def __init__(self, connection: _ExtractionPlanConnection) -> None:
+        self._connection = connection
+
+    async def __aenter__(self) -> _ExtractionPlanConnection:
+        return self._connection
+
+    async def __aexit__(self, *_args: object) -> None:
+        return None
+
+
+class _ExtractionPlanPool:
+    def __init__(self, connection: _ExtractionPlanConnection) -> None:
+        self._connection = connection
+
+    def acquire(self) -> _ExtractionPlanAcquire:
+        return _ExtractionPlanAcquire(self._connection)
+
+
+def _selected_extraction_row(
+    parser_config: DoclingPdfConfig,
+) -> dict[str, object]:
+    configuration = {
+        "parser": {
+            **parser_config.to_dict(),
+            "dependencies": {},
+            "pipeline_options": {},
+            "model_asset_sha256s": {},
+        },
+        "source_content_review": {
+            "identity": None,
+            "excluded_source_pages_by_document": {},
+        },
+    }
+    canonical = json.dumps(
+        configuration, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    configuration_id = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return {
+        "document_id": DOCUMENT_ID,
+        "extraction_id": EXTRACTION_ID,
+        "configuration_id": configuration_id,
+        "configuration": json.dumps(configuration),
+        "status": "completed",
+        "output_sha256": "a" * 64,
+        "source_artifact_id": UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd"),
+        "source_pdf_sha256": "b" * 64,
+    }
+
+
+def test_snapshot_extraction_reuse_skips_parser_and_pins_existing_member() -> None:
+    parser_config = DoclingPdfConfig(device="cpu")
+    connection = _ExtractionPlanConnection([_selected_extraction_row(parser_config)])
+    processor = PdfEvidenceProcessor(
+        _ExtractionPlanPool(connection),  # type: ignore[arg-type]
+        snapshot_id=SNAPSHOT_ID,
+        artifact_root=Path("."),
+        parser_config=parser_config,
+        chunking_config=ChunkingConfig(8, 2, 2, strategy="fixed-window"),
+        tokenizer=CharacterTokenizer(),  # type: ignore[arg-type]
+        reuse_snapshot_extractions=True,
+    )
+
+    class UnavailableParser:
+        config = parser_config
+
+        def prepare(self) -> tuple[dict[str, object], str]:
+            raise AssertionError(
+                "rechunking must not load or initialize the PDF parser"
+            )
+
+    processor._parser = UnavailableParser()  # type: ignore[assignment]
+    prepared = asyncio.run(processor.prepare())
+
+    assert prepared.extraction_configuration["strategy"] == (
+        "reuse-snapshot-selected-extractions-v1"
+    )
+    assert processor._selected_extractions[DOCUMENT_ID].extraction_id == EXTRACTION_ID
+    assert processor._selected_extractions[DOCUMENT_ID].configuration_id.startswith(
+        "sha256:"
+    )
+
+
+def test_snapshot_extraction_reuse_rejects_changed_source_review() -> None:
+    parser_config = DoclingPdfConfig(device="cpu")
+    connection = _ExtractionPlanConnection([_selected_extraction_row(parser_config)])
+    processor = PdfEvidenceProcessor(
+        _ExtractionPlanPool(connection),  # type: ignore[arg-type]
+        snapshot_id=SNAPSHOT_ID,
+        artifact_root=Path("."),
+        parser_config=parser_config,
+        chunking_config=ChunkingConfig(8, 2, 2, strategy="fixed-window"),
+        tokenizer=CharacterTokenizer(),  # type: ignore[arg-type]
+        source_content_review_identity="sha256:" + "c" * 64,
+        reuse_snapshot_extractions=True,
+    )
+
+    try:
+        asyncio.run(processor.prepare())
+    except ValueError as error:
+        assert "source-content review" in str(error)
+    else:
+        raise AssertionError("a source-review mismatch must reject checkpoint reuse")
 
 
 def test_stage_fingerprints_separate_parser_from_chunking_settings() -> None:
