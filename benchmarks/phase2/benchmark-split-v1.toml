@@ -1,0 +1,33 @@
+schema_version = 1
+split_manifest_id = "phase2-benchmark-family-splits-v1"
+dataset_id = "phase2-benchmark-v1"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+split_unit = "question_family"
+split_policy_id = "phase2-benchmark-family-split-v1"
+sampling_plan_id = "phase2-benchmark-sampling-v1"
+calibration_dataset_id = "phase2-calibration-v1"
+calibration_manifest_sha256 = "sha256:e7f7983ad2af564b24d86464c76f18432e5985a3a74e44849f8323048180c3b6"
+paraphrases_inherit_family_split = true
+assignment_policy = "explicit-family-list-frozen-before-new-candidate-pooling"
+query_content_status = "new-family-questions-pending-source-review"
+
+calibration_development_families = [
+  "q01", "q02", "q03", "q04", "q05",
+  "q06", "q07", "q08", "q09", "q10",
+]
+
+new_development_family_ids = [
+  "q11", "q12", "q13", "q14", "q15",
+  "q16", "q17", "q18", "q19", "q20",
+]
+
+new_heldout_family_ids = [
+  "q21", "q22", "q23", "q24", "q25",
+  "q26", "q27", "q28", "q29", "q30",
+]
+
+[allocation]
+development_family_count = 20
+heldout_family_count = 10
+total_family_count = 30
+heldout_access_rule = "judgments-may-be-prepared-but-scores-must-not-guide-tuning"

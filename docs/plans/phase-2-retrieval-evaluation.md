@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-11 and P2-12.1 are complete. Continue with P2-12.2.
+P2-01–P2-11 and P2-12.1–P2-12.2 are complete. Continue with P2-12.3.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -770,7 +770,7 @@ No relevance cutoff is applied; future cutoffs require calibration and freeze fo
 exact effective mode/profile. Focused and full-suite verification is recorded in the
 [agent handoff](phase-2-agent-handoff.md) and
 [search result semantics policy](../reference/phase-2-search-result-semantics.md).
-P2-11 is complete; continue with P2-12.2.
+P2-11 is complete; P2-12.2 is recorded below, and P2-12.3 is next.
 
 **12.1 complete; assistant-reviewed 2026-09-27:** the ten-family calibration and
 its measured review workload are recorded in
@@ -782,7 +782,7 @@ evidence items and 80 unique papers per family, and a 12-hour review budget. Rev
 effort is remeasured after five newly pooled development families. The ten-family
 test supports directional conclusions only. See the
 [benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) and its
-TOML manifest. Continue with P2-12.2.
+TOML manifest. At the P2-12.1 freeze, continue with P2-12.2.
 
 ## P2-12 — Construct the larger benchmark
 
@@ -808,6 +808,20 @@ TOML manifest. Continue with P2-12.2.
 
 **Done:** immutable initial benchmark version, split/family checks, review coverage,
 source mappings and sanitized dataset card. No unresolved label is disguised as gold.
+
+**12.2 complete; assistant-reviewed 2026-09-27:** the q11–q20 development pools
+combine seven pinned retrieval profiles with an independent source-found channel.
+Each profile contributed up to 50 evidence and 20 evidence-derived paper
+candidates; three lexical metadata streams contributed up to 20 papers each.
+Blinded unique pools contain 1,216 evidence candidates and 341 papers across ten
+families. No family reached the 200-evidence or 80-paper cap. Per-family depths,
+profile IDs, truncation, source-scan coverage, exclusions and bias notes are in the
+private pool manifest and origin maps under
+`local-reference/phase2-runs/benchmark-v1/review-pools-v1/`. Source review is
+underway: q11 has one paper and two evidence anchors judged. q12 has one paper and
+three prose evidence candidates judged; its table row groups await visual review.
+All other q11 candidates, 15 q12 papers, 103 q12 evidence candidates, and q13–q20
+remain unjudged. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 

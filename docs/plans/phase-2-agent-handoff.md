@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-11 and P2-12.1 complete; continue with P2-12.2.
+Updated: 2026-09-27. Plan approved; P2-01–P2-11 and P2-12.1–P2-12.2 complete; continue with P2-12.3.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-12.2**.
+   whose prerequisites are satisfied. Continue at **P2-12.3**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -521,8 +521,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-12.2. Create the new family questions and prepare their pooled
-candidate sets under the frozen sampling plan.
+**Next step:** P2-12.3. Review the blinded q11–q20 source and candidate pools under
+the calibrated labels; leave unresolved candidates explicitly unjudged.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.
@@ -551,5 +551,31 @@ TOML parsed successfully and its category taxonomy/counts match the calibration
 manifest; development shortfalls are discovery 4, cross-paper comparison 4, filters
 3, and missing evidence 4. The tracked manifest and review rules are in
 `benchmarks/phase2/benchmark-sampling-plan-v1.toml` and
-`docs/reference/phase-2-benchmark-sampling-plan.md`. The plan is frozen; family
-creation, pooling and source judgments remain open. Continue with P2-12.2.
+`docs/reference/phase-2-benchmark-sampling-plan.md`. At the P2-12.1 freeze, family
+creation, pooling and source judgments remained open; subsequent progress is
+recorded below.
+
+**P2-12.2 complete; assistant-reviewed 2026-09-27:** q11–q20 questions and split
+assignments were frozen before retrieval pooling. Canonical v2 pools bind accepted
+snapshot `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` and chunk selection
+`sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18`.
+Seven profiles each contributed up to 50 evidence and 20 evidence-derived paper
+candidates; the three lexical paper-metadata streams contributed up to 20 each,
+with both rerankers reusing hybrid-E5 metadata. The merged blinded pools contain
+1,216 evidence candidates and 341 paper candidates across ten families. No family
+reached its 200-evidence or 80-paper cap, so no candidates were excluded by those
+caps. Per-profile counts, eligible/returned depth, stage truncation, profile IDs,
+source-scan terms/counts, candidate origins and bias notes are in the private
+`local-reference/phase2-runs/benchmark-v1/review-pools-v1/pool-manifest.json` and
+separate origin maps; review cards omit profile/rank/score. q15 and q19 scans each
+covered all 44,277 selected chunks; q20 screened 21,061 chunks across its 39
+year-eligible papers. The filter-ready E5 runs use the isolated
+`phase2-e5-small-v2-filtered` collection and configuration
+`sha256:21cb8e4df7f24affb524a84a788f275fa54b08076d519afb1ecf5961ac88ee02` on the
+disposable database clone. The accepted database and retained E5 collection were
+not modified. Source review has begun. q11 has one paper and two evidence
+anchors judged; 44 paper and 121 evidence candidates remain unjudged. q12 has one
+paper and three prose evidence candidates judged; its table row groups await visual
+review, with 15 papers and 103 evidence candidates still unjudged. q13–q20 remain
+unjudged. See the tracked question/split manifests and
+`docs/reference/phase-2-pooling-procedure.md`. Continue with P2-12.3.

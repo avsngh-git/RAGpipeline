@@ -1,0 +1,69 @@
+schema_version = 1
+dataset_id = "phase2-benchmark-v1"
+split_manifest_id = "phase2-benchmark-family-splits-v1"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+question_status = "assistant_source_review_candidate"
+calibration_family_ids = [
+  "q01", "q02", "q03", "q04", "q05",
+  "q06", "q07", "q08", "q09", "q10",
+]
+
+[[families]]
+id = "q11"
+categories = ["discovery", "specific_evidence"]
+filters = {}
+queries = [{ id = "q11-v1", role = "canonical", text = "When given sufficient resources, which approach yields higher average question-answering performance in the reported comparison of retrieval-augmented generation and direct long-context processing, and what cost trade-off do the authors report?" }]
+
+[[families]]
+id = "q12"
+categories = ["specific_evidence", "table_result"]
+filters = { year_from = 2025 }
+queries = [{ id = "q12-v1", role = "canonical", text = "For the summary-guided document segmentation method compared with conventional chunking, which retrieval and end-to-end question-answering metrics were measured on the evaluated datasets, and did the reported gains move in the same direction?" }]
+
+[[families]]
+id = "q13"
+categories = ["cross_paper_comparison", "specific_evidence"]
+filters = {}
+queries = [{ id = "q13-v1", role = "canonical", text = "How do LongRAG and PDFTriage differ in selecting context from long documents, and what benchmark datasets or document types does each use for evaluation?" }]
+
+[[families]]
+id = "q14"
+categories = ["filters", "discovery"]
+filters = { year_from = 2025 }
+queries = [{ id = "q14-v1", role = "canonical", text = "Among the 2025 works, which benchmark evaluates retrieval-augmented code generation across programming, open-domain, and repository-level tasks, and what sources populate its retrieval collection?" }]
+
+[[families]]
+id = "q15"
+categories = ["missing_evidence"]
+filters = {}
+queries = [{ id = "q15-v1", role = "canonical", text = "Does any work in this snapshot evaluate expanding research-paper evidence search by traversing verified citation links between scholarly works? Distinguish bibliographic citation edges from entity or relation graphs built within documents." }]
+
+[[families]]
+id = "q16"
+categories = ["filters", "discovery", "specific_evidence"]
+filters = { year_from = 2025 }
+queries = [{ id = "q16-v1", role = "canonical", text = "For the 2025 scenario-specific RAG evaluation framework, what steps generate its evaluation material and which response-quality dimensions are scored?" }]
+
+[[families]]
+id = "q17"
+categories = ["cross_paper_comparison", "discovery", "table_result"]
+filters = {}
+queries = [{ id = "q17-v1", role = "canonical", text = "How do CodeRAG-Bench's task families and retrieval sources compare with BERGEN's benchmark coverage, and which RAG system components can each framework evaluate?" }]
+
+[[families]]
+id = "q18"
+categories = ["missing_evidence", "cross_paper_comparison"]
+filters = {}
+queries = [{ id = "q18-v1", role = "canonical", text = "Do any RAG benchmarking works in this snapshot store judgments anchored to exact supporting spans in research PDFs? Compare their evidence units and scoring targets, including whether they assess retrieved passages or generated answers?" }]
+
+[[families]]
+id = "q19"
+categories = ["missing_evidence"]
+filters = {}
+queries = [{ id = "q19-v1", role = "canonical", text = "Does any accepted study report measured energy or carbon consumption per retrieval-augmented query for local inference, rather than runtime, token use, or monetary cost alone?" }]
+
+[[families]]
+id = "q20"
+categories = ["filters", "cross_paper_comparison", "missing_evidence"]
+filters = { year_from = 2024, year_to = 2025 }
+queries = [{ id = "q20-v1", role = "canonical", text = "Among the 2024–2025 legal retrieval studies in this snapshot, what evaluation evidence do the authors report, and does any study observe practicing lawyers using the system on live matters?" }]
