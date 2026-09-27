@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -18,6 +19,9 @@ from research_platform.search.contracts import (
     SearchOperation,
     SearchRequest,
     SearchResponse,
+    TableCellEvidence,
+    TableEvidenceContext,
+    TableRowEvidence,
 )
 
 _SHA256_PATTERN = r"^sha256:[0-9a-f]{64}$"
@@ -171,6 +175,49 @@ class SourceLocationModel(_StrictModel):
         return self
 
 
+class TableCellEvidenceModel(_StrictModel):
+    row_index: int = Field(strict=True, ge=0)
+    column_index: int = Field(strict=True, ge=0)
+    value: str
+    value_scope: Literal["cell", "segment"]
+    row_header_references: tuple[tuple[int, int], ...] = ()
+    column_header_references: tuple[tuple[int, int], ...] = ()
+    row_headers: tuple[str, ...] = ()
+    column_headers: tuple[str, ...] = ()
+    token_start: int | None = Field(default=None, strict=True, ge=0)
+    token_end_exclusive: int | None = Field(default=None, strict=True, ge=1)
+    merged_range: tuple[int, int, int, int] | None = None
+
+    @classmethod
+    def from_contract(cls, cell: TableCellEvidence) -> TableCellEvidenceModel:
+        return cls.model_validate(cell, from_attributes=True)
+
+
+class TableRowEvidenceModel(_StrictModel):
+    row_index: int = Field(strict=True, ge=0)
+    cells: tuple[TableCellEvidenceModel, ...]
+
+    @classmethod
+    def from_contract(cls, row: TableRowEvidence) -> TableRowEvidenceModel:
+        return cls.model_validate(row, from_attributes=True)
+
+
+class TableEvidenceContextModel(_StrictModel):
+    table_ordinal: int = Field(strict=True, ge=0)
+    header_row_count: int = Field(strict=True, ge=0)
+    caption: str | None
+    units: str | None
+    footnotes: tuple[str, ...]
+    header_rows: tuple[TableRowEvidenceModel, ...]
+    selected_rows: tuple[TableRowEvidenceModel, ...]
+    selected_cells: tuple[TableCellEvidenceModel, ...]
+    source_evidence_ids: tuple[str, ...]
+
+    @classmethod
+    def from_contract(cls, context: TableEvidenceContext) -> TableEvidenceContextModel:
+        return cls.model_validate(context, from_attributes=True)
+
+
 class EvidenceHitModel(_StrictModel):
     chunk_id: str
     source_evidence_ids: tuple[str, ...]
@@ -185,6 +232,7 @@ class EvidenceHitModel(_StrictModel):
     rank: int = Field(strict=True, ge=1)
     component_scores: ComponentScoresModel
     text: str
+    table_context: TableEvidenceContextModel | None = None
 
     @classmethod
     def from_contract(cls, hit: EvidenceHit) -> EvidenceHitModel:

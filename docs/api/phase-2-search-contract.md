@@ -100,6 +100,12 @@ the chunk ID, source evidence IDs, paper ID, document ID and version, version ki
 extraction ID, optional chunking configuration ID, evidence kind, source location,
 rank, component scores, and text when private inspection is allowed.
 
+A table evidence hit may include structured selected rows or oversized-cell
+segments with caption, units, footnotes, header associations and source evidence IDs.
+Its `text` field remains the bounded indexed chunk rendering; structured context
+does not replace or clip it. See the
+[table evidence context policy](../reference/phase-2-table-evidence-context.md).
+
 Each response includes `request_id`, resolved `snapshot_id`, retrieval profile and
 effective configuration identities, requested and effective modes, warnings,
 `truncated`, `omitted_count`, and ranked hits. Component scores are raw method

@@ -416,5 +416,6 @@ def _same_source_payload(first: EvidenceHit, second: EvidenceHit) -> bool:
             "kind",
             "source_location",
             "text",
+            "table_context",
         )
     )

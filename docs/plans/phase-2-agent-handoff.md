@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1–P2-11.2 complete; continue with P2-11.3.
+Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1–P2-11.3 complete; continue with P2-11.4.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-11.3**.
+   whose prerequisites are satisfied. Continue at **P2-11.4**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -484,6 +484,19 @@ focused selection/profile/grouping tests pass. The offline suite reports 377 pas
 files), and `git diff --check` passes. The default remains provisional pending P2-14.
 Continue with P2-11.3.
 
+**P2-11.3 complete; assistant-reviewed 2026-09-27:** table hits can be enriched
+with structured context in `search/table_context.py`, resolved through exact source
+unit IDs and the selected extraction/table. Row groups carry complete selected rows
+and header matrices; oversized-cell hits carry only their exact value segment and
+referenced headers. Both preserve caption, units, footnotes, cell coordinates,
+merged ranges, and source evidence IDs. `EvidenceHit.text` remains unchanged as the
+bounded indexed-chunk rendering. The typed HTTP evidence model exposes the optional
+context; unresolved or inconsistent provenance fails closed. Eight focused table
+context tests pass. The offline suite reports 385 passed / 21 deselected; Ruff check
+and format pass (171 files), strict mypy passes (73 source files), and
+`git diff --check` passes. See
+`docs/reference/phase-2-table-evidence-context.md`. Continue with P2-11.4.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -495,7 +508,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-11.3. Preserve table context in selected evidence.
+**Next step:** P2-11.4. Enforce result and context budgets without cutting evidence.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.

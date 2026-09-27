@@ -6,7 +6,7 @@ import math
 import re
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 from uuid import UUID
 
 from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
@@ -280,6 +280,197 @@ class ComponentScores:
     reranker: RankedComponent | None = None
 
 
+TableCoordinate = tuple[int, int]
+
+
+@dataclass(frozen=True)
+class TableCellEvidence:
+    """One selected or header cell with resolved labels and exact source coordinates."""
+
+    row_index: int
+    column_index: int
+    value: str
+    value_scope: Literal["cell", "segment"]
+    row_header_references: tuple[TableCoordinate, ...] = ()
+    column_header_references: tuple[TableCoordinate, ...] = ()
+    row_headers: tuple[str, ...] = ()
+    column_headers: tuple[str, ...] = ()
+    token_start: int | None = None
+    token_end_exclusive: int | None = None
+    merged_range: tuple[int, int, int, int] | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("row_index", "column_index"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+        if not isinstance(self.value, str):
+            raise ValueError("table cell value must be a string")
+        if self.value_scope not in {"cell", "segment"}:
+            raise ValueError("table cell value_scope must be cell or segment")
+        _validate_table_references(self.row_header_references, "row_header_references")
+        _validate_table_references(
+            self.column_header_references, "column_header_references"
+        )
+        for name in ("row_headers", "column_headers"):
+            values = getattr(self, name)
+            if not isinstance(values, tuple) or any(
+                not isinstance(value, str) for value in values
+            ):
+                raise ValueError(f"{name} must contain strings")
+        if self.value_scope == "cell":
+            if self.token_start is not None or self.token_end_exclusive is not None:
+                raise ValueError("full-cell values must not include a token range")
+        elif (
+            isinstance(self.token_start, bool)
+            or not isinstance(self.token_start, int)
+            or self.token_start < 0
+            or isinstance(self.token_end_exclusive, bool)
+            or not isinstance(self.token_end_exclusive, int)
+            or self.token_end_exclusive <= self.token_start
+        ):
+            raise ValueError("cell segments require a valid half-open token range")
+        if self.merged_range is not None:
+            if (
+                not isinstance(self.merged_range, tuple)
+                or len(self.merged_range) != 4
+                or any(
+                    isinstance(value, bool) or not isinstance(value, int)
+                    for value in self.merged_range
+                )
+            ):
+                raise ValueError("merged_range must contain four integer coordinates")
+            row_start, column_start, row_end, column_end = self.merged_range
+            if (
+                row_start < 0
+                or column_start < 0
+                or row_end < self.row_index
+                or column_end < self.column_index
+                or not row_start <= self.row_index <= row_end
+                or not column_start <= self.column_index <= column_end
+            ):
+                raise ValueError("merged_range must contain the cell coordinates")
+
+
+@dataclass(frozen=True)
+class TableRowEvidence:
+    """A table row represented by explicit source cells without fabricated blanks."""
+
+    row_index: int
+    cells: tuple[TableCellEvidence, ...]
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.row_index, bool)
+            or not isinstance(self.row_index, int)
+            or self.row_index < 0
+        ):
+            raise ValueError("row_index must be a non-negative integer")
+        if not isinstance(self.cells, tuple) or any(
+            not isinstance(cell, TableCellEvidence) for cell in self.cells
+        ):
+            raise ValueError("cells must contain TableCellEvidence values")
+        if any(
+            cell.row_index != self.row_index or cell.value_scope != "cell"
+            for cell in self.cells
+        ):
+            raise ValueError("table row cells must be full cells in their source row")
+        columns = tuple(cell.column_index for cell in self.cells)
+        if len(set(columns)) != len(columns):
+            raise ValueError("table row must not repeat cell columns")
+
+
+@dataclass(frozen=True)
+class TableEvidenceContext:
+    """Structured table headers and selected body cells for one evidence hit."""
+
+    table_ordinal: int
+    header_row_count: int
+    caption: str | None
+    units: str | None
+    footnotes: tuple[str, ...]
+    header_rows: tuple[TableRowEvidence, ...]
+    selected_rows: tuple[TableRowEvidence, ...]
+    selected_cells: tuple[TableCellEvidence, ...]
+    source_evidence_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.table_ordinal, bool)
+            or not isinstance(self.table_ordinal, int)
+            or self.table_ordinal < 0
+        ):
+            raise ValueError("table_ordinal must be a non-negative integer")
+        if (
+            isinstance(self.header_row_count, bool)
+            or not isinstance(self.header_row_count, int)
+            or self.header_row_count < 0
+        ):
+            raise ValueError("header_row_count must be a non-negative integer")
+        for name in ("caption", "units"):
+            value = getattr(self, name)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"{name} must be a string or null")
+        if not isinstance(self.footnotes, tuple) or any(
+            not isinstance(note, str) for note in self.footnotes
+        ):
+            raise ValueError("footnotes must contain strings")
+        for name in ("header_rows", "selected_rows"):
+            rows = getattr(self, name)
+            if not isinstance(rows, tuple) or any(
+                not isinstance(row, TableRowEvidence) for row in rows
+            ):
+                raise ValueError(f"{name} must contain TableRowEvidence values")
+            indices = tuple(row.row_index for row in rows)
+            if tuple(sorted(set(indices))) != indices:
+                raise ValueError(f"{name} must have unique rows in source order")
+        header_indices = tuple(row.row_index for row in self.header_rows)
+        if tuple(sorted(set(header_indices))) != header_indices or any(
+            row_index >= self.header_row_count for row_index in header_indices
+        ):
+            raise ValueError("header rows must be unique rows within the table header")
+        header_index_set = set(header_indices)
+        if any(
+            row.row_index in header_index_set or row.row_index < self.header_row_count
+            for row in self.selected_rows
+        ):
+            raise ValueError("selected body rows cannot repeat header rows")
+        if any(cell.row_index < self.header_row_count for cell in self.selected_cells):
+            raise ValueError("selected cell segments cannot refer to header rows")
+        if not isinstance(self.selected_cells, tuple) or any(
+            not isinstance(cell, TableCellEvidence) or cell.value_scope != "segment"
+            for cell in self.selected_cells
+        ):
+            raise ValueError("selected_cells must contain segmented table cells")
+        if not self.selected_rows and not self.selected_cells:
+            raise ValueError("table context must contain selected body rows or cells")
+        if (
+            not isinstance(self.source_evidence_ids, tuple)
+            or not self.source_evidence_ids
+        ):
+            raise ValueError("source_evidence_ids must be a non-empty tuple")
+        if any(
+            not isinstance(item, str) or not item.strip()
+            for item in self.source_evidence_ids
+        ):
+            raise ValueError("source_evidence_ids must contain non-empty IDs")
+
+
+def _validate_table_references(
+    references: tuple[TableCoordinate, ...], name: str
+) -> None:
+    if not isinstance(references, tuple) or any(
+        not isinstance(reference, tuple)
+        or len(reference) != 2
+        or any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in reference
+        )
+        for reference in references
+    ):
+        raise ValueError(f"{name} must contain non-negative table coordinates")
+
+
 @dataclass(frozen=True)
 class EvidenceHit:
     """A ranked chunk with its immutable source and chunk-version provenance."""
@@ -297,6 +488,7 @@ class EvidenceHit:
     rank: int
     component_scores: ComponentScores
     text: str
+    table_context: TableEvidenceContext | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.chunk_id, str) or not self.chunk_id.strip():
@@ -337,6 +529,13 @@ class EvidenceHit:
             raise ValueError("component_scores must be ComponentScores")
         if not isinstance(self.text, str):
             raise ValueError("text must be a string")
+        if self.table_context is not None:
+            if not isinstance(self.table_context, TableEvidenceContext):
+                raise ValueError("table_context must be TableEvidenceContext or null")
+            if self.kind not in {"table", "table_row_group"}:
+                raise ValueError("only table hits may carry table_context")
+            if self.table_context.source_evidence_ids != self.source_evidence_ids:
+                raise ValueError("table context source IDs must match the evidence hit")
 
 
 @dataclass(frozen=True)

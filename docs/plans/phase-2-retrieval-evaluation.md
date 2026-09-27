@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-10 and P2-11.1–P2-11.2 are complete. Continue with P2-11.3.
+P2-01–P2-10 and P2-11.1–P2-11.3 are complete. Continue with P2-11.4.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -733,6 +733,18 @@ deselected; Ruff check and format pass (168 files), strict mypy passes (72 sourc
 files), and `git diff --check` passes. Quality/diversity tradeoffs remain for P2-14.
 See the [per-paper evidence selection policy](../reference/phase-2-evidence-selection.md).
 Continue with table context preservation in 11.3.
+
+**11.3 complete; assistant-reviewed 2026-09-27:** `table_context.py` enriches table
+hits with typed header rows, selected body rows or exact oversized-cell segments,
+caption, units, footnotes, merged-cell ranges, header references and source IDs.
+Row-group text remains unchanged and cell-segment values are not clipped. Oversized
+cells return only required header cells; unresolved source/table mappings fail closed.
+The optional context is included in the typed EvidenceHit API schema. Eight focused
+table-context cases pass. The offline suite reports 385 passed / 21 deselected; Ruff
+check and format pass (171 files), strict mypy passes (73 source files), and
+`git diff --check` passes. See the
+[table evidence context policy](../reference/phase-2-table-evidence-context.md).
+Continue with total result and context budgets in 11.4.
 
 ## P2-12 — Construct the larger benchmark
 
