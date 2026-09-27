@@ -582,7 +582,11 @@ and 103 q13 evidence candidates remain unjudged, and its two LongRAG table leads
 remain unjudged. q14 has one paper and eight prose evidence candidates source-checked;
 15 papers and 99 evidence candidates remain unjudged. Its CodeRAG-Bench answer is
 supported by the official ACL PDF and matching accepted artifact checksum; table-row
-candidates remain unjudged pending visual review. q15–q20 remain unjudged. The q13
-review records a PDFTriage document-count inconsistency in its accepted paper. See the
-tracked question/split manifests and `docs/reference/phase-2-pooling-procedure.md`.
-Continue with P2-12.3.
+candidates remain unjudged pending visual review. q15 has four near-match papers and
+four evidence cards source-checked; the full-corpus scan matched one MTEB passage about
+SPECTER training on citation graphs, not citation-edge traversal for RAG. Its accepted
+snapshot-bounded audit found no direct supporting work; 44 papers and 137 evidence
+candidates remain unjudged. q16–q20 remain unjudged. The q13 review records a
+PDFTriage document-count inconsistency in its accepted paper. See the tracked
+question/split manifests and `docs/reference/phase-2-pooling-procedure.md`. Continue
+with P2-12.3.

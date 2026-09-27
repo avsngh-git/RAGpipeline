@@ -825,7 +825,11 @@ unjudged. q13 has two papers and six pooled evidence candidates source-reviewed;
 seventh source anchor has no current pooled candidate mapping, and 40 papers / 103
 evidence candidates remain unjudged. Its two LongRAG table leads remain unjudged. q14
 has one paper and eight prose evidence candidates source-checked, with 15 papers and
-99 evidence candidates unjudged; its table-row candidates await visual review. q15–q20
+99 evidence candidates unjudged; its table-row candidates await visual review. q15
+has four near-match papers and four evidence cards source-checked; the full-corpus scan
+matched one MTEB passage about SPECTER training on citation graphs, not citation-edge
+traversal for RAG. No direct supporting work was found within the snapshot under this
+review procedure; 44 papers and 137 evidence candidates remain unjudged. q16–q20
 remain unjudged. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
