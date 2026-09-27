@@ -836,8 +836,14 @@ prose evidence cards source-checked; 35 papers and 110 evidence candidates remai
 unjudged. The comparison records CodeRAG-Bench's four coding-task categories, five
 retrieval-source types, and retrieval, generation, and end-to-end evaluation, alongside
 BERGEN's QA-centered coverage and configurable retrieval, reranking, generation, and
-training pipeline. Both accepted PDF checksums match their snapshot records. q18–q20
-remain unjudged. Continue with 12.3.
+training pipeline. Both accepted PDF checksums match their snapshot records. q18 has two papers and four
+pooled prose evidence cards source-checked, plus a source-only legal text-offset anchor;
+40 papers and 140 evidence candidates remain unjudged. QASPER is the closest research-
+paper case, with paragraph/figure/table evidence units and separate answer/evidence
+scores; the chunking study evaluates evidence-sentence retrieval and generated answers.
+LegalBench-RAG stores exact character offsets in legal text and evaluates retrieval, not
+answer generation. No exact character or PDF-coordinate judgments for research PDFs were
+found among the reviewed candidates. q19–q20 remain unjudged. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 

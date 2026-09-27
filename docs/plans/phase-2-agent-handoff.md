@@ -594,7 +594,14 @@ variations in the paper. q17 has two papers and six prose evidence cards source-
 CodeRAG-Bench's four coding-task categories, five retrieval-source types, and retrieval,
 generation, and end-to-end evaluation, alongside BERGEN's QA-centered coverage and
 configurable retrieval, reranking, generation, and training pipeline. The accepted PDF
-checksums match the snapshot records. q18–q20 remain unjudged. The q13 review records a
+checksums match the snapshot records. q18 has two papers and four pooled prose evidence
+cards source-checked, plus a source-only legal text-offset anchor; 40 papers and 140
+evidence candidates remain unjudged. QASPER is the closest research-paper case, with
+paragraph/figure/table evidence units and separate answer/evidence scores; the chunking
+study evaluates evidence-sentence retrieval and generated answers. LegalBench-RAG stores
+exact character offsets in legal text and evaluates retrieval, not answer generation. No
+exact character or PDF-coordinate judgments for research PDFs were found among the reviewed
+candidates. q19–q20 remain unjudged. The q13 review records a
 PDFTriage document-count inconsistency in its accepted paper. See the tracked
 question/split manifests and `docs/reference/phase-2-pooling-procedure.md`. Continue
 with P2-12.3.
