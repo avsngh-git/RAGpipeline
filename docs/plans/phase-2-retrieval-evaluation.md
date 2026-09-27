@@ -849,8 +849,23 @@ cards. Forty-seven papers and 138 evidence candidates remain unjudged. Its froze
 covered all 100 papers / 44,277 selected chunks, matching five chunks in three papers and
 zero title or abstract records. The matches concern upstream LaMDA pretraining,
 unquantified PromptReps document encoding, or a review’s future recommendations; no
-measured local RAG energy per query was found under the recorded scan and review. q20
-remains unjudged. Continue with 12.3.
+measured local RAG energy per query was found under the recorded scan and review.
+
+q20 has five papers and 20 evidence cards source-checked; all eight independent
+scan leads were reviewed and mapped to pooled cards. Its year-filtered scan covered
+21,061 chunks across 39 papers and matched 11 chunks in five papers, with one
+title/abstract match. LegalBench-RAG and the 2025 Summary-Augmented Chunking study
+report retrieval benchmark evidence; the latter explicitly leaves end-to-end
+evaluation to future work. Legal experts contribute annotations, prompt design, or
+qualitative interpretation. No reviewed study reports practicing lawyers using a
+system on live client matters. An in-snapshot systematic review's “practicing
+attorneys” row describes intended benchmark use; its cited 2024 primary study uses
+author-constructed queries and researcher assessment. LegalBench-RAG's abstract
+says 6,858 query-answer pairs while §3.3.1 says 6,889. The systematic-review table
+was text-extracted but not visually verified because this WSL environment has no
+PDF renderer. q20 remains partial: 25 paper and 104 evidence candidates are
+unjudged, its lexical scan is bounded, and its review is marked partially
+unblinded after accidental origin-map output exposure; no labels used rank or score. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 
