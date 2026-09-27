@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-10 complete; continue with P2-11.1.
+Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1 complete; continue with P2-11.2.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-11.1**.
+   whose prerequisites are satisfied. Continue at **P2-11.2**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -459,6 +459,19 @@ path; full Ruff and format pass (162 files), strict mypy passes (70 source files
 `git diff --check` passes. Retrieval quality remains unmeasured and model selection
 remains OPEN.
 
+**P2-11.1 complete; assistant-reviewed 2026-09-27:** conservative evidence
+deduplication is implemented in `src/research_platform/search/evidence_deduplication.py`.
+Exact chunk repeats require a consistent source payload; source-overlap removal
+requires complete resolved coverage in the same document/extraction. Text spans,
+table body rows and oversized-cell token intervals use separate half-open coordinate
+spaces. Repeated table headers do not count as content; partial spans, unresolved IDs,
+and similar wording across papers remain. Omission records resolve to retained hits.
+The policy is in `docs/reference/phase-2-evidence-deduplication.md`; 15 focused
+synthetic tests pass, including cross-paper, containment, partial-overlap, unresolved
+lineage and table-header cases. The offline suite reports 371 passed / 21 deselected;
+Ruff check and format pass (165 files), strict mypy passes (71 source files), and
+`git diff --check` passes. Continue with P2-11.2 (configurable per-paper bounds).
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -470,8 +483,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-11.1. Deduplicate exact evidence and conservative same-document
-source overlap while preserving distinct evidence across papers. P2-09 is complete;
-run its PostgreSQL integration
-fixtures when the dedicated research_test database is configured. Keep the accepted
+**Next step:** P2-11.2. Bound per-paper evidence results with a configurable cap.
+P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
+research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.

@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-10 are complete. Continue with P2-11.1.
+P2-01–P2-10 and P2-11.1 are complete. Continue with P2-11.2.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -71,7 +71,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Complete |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Complete |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
-| P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Pending |
+| P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | In progress |
 | P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Pending |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Pending |
 | P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Pending |
@@ -709,6 +709,18 @@ result and rationale rather than silently replace it with an unapproved larger m
 
 **Done:** overlapping prose, repeated table headers, distinct cross-paper evidence,
 oversized units and budget exhaustion have deterministic, source-resolvable results.
+
+**11.1 complete; assistant-reviewed 2026-09-27:** `evidence_deduplication.py`
+removes exact chunk repeats and fully covered source intervals. Text coverage is
+scoped to extraction/section; table coverage uses body-row intervals and exact
+oversized-cell token intervals, excluding repeated headers from content coverage.
+Partial overlaps and unresolved mappings are retained. Similar text across different
+extractions or papers is not deduplicated. Omission records identify retained covering
+hits. Fifteen synthetic cases pass. The offline suite reports 371 passed / 21
+deselected; Ruff check and format pass (165 files), strict mypy passes (71 source
+files), and `git diff --check` passes. See the
+[evidence deduplication policy](../reference/phase-2-evidence-deduplication.md).
+Continue with configurable per-paper bounds in 11.2.
 
 ## P2-12 — Construct the larger benchmark
 
