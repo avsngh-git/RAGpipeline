@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-18 complete; P2-19 local checks passed / hosted CI pending; P2-20 pending.
+Status: approved 2026-09-26; P2-01–P2-19 complete; P2-20 assessment complete with failed acceptance gate; Phase 2 not accepted.
 
 ## Start and authority
 
@@ -13,8 +13,9 @@ defines judgments, metrics and experiment discipline.
 
 The user delegated implementation, benchmark preparation, calibration and source
 review to the agent. All new source judgments must identify their reviewer as
-assistant, not human. Planning approval authorizes these decisions; this document
-is a roadmap for the next implementation request, not a claim that tasks ran.
+assistant, not human. Planning approval authorized these decisions. This roadmap records both the approved
+work and its implementation evidence; task status below distinguishes completed work
+from the failed Phase 2 acceptance gate.
 
 ## Outcome
 
@@ -55,7 +56,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-18 are complete. Development comparisons and numeric acceptance limits are recorded in the [P2-14 report](../research/phase-2-development-report.md); the selected MiniLM-over-Hybrid-E5 configuration and acceptance digest are frozen. The typed private-local API, failure handling, observability and operating/rebuild runbook are implemented. Local P2-19 verification passed, including the unit/API and isolated service integration suites, migration checks, dependency audit and Docker build. Hosted CI for the final implementation commit remains pending. Keep the active v3 split sealed: 20 development and 10 held-out families; q20 is excluded from tuning after partial unblinding and q21 after held-out rank/score exposure. Do not read held-out inputs, labels or any `*origins.json` until P2-19 hosted CI passes. P2-20 remains pending.
+P2-01–P2-19 are complete. Development comparisons and numeric acceptance limits are recorded in the [P2-14 report](../research/phase-2-development-report.md); the MiniLM-over-Hybrid-E5 profile remains the frozen comparison candidate, not a quality-accepted final default. The typed private-local API, failure handling, observability and operating/rebuild runbook are implemented. Local verification passed and hosted P2-19 CI passed on the sanitized implementation branch. The v3 split contains 20 development and 10 held-out families; q20 is excluded from tuning after partial unblinding and q21 after held-out rank/score exposure. P2-20 has now run after CI passed. Four frozen gates failed; see the [acceptance report](../reference/phase-2-acceptance-report.md). Do not tune on v3 or reuse it as an unseen test. Do not read any `*origins.json` file.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -79,8 +80,8 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Complete |
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
-| P2-19 | Full verification and hosted CI | P2-18 | Local pass; hosted CI pending |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Pending (held-out gate) |
+| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized revision |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Assessment complete; gate failed; Phase 2 not accepted |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -1199,10 +1200,15 @@ Docker image builds with a 47.45 KB context containing only selected runtime
 manifests. The rebuilt image imports BM25S/NumPy, exposes the CLI, and passes
 `pip check`. A missing NumPy runtime dependency was found by the image smoke check,
 then added as pinned NumPy 2.5.3 with its BLAS libraries in the Conda specification
-and exact lock. `git diff --check` passes. Hosted CI is still required for the final
-published revision; no push was made. Therefore P2-19 is not complete and P2-20
-remains sealed. Do not inspect held-out questions, labels, scores or any
-`*origins.json` before hosted CI succeeds.
+and exact lock. `git diff --check` passes. Hosted CI passed on sanitized revision
+`b1c12320c223518dca926f4de128d25a4c6ff4eb`
+([run 36344475763](https://github.com/avsngh-git/RAGpipeline/actions/runs/36344475763));
+P2-19 is complete. P2-20 ran against the frozen v3 assessment and failed paper
+nDCG@10, evidence nDCG@10, reranker fallback fraction, and warm p95. The completed
+aggregate report is [phase-2-acceptance-report.md](../reference/phase-2-acceptance-report.md).
+P2-20's Done condition requires the held-out gate to pass, so Phase 2 is not accepted.
+Do not tune on v3 or reuse it as an unseen test. Any renewed selection requires
+development-only changes and a fresh held-out set frozen before assessment.
 
 ## Shared verification commands
 
@@ -1262,3 +1268,13 @@ q22–q31 held-out cards (1,581 evidence, 245 paper candidates) have resolved la
 The q11–q20 source notes contain 83 anchors: 77 map to review candidates and six
 are retained as source-only/out-of-scope anchors. All 21 active held-out anchors map
 to review candidates, with 34 anchor-to-candidate links. The [dataset card](../reference/phase-2-benchmark-dataset-card.md), [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md), and [held-out source audit](../research/phase-2-heldout-question-source-audit.md) record counts, hashes, modality coverage and limits. q20 remains partially unblinded and is excluded from tuning; q21 is excluded after held-out rank/score exposure. No held-out scores have informed configuration choices. All `*origins.json` files remain outside the review path.
+
+
+## P2-20 outcome — 2026-09-27
+
+The v3 held-out assessment and required aggregate report are complete. The frozen gate
+failed four thresholds; therefore P2-20 is not marked complete and Phase 2 is not
+accepted. See the [acceptance report](../reference/phase-2-acceptance-report.md) for
+profile comparisons, paired uncertainty, source-map policy, operations, failures and
+resource measurements. The v3 results are disclosed and must not guide tuning or be
+claimed as an unseen test.
