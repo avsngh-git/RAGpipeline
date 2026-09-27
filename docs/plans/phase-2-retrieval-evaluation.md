@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-11 and P2-12.1–P2-12.2 complete; P2-12 and P2-13 in progress.
+Status: approved 2026-09-26; P2-01–P2-12 complete; P2-13 in progress; P2-14–P2-20 pending.
 
 ## Start and authority
 
@@ -55,8 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-11 and P2-12.1–P2-12.2 are complete. P2-13 implementation is in
-progress; return to P2-12.3 source review before its paired development evaluation.
+P2-01–P2-12 are complete. The active v3 split has 20 development families and 10 held-out families; all q11–q20 and q22–q31 candidate cards are source-reviewed and labeled. q20 is excluded from tuning after partial unblinding; q21 is excluded after held-out rank/score exposure. The split, label totals, category floors, and source mappings are recorded in the [dataset card](../reference/phase-2-benchmark-dataset-card.md) and [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md). P2-13's fixed-window implementation and isolated indexes are complete; source-span fairness and paired development evaluation remain open.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -73,7 +72,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Complete |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Complete |
-| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | In progress |
+| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Complete |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | In progress |
 | P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Pending |
 | P2-15 | Default selection and experiment freeze | P2-14 | Pending |
@@ -875,6 +874,28 @@ PDF renderer. q20 remains partial: 25 paper and 104 evidence candidates are
 unjudged, its lexical scan is bounded, and its review is marked partially
 unblinded after accidental origin-map output exposure; no labels used rank or score. Continue with 12.3.
 
+**Historical P2-12.3 held-out source checkpoint at initial review; assistant-reviewed 2026-09-27 (superseded by the completion record below):** q21–q30
+canonical query text and source anchors are frozen before pooling. The family split
+manifest binds the held-out query SHA-256 together with the development query hash.
+Held-out coverage meets all six category floors, with three numeric-table, three
+direct-positive-prose, and four negative/mixed families. The sanitized source audit
+is [phase-2-heldout-question-source-audit.md](../research/phase-2-heldout-question-source-audit.md);
+private source and scan records are under
+`local-reference/phase2-runs/benchmark-v1/`. A text-layer scan verified all 100
+accepted PDFs and 1,705 pages, with no textless PDFs. q25 matched one paper/two pages,
+q26 seven papers/24 pages, and q27 16 papers/64 pages for their recorded screening
+terms. The sources and limits are recorded in the audit. Historical blinded q21–q30 v1 cards contain 1,601 evidence and 245 paper candidates;
+q21 is excluded after its private ranks and scores were accidentally exposed by a broad
+filename glob during card sampling. Uncontaminated q22–q30 v1 cards contain 1,440
+evidence and 223 paper candidates. The v2 split binds q22–q30 plus source-checked q31,
+frozen before replacement retrieval. Its source map contains 18 anchors and 36
+accepted/fixed-window chunk links. Fresh v2 retrieval and reviewer cards remain pending.
+Relevance judgments and coverage resolution remain open; no held-out scores have been
+used for configuration choices.
+q11–q20 candidate review remains partial, so P2-12 is in progress. q20 remains
+disclosed as partially unblinded; all `*origins.json` files remain excluded from
+review.
+
 **P2-13 implementation checkpoint, assistant-reviewed 2026-09-27:** the
 versioned fixed-window prose strategy is implemented in the existing ingestion
 processor. Its tracked baseline uses 480 E5-small-v2 tokens with 64-token overlap,
@@ -897,10 +918,21 @@ migration 015. The fixture now uses `SnapshotRepository.add_member`; all 19 live
 integration tests pass. Current offline verification reports Ruff and formatting
 clean, mypy clean across 74 source files, and 403 tests passed / 21 integration tests
 deselected. The local `sci_research_agent` environment still lacks BM25S; checks used
-the already hash-verified 0.3.11 package staged under `/tmp`. Paired development
-evaluation and real-variant storage/index measurement remain open, so P2-13 is not
-complete. Details are in
-[fixed-window chunking](../reference/phase-2-fixed-window-chunking.md).
+the already hash-verified 0.3.11 package staged under `/tmp`. Paired development evaluation and the chunk-to-source fairness check remain open,
+so P2-13 is not complete. Real-variant index measurement is recorded below. Details
+are in [fixed-window chunking](../reference/phase-2-fixed-window-chunking.md).
+
+**P2-13.4 variant build and resource measurement; assistant-reviewed 2026-09-27:**
+The isolated 100-paper variant `c3447473-a9f7-4d8c-93c0-e45ebcab763f` reuses the
+accepted snapshot's member/extraction rows and exact 5,068 selected table/figure
+chunk IDs. It selects 3,427 fixed-window prose chunks (8,495 chunks total). The
+E5-small-v2 dense index built in 137.2 seconds across 531 batches, with sampled peak
+VRAM 459 MiB, process RSS 1.43 GiB and Qdrant storage delta 708,175,469 bytes.
+BM25S 0.3.11 built 8,495 evidence rows and 100 paper rows in 4.27 seconds; artifact
+sizes were 17.1 MB and 67.5 KB. Private run manifests and measurements are under
+`local-reference/phase2-runs/fixed-window-20260927/`. The accepted snapshot and its
+retained indexes were unchanged. Paired development quality, source-match fairness,
+and tokenizer-budget checks remain before P2-13 completion.
 
 ## P2-13 — Add the controlled chunking baseline
 
@@ -1148,3 +1180,12 @@ Verify current APIs and pin evaluated revisions at implementation time:
 [Sentence Transformers retrieve/rerank](https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html),
 [reranking evaluation](https://www.sbert.net/docs/package_reference/cross_encoder/evaluation.html).
 These are implementation references, not evidence that a candidate wins here.
+
+**P2-12 complete; assistant-reviewed 2026-09-27:** the active v3 split binds the
+development and held-out question manifests by SHA-256 and assigns 20 development
+and 10 held-out families. All six category floors and held-out modality floors are
+met. All q11–q20 development cards (1,216 evidence, 341 paper candidates) and
+q22–q31 held-out cards (1,581 evidence, 245 paper candidates) have resolved labels.
+The q11–q20 source notes contain 83 anchors: 77 map to review candidates and six
+are retained as source-only/out-of-scope anchors. All 21 active held-out anchors map
+to review candidates, with 34 anchor-to-candidate links. The [dataset card](../reference/phase-2-benchmark-dataset-card.md), [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md), and [held-out source audit](../research/phase-2-heldout-question-source-audit.md) record counts, hashes, modality coverage and limits. q20 remains partially unblinded and is excluded from tuning; q21 is excluded after held-out rank/score exposure. No held-out scores have informed configuration choices. All `*origins.json` files remain outside the review path.

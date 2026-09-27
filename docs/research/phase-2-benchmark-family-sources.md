@@ -34,11 +34,9 @@
   measurement. The publisher page could not be fetched during this check, so detailed
   claims need direct local-PDF review.
 
-These additional checks supported question wording only. They do not assign
-relevance labels, source anchors, or unsupported status. Partial source reviews for
-q11–q20 are recorded privately under
-`local-reference/phase2-runs/benchmark-v1/source-reviews-v1/`. q12 and q14 table
-candidate mapping and visual-review limitations are recorded in the
+These additional checks initially supported question wording; the later q11–q20
+source review is recorded in private review cards and notes. q12 and q14 table
+candidate mapping and visual-review limits are recorded in the
 [q12/q14 table audit](phase-2-q12-q14-table-candidate-audit.md); q13 has a
 documented source-version count inconsistency, and q20 remains partially unblinded
 as disclosed in the handoff.
@@ -61,4 +59,4 @@ Links below point to the venue or repository record and, where listed, the paper
 
 ## Limits and follow-up
 
-Selection used accepted paper metadata and authoritative venue/repository records, not search-result rankings. This source note does not contain relevance labels or evidence groups. q11–q13 have partial source reviews; q12 table rows and q13–q20 still need source review against the exact accepted PDFs, including visual table checks where needed. The Emerging Science Journal page’s title and abstract were available in the publisher search result, but a direct page fetch failed during this check; its detailed results remain unverified and should be treated as a lead only. The legal benchmark comparison also mixes a preprint with a later peer-reviewed workshop paper, so it should test metric scope rather than imply equal publication status or independent validation.
+Selection used accepted paper metadata and authoritative venue/repository records, not search-result rankings. This source-lead note does not contain relevance labels or evidence groups. q11–q20 source review is now complete; see the [source coverage audit](phase-2-benchmark-source-coverage-audit.md) for mapped-candidate totals and source-only exceptions. The Emerging Science Journal page’s title and abstract were available in the publisher search result, but a direct page fetch failed during the initial source-lead check; its detailed results remain unverified and should be treated as a lead only. The legal benchmark comparison also mixes a preprint with a later peer-reviewed workshop paper, so it tests metric scope rather than equal publication status or independent validation.
