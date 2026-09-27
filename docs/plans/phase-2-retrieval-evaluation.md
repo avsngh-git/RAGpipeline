@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-13 complete; P2-14 in progress; P2-15–P2-20 pending.
+Status: approved 2026-09-26; P2-01–P2-18 complete; P2-19 local checks passed / hosted CI pending; P2-20 pending.
 
 ## Start and authority
 
@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-13 are complete. The active v3 split has 20 development families and 10 held-out families; all q11–q20 and q22–q31 candidate cards are source-reviewed and labeled. q20 is excluded from tuning after partial unblinding; q21 is excluded after held-out rank/score exposure. The split, label totals, category floors, and source mappings are recorded in the [dataset card](../reference/phase-2-benchmark-dataset-card.md) and [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md). P2-13's fixed-window implementation, source-span fairness checks, tokenizer checks, and paired q11–q19 development comparison are complete; see the [fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md). Continue with P2-14 development experiments and predeclared acceptance limits.
+P2-01–P2-18 are complete. Development comparisons and numeric acceptance limits are recorded in the [P2-14 report](../research/phase-2-development-report.md); the selected MiniLM-over-Hybrid-E5 configuration and acceptance digest are frozen. The typed private-local API, failure handling, observability and operating/rebuild runbook are implemented. Local P2-19 verification passed, including the unit/API and isolated service integration suites, migration checks, dependency audit and Docker build. Hosted CI for the final implementation commit remains pending. Keep the active v3 split sealed: 20 development and 10 held-out families; q20 is excluded from tuning after partial unblinding and q21 after held-out rank/score exposure. Do not read held-out inputs, labels or any `*origins.json` until P2-19 hosted CI passes. P2-20 remains pending.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -74,13 +74,13 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Complete |
 | P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Complete |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Complete |
-| P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | In progress |
-| P2-15 | Default selection and experiment freeze | P2-14 | Pending |
-| P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Pending |
-| P2-17 | Failure, fallback and observability checks | P2-16 | Pending |
-| P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Pending |
-| P2-19 | Full verification and hosted CI | P2-18 | Pending |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Pending |
+| P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Complete |
+| P2-15 | Default selection and experiment freeze | P2-14 | Complete |
+| P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Complete |
+| P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
+| P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
+| P2-19 | Full verification and hosted CI | P2-18 | Local pass; hosted CI pending |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Pending (held-out gate) |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -1166,6 +1166,43 @@ Passing tests are necessary but do not replace the held-out quality gate.
 private local API and rebuild workflow work, and a new contributor can reproduce
 small tests and understand the real-model results. External benchmark performance,
 answer synthesis and general scientific coverage are not claimed.
+
+## P2-14–P2-19 local checkpoint — 2026-09-27
+
+P2-14's development comparison and predeclared quality/runtime gates are in the
+[development report](../research/phase-2-development-report.md). P2-15 freezes
+MiniLM over Hybrid E5 with whole-pool reranked-to-hybrid fallback, five evidence
+items per paper, and no unsupported-query cutoff. The canonical serving profile is
+`sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870`; the
+acceptance configuration digest is
+`sha256:6beb525c6a5d76b2bcf28dd0c03bce527872ca462ce44dceba4ea5ce383590bb`.
+The profile was corrected to bind its isolated filter-ready Phase 2 collection, which
+is the collection used by development evaluation. Model, ranking, selection,
+thresholds, accepted corpus and held-out inputs did not change.
+
+P2-16–P2-18 are implemented and documented in
+[phase-2-search.md](../operations/phase-2-search.md). The real-model WSL smoke check
+exercised paper search, table-filtered evidence search, a zero-eligible filter,
+paper metadata, references and citations. All returned their expected successful
+responses. Five warm table-filtered requests measured 1,128.81–1,245.15 ms; the
+nearest-rank p95 was below the frozen 1,500 ms limit. The isolated dense collection
+was rebuilt and reconciled against all 44,277 selected evidence units. The accepted
+Phase 1 index was retained.
+
+Local P2-19 checks on the updated exact Linux lock: Ruff lint and formatting pass;
+strict mypy passes across 79 source files; the complete CI-equivalent unit/API/
+evaluation/PostgreSQL/Qdrant suite reports 445 passed in 8.90 seconds, including 21
+live integration tests against freshly created no-volume services. Migration rerun
+passes; `pip check` reports no broken requirements; `pip-audit --skip-editable`
+reports no known vulnerabilities (the editable project itself is skipped). The
+Docker image builds with a 47.45 KB context containing only selected runtime
+manifests. The rebuilt image imports BM25S/NumPy, exposes the CLI, and passes
+`pip check`. A missing NumPy runtime dependency was found by the image smoke check,
+then added as pinned NumPy 2.5.3 with its BLAS libraries in the Conda specification
+and exact lock. `git diff --check` passes. Hosted CI is still required for the final
+published revision; no push was made. Therefore P2-19 is not complete and P2-20
+remains sealed. Do not inspect held-out questions, labels, scores or any
+`*origins.json` before hosted CI succeeds.
 
 ## Shared verification commands
 

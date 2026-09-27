@@ -149,3 +149,68 @@ def test_ready_returns_service_unavailable_when_dependency_is_down() -> None:
         "status": "not_ready",
         "dependencies": {"postgres": "unavailable", "qdrant": "ok"},
     }
+
+
+def test_search_metrics_are_logged_without_query_or_candidate_payloads() -> None:
+    record = logging.LogRecord(
+        name="research_platform.search",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="search_completed",
+        args=(),
+        exc_info=None,
+    )
+    record.request_id = "request-safe-001"
+    record.snapshot_id = "snapshot-safe"
+    record.retrieval_profile_id = "profile-safe"
+    record.requested_mode = "reranked"
+    record.effective_mode = "hybrid"
+    record.candidate_counts = {"fused": 50, "reranker_failure_type": "Timeout"}
+    record.total_duration_ms = 123.4
+    record.query = "must-not-be-logged"
+    record.candidate_ids = ["must-not-be-logged"]
+
+    formatted = JsonFormatter().format(record)
+    payload = json.loads(formatted)
+
+    assert payload["snapshot_id"] == "snapshot-safe"
+    assert payload["candidate_counts"]["fused"] == 50
+    assert payload["total_duration_ms"] == 123.4
+    assert "query" not in payload
+    assert "candidate_ids" not in payload
+    assert "must-not-be-logged" not in formatted
+
+
+def test_ready_reports_phase2_runtime_unavailable(monkeypatch) -> None:
+    from research_platform.config import Settings
+    from research_platform.search.application import SearchDependencyUnavailable
+
+    async def unavailable(_settings: Settings) -> object:
+        raise SearchDependencyUnavailable("synthetic unavailable runtime")
+
+    monkeypatch.setattr(
+        "research_platform.search.application.create_phase2_runtime", unavailable
+    )
+    checker = StubReadinessChecker(
+        ReadinessReport(dependencies={"postgres": True, "qdrant": True})
+    )
+    app = create_app(
+        settings=Settings(environment="development"), dependency_checker=checker
+    )
+
+    async def request_during_lifespan() -> httpx.Response:
+        async with app.router.lifespan_context(app):
+            return await _request(app, "/ready")
+
+    response = asyncio.run(request_during_lifespan())
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "not_ready",
+        "dependencies": {
+            "postgres": "ok",
+            "qdrant": "ok",
+            "phase2_search": "unavailable",
+        },
+    }

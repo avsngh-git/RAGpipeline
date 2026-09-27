@@ -28,6 +28,7 @@ from research_platform.search.reranker import (
     CrossEncoderReranker,
     RerankerCandidateLimitExceeded,
     RerankerDeviceExhausted,
+    RerankerInferenceBusy,
     RerankerInferenceFailure,
     RerankerInferenceTimeout,
     RerankerInvalidScoreError,
@@ -255,6 +256,38 @@ def test_partial_batch_failure_does_not_expose_earlier_scores() -> None:
     finally:
         adapter.close()
     assert "private model failure" not in str(error.value)
+
+
+def test_timed_out_inference_does_not_queue_more_model_work() -> None:
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+
+    class SlowScorer:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def score_pairs(self, pairs: tuple[tuple[str, str], ...]) -> list[float]:
+            self.calls += 1
+            started.set()
+            release.wait(timeout=1)
+            finished.set()
+            return [0.5] * len(pairs)
+
+    scorer = SlowScorer()
+    adapter = _adapter(scorer, timeout_seconds=0.005)  # type: ignore[arg-type]
+    candidates = (_hit(1, 1),)
+    try:
+        with pytest.raises(RerankerInferenceTimeout):
+            asyncio.run(adapter.rerank(_profile(), "query", candidates))
+        assert started.wait(timeout=1)
+        with pytest.raises(RerankerInferenceBusy):
+            asyncio.run(adapter.rerank(_profile(), "query", candidates))
+        assert scorer.calls == 1
+    finally:
+        release.set()
+        assert finished.wait(timeout=1)
+        adapter.close()
 
 
 def test_timeout_returns_controlled_error_while_worker_finishes() -> None:

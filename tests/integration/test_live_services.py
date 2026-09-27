@@ -1285,6 +1285,10 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             stored = await repository.load_for_correction(extraction_id)
             assert stored.result.sections == (section, second_section)
             assert stored.source_pdf_sha256 == artifact.sha256
+            assert await repository.load_tables_for_search(((extraction_id, 0),)) == {
+                (extraction_id, 0): extraction.tables[0]
+            }
+            assert await repository.load_tables_for_search(()) == {}
 
             async def run_stage(
                 processor: PdfEvidenceProcessor,

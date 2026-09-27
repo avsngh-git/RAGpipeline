@@ -141,7 +141,27 @@ class TableEvidenceRegion:
             raise ValueError("context_types contains an unsupported table context")
 
 
-SourceEvidenceRegion: TypeAlias = TextEvidenceRegion | TableEvidenceRegion
+@dataclass(frozen=True)
+class UnalignedEvidenceRegion:
+    """A source-linked result whose geometry has no matching anchor representation.
+
+    Captions, figures and other evidence kinds remain in ranking positions and
+    judgment-coverage denominators, but cannot satisfy prose or table anchors.
+    """
+
+    evidence_id: str
+    document_id: UUID
+    extraction_id: UUID
+
+    def __post_init__(self) -> None:
+        _validate_region_identity(
+            self.evidence_id, self.document_id, self.extraction_id
+        )
+
+
+SourceEvidenceRegion: TypeAlias = (
+    TextEvidenceRegion | TableEvidenceRegion | UnalignedEvidenceRegion
+)
 
 
 @dataclass(frozen=True)
@@ -198,8 +218,10 @@ def region_from_evidence_unit(
             ),
         )
     if unit.kind not in {"table", "table_row_group"}:
-        raise SourceMatchingError(
-            f"unsupported evidence kind for source matching: {unit.kind}"
+        return UnalignedEvidenceRegion(
+            evidence_id=unit.id,
+            document_id=unit.document_id,
+            extraction_id=unit.extraction_id,
         )
     if table is None:
         raise SourceMatchingError(

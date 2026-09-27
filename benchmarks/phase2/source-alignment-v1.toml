@@ -3,6 +3,7 @@ alignment_id = "phase2-source-alignment-v1"
 calibration_dataset_id = "phase2-calibration-v1"
 snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
 policy_id = "source-match-policy-v1"
+text_alignments = []
 
 [[table_alignments]]
 anchor_id = "b-table1"
@@ -477,7 +478,7 @@ cell_requirements = [
 [[table_alignments]]
 anchor_id = "d-table3"
 document_id = "9d3572dd-32b5-4874-acb9-a38330498295"
-extraction_id = "715e72c5-0465-5dbb-9a3d-aeb54efd177b"
+extraction_id = "715e72c5-0466-5dbb-9a3d-aeb54efd177b"
 table_ordinal = 3
 required_context = ["caption"]
 cell_requirements = [
@@ -648,7 +649,7 @@ cell_requirements = [
 [[table_alignments]]
 anchor_id = "d-table5"
 document_id = "9d3572dd-32b5-4874-acb9-a38330498295"
-extraction_id = "715e72c5-0465-5dbb-9a3d-aeb54efd177b"
+extraction_id = "715e72c5-0466-5dbb-9a3d-aeb54efd177b"
 table_ordinal = 5
 required_context = ["caption"]
 cell_requirements = [

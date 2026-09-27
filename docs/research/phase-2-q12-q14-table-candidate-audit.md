@@ -27,3 +27,33 @@ The private q14 review record includes the visually checked table judgments, a s
 ## Review limits
 
 Rendered source pages confirmed table captions, row associations and the relevant headers. The records identify the accepted PDF checksum, local source and zero-based PDF page. This is assistant-only review, not independent human validation. Unjudged candidates remain unjudged; this audit does not infer scientific absence from pooled non-matches.
+
+## Exact development alignment
+
+**Reviewer:** assistant · **Date:** 2026-09-27 · **Alignment:**
+phase2-development-source-alignment-v1. The scorer validates these coordinates
+against the exact accepted extraction and PDF checksum before counting support.
+Coordinates below are zero-based table row and column indexes.
+
+- q12 Table 1 (source-found, page 4): target cells (6,13), (6,14), (7,13),
+  (7,14). Each match also requires the Average header (0,13), Top-5/Top-20
+  header (1,2), and its Proposition/PIC row label in column 0. This anchor was
+  independently source-found and is not inserted into a ranked candidate pool.
+- q12 Table 2 (candidate-linked, page 5): target cells (14,13), (14,14),
+  (15,13), (15,14). Full support also requires the Average and Exact Match
+  headers (0,13) and (1,2), the Meta-Llama group label (9,0), and both row
+  labels (14,0) and (15,0). Matching may union the group-label evidence from a
+  separate ranked row-group hit; one hit does not need to contain the whole table.
+- q14 Table 1 (candidate-linked, page 2): target taxonomy cells (1,0), (2,0),
+  (3,0) and the table header (0,0).
+- q14 Table 2 (source-found, page 2): target cells (1,0) through (5,0) and
+  the table header (0,0). The source-only anchor is evaluated independently and
+  is not inserted into ranked candidates.
+
+The checked-in source-alignment manifest has eight calibration table alignments and
+an explicit empty prose-alignment list. Its two q12 table rows use the corrected
+accepted extraction identity recorded by the calibration packet. Four q11–q19
+development anchors (27 prose, 4 table) are scored alongside the ten calibration
+families. The two source-found table anchors stay in the recall denominator but
+never become system results. See the development report for denominators and the
+small-pool limitations.

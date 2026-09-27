@@ -122,8 +122,9 @@ def test_snapshot_paper_reader_resolves_membership_and_metadata() -> None:
             assert selected.metadata_availability.abstract
             assert outside.status is PaperReadStatus.OUTSIDE_SNAPSHOT
             assert outside.document_version is None
+            assert outside.title == "Outside paper"
             assert outside.metadata_availability == MetadataAvailability(
-                False, False, False
+                True, False, False
             )
             assert unknown.status is PaperReadStatus.UNKNOWN
         finally:

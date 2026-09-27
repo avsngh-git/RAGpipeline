@@ -101,6 +101,10 @@ from research_platform.search.lexical_artifacts import (
     load_lexical_index,
     save_lexical_index,
 )
+from research_platform.search.profile_manifest import (
+    load_frozen_profile,
+    load_retrieval_profile_manifest,
+)
 from research_platform.search.profiles import RetrievalProfile
 
 _COVERAGE_QUESTIONS: tuple[tuple[CoverageQuestion, str], ...] = (
@@ -278,7 +282,8 @@ def build_parser() -> argparse.ArgumentParser:
         dest="index_command", required=True
     )
     inspect_index = index_subcommands.add_parser(
-        "inspect", help="show point counts and a sample of stored evidence IDs"
+        "inspect",
+        help="show the exact snapshot point count without printing evidence IDs",
     )
     inspect_index.add_argument("--snapshot-id", type=UUID, required=True)
     inspect_index.add_argument("--configuration", type=Path, required=True)
@@ -605,7 +610,7 @@ async def _execute_index_inspect(args: argparse.Namespace, settings: Settings) -
                 "configuration_id": configuration.configuration_id,
                 "collection_name": configuration.collection_name,
                 "point_count": count,
-                "evidence_ids_sample": list(evidence_ids[:20]),
+                "reconciled_evidence_id_count": len(evidence_ids),
             },
             indent=2,
         )
@@ -613,6 +618,10 @@ async def _execute_index_inspect(args: argparse.Namespace, settings: Settings) -
 
 
 def _load_retrieval_profile(path: Path) -> RetrievalProfile:
+    if path.suffix.lower() == ".toml":
+        if path.name == "frozen-profile-v1.toml":
+            return load_frozen_profile(path)
+        return load_retrieval_profile_manifest(path)
     raw = json.loads(path.read_text(encoding="utf-8"))
     return RetrievalProfile.from_dict(_mapping(raw, "retrieval profile"))
 

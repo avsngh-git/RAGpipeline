@@ -632,7 +632,11 @@ class PaperMetadataHit:
 
 @dataclass(frozen=True)
 class PaperHit:
-    """One paper-level result with separately retained evidence contributions."""
+    """Paper result with fused and branch-specific paper ranks.
+
+    Evidence passage ranks remain on ``supporting_evidence``; ``evidence_rank``
+    is the paper's rank in the evidence-derived paper candidate stream.
+    """
 
     paper_id: str
     title: str | None

@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-13 complete; P2-14 in progress.
+Updated: 2026-09-27. P2-01–P2-18 complete; P2-19 local checks passed / hosted CI pending; P2-20 pending.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-14.1**.
+   whose prerequisites are satisfied. Resume at **P2-19.5**: run hosted CI on the final implementation revision, then proceed to P2-20 only after it passes.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -86,7 +86,7 @@ table units, passes source-span/tokenizer fairness checks, and has a paired q11�
 dense-E5 development comparison. The section-aware baseline supported one more
 reviewed prose anchor at rank 10; both chunkers supported 13/27 by rank 50. The
 [fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md)
-records the comparison and limitations. Continue with P2-14.1.
+records the comparison and limitations. P2-14 through P2-18 are now complete; local P2-19 verification passed. Keep held-out material sealed until hosted CI passes.
 ## Progress and stop rules
 
 - **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,
@@ -542,7 +542,7 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Current next step:** P2-14.1. Validate the development harness on a tiny subset,
+**Historical next step at this checkpoint:** P2-14.1. Validate the development harness on a tiny subset,
 then run the declared model, fusion, reranker, chunking, selection and runtime
 comparisons. Keep q20 excluded from tuning and keep every held-out score sealed.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
@@ -702,3 +702,35 @@ year-filtered families executable; no accepted DB/index was changed. q20, q21 an
 held-out result data were excluded. Raw private results and mode-0600 reproduction
 scripts are under ignored `local-reference/phase2-runs/fixed-window-20260927/`.
 See `docs/research/phase-2-fixed-window-source-fairness-audit.md`.
+
+
+## Final local implementation checkpoint — 2026-09-27
+
+P2-14's development comparison and numeric gates are recorded in
+[phase-2-development-report.md](../research/phase-2-development-report.md). P2-15
+freezes MiniLM over Hybrid E5 with whole-pool reranked-to-hybrid fallback and no
+unsupported-query cutoff. Serving profile:
+`sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870`;
+acceptance configuration:
+`sha256:6beb525c6a5d76b2bcf28dd0c03bce527872ca462ce44dceba4ea5ce383590bb`.
+The identity correction binds runtime to the separate filter-ready Phase 2 dense
+collection used by development evaluation. It does not change ranking, selection,
+thresholds or the accepted Phase 1 index.
+
+P2-16 typed search/evidence/paper/reference/citation routes, P2-17 failure handling
+and P2-18 [local operations runbook](../operations/phase-2-search.md) are complete.
+Real-model WSL API smoke requests passed for paper/evidence search (including a
+zero-eligible filter), metadata and one-hop citation routes. Five warm table-filtered
+requests measured 1,128.81–1,245.15 ms, with nearest-rank p95 below 1,500 ms. The
+isolated dense collection reconciles all 44,277 selected evidence units.
+
+Local P2-19 verification passed under the updated exact Linux lock: Ruff check/format,
+strict mypy (79 source files), the complete CI-equivalent suite (445 passed, including
+21 fresh PostgreSQL/Qdrant integration tests), migration rerun, `pip check`, and
+`pip-audit --skip-editable` (no known vulnerabilities; the editable project is skipped).
+The Docker build passed with a 47.45 KB context; image BM25S/NumPy import, CLI smoke,
+and image `pip check` passed. Image smoke found the missing NumPy runtime dependency;
+NumPy 2.5.3 and its BLAS libraries are now pinned in the Conda specification and
+Linux lock. `git diff --check` passes. The final published revision still needs
+hosted CI. The implementation has not been pushed. Do not inspect held-out material
+or any `*origins.json`; P2-20 remains pending until P2-19's hosted CI gate passes.

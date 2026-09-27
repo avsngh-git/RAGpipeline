@@ -1006,6 +1006,7 @@ class IndexRepository:
                    paper.publication_year, paper.title,
                    section.id AS section_id, section.title AS section_title,
                    section.ordinal AS section_ordinal,
+                   item.chunking_configuration_id,
                    chunk.start_offset, chunk.end_offset,
                    chunk.source_location AS evidence_source_location,
                    chunk.metadata AS evidence_metadata
@@ -1077,6 +1078,7 @@ class IndexRepository:
                     if row["section_id"] is not None
                     else None,
                     "section_title": row["section_title"],
+                    "chunking_configuration_id": row["chunking_configuration_id"],
                     **_evidence_locator_payload(row),
                 },
             )
@@ -1566,6 +1568,10 @@ def _evidence_locator_payload(row: Mapping[str, object]) -> dict[str, object]:
     return {
         "source_location": source_location,
         "source_spans": [span.to_dict() for span in spans],
+        "evidence_metadata": metadata,
+        "section_ordinal": row["section_ordinal"],
+        "start_offset": row["start_offset"],
+        "end_offset": row["end_offset"],
     }
 
 

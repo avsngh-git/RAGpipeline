@@ -138,12 +138,64 @@ class _SearchRequestModel(_StrictModel):
 class PaperSearchRequest(_SearchRequestModel):
     """Request for one result per paper with its evidence contribution."""
 
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "query": "synthetic test: methods for document retrieval",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "limit": 10,
+                },
+                {
+                    "query": "synthetic test: papers with a publication year",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "filters": {"year_from": 2099},
+                    "limit": 10,
+                },
+            ]
+        },
+    )
+
     def to_contract(self) -> SearchRequest:
         return self._to_contract(SearchOperation.PAPER_SEARCH)
 
 
 class EvidenceSearchRequest(_SearchRequestModel):
     """Request for ranked source-linked evidence units."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "query": "synthetic test: a prose passage about retrieval",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "limit": 10,
+                },
+                {
+                    "query": "synthetic test: values in a benchmark table",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "filters": {"evidence_kinds": ["table", "table_row_group"]},
+                    "limit": 10,
+                },
+            ]
+        },
+    )
 
     def to_contract(self) -> SearchRequest:
         return self._to_contract(SearchOperation.EVIDENCE_SEARCH)
@@ -346,6 +398,49 @@ class PaperMetadataResponse(_SearchResponseModel):
 
 
 class EvidenceSearchResponse(_SearchResponseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "request_id": "request-synthetic-001",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "effective_configuration_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "requested_mode": "reranked",
+                    "effective_mode": "hybrid",
+                    "eligible_count": 42,
+                    "result_status": "ranked_candidates",
+                    "ranking_interpretation": "ranking_only",
+                    "warnings": [
+                        "reranking failed; unchanged hybrid order was returned"
+                    ],
+                    "truncated": False,
+                    "omitted_count": 0,
+                    "hits": [],
+                },
+                {
+                    "request_id": "request-synthetic-002",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "effective_configuration_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "requested_mode": "reranked",
+                    "effective_mode": "reranked",
+                    "eligible_count": 0,
+                    "result_status": "no_eligible_records",
+                    "ranking_interpretation": "ranking_only",
+                    "warnings": [],
+                    "truncated": False,
+                    "omitted_count": 0,
+                    "hits": [],
+                },
+            ]
+        },
+    )
+
     hits: tuple[EvidenceHitModel, ...] = Field(
         max_length=DEFAULT_SEARCH_LIMITS.max_result_limit
     )

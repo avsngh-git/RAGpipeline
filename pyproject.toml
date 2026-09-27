@@ -24,6 +24,7 @@ pdf = [
 ]
 embeddings = [
     "sentence-transformers==6.1.0",
+    "transformers==5.17.0",
 ]
 pdf-vlm = [
     "docling[vlm]==2.130.0",

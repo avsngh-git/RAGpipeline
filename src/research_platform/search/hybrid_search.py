@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -105,6 +106,9 @@ class HybridEvidenceSearchResponse:
     dense_pool: CandidatePoolStats
     fused_pool: CandidatePoolStats
     hits: tuple[FusedEvidenceCandidate, ...]
+    lexical_duration_ms: float = 0.0
+    dense_duration_ms: float = 0.0
+    fusion_duration_ms: float = 0.0
 
     @property
     def result_status(self) -> SearchResultStatus:
@@ -248,6 +252,7 @@ class HybridEvidenceSearch:
             raise HybridProfileMismatch(
                 "lexical artifact candidate limit differs from the profile"
             )
+        lexical_started = perf_counter()
         try:
             lexical_result = self._lexical.search_with_stats(
                 query, limit=lexical_limit, filters=filters
@@ -268,11 +273,13 @@ class HybridEvidenceSearch:
                 )
         except Exception as cause:
             raise _hybrid_failure("lexical", profile, cause) from cause
+        lexical_duration_ms = (perf_counter() - lexical_started) * 1000
         dense_method = (
             self._dense.evaluate_hybrid_component_query
             if evaluation
             else self._dense.search_hybrid_component_query
         )
+        dense_started = perf_counter()
         try:
             dense_result = await dense_method(
                 profile, query, limit=dense_limit, filters=filters
@@ -285,10 +292,12 @@ class HybridEvidenceSearch:
             )
         except Exception as cause:
             raise _hybrid_failure("dense", profile, cause) from cause
+        dense_duration_ms = (perf_counter() - dense_started) * 1000
         if lexical_result.eligible_count != dense_result.eligible_count:
             raise HybridProfileMismatch(
                 "lexical and dense branches resolved different eligible record counts"
             )
+        fusion_started = perf_counter()
         try:
             fused = reciprocal_rank_fusion(
                 lexical_result.hits,
@@ -297,6 +306,7 @@ class HybridEvidenceSearch:
             )
         except Exception as cause:
             raise _hybrid_failure("fusion", profile, cause) from cause
+        fusion_duration_ms = (perf_counter() - fusion_started) * 1000
         returned = fused[:fused_limit]
         return HybridEvidenceSearchResponse(
             snapshot_id=profile.snapshot.snapshot_id,
@@ -323,6 +333,9 @@ class HybridEvidenceSearch:
                 count_exact=not (lexical_result.truncated or dense_result.truncated),
             ),
             hits=returned,
+            lexical_duration_ms=lexical_duration_ms,
+            dense_duration_ms=dense_duration_ms,
+            fusion_duration_ms=fusion_duration_ms,
         )
 
 

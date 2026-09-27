@@ -135,6 +135,53 @@ class EvidenceRepository:
             f"sha256:{extraction['output_sha256']}",
         )
 
+    async def load_tables_for_search(
+        self, requested_tables: Sequence[tuple[UUID, int]]
+    ) -> dict[tuple[UUID, int], ExtractedTable]:
+        """Load only the requested source tables with one bounded query."""
+        table_keys = tuple(
+            sorted(
+                set(requested_tables),
+                key=lambda item: (str(item[0]), item[1]),
+            )
+        )
+        if not table_keys:
+            return {}
+        if any(
+            not isinstance(extraction_id, UUID)
+            or isinstance(ordinal, bool)
+            or not isinstance(ordinal, int)
+            or ordinal < 0
+            for extraction_id, ordinal in table_keys
+        ):
+            raise ValueError("requested table identities are malformed")
+        extraction_ids = [extraction_id for extraction_id, _ in table_keys]
+        ordinals = [ordinal for _, ordinal in table_keys]
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT extraction_id, ordinal, caption, units, footnotes,
+                       table_data, source_location, metadata
+                FROM evidence_tables
+                WHERE (extraction_id, ordinal) IN (
+                    SELECT extraction_id, ordinal
+                    FROM unnest($1::uuid[], $2::integer[])
+                         AS requested(extraction_id, ordinal)
+                )
+                ORDER BY extraction_id, ordinal
+                """,
+                extraction_ids,
+                ordinals,
+            )
+        tables: dict[tuple[UUID, int], ExtractedTable] = {}
+        for row in rows:
+            extraction_id = row["extraction_id"]
+            if not isinstance(extraction_id, UUID):
+                raise ValueError("stored table extraction identity is malformed")
+            table = _extracted_table(row)
+            tables[(extraction_id, table.ordinal)] = table
+        return tables
+
     async def persist(
         self,
         result: ExtractionResult,

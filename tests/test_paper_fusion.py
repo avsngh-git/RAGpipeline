@@ -109,6 +109,24 @@ def test_equal_fused_scores_use_public_paper_id_as_stable_tie_break() -> None:
     assert [hit.paper_id for hit in fused] == ["W100", "W200"]
 
 
+def test_evidence_branch_rank_is_distinct_from_strongest_passage_rank() -> None:
+    evidence_candidates = group_evidence_by_paper(
+        (
+            _evidence_hit("W100", 1, 1),
+            _evidence_hit("W100", 2, 2),
+            _evidence_hit("W200", 3, 3),
+        )
+    )
+
+    fused = fuse_paper_candidates(
+        (), evidence_candidates, settings=FusionSettings(rank_constant=60)
+    )
+
+    assert [hit.paper_id for hit in fused] == ["W100", "W200"]
+    assert fused[1].rank == fused[1].evidence_rank == 2
+    assert fused[1].supporting_evidence[0].rank == 3
+
+
 def test_duplicate_paper_candidates_in_one_branch_are_rejected() -> None:
     duplicate_metadata = (
         _metadata_hit("W100", 1, 4.0, "First"),
