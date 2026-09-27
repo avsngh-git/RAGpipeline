@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass, field
 from math import isfinite
+from pathlib import Path
 from typing import Final
 from urllib.parse import urlparse
 
@@ -47,6 +48,24 @@ def _evidence_access_profile_default() -> str:
     )
 
 
+def _lexical_index_root_default() -> Path:
+    return Path(
+        os.environ.get(
+            "RESEARCH_PLATFORM_LEXICAL_INDEX_ROOT",
+            "local-reference/phase2-indexes",
+        )
+    )
+
+
+def _model_device_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_MODEL_DEVICE", "auto")
+
+
+def _reranker_cache_dir_default() -> Path | None:
+    value = os.environ.get("RESEARCH_PLATFORM_RERANKER_CACHE_DIR")
+    return Path(value) if value else None
+
+
 def _dependency_timeout_default() -> float:
     return float(
         os.environ.get(
@@ -89,6 +108,9 @@ class Settings:
     evidence_access_profile: str = field(
         default_factory=_evidence_access_profile_default
     )
+    lexical_index_root: Path = field(default_factory=_lexical_index_root_default)
+    model_device: str = field(default_factory=_model_device_default)
+    reranker_cache_dir: Path | None = field(default_factory=_reranker_cache_dir_default)
 
     def __post_init__(self) -> None:
         environment = self.environment.strip().lower()
@@ -119,6 +141,20 @@ class Settings:
             allowed = ", ".join(sorted(_ALLOWED_EVIDENCE_ACCESS_PROFILES))
             raise ValueError(f"evidence_access_profile must be one of: {allowed}")
         object.__setattr__(self, "evidence_access_profile", evidence_access_profile)
+
+        model_device = self.model_device.strip().lower()
+        if model_device not in {"auto", "cpu", "cuda"}:
+            raise ValueError("model_device must be auto, cpu or cuda")
+        object.__setattr__(self, "model_device", model_device)
+        lexical_root = Path(self.lexical_index_root)
+        if not str(lexical_root).strip():
+            raise ValueError("lexical_index_root must be a non-empty path")
+        object.__setattr__(self, "lexical_index_root", lexical_root)
+        if self.reranker_cache_dir is not None:
+            reranker_cache_dir = Path(self.reranker_cache_dir)
+            if not str(reranker_cache_dir).strip():
+                raise ValueError("reranker_cache_dir must be a non-empty path or null")
+            object.__setattr__(self, "reranker_cache_dir", reranker_cache_dir)
 
         if (
             not isfinite(self.dependency_timeout_seconds)

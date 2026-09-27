@@ -34,6 +34,7 @@ from research_platform.ingestion.discovery import run_discovery
 from research_platform.ingestion.discovery_repository import DiscoveryRepository
 from research_platform.ingestion.evidence import (
     ChunkingConfig,
+    EvidenceUnit,
     ExtractedSection,
     ExtractedTable,
     ExtractionResult,
@@ -50,6 +51,7 @@ from research_platform.ingestion.evidence_repository import (
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
     IndexConfigurationMismatch,
+    IndexMatch,
     IndexRepository,
     QdrantIndex,
     SnapshotAccessDenied,
@@ -1196,8 +1198,18 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             )
 
             class CacheOnlyParser:
+                config = DoclingPdfConfig(device="cpu")
+
                 def prepare(self) -> tuple[dict[str, object], str]:
-                    return {"parser": "cache-fixture"}, "sha256:" + "1" * 64
+                    return (
+                        {
+                            **DoclingPdfConfig(device="cpu").to_dict(),
+                            "dependencies": {},
+                            "pipeline_options": {},
+                            "model_asset_sha256s": {},
+                        },
+                        "sha256:" + "1" * 64,
+                    )
 
                 def extract(
                     self, *_args: object, **_kwargs: object
@@ -1207,6 +1219,8 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             async def make_processor(
                 chunking: ChunkingConfig,
                 target_snapshot_id: UUID = snapshot_id,
+                *,
+                reuse_snapshot_extractions: bool = False,
             ) -> tuple[PdfEvidenceProcessor, PreparedPdfPipeline]:
                 processor = PdfEvidenceProcessor(
                     pool,
@@ -1215,19 +1229,27 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                     parser_config=DoclingPdfConfig(device="cpu"),
                     chunking_config=chunking,
                     tokenizer=_WordOffsetTokenizer(),  # type: ignore[arg-type]
+                    reuse_snapshot_extractions=reuse_snapshot_extractions,
                 )
                 processor._parser = CacheOnlyParser()  # type: ignore[assignment]
                 return processor, await processor.prepare()
 
-            first_config = ChunkingConfig(2, 0, 2)
+            first_config = ChunkingConfig(20, 0, 2)
             first_processor, first_prepared = await make_processor(first_config)
             extraction_id = uuid5(
                 document_id, first_prepared.extraction_configuration_id
             )
             section = ExtractedSection(
                 ordinal=0,
+                heading_path=("Methods",),
+                text="alpha beta",
+                source_location=SourceLocation(page_index_zero_based=1),
+            )
+            second_section = ExtractedSection(
+                ordinal=1,
                 heading_path=("Results",),
-                text="alpha beta gamma delta epsilon",
+                text="gamma delta epsilon",
+                source_location=SourceLocation(page_index_zero_based=4),
             )
             extraction = ExtractionResult(
                 document_id=document_id,
@@ -1237,18 +1259,43 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 configuration_id=first_prepared.extraction_configuration_id,
                 status="completed",
                 source_artifact_id=association_id,
-                sections=(section,),
+                sections=(section, second_section),
+                tables=(
+                    ExtractedTable(
+                        ordinal=0,
+                        caption="Results",
+                        units=None,
+                        footnotes=(),
+                        header_rows=1,
+                        cells=(
+                            TableCell(0, 0, "Group"),
+                            TableCell(0, 1, "Score"),
+                            TableCell(1, 0, "A"),
+                            TableCell(1, 1, "82"),
+                        ),
+                        section_ordinal=1,
+                        source_location=SourceLocation(page_index_zero_based=4),
+                    ),
+                ),
                 configuration=dict(first_prepared.extraction_configuration),
             )
             repository = EvidenceRepository(pool)
             raw_result = await repository.persist(extraction, ())
             assert raw_result.evidence_unit_count == 0
             stored = await repository.load_for_correction(extraction_id)
-            assert stored.result.sections == (section,)
+            assert stored.result.sections == (section, second_section)
             assert stored.source_pdf_sha256 == artifact.sha256
+            assert await repository.load_tables_for_search(((extraction_id, 0),)) == {
+                (extraction_id, 0): extraction.tables[0]
+            }
+            assert await repository.load_tables_for_search(()) == {}
 
             async def run_stage(
-                processor: PdfEvidenceProcessor, stage: str, configuration_id: str
+                processor: PdfEvidenceProcessor,
+                stage: str,
+                configuration_id: str,
+                *,
+                input_fingerprint: str | None = None,
             ) -> StageOutcome:
                 return await processor.process(
                     StageContext(
@@ -1256,7 +1303,8 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                         document_id=document_id,
                         stage=stage,
                         configuration_id=configuration_id,
-                        input_fingerprint="sha256:" + artifact.sha256,
+                        input_fingerprint=input_fingerprint
+                        or "sha256:" + artifact.sha256,
                         upstream_references={},
                         retry_reason=None,
                     )
@@ -1268,8 +1316,33 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 first_prepared.extraction_configuration_id,
             )
             assert reused_extraction.resource_measurements["reused_existing"] is True
+            figure_unit = EvidenceUnit.create(
+                document_id=document_id,
+                extraction_id=extraction_id,
+                section_ordinal=None,
+                ordinal=0,
+                kind="figure",
+                content="Synthetic figure caption",
+                start_offset=None,
+                end_offset=None,
+                source_location=SourceLocation(page_index_zero_based=7),
+                metadata={
+                    "chunking_configuration_id": first_prepared.chunking_configuration_id
+                },
+                identity_context={
+                    "chunking_configuration_id": first_prepared.chunking_configuration_id
+                },
+            )
+            await repository.persist_chunks(
+                stored.result,
+                (figure_unit,),
+                chunking_configuration_id=first_prepared.chunking_configuration_id,
+            )
             first_output = await run_stage(
-                first_processor, "chunking", first_prepared.chunking_configuration_id
+                first_processor,
+                "chunking",
+                first_prepared.chunking_configuration_id,
+                input_fingerprint=reused_extraction.output_fingerprint,
             )
             assert first_output.resource_measurements["chunks"] > 0
 
@@ -1289,13 +1362,14 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 configuration={"fixture": True, "variant": "alternate-chunks"},
                 code_revision="integration-test",
             )
-            second_config = ChunkingConfig(3, 0, 2)
+            second_config = ChunkingConfig(3, 0, 2, strategy="fixed-window")
             second_processor, second_prepared = await make_processor(
-                second_config, variant_snapshot_id
+                second_config,
+                variant_snapshot_id,
+                reuse_snapshot_extractions=True,
             )
-            assert (
-                second_prepared.extraction_configuration_id
-                == first_prepared.extraction_configuration_id
+            assert second_prepared.extraction_configuration["strategy"] == (
+                "reuse-snapshot-selected-extractions-v1"
             )
             assert (
                 second_prepared.chunking_configuration_id
@@ -1310,10 +1384,16 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 reused_for_new_settings.resource_measurements["reused_existing"] is True
             )
             second_output = await run_stage(
-                second_processor, "chunking", second_prepared.chunking_configuration_id
+                second_processor,
+                "chunking",
+                second_prepared.chunking_configuration_id,
+                input_fingerprint=reused_for_new_settings.output_fingerprint,
             )
             repeated_output = await run_stage(
-                second_processor, "chunking", second_prepared.chunking_configuration_id
+                second_processor,
+                "chunking",
+                second_prepared.chunking_configuration_id,
+                input_fingerprint=reused_for_new_settings.output_fingerprint,
             )
             assert second_output.resource_measurements["chunks"] > 0
             assert repeated_output.resource_measurements["reused_existing"] is True
@@ -1324,6 +1404,7 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                 )
                 == first_output.resource_measurements["chunks"]
                 + second_output.resource_measurements["chunks"]
+                + 1
             )
             parent_chunking_id = await pool.fetchval(
                 "SELECT chunking_configuration_id FROM snapshot_items WHERE snapshot_id = $1",
@@ -1347,10 +1428,38 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
                     variant_snapshot_id,
                 )
             )
-            assert len(parent_chunk_ids) == first_output.resource_measurements["chunks"]
             assert (
-                len(variant_chunk_ids) == second_output.resource_measurements["chunks"]
+                len(parent_chunk_ids)
+                == first_output.resource_measurements["chunks"] + 1
             )
+            assert figure_unit.id in parent_chunk_ids
+            assert figure_unit.id in variant_chunk_ids
+            parent_non_text_ids = set(
+                row["id"]
+                for row in await pool.fetch(
+                    "SELECT id FROM evidence_units WHERE id = ANY($1::text[]) AND kind <> 'text'",
+                    list(parent_chunk_ids),
+                )
+            )
+            variant_non_text_ids = set(
+                row["id"]
+                for row in await pool.fetch(
+                    "SELECT id FROM evidence_units WHERE id = ANY($1::text[]) AND kind <> 'text'",
+                    list(variant_chunk_ids),
+                )
+            )
+            variant_text_ids = set(
+                row["id"]
+                for row in await pool.fetch(
+                    "SELECT id FROM evidence_units WHERE id = ANY($1::text[]) AND kind = 'text'",
+                    list(variant_chunk_ids),
+                )
+            )
+            assert (
+                len(variant_text_ids) == second_output.resource_measurements["chunks"]
+            )
+            assert parent_non_text_ids == variant_non_text_ids
+            assert variant_chunk_ids == variant_text_ids | parent_non_text_ids
             with pytest.raises(asyncpg.ForeignKeyViolationError):
                 await pool.execute(
                     "DELETE FROM chunks WHERE id = $1",
@@ -1395,29 +1504,34 @@ def test_chunks_with_new_configuration_reuse_persisted_extraction(
             )[0]
             assert parent_member.document_id == variant_member.document_id
             assert parent_member.extraction_id == variant_member.extraction_id
-            assert (
-                parent_member.chunk_count
-                == first_output.resource_measurements["chunks"]
+            assert parent_member.chunk_count == len(parent_chunk_ids)
+            assert variant_member.chunk_count == len(variant_chunk_ids)
+            variant_index_configuration = IndexConfiguration(
+                collection_name=f"phase1-{uuid4().hex}",
+                embedding_model="integration-fixture",
+                embedding_revision="v1",
+                preprocessing_revision="raw-text-v1",
+                vector_size=2,
+                distance="Cosine",
+                batch_size=1,
+                maximum_input_tokens=32,
             )
-            assert (
-                variant_member.chunk_count
-                == second_output.resource_measurements["chunks"]
+            index_repository = IndexRepository(pool)
+            index_inputs = await index_repository.load_snapshot_inputs(
+                variant_snapshot_id, variant_index_configuration
             )
-            index_inputs = await IndexRepository(pool).load_snapshot_inputs(
-                variant_snapshot_id,
-                IndexConfiguration(
-                    collection_name=f"phase1-{uuid4().hex}",
-                    embedding_model="integration-fixture",
-                    embedding_revision="v1",
-                    preprocessing_revision="raw-text-v1",
-                    vector_size=2,
-                    distance="Cosine",
-                    batch_size=1,
-                    maximum_input_tokens=32,
-                ),
-            )
-            assert len(index_inputs) == second_output.resource_measurements["chunks"]
+            assert len(index_inputs) == len(variant_chunk_ids)
             assert {item.evidence_id for item in index_inputs} == variant_chunk_ids
+            snapshot_selection = await index_repository.snapshot_selection_for(
+                variant_snapshot_id
+            )
+            hydrated = await index_repository.hydrate_snapshot_matches(
+                snapshot_selection,
+                variant_index_configuration,
+                tuple(IndexMatch(item.evidence_id, 0.5, {}) for item in index_inputs),
+                allow_draft=True,
+            )
+            assert any(len(item.payload["source_spans"]) > 1 for item in hydrated)
 
             parent_index_configuration = IndexConfiguration(
                 collection_name=f"phase2-parent-{uuid4().hex}",
@@ -2195,19 +2309,16 @@ def test_snapshot_finalization_requires_100_indexed_permitted_papers() -> None:
                 },
                 code_revision="integration-test",
             )
-            await pool.executemany(
-                """
-                INSERT INTO snapshot_items
-                    (snapshot_id, paper_id, document_id, extraction_id, selection_reason)
-                VALUES ($1, $2, $3, $4, 'Synthetic finalization fixture')
-                """,
-                [
-                    (snapshot_id, paper_id, document_id, extraction_id)
-                    for paper_id, document_id, extraction_id in zip(
-                        paper_ids, document_ids, extraction_ids, strict=True
-                    )
-                ],
-            )
+            for paper_id, document_id, extraction_id in zip(
+                paper_ids, document_ids, extraction_ids, strict=True
+            ):
+                await repository.add_member(
+                    snapshot_id,
+                    paper_id=paper_id,
+                    document_id=document_id,
+                    extraction_id=extraction_id,
+                    selection_reason="Synthetic finalization fixture",
+                )
             await pool.execute(
                 "INSERT INTO index_configurations (configuration_id, configuration) VALUES ($1, $2::jsonb)",
                 index_configuration.configuration_id,

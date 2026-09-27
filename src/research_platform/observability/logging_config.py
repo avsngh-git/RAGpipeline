@@ -24,7 +24,31 @@ class JsonFormatter(logging.Formatter):
         if request_id is not None:
             payload["request_id"] = request_id
 
-        for field_name in ("http_method", "path", "status_code", "duration_ms"):
+        safe_fields = (
+            "http_method",
+            "path",
+            "status_code",
+            "duration_ms",
+            "snapshot_id",
+            "retrieval_profile_id",
+            "effective_configuration_id",
+            "requested_mode",
+            "effective_mode",
+            "operation",
+            "eligible_count",
+            "candidate_counts",
+            "returned_count",
+            "retrieval_duration_ms",
+            "total_duration_ms",
+            "fallback",
+            "failure_category",
+            "failure_stage",
+            "failure_type",
+            "dedup_omission_count",
+            "truncated",
+            "omitted_count",
+        )
+        for field_name in safe_fields:
             if hasattr(record, field_name):
                 payload[field_name] = getattr(record, field_name)
 

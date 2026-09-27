@@ -385,8 +385,10 @@ class SnapshotRepository:
         document_id: UUID,
         extraction_id: UUID,
         configuration_id: str,
+        *,
+        preserve_parent_non_text: bool = False,
     ) -> None:
-        """Select and freeze the configured searchable chunks for one draft member."""
+        """Freeze one member's chunk set, optionally reusing unchanged parent evidence."""
         if not isinstance(configuration_id, str) or not _SHA256_ID.fullmatch(
             configuration_id
         ):
@@ -429,14 +431,55 @@ class SnapshotRepository:
                     JOIN chunks chunk
                       ON chunk.document_id = item.document_id
                      AND chunk.extraction_id = item.extraction_id
+                    JOIN evidence_units unit ON unit.id = chunk.id
                     WHERE item.snapshot_id = $1 AND item.document_id = $2
                       AND item.extraction_id = $3
                       AND chunk.metadata ->> 'chunking_configuration_id' = $4
+                      AND (
+                          NOT $5::boolean
+                          OR unit.kind = 'text'
+                          OR NOT EXISTS (
+                              SELECT 1
+                              FROM snapshot_variant_lineage lineage
+                              JOIN snapshot_items parent_item
+                                ON parent_item.snapshot_id = lineage.parent_snapshot_id
+                               AND parent_item.document_id = item.document_id
+                               AND parent_item.extraction_id = item.extraction_id
+                              WHERE lineage.snapshot_id = item.snapshot_id
+                          )
+                      )
                     """,
                     snapshot_id,
                     document_id,
                     extraction_id,
                     configuration_id,
+                    preserve_parent_non_text,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO snapshot_item_chunks
+                        (snapshot_id, paper_id, document_id, extraction_id, chunk_id)
+                    SELECT item.snapshot_id, item.paper_id, parent_selected.document_id,
+                           parent_selected.extraction_id, parent_selected.chunk_id
+                    FROM snapshot_items item
+                    JOIN snapshot_variant_lineage lineage
+                      ON lineage.snapshot_id = item.snapshot_id
+                    JOIN snapshot_item_chunks parent_selected
+                      ON parent_selected.snapshot_id = lineage.parent_snapshot_id
+                     AND parent_selected.paper_id = item.paper_id
+                     AND parent_selected.document_id = item.document_id
+                     AND parent_selected.extraction_id = item.extraction_id
+                    JOIN evidence_units unit ON unit.id = parent_selected.chunk_id
+                    WHERE item.snapshot_id = $1 AND item.document_id = $2
+                      AND item.extraction_id = $3
+                      AND unit.kind <> 'text'
+                      AND $4::boolean
+                    ON CONFLICT (snapshot_id, paper_id, chunk_id) DO NOTHING
+                    """,
+                    snapshot_id,
+                    document_id,
+                    extraction_id,
+                    preserve_parent_non_text,
                 )
 
     async def review_flagged_table(

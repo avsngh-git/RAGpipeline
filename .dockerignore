@@ -1,3 +1,4 @@
+# Repository metadata and development output
 .git
 .github
 .mypy_cache
@@ -6,3 +7,37 @@
 *.egg-info
 __pycache__
 tests
+
+# Private local data, credentials, indexes, and model weights
+.env
+.env.*
+local-reference
+manifests
+data
+.cache
+**/.cache
+**/models
+**/model-cache
+**/huggingface
+*.pdf
+**/*.pdf
+*.safetensors
+**/*.safetensors
+*.pt
+**/*.pt
+*.pth
+**/*.pth
+*.bin
+**/*.bin
+*.onnx
+**/*.onnx
+*.gguf
+**/*.gguf
+
+# Evaluation datasets and judgments are never runtime inputs
+benchmarks/phase2/*
+!benchmarks/phase2/acceptance-v1.toml
+!benchmarks/phase2/bm25-profile-v1.toml
+!benchmarks/phase2/e5-small-v2-filtered-index-v1.json
+!benchmarks/phase2/frozen-profile-v1.toml
+!benchmarks/phase2/hybrid-e5-profile-v1.toml

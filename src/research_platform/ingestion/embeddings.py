@@ -276,6 +276,7 @@ class _SentenceTransformerEmbedder:
                     self._profile.model,
                     revision=self._profile.revision,
                     use_fast=True,
+                    local_files_only=True,
                     trust_remote_code=False,
                 )
             except Exception:
@@ -311,6 +312,7 @@ class _SentenceTransformerEmbedder:
                     self._profile.model,
                     revision=self._profile.revision,
                     device=device,
+                    local_files_only=True,
                     trust_remote_code=False,
                 )
                 model.max_seq_length = self._profile.maximum_input_tokens

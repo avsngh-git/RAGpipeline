@@ -58,7 +58,7 @@ def group_evidence_by_paper(
             supporting_evidence=tuple(
                 paper_hits[: selection_rules.paper_support_limit]
             ),
-            evidence_rank=paper_hits[0].rank,
+            evidence_rank=rank,
         )
         for rank, (paper_id, paper_hits) in enumerate(ordered_papers, start=1)
     )

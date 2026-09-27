@@ -7,9 +7,10 @@ import hashlib
 import math
 import re
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Protocol
+from threading import Lock
+from typing import Protocol, TypeVar
 
 from research_platform.search.contracts import DEFAULT_SEARCH_LIMITS, EvidenceHit
 from research_platform.search.profiles import RerankerIdentity, RetrievalProfile
@@ -21,6 +22,13 @@ from research_platform.search.reranker_pairs import (
 )
 
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
+_FutureValue = TypeVar("_FutureValue")
+
+
+def _consume_future_exception(future: asyncio.Future[_FutureValue]) -> None:
+    """Retrieve errors from work that outlives a timed-out request."""
+    if not future.cancelled():
+        future.exception()
 
 
 class CrossEncoderScorer(Protocol):
@@ -44,6 +52,10 @@ class RerankerCandidateLimitExceeded(ValueError):
 
 class RerankerInferenceTimeout(RerankerAdapterError):
     """Scoring did not complete within the configured request budget."""
+
+
+class RerankerInferenceBusy(RerankerAdapterError):
+    """A timed-out inference still occupies the single model worker."""
 
 
 class RerankerInferenceFailure(RerankerAdapterError):
@@ -169,6 +181,8 @@ class CrossEncoderReranker:
         self._executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="cross-encoder"
         )
+        self._submission_lock = Lock()
+        self._active_future: Future[tuple[RerankerScore, ...]] | None = None
         self._closed = False
 
     async def rerank(
@@ -194,18 +208,27 @@ class CrossEncoderReranker:
             )
         if not candidate_tuple:
             return ()
-        if self._closed:
-            raise RerankerInferenceFailure("reranker adapter is closed")
-
         loop = asyncio.get_running_loop()
-        future = loop.run_in_executor(
-            self._executor,
-            self._score_candidates,
-            profile.profile_id,
-            query,
-            compute_query_sha256(query),
-            candidate_tuple,
-        )
+        with self._submission_lock:
+            if self._closed:
+                raise RerankerInferenceFailure("reranker adapter is closed")
+            if self._active_future is not None and not self._active_future.done():
+                raise RerankerInferenceBusy(
+                    "reranker worker is still completing a previous inference"
+                )
+            try:
+                worker_future = self._executor.submit(
+                    self._score_candidates,
+                    profile.profile_id,
+                    query,
+                    compute_query_sha256(query),
+                    candidate_tuple,
+                )
+            except RuntimeError:
+                raise RerankerInferenceFailure("reranker adapter is closed") from None
+            self._active_future = worker_future
+        future = asyncio.wrap_future(worker_future, loop=loop)
+        future.add_done_callback(_consume_future_exception)
         try:
             return await asyncio.wait_for(
                 asyncio.shield(future), timeout=self.timeout_seconds
@@ -223,9 +246,10 @@ class CrossEncoderReranker:
 
     def close(self) -> None:
         """Stop accepting work and cancel queued batches; active inference may finish."""
-        if not self._closed:
-            self._closed = True
-            self._executor.shutdown(wait=False, cancel_futures=True)
+        with self._submission_lock:
+            if not self._closed:
+                self._closed = True
+                self._executor.shutdown(wait=False, cancel_futures=True)
 
     def _validate_request(
         self,

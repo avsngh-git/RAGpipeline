@@ -7,7 +7,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
+from research_platform.ingestion.evidence import (
+    EvidenceKind,
+    EvidenceSourceSpan,
+    SourceLocation,
+)
 from research_platform.ingestion.identity import DocumentVersionKind
 from research_platform.search.contracts import (
     DEFAULT_SEARCH_LIMITS,
@@ -134,12 +138,64 @@ class _SearchRequestModel(_StrictModel):
 class PaperSearchRequest(_SearchRequestModel):
     """Request for one result per paper with its evidence contribution."""
 
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "query": "synthetic test: methods for document retrieval",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "limit": 10,
+                },
+                {
+                    "query": "synthetic test: papers with a publication year",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "filters": {"year_from": 2099},
+                    "limit": 10,
+                },
+            ]
+        },
+    )
+
     def to_contract(self) -> SearchRequest:
         return self._to_contract(SearchOperation.PAPER_SEARCH)
 
 
 class EvidenceSearchRequest(_SearchRequestModel):
     """Request for ranked source-linked evidence units."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "query": "synthetic test: a prose passage about retrieval",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "limit": 10,
+                },
+                {
+                    "query": "synthetic test: values in a benchmark table",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "mode": "reranked",
+                    "filters": {"evidence_kinds": ["table", "table_row_group"]},
+                    "limit": 10,
+                },
+            ]
+        },
+    )
 
     def to_contract(self) -> SearchRequest:
         return self._to_contract(SearchOperation.EVIDENCE_SEARCH)
@@ -171,6 +227,37 @@ class SourceLocationModel(_StrictModel):
                 printed_page_label=self.printed_page_label,
                 bounding_box=self.bounding_box,
                 coordinate_system=self.coordinate_system,
+            )
+        except ValueError as error:
+            raise ValueError(str(error)) from None
+        return self
+
+
+class EvidenceSourceSpanModel(_StrictModel):
+    section_ordinal: int = Field(strict=True, ge=0)
+    start_offset: int = Field(strict=True, ge=0)
+    end_offset: int = Field(strict=True, ge=1)
+    chunk_start_offset: int = Field(strict=True, ge=0)
+    chunk_end_offset: int = Field(strict=True, ge=1)
+    heading_path: tuple[str, ...]
+    source_location: SourceLocationModel
+
+    @model_validator(mode="after")
+    def validate_span(self) -> EvidenceSourceSpanModel:
+        try:
+            EvidenceSourceSpan(
+                section_ordinal=self.section_ordinal,
+                start_offset=self.start_offset,
+                end_offset=self.end_offset,
+                chunk_start_offset=self.chunk_start_offset,
+                chunk_end_offset=self.chunk_end_offset,
+                heading_path=self.heading_path,
+                source_location=SourceLocation(
+                    page_index_zero_based=self.source_location.page_index_zero_based,
+                    printed_page_label=self.source_location.printed_page_label,
+                    bounding_box=self.source_location.bounding_box,
+                    coordinate_system=self.source_location.coordinate_system,
+                ),
             )
         except ValueError as error:
             raise ValueError(str(error)) from None
@@ -231,6 +318,7 @@ class EvidenceHitModel(_StrictModel):
     chunking_configuration_id: str | None
     kind: EvidenceKind
     source_location: SourceLocationModel
+    source_spans: tuple[EvidenceSourceSpanModel, ...] = ()
     rank: int = Field(strict=True, ge=1)
     component_scores: ComponentScoresModel
     text: str
@@ -310,6 +398,49 @@ class PaperMetadataResponse(_SearchResponseModel):
 
 
 class EvidenceSearchResponse(_SearchResponseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "request_id": "request-synthetic-001",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "effective_configuration_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "requested_mode": "reranked",
+                    "effective_mode": "hybrid",
+                    "eligible_count": 42,
+                    "result_status": "ranked_candidates",
+                    "ranking_interpretation": "ranking_only",
+                    "warnings": [
+                        "reranking failed; unchanged hybrid order was returned"
+                    ],
+                    "truncated": False,
+                    "omitted_count": 0,
+                    "hits": [],
+                },
+                {
+                    "request_id": "request-synthetic-002",
+                    "snapshot_id": "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c",
+                    "retrieval_profile_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "effective_configuration_id": "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870",
+                    "requested_mode": "reranked",
+                    "effective_mode": "reranked",
+                    "eligible_count": 0,
+                    "result_status": "no_eligible_records",
+                    "ranking_interpretation": "ranking_only",
+                    "warnings": [],
+                    "truncated": False,
+                    "omitted_count": 0,
+                    "hits": [],
+                },
+            ]
+        },
+    )
+
     hits: tuple[EvidenceHitModel, ...] = Field(
         max_length=DEFAULT_SEARCH_LIMITS.max_result_limit
     )

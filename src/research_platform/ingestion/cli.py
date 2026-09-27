@@ -21,6 +21,7 @@ from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 import httpx
+import tomllib
 
 from research_platform.config import Settings
 from research_platform.ingestion.acquisition import (
@@ -99,6 +100,10 @@ from research_platform.search.lexical import (
 from research_platform.search.lexical_artifacts import (
     load_lexical_index,
     save_lexical_index,
+)
+from research_platform.search.profile_manifest import (
+    load_frozen_profile,
+    load_retrieval_profile_manifest,
 )
 from research_platform.search.profiles import RetrievalProfile
 
@@ -277,7 +282,8 @@ def build_parser() -> argparse.ArgumentParser:
         dest="index_command", required=True
     )
     inspect_index = index_subcommands.add_parser(
-        "inspect", help="show point counts and a sample of stored evidence IDs"
+        "inspect",
+        help="show the exact snapshot point count without printing evidence IDs",
     )
     inspect_index.add_argument("--snapshot-id", type=UUID, required=True)
     inspect_index.add_argument("--configuration", type=Path, required=True)
@@ -345,6 +351,11 @@ def build_parser() -> argparse.ArgumentParser:
     job_start.add_argument("--chunking-configuration", type=Path, required=True)
     job_start.add_argument("--artifact-root", type=Path, default=Path("data/artifacts"))
     job_start.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    job_start.add_argument(
+        "--reuse-snapshot-extractions",
+        action="store_true",
+        help="rechunk each draft member's exact selected extraction without loading the PDF parser",
+    )
     job_start.add_argument(
         "--membership-decision",
         type=Path,
@@ -599,7 +610,7 @@ async def _execute_index_inspect(args: argparse.Namespace, settings: Settings) -
                 "configuration_id": configuration.configuration_id,
                 "collection_name": configuration.collection_name,
                 "point_count": count,
-                "evidence_ids_sample": list(evidence_ids[:20]),
+                "reconciled_evidence_id_count": len(evidence_ids),
             },
             indent=2,
         )
@@ -607,6 +618,10 @@ async def _execute_index_inspect(args: argparse.Namespace, settings: Settings) -
 
 
 def _load_retrieval_profile(path: Path) -> RetrievalProfile:
+    if path.suffix.lower() == ".toml":
+        if path.name == "frozen-profile-v1.toml":
+            return load_frozen_profile(path)
+        return load_retrieval_profile_manifest(path)
     raw = json.loads(path.read_text(encoding="utf-8"))
     return RetrievalProfile.from_dict(_mapping(raw, "retrieval profile"))
 
@@ -729,7 +744,12 @@ def _load_index_configuration(path: Path) -> IndexConfiguration:
 
 
 def _load_chunking_configuration(path: Path) -> ChunkingConfig:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    contents = path.read_text(encoding="utf-8")
+    raw = (
+        tomllib.loads(contents)
+        if path.suffix.lower() == ".toml"
+        else json.loads(contents)
+    )
     return ChunkingConfig.from_dict(_mapping(raw, "chunking configuration"))
 
 
@@ -790,6 +810,10 @@ async def _execute_jobs(
     if args.job_command == "start":
         snapshot_id = args.snapshot_id
         chunking = _load_chunking_configuration(args.chunking_configuration)
+        if args.reuse_snapshot_extractions and chunking.strategy != "fixed-window":
+            raise ValueError(
+                "snapshot extraction reuse is currently limited to fixed-window jobs"
+            )
         document_ids = await snapshots.document_ids_for_processing(snapshot_id)
         snapshot_configuration = await snapshots.configuration_for(snapshot_id)
         membership_digest: str | None = None
@@ -873,6 +897,7 @@ async def _execute_jobs(
             tokenizer=E5SmallV2Embedder(device=args.device),
             excluded_source_pages_by_document=excluded_source_pages,
             source_content_review_identity=source_review_identity,
+            reuse_snapshot_extractions=args.reuse_snapshot_extractions,
         )
         prepared = await processor.prepare()
         configuration: dict[str, object] = {
@@ -882,6 +907,7 @@ async def _execute_jobs(
             "document_inputs": document_inputs,
             "parser_configuration": DoclingPdfConfig().to_dict(),
             "chunking_configuration": chunking.to_dict(),
+            "reuse_snapshot_extractions": args.reuse_snapshot_extractions,
             "extraction_configuration_id": prepared.extraction_configuration_id,
             "chunking_configuration_id": prepared.chunking_configuration_id,
             "pipeline_configuration_id": _configuration_identity(
@@ -991,6 +1017,15 @@ async def _execute_jobs(
     chunking = ChunkingConfig.from_dict(
         _mapping(raw_chunking, "chunking configuration")
     )
+    reuse_snapshot_extractions = job_configuration.get(
+        "reuse_snapshot_extractions", False
+    )
+    if not isinstance(reuse_snapshot_extractions, bool):
+        raise ValueError("job extraction reuse setting is invalid")
+    if reuse_snapshot_extractions and chunking.strategy != "fixed-window":
+        raise ValueError(
+            "snapshot extraction reuse is currently limited to fixed-window jobs"
+        )
     raw_parser = _mapping(
         job_configuration.get("parser_configuration"), "parser configuration"
     )
@@ -1005,6 +1040,7 @@ async def _execute_jobs(
         tokenizer=E5SmallV2Embedder(device=args.device),
         excluded_source_pages_by_document=excluded_source_pages,
         source_content_review_identity=source_review_identity,
+        reuse_snapshot_extractions=reuse_snapshot_extractions,
     )
     prepared = await processor.prepare()
     expected_extraction_id = job_configuration.get("extraction_configuration_id")
@@ -1012,7 +1048,12 @@ async def _execute_jobs(
         isinstance(expected_extraction_id, str)
         and expected_extraction_id != prepared.extraction_configuration_id
     ):
-        raise ValueError("effective parser configuration changed; create a new job")
+        message = (
+            "snapshot-selected extraction plan changed; create a new job"
+            if reuse_snapshot_extractions
+            else "effective parser configuration changed; create a new job"
+        )
+        raise ValueError(message)
     if args.job_command == "resume":
         await _run_pdf_job(
             args,

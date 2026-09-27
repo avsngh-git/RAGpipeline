@@ -28,6 +28,7 @@ from research_platform.ingestion.indexing import (
     IndexStateStore,
     QdrantIndex,
     VectorEmbedder,
+    _evidence_locator_payload,
     rebuild_snapshot_index,
 )
 
@@ -833,3 +834,30 @@ def test_each_pinned_embedding_space_filters_before_top_k(model_name: str) -> No
         assert [match.evidence_id for match in matches] == ["sha256:near-alpha"]
 
     asyncio.run(exercise())
+
+
+def test_dense_hydration_restores_all_section_source_spans() -> None:
+    from research_platform.ingestion.evidence import (
+        EvidenceSourceSpan,
+        SourceLocation,
+    )
+
+    source_location = SourceLocation(page_index_zero_based=3)
+    spans = (
+        EvidenceSourceSpan(0, 0, 5, 0, 5, ("Methods",), source_location),
+        EvidenceSourceSpan(1, 0, 5, 7, 12, ("Results",), SourceLocation()),
+    )
+    payload = _evidence_locator_payload(
+        {
+            "text": "alpha\n\ngamma",
+            "evidence_metadata": {"source_spans": [span.to_dict() for span in spans]},
+            "evidence_source_location": SourceLocation().to_dict(),
+            "section_ordinal": None,
+            "start_offset": None,
+            "end_offset": None,
+        }
+    )
+
+    assert len(payload["source_spans"]) == 2
+    assert payload["source_spans"][0]["source_location"]["page_index_zero_based"] == 3
+    assert payload["source_spans"][1]["section_ordinal"] == 1

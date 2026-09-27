@@ -11,14 +11,15 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 planning is approved; P2-01–P2-03 are complete. P2-04 ten-question calibration and source review is in progress.** See the
-[entry report](docs/reviews/phase-2-entry-check.md) and the
+**Phase 2 implementation is locally complete through P2-18.** Development results,
+selection and acceptance limits are recorded; the private-local search API and
+[operations runbook](docs/operations/phase-2-search.md) are ready. Local P2-19
+verification passes. Hosted CI on the final revision is pending, so the held-out
+P2-20 gate remains sealed. See the
 [detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
-which contains 20 tasks with numbered substeps, dependencies and completion gates.
-The [agent handoff](docs/plans/phase-2-agent-handoff.md) defines the next step;
-benchmark work follows the [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md).
-Implementation and source review are delegated, with new judgments labeled
-assistant-reviewed.
+[agent handoff](docs/plans/phase-2-agent-handoff.md), and
+[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). New source
+judgments are labeled assistant-reviewed.
 
 ## Development environment
 
@@ -69,7 +70,9 @@ conda run -n sci_research_agent_linux \
 
 The lock file contains exact Conda packages, not PyPI distributions. The
 BM25S runtime wheel is separately version- and hash-pinned in
-`requirements-bm25s.txt`; install it before the local package as shown above.
+`requirements-bm25s.txt`; install it before the local package as shown above. The
+Conda specification and Linux lock include NumPy 2.5.3, which BM25S imports at
+runtime.
 
 ## Application configuration
 

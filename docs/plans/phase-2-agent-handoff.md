@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-11 and P2-12.1–P2-12.2 complete; continue with P2-12.3.
+Updated: 2026-09-27. P2-01–P2-18 complete; P2-19 local checks passed / hosted CI pending; P2-20 pending.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-12.3**.
+   whose prerequisites are satisfied. Resume at **P2-19.5**: run hosted CI on the final implementation revision, then proceed to P2-20 only after it passes.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -66,6 +66,27 @@ Preserve the user's existing worktree and publication workflow.
 - JSON is broadly ignored. Use deliberately tracked sanitized config/fixture paths;
   full text, source PDFs and private review artifacts stay outside Git.
 
+## Phase 2 active checkpoint
+
+P2-12 is complete. The active v3 split has 20 development families and 10 held-out
+families; all q11–q20 and q22–q31 review-card candidates have resolved labels. The
+sanitized [dataset card](../reference/phase-2-benchmark-dataset-card.md) and
+[coverage audit](../research/phase-2-benchmark-source-coverage-audit.md) record
+category/modality coverage, candidate counts, hashes, source mappings and limits.
+The q12/q14 table audit records visual checks against the exact accepted PDFs and
+the source-only Table 1/Table 2 anchors, which are not inserted into ranked results.
+
+The v3 split excludes q21 after private held-out rank/score exposure and replaces it
+with source-checked q31. q20 is disclosed as partially unblinded and its origins and
+results are excluded from tuning. No held-out scores have informed configuration
+choices. Never read any `*origins.json` file.
+
+P2-13 is complete: the fixed-window variant reuses the accepted extractions and
+table units, passes source-span/tokenizer fairness checks, and has a paired q11–q19
+dense-E5 development comparison. The section-aware baseline supported one more
+reviewed prose anchor at rank 10; both chunkers supported 13/27 by rank 50. The
+[fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md)
+records the comparison and limitations. P2-14 through P2-18 are now complete; local P2-19 verification passed. Keep held-out material sealed until hosted CI passes.
 ## Progress and stop rules
 
 - **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,
@@ -521,8 +542,9 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-12.3. Review the blinded q11–q20 source and candidate pools under
-the calibrated labels; leave unresolved candidates explicitly unjudged.
+**Historical next step at this checkpoint:** P2-14.1. Validate the development harness on a tiny subset,
+then run the declared model, fusion, reranker, chunking, selection and runtime
+comparisons. Keep q20 excluded from tuning and keep every held-out score sealed.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.
@@ -582,7 +604,133 @@ and 103 q13 evidence candidates remain unjudged, and its two LongRAG table leads
 remain unjudged. q14 has one paper and eight prose evidence candidates source-checked;
 15 papers and 99 evidence candidates remain unjudged. Its CodeRAG-Bench answer is
 supported by the official ACL PDF and matching accepted artifact checksum; table-row
-candidates remain unjudged pending visual review. q15–q20 remain unjudged. The q13
-review records a PDFTriage document-count inconsistency in its accepted paper. See the
-tracked question/split manifests and `docs/reference/phase-2-pooling-procedure.md`.
-Continue with P2-12.3.
+candidates remain unjudged pending visual review. q15 has four near-match papers and
+four evidence cards source-checked; the full-corpus scan matched one MTEB passage about
+SPECTER training on citation graphs, not citation-edge traversal for RAG. Its accepted
+snapshot-bounded audit found no direct supporting work; 44 papers and 137 evidence
+candidates remain unjudged. q16 has one paper and 11 prose evidence cards source-checked; 14 papers and 92
+q16 evidence candidates remain unjudged. Its RAGEval review distinguishes generated-
+answer metrics from human ratings of synthetic-document quality and records naming
+variations in the paper. q17 has two papers and six prose evidence cards source-checked;
+35 papers and 110 evidence candidates remain unjudged. Its comparison records
+CodeRAG-Bench's four coding-task categories, five retrieval-source types, and retrieval,
+generation, and end-to-end evaluation, alongside BERGEN's QA-centered coverage and
+configurable retrieval, reranking, generation, and training pipeline. The accepted PDF
+checksums match the snapshot records. q18 has two papers and four pooled prose evidence
+cards source-checked, plus a source-only legal text-offset anchor; 40 papers and 140
+evidence candidates remain unjudged. QASPER is the closest research-paper case, with
+paragraph/figure/table evidence units and separate answer/evidence scores; the chunking
+study evaluates evidence-sentence retrieval and generated answers. LegalBench-RAG stores
+exact character offsets in legal text and evaluates retrieval, not answer generation. No
+exact character or PDF-coordinate judgments for research PDFs were found among the reviewed
+candidates. q19 has three near-match papers and five evidence cards source-checked; all
+five independent scan leads were reviewed and mapped to blinded cards. Forty-seven
+papers and 138 evidence candidates remain unjudged. Its frozen scan covered all 100
+papers / 44,277 selected chunks, matching five chunks in three papers and zero title or
+abstract records. The matches concern upstream LaMDA pretraining, unquantified PromptReps
+document encoding, or a review’s future recommendations; no measured local RAG energy per
+query was found under the recorded scan and review.
+
+q20 has five papers and 20 evidence cards source-checked; all eight independent
+scan leads were reviewed and mapped to pooled cards. Its year-filtered scan covered
+21,061 chunks across 39 papers and matched 11 chunks in five papers, with one
+title/abstract match. LegalBench-RAG and the 2025 Summary-Augmented Chunking study
+report retrieval benchmark evidence; the latter explicitly leaves end-to-end
+evaluation to future work. Legal experts contribute annotations, prompt design, or
+qualitative interpretation. No reviewed study reports practicing lawyers using a
+system on live client matters. An in-snapshot systematic review's “practicing
+attorneys” row describes intended benchmark use; its cited 2024 primary study uses
+author-constructed queries and researcher assessment. LegalBench-RAG's abstract
+says 6,858 query-answer pairs while §3.3.1 says 6,889. The systematic-review table
+was text-extracted but not visually verified because this WSL environment has no
+PDF renderer. q20 remains partial: 25 paper and 104 evidence candidates are
+unjudged, its lexical scan is bounded, and its review is marked partially
+unblinded after accidental origin-map output exposure; no labels used rank or score. The q13 review records a
+PDFTriage document-count inconsistency in its accepted paper. See the tracked
+question/split manifests and `docs/reference/phase-2-pooling-procedure.md`.
+
+**Historical P2-12.3 held-out source checkpoint at initial review; assistant-reviewed 2026-09-27 (superseded by the completion record below):** canonical
+q21–q30 query text is frozen before pooling in
+`benchmarks/phase2/benchmark-heldout-questions-v1.toml`. The split manifest binds
+its SHA-256 alongside the development question hash. The held-out set meets all six
+category floors, has three numeric table families, three direct-positive prose
+families, and four negative/mixed families. The sanitized source audit records source
+locations and visual table checks; the private mode-0600 record maps 18 source anchors
+to accepted document, extraction and PDF identities. The text-layer screen checksum-
+verified all 100 accepted PDFs (1,705 pages, no textless PDFs). It found bounded
+phrase matches for q25 on one paper/two pages, q26 on seven papers/24 pages, and q27
+on 16 papers/64 pages. Exact scan terms, page identities and private judgments are
+stored under `local-reference/phase2-runs/benchmark-v1/`. For q25 and q26, “no direct
+support” is restricted to this snapshot and documented screen. q27's closest cases
+include QA-RAG's unanswerable-question rejection test and FLARE's retrieval trigger;
+neither establishes the calibrated risk–coverage property asked for. The q21–q30 candidate pools are materialized, but q21 is excluded after accidental
+exposure of its private ranks and scores. Its pool is superseded by a replacement
+family to be source-checked and frozen before retrieval. q11–q20 source review also
+remains partial. q20's existing partial-unblinding disclosure remains.
+
+**P2-12 complete; assistant-reviewed 2026-09-27:** q11–q20 candidate review is
+complete (1,216 evidence and 341 paper candidates); all active q22–q31 held-out
+candidate review is complete (1,581 evidence and 245 paper candidates). The v3
+manifest hashes match the development and held-out question files. The active
+held-out source map has 21 anchors and 34 candidate links; all anchors map to review
+candidates. Development source notes have 83 anchors, of which 77 map to candidates
+and six remain explicitly source-only/out-of-scope. Held-out coverage has three
+numeric-table families, three direct-positive-prose families and four negative/mixed
+families. q20 is excluded from tuning after partial unblinding; q21 is excluded after
+held-out rank/score exposure. No held-out scores were used for choices. See the
+dataset card and source coverage audit linked above. P2-13 is complete; continue
+with the development experiment gate.
+
+
+**P2-13 complete; assistant-reviewed 2026-09-27:** the fixed-window draft
+`c3447473-a9f7-4d8c-93c0-e45ebcab763f` shares the accepted paper, document and
+extraction membership and retains all 5,068 table/figure IDs. It selects 3,427
+fixed-window prose chunks (8,495 total). Exact candidate/source mapping and
+whole-snapshot coverage passed for all 27 direct-positive prose intervals. E5 and
+BGE tokenizers both fit the 27 reviewed anchor inputs and the 301 fixed-window
+chunks in anchor-bearing papers under 512 tokens. Focused tests: 46 passed. The live
+synthetic extraction-reuse/rechunk integration test: 1 passed.
+
+The q11–q19 paired E5 comparison used the same queries, metadata filters, model
+revision and top-50 limit. For 27 prose anchors across seven positive families,
+section-aware/fixed-window supported counts were 2/1 at rank 1, 4/4 at rank 5,
+7/6 at rank 10, 9/9 at rank 20, and 13/13 at rank 50. q15 and q19 had no positive
+prose anchors. The sample shows no fixed-window retrieval gain and remains
+directional. The accepted parent vectors were copied read-only to an isolated
+Qdrant test collection and reconciled against all 44,277 selected IDs to make the
+year-filtered families executable; no accepted DB/index was changed. q20, q21 and
+held-out result data were excluded. Raw private results and mode-0600 reproduction
+scripts are under ignored `local-reference/phase2-runs/fixed-window-20260927/`.
+See `docs/research/phase-2-fixed-window-source-fairness-audit.md`.
+
+
+## Final local implementation checkpoint — 2026-09-27
+
+P2-14's development comparison and numeric gates are recorded in
+[phase-2-development-report.md](../research/phase-2-development-report.md). P2-15
+freezes MiniLM over Hybrid E5 with whole-pool reranked-to-hybrid fallback and no
+unsupported-query cutoff. Serving profile:
+`sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870`;
+acceptance configuration:
+`sha256:6beb525c6a5d76b2bcf28dd0c03bce527872ca462ce44dceba4ea5ce383590bb`.
+The identity correction binds runtime to the separate filter-ready Phase 2 dense
+collection used by development evaluation. It does not change ranking, selection,
+thresholds or the accepted Phase 1 index.
+
+P2-16 typed search/evidence/paper/reference/citation routes, P2-17 failure handling
+and P2-18 [local operations runbook](../operations/phase-2-search.md) are complete.
+Real-model WSL API smoke requests passed for paper/evidence search (including a
+zero-eligible filter), metadata and one-hop citation routes. Five warm table-filtered
+requests measured 1,128.81–1,245.15 ms, with nearest-rank p95 below 1,500 ms. The
+isolated dense collection reconciles all 44,277 selected evidence units.
+
+Local P2-19 verification passed under the updated exact Linux lock: Ruff check/format,
+strict mypy (79 source files), the complete CI-equivalent suite (445 passed, including
+21 fresh PostgreSQL/Qdrant integration tests), migration rerun, `pip check`, and
+`pip-audit --skip-editable` (no known vulnerabilities; the editable project is skipped).
+The Docker build passed with a 47.45 KB context; image BM25S/NumPy import, CLI smoke,
+and image `pip check` passed. Image smoke found the missing NumPy runtime dependency;
+NumPy 2.5.3 and its BLAS libraries are now pinned in the Conda specification and
+Linux lock. `git diff --check` passes. The final published revision still needs
+hosted CI. The implementation has not been pushed. Do not inspect held-out material
+or any `*origins.json`; P2-20 remains pending until P2-19's hosted CI gate passes.

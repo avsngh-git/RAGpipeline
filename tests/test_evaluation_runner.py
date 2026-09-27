@@ -24,6 +24,7 @@ from research_platform.evaluation.matching import (
     TableCellCoverage,
     TableEvidenceRegion,
     TextEvidenceRegion,
+    TextEvidenceSpan,
     match_evidence_hits,
 )
 from research_platform.evaluation.run_records import (
@@ -343,6 +344,40 @@ def test_evidence_chunks_with_different_boundaries_accumulate_once() -> None:
     matches = match_evidence_hits(hits, regions, alignment)
     assert len(matches) == 1
     assert matches[0].coverage_fraction == 1.0
+
+
+def test_cross_section_chunk_supports_anchors_in_each_source_section() -> None:
+    calibration, alignment = calibrated_fixture()
+    alignment = replace(
+        alignment,
+        text_alignments=(
+            TextAnchorAlignment(
+                anchor_id="result-anchor",
+                document_id=DOCUMENT_ID,
+                extraction_id=EXTRACTION_ID,
+                spans=(
+                    TextSpanRequirement(0, 0, 10, 1.0),
+                    TextSpanRequirement(1, 0, 5, 1.0),
+                ),
+            ),
+        ),
+    )
+    hit = make_evidence_hit(rank=1, evidence_id="cross-section")
+    region = TextEvidenceRegion(
+        "cross-section",
+        DOCUMENT_ID,
+        EXTRACTION_ID,
+        0,
+        0,
+        10,
+        additional_spans=(TextEvidenceSpan(1, 0, 5),),
+    )
+
+    matches = match_evidence_hits((hit,), {"cross-section": region}, alignment)
+
+    assert len(matches) == 1
+    assert matches[0].coverage_fraction == 1.0
+    assert matches[0].fully_supported
 
 
 def test_table_cell_partial_support_counts_for_direct_rank_but_not_full_group() -> None:

@@ -202,7 +202,9 @@ def parse_source_alignment(
         *table_alignments,
         *text_alignments,
     )
-    _unique((alignment.anchor_id for alignment in all_alignments), "aligned anchor ID")
+    _unique(
+        tuple(alignment.anchor_id for alignment in all_alignments), "aligned anchor ID"
+    )
     aligned_anchor_ids = {alignment.anchor_id for alignment in all_alignments}
     positive_anchor_ids = {
         judgment.source_anchor_id
@@ -290,7 +292,7 @@ def _parse_table_alignment(
     if not requirements:
         raise SourceAlignmentLoadError(f"{path}.cell_requirements must not be empty")
     _unique(
-        (requirement.cell for requirement in requirements),
+        tuple(requirement.cell for requirement in requirements),
         f"target cell in {anchor_id}",
     )
     return TableAnchorAlignment(

@@ -1,0 +1,77 @@
+schema_version = 1
+freeze_id = "phase2-profile-freeze-v1"
+reviewer = "assistant"
+frozen_at = "2026-09-27"
+status = "frozen_for_implementation_and_heldout"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+snapshot_selected_chunk_count = 44277
+snapshot_selection_identity = "sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18"
+profile_id = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
+base_hybrid_profile_id = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
+default_mode = "hybrid"
+unsupported_query_cutoff = "disabled"
+access_profile = "trusted_private_local"
+candidate_pool_limit = 50
+default_result_limit = 10
+selection_policy = "strongest_passage; paper_support_limit=3; evidence_per_paper_limit=3; result_context=4000 tokens/12000 characters"
+reranker_fallback_policy = "whole-pool fallback to unchanged hybrid order on pair-budget overflow or typed adapter/inference failure; integrity, permission and profile mismatches fail closed"
+acceptance_config = "benchmarks/phase2/acceptance-v1.toml"
+acceptance_config_sha256 = "sha256:6beb525c6a5d76b2bcf28dd0c03bce527872ca462ce44dceba4ea5ce383590bb"
+scoring_policy = "evaluation-scoring-policy-v1"
+source_matching_policy = "source-match-policy-v1"
+
+[snapshot]
+configuration_id = "sha256:4d6a82110a37bd21974bd5fcc0aeae416b2996b79082b6645e6d39e7720f5ca7"
+
+[candidate_limits]
+lexical_top_k = 50
+dense_top_k = 50
+fused_top_k = 50
+rerank_top_k = "disabled"
+
+[selection]
+paper_score_policy = "strongest_passage"
+paper_support_limit = 3
+evidence_per_paper_limit = 3
+evidence_result_character_budget = 12000
+evidence_result_token_budget = 4000
+text_budget_tokenizer = "unicode-token-v1"
+
+[embedding]
+model = "intfloat/e5-small-v2"
+revision = "e8b23a92af33fd81c865283d505f8f058a570cc8"
+preprocessing_revision = "e5-small-v2:passage-prefix:mean-mask:l2-normalize:v1"
+dimensions = 384
+maximum_input_tokens = 512
+index_configuration_id = "sha256:21cb8e4df7f24affb524a84a788f275fa54b08076d519afb1ecf5961ac88ee02"
+
+[lexical]
+implementation = "bm25s"
+revision = "0.3.11-k1.5-b0.75-delta0.5-lucene-idf-lucene-float32-int32-numpy-csc-numpy-auto-compile-true"
+analyzer = "scientific-en"
+analyzer_revision = "v1"
+normalization_revision = "unicode-nfc-casefold-dashes-micro-v1"
+index_format_revision = "bm25s-csc-numpy-row-map-v2"
+index_configuration_id = "sha256:5e38809545dc6b4a09110767a7ff4b576bc48971de2f4573baa797a0ba8caa14"
+
+[fusion]
+method = "rrf-v1"
+rank_constant = 60
+
+[benchmark_identity]
+calibration_sha256 = "sha256:e7f7983ad2af564b24d86464c76f18432e5985a3a74e44849f8323048180c3b6"
+source_alignment_sha256 = "sha256:a85081e2df368815c5717edc16f8748904ae73cef33a61efc68471cc24cb0f4f"
+split_manifest_sha256 = "sha256:d33d66256512aeea5b21168877e5f01b990b8c42f75443948ace328e16607bba"
+development_questions_sha256 = "sha256:6581be118f0f54dfe5ac4b0df50fdcca02aaea2a01b65c94360c8a2e60becab2"
+benchmark_version = "phase2-benchmark-v3"
+
+[comparison_profiles]
+bm25_lexical = "sha256:f36849d5b7ce411a2ddbc35f5516b9462a5948bf9651728ac84a65005922b5e6"
+dense_e5 = "sha256:1eb792e949142afbd45a34b081149565fd273156fdcf2f21f5c456f845736884"
+hybrid_e5 = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
+reranked_minilm_hybrid = "sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870"
+fixed_window_dense_e5 = "sha256:c2c7429ca329014e1d2b24f3dfd958cb461d93f5315a2977d5e23b9681b7f785"
+
+[heldout_comparisons]
+profiles = ["bm25_lexical", "dense_e5", "hybrid_e5", "reranked_minilm_hybrid", "fixed_window_dense_e5"]
+family_set = "held-out q22-q31 from benchmark-v3; no held-out score inspected at freeze"

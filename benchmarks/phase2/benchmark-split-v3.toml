@@ -1,0 +1,29 @@
+schema_version = 1
+split_manifest_id = "phase2-benchmark-family-splits-v3"
+dataset_id = "phase2-benchmark-v1"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+split_unit = "question_family"
+split_policy_id = "phase2-benchmark-family-split-v1-replacement-query-clarification"
+sampling_plan_id = "phase2-benchmark-sampling-v1"
+calibration_dataset_id = "phase2-calibration-v1"
+calibration_manifest_sha256 = "sha256:e7f7983ad2af564b24d86464c76f18432e5985a3a74e44849f8323048180c3b6"
+paraphrases_inherit_family_split = true
+assignment_policy = "q21_excluded_after_protocol_breach; q31_replaces_q21; q22_table_scope_clarified_after_blinded_content_review_before_v3_pooling"
+query_content_status = "q22-q30_retained_with_q22_scope_clarification; q31_replacement_frozen; q21_excluded"
+development_question_manifest_sha256 = "sha256:6581be118f0f54dfe5ac4b0df50fdcca02aaea2a01b65c94360c8a2e60becab2"
+heldout_question_manifest_sha256 = "sha256:d4b13f0a63b732f9b7b3a35a50e6e509c463dc20cdcc95b42a085170b21f653b"
+
+calibration_development_families = ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10"]
+
+new_development_family_ids = ["q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20"]
+
+new_heldout_family_ids = ["q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31"]
+
+[allocation]
+development_family_count = 20
+heldout_family_count = 10
+total_family_count = 30
+heldout_access_rule = "judgments-may-be-prepared-but-scores-must-not-guide-tuning"
+excluded_family_ids = ["q21"]
+exclusion_reason = "private heldout rank and score exposure during reviewer-card sampling"
+superseded_manifest_ids = ["phase2-benchmark-family-splits-v1", "phase2-benchmark-family-splits-v2"]

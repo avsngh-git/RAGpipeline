@@ -235,6 +235,7 @@ __marimo__/
 # Checked-in JSON configuration examples remain versioned.
 *.json
 !/configs/*.example.json
+!/benchmarks/phase2/e5-small-v2-filtered-index-v1.json
 
 # Windows download metadata sidecars are not project source.
 *:Zone.Identifier
