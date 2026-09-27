@@ -843,7 +843,14 @@ paper case, with paragraph/figure/table evidence units and separate answer/evide
 scores; the chunking study evaluates evidence-sentence retrieval and generated answers.
 LegalBench-RAG stores exact character offsets in legal text and evaluates retrieval, not
 answer generation. No exact character or PDF-coordinate judgments for research PDFs were
-found among the reviewed candidates. q19–q20 remain unjudged. Continue with 12.3.
+found among the reviewed candidates. q19 has three near-match papers and five evidence
+cards source-checked; all five independent scan leads were reviewed and mapped to blinded
+cards. Forty-seven papers and 138 evidence candidates remain unjudged. Its frozen scan
+covered all 100 papers / 44,277 selected chunks, matching five chunks in three papers and
+zero title or abstract records. The matches concern upstream LaMDA pretraining,
+unquantified PromptReps document encoding, or a review’s future recommendations; no
+measured local RAG energy per query was found under the recorded scan and review. q20
+remains unjudged. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 
