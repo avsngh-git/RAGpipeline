@@ -920,6 +920,8 @@ def test_dense_filters_return_empty_when_required_payload_metadata_is_missing(
         assert result.hits == ()
         assert result.hydrated_hits == ()
         assert result.candidate_count == 0
+        assert result.eligible_count == 0
+        assert result.result_status.value == "no_eligible_records"
         assert result.truncated is False
         assert result.applied_filters == filters
         count_body = json.loads(calls[0].content)

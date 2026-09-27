@@ -112,9 +112,17 @@ with source IDs and an explicit reason. See the
 [table evidence context policy](../reference/phase-2-table-evidence-context.md).
 
 Each response includes `request_id`, resolved `snapshot_id`, retrieval profile and
-effective configuration identities, requested and effective modes, warnings,
-`truncated`, `omitted_count`, and ranked hits. Component scores are raw method
-scores/ranks, not calibrated probabilities; a missing component is `null`. A
+effective configuration identities, requested and effective modes, exact
+`eligible_count`, `result_status`, `ranking_interpretation`, warnings, `truncated`,
+`omitted_count`, and ranked hits. `eligible_count` counts records satisfying the
+snapshot and filters before the result limit (papers for paper/metadata search,
+evidence records for evidence search). `result_status` is `no_eligible_records` when
+that count is zero, `no_candidates_returned` when eligible records exist but no hit
+was returned, or `ranked_candidates` when hits are present. Component scores are raw
+method scores/ranks, not calibrated probabilities; a missing component is `null`.
+Every response has `ranking_interpretation: ranking_only`: retrieval does not assess
+answerability or verify claim support. No relevance cutoff is applied. Any future
+cutoff must be calibrated and frozen for the exact effective mode and profile. A
 fallback must report the effective mode and a warning.
 
 ## Access boundary

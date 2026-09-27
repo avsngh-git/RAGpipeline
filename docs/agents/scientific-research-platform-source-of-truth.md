@@ -1,8 +1,8 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.13\
-**Last updated:** 2026-09-26\
+**Version:** 1.14\
+**Last updated:** 2026-09-27\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 entry checks complete; retrieval implementation in progress\
 
@@ -481,8 +481,9 @@ Claims of improvement MUST include fixed datasets, versioned configurations, unc
 Approved 2026-09-26 after the planning interview. The
 [execution roadmap](../plans/phase-2-retrieval-evaluation.md),
 [evaluation protocol](../plans/phase-2-evaluation-protocol.md),
-[agent handoff](../plans/phase-2-agent-handoff.md) and
-[ADR-0008](../adr/0008-phase2-retrieval-evaluation-boundaries.md) elaborate these rules.
+[agent handoff](../plans/phase-2-agent-handoff.md),
+[ADR-0008](../adr/0008-phase2-retrieval-evaluation-boundaries.md) and
+[ADR-0011](../adr/0011-explicit-search-result-semantics.md) elaborate these rules.
 
 - **Corpus and provenance:** use the accepted 100-paper corpus for the initial
   benchmark; preserve its finalized snapshot. Model/chunk experiments use separately
@@ -503,6 +504,11 @@ Approved 2026-09-26 after the planning interview. The
   passage is the initial paper evidence score, with up to three distinct supporting
   hits. Evidence results remove redundant overlap and use configurable per-paper
   limits; structured tables retain source-linked headers, values, units and footnotes.
+- **Outcome semantics:** every search response reports the exact eligible-record
+  count before ranking limits and distinguishes `no_eligible_records`,
+  `no_candidates_returned` and `ranked_candidates`. A ranking-only response does
+  not assess answerability or verify claim support. Relevance cutoffs remain disabled
+  until calibrated and frozen for the exact effective mode and retrieval profile.
 - **Filters and graph:** require an explicit snapshot; support inclusive year ranges,
   selected paper IDs, evidence kinds and published/preprint document-version kinds
   where applicable. Apply consistent eligibility before lexical/dense top-k; missing

@@ -23,6 +23,8 @@ from research_platform.ingestion.snapshot_selection import SnapshotSelection
 from research_platform.search.contracts import (
     SearchFilters,
     SearchOperation,
+    SearchResultStatus,
+    _search_result_status,
     matches_filters,
 )
 from research_platform.search.lexical_analyzer import (
@@ -560,13 +562,19 @@ class LexicalHit:
 
 @dataclass(frozen=True)
 class LexicalSearchResult:
-    """Exact positive-match count and bounded results from one lexical query."""
+    """Exact eligibility and positive-match counts for one bounded lexical query."""
 
     hits: tuple[LexicalHit, ...]
     available_count: int
+    eligible_count: int
     limit: int
     truncated: bool
     applied_filters: SearchFilters = SearchFilters()
+
+    @property
+    def result_status(self) -> SearchResultStatus:
+        """Distinguish empty filter scope from eligible records with no lexical hit."""
+        return _search_result_status(self.eligible_count, len(self.hits))
 
     def __post_init__(self) -> None:
         if (
@@ -581,12 +589,20 @@ class LexicalSearchResult:
             or self.available_count < 0
         ):
             raise ValueError("available_count must be a non-negative integer")
+        if (
+            isinstance(self.eligible_count, bool)
+            or not isinstance(self.eligible_count, int)
+            or self.eligible_count < 0
+        ):
+            raise ValueError("eligible_count must be a non-negative integer")
         if not isinstance(self.truncated, bool):
             raise ValueError("truncated must be boolean")
         if not isinstance(self.applied_filters, SearchFilters):
             raise ValueError("applied_filters must be SearchFilters")
         if self.available_count < len(self.hits):
             raise ValueError("available_count cannot be smaller than returned hits")
+        if self.available_count > self.eligible_count:
+            raise ValueError("positive matches cannot exceed eligible records")
         if len(self.hits) > self.limit:
             raise ValueError("returned lexical hits exceed the query limit")
         if self.truncated != (self.available_count > self.limit):
@@ -643,10 +659,6 @@ class LexicalRetriever:
             raise ValueError("limit must be a positive integer")
         if limit > self._index.manifest.candidate_limit:
             raise ValueError("limit exceeds the profile lexical candidate limit")
-        tokens = tokenize_scientific_english(query)
-        if not tokens:
-            return LexicalSearchResult((), 0, limit, False, filters)
-
         if eligible_ids is None:
             eligible_rows = set(range(len(self._index.rows)))
         else:
@@ -656,8 +668,6 @@ class LexicalRetriever:
             unknown_ids = requested_ids.difference(self._row_by_id)
             if unknown_ids:
                 raise ValueError("eligible IDs are outside this lexical index")
-            if not requested_ids:
-                return LexicalSearchResult((), 0, limit, False, filters)
             eligible_rows = {
                 self._row_by_id[stable_id].row for stable_id in requested_ids
             }
@@ -676,8 +686,17 @@ class LexicalRetriever:
                     document_version_kind=row.document_version_kind,
                 )
             }
-        if not eligible_rows:
-            return LexicalSearchResult((), 0, limit, False, filters)
+        eligible_count = len(eligible_rows)
+        tokens = tokenize_scientific_english(query)
+        if not eligible_rows or not tokens:
+            return LexicalSearchResult(
+                hits=(),
+                available_count=0,
+                eligible_count=eligible_count,
+                limit=limit,
+                truncated=False,
+                applied_filters=filters,
+            )
 
         score_array = np.asarray(self._index.engine.get_scores(list(tokens)))
         if score_array.shape != (len(self._index.rows),):
@@ -703,6 +722,7 @@ class LexicalRetriever:
         return LexicalSearchResult(
             hits=hits,
             available_count=available_count,
+            eligible_count=eligible_count,
             limit=limit,
             truncated=available_count > limit,
             applied_filters=filters,

@@ -24,7 +24,9 @@ from research_platform.search.contracts import (
     SearchFilters,
     SearchLimits,
     SearchOperation,
+    SearchRankingInterpretation,
     SearchResponse,
+    SearchResultStatus,
     matches_filters,
 )
 
@@ -206,6 +208,7 @@ def test_response_schema_preserves_source_and_component_provenance() -> None:
         effective_configuration_id="sha256:" + "e" * 64,
         requested_mode=RetrievalMode.RERANKED,
         effective_mode=RetrievalMode.HYBRID,
+        eligible_count=1,
         hits=(paper,),
         warnings=("reranker unavailable; fused order returned",),
         truncated=True,
@@ -220,6 +223,7 @@ def test_response_schema_preserves_source_and_component_provenance() -> None:
         effective_configuration_id="sha256:" + "e" * 64,
         requested_mode=RetrievalMode.RERANKED,
         effective_mode=RetrievalMode.RERANKED,
+        eligible_count=1,
         hits=(evidence,),
     )
     serialized_evidence = EvidenceSearchResponse.from_contract(evidence_response)
@@ -227,11 +231,61 @@ def test_response_schema_preserves_source_and_component_provenance() -> None:
     assert serialized_papers.request_id == "request-123"
     assert serialized_papers.effective_mode is RetrievalMode.HYBRID
     assert serialized_papers.truncated is True
+    assert serialized_papers.eligible_count == 1
+    assert serialized_papers.result_status is SearchResultStatus.RANKED_CANDIDATES
+    assert (
+        serialized_papers.ranking_interpretation
+        is SearchRankingInterpretation.RANKING_ONLY
+    )
     assert (
         serialized_papers.hits[0].supporting_evidence[0].document_version == "published"
     )
     assert serialized_evidence.hits[0].source_location.page_index_zero_based == 4
     assert serialized_evidence.hits[0].component_scores.reranker.score == 4.2
+
+
+def test_response_distinguishes_empty_eligibility_from_no_returned_candidates() -> None:
+    def make_response(
+        eligible_count: int, hits: tuple[PaperMetadataHit, ...]
+    ) -> SearchResponse[PaperMetadataHit]:
+        return SearchResponse(
+            request_id="request-outcome",
+            snapshot_id=SNAPSHOT_ID,
+            retrieval_profile_id=PROFILE_ID,
+            effective_configuration_id="sha256:" + "e" * 64,
+            requested_mode=RetrievalMode.LEXICAL,
+            effective_mode=RetrievalMode.LEXICAL,
+            hits=hits,
+            eligible_count=eligible_count,
+        )
+
+    empty_scope = make_response(0, ())
+    eligible_but_no_hit = make_response(4, ())
+    ranked = make_response(
+        4,
+        (
+            PaperMetadataHit(
+                paper_id="W123",
+                title="A study",
+                publication_year=2022,
+                rank=1,
+                component_scores=ComponentScores(
+                    lexical=RankedComponent(rank=1, score=900.0)
+                ),
+            ),
+        ),
+    )
+
+    assert empty_scope.result_status is SearchResultStatus.NO_ELIGIBLE_RECORDS
+    assert (
+        eligible_but_no_hit.result_status is SearchResultStatus.NO_CANDIDATES_RETURNED
+    )
+    assert ranked.result_status is SearchResultStatus.RANKED_CANDIDATES
+    assert ranked.ranking_interpretation is SearchRankingInterpretation.RANKING_ONLY
+    serialized = PaperMetadataResponse.from_contract(empty_scope)
+    assert serialized.result_status is SearchResultStatus.NO_ELIGIBLE_RECORDS
+    assert serialized.eligible_count == 0
+    assert serialized.ranking_interpretation is SearchRankingInterpretation.RANKING_ONLY
 
 
 def test_metadata_response_has_no_evidence_or_passage_field() -> None:
@@ -242,6 +296,7 @@ def test_metadata_response_has_no_evidence_or_passage_field() -> None:
         effective_configuration_id="sha256:" + "e" * 64,
         requested_mode=RetrievalMode.LEXICAL,
         effective_mode=RetrievalMode.LEXICAL,
+        eligible_count=1,
         hits=(
             PaperMetadataHit(
                 paper_id="W123",
@@ -305,6 +360,7 @@ def test_response_schema_enforces_result_and_per_paper_evidence_bounds() -> None
         effective_configuration_id="sha256:" + "e" * 64,
         requested_mode=RetrievalMode.HYBRID,
         effective_mode=RetrievalMode.HYBRID,
+        eligible_count=1,
         hits=(paper,),
     )
 

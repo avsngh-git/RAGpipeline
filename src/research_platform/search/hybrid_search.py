@@ -10,6 +10,8 @@ from research_platform.search.contracts import (
     DEFAULT_SEARCH_LIMITS,
     SearchFilters,
     SearchOperation,
+    SearchResultStatus,
+    _search_result_status,
 )
 from research_platform.search.dense_search import DenseSearchResponse
 from research_platform.search.fusion import (
@@ -93,15 +95,21 @@ class CandidatePoolStats:
 
 @dataclass(frozen=True)
 class HybridEvidenceSearchResponse:
-    """Bounded fused candidates with exact per-stage pool statistics."""
+    """Bounded fused candidates and exact eligibility under shared filters."""
 
     snapshot_id: UUID
     profile_id: str
     applied_filters: SearchFilters
+    eligible_count: int
     lexical_pool: CandidatePoolStats
     dense_pool: CandidatePoolStats
     fused_pool: CandidatePoolStats
     hits: tuple[FusedEvidenceCandidate, ...]
+
+    @property
+    def result_status(self) -> SearchResultStatus:
+        """State whether candidates ranked or the eligible scope was empty."""
+        return _search_result_status(self.eligible_count, len(self.hits))
 
     @property
     def truncated(self) -> bool:
@@ -277,6 +285,10 @@ class HybridEvidenceSearch:
             )
         except Exception as cause:
             raise _hybrid_failure("dense", profile, cause) from cause
+        if lexical_result.eligible_count != dense_result.eligible_count:
+            raise HybridProfileMismatch(
+                "lexical and dense branches resolved different eligible record counts"
+            )
         try:
             fused = reciprocal_rank_fusion(
                 lexical_result.hits,
@@ -290,6 +302,7 @@ class HybridEvidenceSearch:
             snapshot_id=profile.snapshot.snapshot_id,
             profile_id=profile.profile_id,
             applied_filters=filters,
+            eligible_count=lexical_result.eligible_count,
             lexical_pool=CandidatePoolStats(
                 limit=lexical_limit,
                 available_count=lexical_result.available_count,

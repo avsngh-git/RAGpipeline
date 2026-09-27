@@ -199,6 +199,7 @@ def test_evaluator_runs_fake_search_and_emits_a_text_free_scored_record() -> Non
                 effective_configuration_id=CONFIGURATION_ID,
                 requested_mode=RetrievalMode.DENSE,
                 effective_mode=RetrievalMode.DENSE,
+                eligible_count=1,
                 hits=(paper_hit,),
             ),
             SearchOperation.EVIDENCE_SEARCH: SearchResponse(
@@ -208,6 +209,7 @@ def test_evaluator_runs_fake_search_and_emits_a_text_free_scored_record() -> Non
                 effective_configuration_id=CONFIGURATION_ID,
                 requested_mode=RetrievalMode.DENSE,
                 effective_mode=RetrievalMode.DENSE,
+                eligible_count=1,
                 hits=(evidence_hit,),
             ),
         }
@@ -512,6 +514,7 @@ class FailingSearchService:
             effective_configuration_id=CONFIGURATION_ID,
             requested_mode=RetrievalMode.DENSE,
             effective_mode=RetrievalMode.DENSE,
+            eligible_count=1,
             hits=(PaperHit(PAPER_ID, "paper", 2024, 1, ComponentScores()),),
         )
 
@@ -561,6 +564,7 @@ def test_run_writer_serializes_privately_without_overwriting(tmp_path: Path) -> 
                                 PAPER_ID, "private title", 2024, 1, ComponentScores()
                             ),
                         ),
+                        1,
                     ),
                     SearchOperation.EVIDENCE_SEARCH: SearchResponse(
                         "e",
@@ -570,6 +574,7 @@ def test_run_writer_serializes_privately_without_overwriting(tmp_path: Path) -> 
                         RetrievalMode.DENSE,
                         RetrievalMode.DENSE,
                         (),
+                        0,
                     ),
                 }
             ),
@@ -590,7 +595,14 @@ def test_run_writer_serializes_privately_without_overwriting(tmp_path: Path) -> 
     try:
         written = write_run_record(destination, record)
         serialized = written.read_bytes()
-        assert json.loads(serialized) == record.to_dict()
+        payload = json.loads(serialized)
+        assert payload == record.to_dict()
+        assert payload["schema_version"] == 2
+        assert payload["attempts"][0]["eligible_count"] == 1
+        assert payload["attempts"][0]["result_status"] == "ranked_candidates"
+        assert payload["attempts"][0]["ranking_interpretation"] == "ranking_only"
+        assert payload["attempts"][1]["eligible_count"] == 0
+        assert payload["attempts"][1]["result_status"] == "no_eligible_records"
         assert (
             hashlib.sha256(serialized).hexdigest()
             == sanitized_run_summary(record)["raw_record_sha256"]

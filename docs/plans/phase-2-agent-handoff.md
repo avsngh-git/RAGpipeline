@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-10 and P2-11.1–P2-11.4 complete; continue with P2-11.5.
+Updated: 2026-09-27. Plan approved; P2-01–P2-11 complete; continue with P2-12.1.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-11.5**.
+   whose prerequisites are satisfied. Continue at **P2-12.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -508,7 +508,7 @@ counts explicitly inexact. Defaults are 12,000 characters / 4,000 tokens, maxima
 24,000 / 8,000, all profile-bound under schema 2. Nine focused budget cases pass.
 The offline suite reports 394 passed / 21 deselected; Ruff check and format pass
 (174 files), strict mypy passes (74 source files), and `git diff --check` passes.
-See `docs/reference/phase-2-evidence-result-budgets.md`. Continue with P2-11.5.
+See `docs/reference/phase-2-evidence-result-budgets.md`. P2-11.5 is complete below.
 
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
@@ -521,7 +521,20 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-11.5. Make weak-match and empty-eligibility semantics explicit.
+**Next step:** P2-12.1. Freeze the larger benchmark sampling plan after recording
+calibration review effort and coverage.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.
+
+
+**P2-11.5 complete; assistant-reviewed 2026-09-27:** `SearchResponse` now reports
+exact `eligible_count`, a derived status (`no_eligible_records`,
+`no_candidates_returned`, or `ranked_candidates`), and `ranking_interpretation:
+ranking_only`. Lexical counts eligible rows separately from positive term matches;
+dense reports its exact snapshot/filter count; hybrid rejects branch eligibility
+mismatches. Successful evaluation attempts persist the same semantics in run schema
+2. No answerability or claim-support inference and no relevance cutoff are exposed.
+The offline suite passed 396 tests with 21 deselected; Ruff check passed, formatting
+passed for 176 files, strict mypy passed for 74 source files, and `git diff --check`
+passed; `pip check` found no broken requirements. See `docs/reference/phase-2-search-result-semantics.md` and ADR-0011.

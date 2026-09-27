@@ -17,8 +17,10 @@ from research_platform.search.contracts import (
     RetrievalMode,
     SearchFilters,
     SearchOperation,
+    SearchRankingInterpretation,
     SearchRequest,
     SearchResponse,
+    SearchResultStatus,
     TableCellEvidence,
     TableEvidenceContext,
     TableRowEvidence,
@@ -277,6 +279,9 @@ class _SearchResponseModel(_StrictModel):
     effective_configuration_id: str = Field(pattern=_SHA256_PATTERN)
     requested_mode: RetrievalMode
     effective_mode: RetrievalMode
+    eligible_count: int = Field(ge=0)
+    result_status: SearchResultStatus
+    ranking_interpretation: SearchRankingInterpretation
     warnings: tuple[str, ...] = ()
     truncated: bool
     omitted_count: int = Field(ge=0)

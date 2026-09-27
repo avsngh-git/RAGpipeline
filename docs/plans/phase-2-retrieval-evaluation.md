@@ -55,7 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-10 and P2-11.1–P2-11.4 are complete. Continue with P2-11.5.
+P2-01–P2-11 are complete. Continue with P2-12.1.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -71,8 +71,8 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Complete |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Complete |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
-| P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | In progress |
-| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Pending |
+| P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Complete |
+| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | In progress |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Pending |
 | P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Pending |
 | P2-15 | Default selection and experiment freeze | P2-14 | Pending |
@@ -758,7 +758,19 @@ intact. Nine focused budget cases pass. The offline suite reports 394 passed / 2
 deselected; Ruff check and format pass (174 files), strict mypy passes (74 source
 files), and `git diff --check` passes. Quality tradeoffs remain for P2-14. See the
 [evidence result budget policy](../reference/phase-2-evidence-result-budgets.md).
-Continue with weak-match semantics in 11.5.
+P2-11.5 completion follows.
+
+**11.5 complete; assistant-reviewed 2026-09-27:** search contracts now include an
+exact `eligible_count`, a derived status separating empty filter scope from zero
+returned candidates, and the fixed `ranking_only` interpretation. Lexical results
+retain eligible-record counts separately from positive term matches; dense results
+expose the validated snapshot/filter count; hybrid retrieval fails closed if its
+branches disagree. Evaluation attempt records persist these values under schema 2.
+No relevance cutoff is applied; future cutoffs require calibration and freeze for the
+exact effective mode/profile. Focused and full-suite verification is recorded in the
+[agent handoff](phase-2-agent-handoff.md) and
+[search result semantics policy](../reference/phase-2-search-result-semantics.md).
+P2-11 is complete; continue with P2-12.1.
 
 ## P2-12 — Construct the larger benchmark
 

@@ -105,7 +105,16 @@ class _LexicalBranch:
         self.calls.append((query, limit, filters))
         if self.error is not None:
             raise self.error
-        return replace(self.result, applied_filters=filters)
+        if filters == SearchFilters():
+            return self.result
+        return replace(
+            self.result,
+            hits=(),
+            available_count=0,
+            eligible_count=0,
+            truncated=False,
+            applied_filters=filters,
+        )
 
 
 class _DenseBranch:
@@ -172,6 +181,7 @@ def _service(
     lexical_result = LexicalSearchResult(
         hits=(_lexical_hit("a", 9.0, 0), _lexical_hit("b", 8.0, 1)),
         available_count=5,
+        eligible_count=5,
         limit=2,
         truncated=True,
     )
@@ -209,6 +219,8 @@ def test_hybrid_search_caps_each_branch_and_fused_union_with_exact_stats() -> No
     assert result.fused_pool.truncated
     assert result.fused_pool.count_exact is False
     assert result.truncated
+    assert result.eligible_count == 5
+    assert result.result_status.value == "ranked_candidates"
 
 
 def test_hybrid_search_rejects_profile_mismatch_before_dense_call() -> None:
@@ -222,6 +234,15 @@ def test_hybrid_search_rejects_profile_mismatch_before_dense_call() -> None:
         asyncio.run(service.search_query(different_profile, "query"))
 
     assert not dense.calls
+
+
+def test_hybrid_search_fails_closed_when_branches_disagree_on_eligibility() -> None:
+    profile = _profile()
+    service, _lexical, dense = _service(profile)
+    dense.available_count = 4
+
+    with pytest.raises(HybridProfileMismatch, match="different eligible record counts"):
+        asyncio.run(service.search_query(profile, "query"))
 
 
 def test_hybrid_search_applies_and_records_filters_in_both_branches() -> None:
@@ -246,11 +267,13 @@ def test_hybrid_search_returns_empty_when_filters_have_no_eligible_evidence() ->
     profile = _profile()
     service, lexical, dense = _service(profile)
     filters = SearchFilters(paper_ids=("W999",))
-    lexical.result = LexicalSearchResult((), 0, 2, False)
+    lexical.result = LexicalSearchResult((), 0, 0, 2, False)
 
     result = asyncio.run(service.search_query(profile, "query", filters=filters))
 
     assert result.hits == ()
+    assert result.eligible_count == 0
+    assert result.result_status.value == "no_eligible_records"
     assert result.lexical_pool.available_count == 0
     assert result.dense_pool.available_count == 0
     assert result.fused_pool.available_count == 0

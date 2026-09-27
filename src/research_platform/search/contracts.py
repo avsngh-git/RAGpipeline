@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Generic, Literal, TypeVar
 from uuid import UUID
@@ -30,6 +30,30 @@ class SearchOperation(str, Enum):
     PAPER_SEARCH = "paper_search"
     EVIDENCE_SEARCH = "evidence_search"
     PAPER_METADATA = "paper_metadata"
+
+
+class SearchResultStatus(str, Enum):
+    """Why a bounded search response contains or lacks ranked candidates."""
+
+    RANKED_CANDIDATES = "ranked_candidates"
+    NO_ELIGIBLE_RECORDS = "no_eligible_records"
+    NO_CANDIDATES_RETURNED = "no_candidates_returned"
+
+
+class SearchRankingInterpretation(str, Enum):
+    """Interpretation guaranteed by retrieval before relevance calibration."""
+
+    RANKING_ONLY = "ranking_only"
+
+
+def _search_result_status(
+    eligible_count: int, returned_count: int
+) -> SearchResultStatus:
+    if eligible_count == 0:
+        return SearchResultStatus.NO_ELIGIBLE_RECORDS
+    if returned_count == 0:
+        return SearchResultStatus.NO_CANDIDATES_RETURNED
+    return SearchResultStatus.RANKED_CANDIDATES
 
 
 @dataclass(frozen=True)
@@ -646,9 +670,14 @@ class SearchResponse(Generic[HitT]):
     requested_mode: RetrievalMode
     effective_mode: RetrievalMode
     hits: tuple[HitT, ...]
+    eligible_count: int
     warnings: tuple[str, ...] = ()
     truncated: bool = False
     omitted_count: int = 0
+    result_status: SearchResultStatus = field(init=False)
+    ranking_interpretation: SearchRankingInterpretation = field(
+        default=SearchRankingInterpretation.RANKING_ONLY, init=False
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.request_id, str) or not 1 <= len(self.request_id) <= 128:
@@ -665,6 +694,21 @@ class SearchResponse(Generic[HitT]):
             raise ValueError("requested_mode and effective_mode must be supported")
         if not isinstance(self.hits, tuple):
             raise ValueError("hits must be a tuple")
+        if (
+            isinstance(self.eligible_count, bool)
+            or not isinstance(self.eligible_count, int)
+            or self.eligible_count < 0
+        ):
+            raise ValueError("eligible_count must be a non-negative integer")
+        if len(self.hits) > self.eligible_count:
+            raise ValueError("returned hits cannot exceed the eligible record count")
+        object.__setattr__(
+            self,
+            "result_status",
+            _search_result_status(self.eligible_count, len(self.hits)),
+        )
+        if self.ranking_interpretation is not SearchRankingInterpretation.RANKING_ONLY:
+            raise ValueError("search responses provide ranking only")
         if not isinstance(self.warnings, tuple) or any(
             not isinstance(warning, str) or not warning.strip()
             for warning in self.warnings

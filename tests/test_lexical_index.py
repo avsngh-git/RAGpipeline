@@ -171,6 +171,7 @@ def test_lexical_filters_apply_before_top_k_and_fail_closed_on_missing_metadata(
 
     assert [hit.stable_id for hit in filtered.hits] == ["sha256:" + "2" * 64]
     assert filtered.available_count == 2
+    assert filtered.eligible_count == 2
     assert filtered.truncated is True
     assert filtered.applied_filters == filters
     selected_row = next(row for row in index.rows if row.paper_id == "W2")
@@ -180,9 +181,11 @@ def test_lexical_filters_apply_before_top_k_and_fail_closed_on_missing_metadata(
     assert restored_row.document_version_kind == "preprint"
     assert empty.hits == ()
     assert empty.available_count == 0
+    assert empty.eligible_count == 0
     assert empty.truncated is False
     assert missing.hits == ()
     assert missing.available_count == 0
+    assert missing.eligible_count == 0
 
 
 def test_paper_index_keeps_missing_fields_and_empty_paper_rows() -> None:
@@ -300,11 +303,22 @@ def test_retriever_applies_eligibility_before_top_k_and_handles_empty_results() 
     )
     search = LexicalRetriever(index)
 
-    restricted = search.search("alpha", eligible_ids={ids[0]}, limit=1)
-    assert [hit.stable_id for hit in restricted] == [ids[0]]
-    assert search.search("alpha", eligible_ids=set()) == ()
-    assert search.search("missing-token") == ()
-    assert search.search("???") == ()
+    restricted = search.search_with_stats("alpha", eligible_ids={ids[0]}, limit=1)
+    assert [hit.stable_id for hit in restricted.hits] == [ids[0]]
+    assert restricted.eligible_count == 1
+    no_eligible = search.search_with_stats("alpha", eligible_ids=set())
+    assert no_eligible.hits == ()
+    assert no_eligible.eligible_count == 0
+    assert no_eligible.result_status.value == "no_eligible_records"
+    no_term_match = search.search_with_stats("missing-token")
+    assert no_term_match.hits == ()
+    assert no_term_match.eligible_count == 3
+    assert no_term_match.available_count == 0
+    assert no_term_match.result_status.value == "no_candidates_returned"
+    empty_query = search.search_with_stats("???")
+    assert empty_query.hits == ()
+    assert empty_query.eligible_count == 3
+    assert empty_query.result_status.value == "no_candidates_returned"
     with pytest.raises(ValueError, match="outside this lexical index"):
         search.search("alpha", eligible_ids={"sha256:" + "9" * 64})
 

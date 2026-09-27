@@ -153,6 +153,7 @@ def test_paper_response_schema_preserves_both_branch_ranks() -> None:
         effective_configuration_id="sha256:" + "b" * 64,
         requested_mode=RetrievalMode.HYBRID,
         effective_mode=RetrievalMode.HYBRID,
+        eligible_count=1,
         hits=(paper,),
     )
 

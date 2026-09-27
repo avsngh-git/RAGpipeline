@@ -28,6 +28,8 @@ from research_platform.search.contracts import (
     DEFAULT_SEARCH_LIMITS,
     SearchFilters,
     SearchOperation,
+    SearchResultStatus,
+    _search_result_status,
     matches_filters,
 )
 from research_platform.search.profiles import RetrievalProfile
@@ -81,7 +83,7 @@ class HydratedDenseHit:
 
 @dataclass(frozen=True)
 class DenseSearchResponse:
-    """Dense matches and exact unfiltered counts, if available for this query."""
+    """Dense matches plus the exact count of records eligible under the filters."""
 
     snapshot_id: UUID
     profile_id: str
@@ -92,6 +94,16 @@ class DenseSearchResponse:
     truncated: bool
     applied_filters: SearchFilters
     hydrated_hits: tuple[HydratedDenseHit, ...] = ()
+
+    @property
+    def eligible_count(self) -> int:
+        """Exact number of snapshot records available to rank before top-k."""
+        return self.candidate_count
+
+    @property
+    def result_status(self) -> SearchResultStatus:
+        """Report empty eligibility separately from an empty returned ranking."""
+        return _search_result_status(self.eligible_count, len(self.hits))
 
 
 class UnsupportedRetrievalProfile(ValueError):

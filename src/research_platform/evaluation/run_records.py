@@ -34,11 +34,13 @@ from research_platform.search.contracts import (
     RetrievalMode,
     SearchFilters,
     SearchOperation,
+    SearchRankingInterpretation,
     SearchRequest,
     SearchResponse,
+    SearchResultStatus,
 )
 
-_RUN_SCHEMA_VERSION = 1
+_RUN_SCHEMA_VERSION = 2
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 _CODE_REVISION = re.compile(r"^[0-9a-f]{7,40}$")
 _FAILURE_CATEGORIES = {
@@ -305,6 +307,9 @@ class SearchAttemptRecord:
     warning_count: int = 0
     truncated: bool = False
     omitted_count: int = 0
+    eligible_count: int | None = None
+    result_status: SearchResultStatus | None = None
+    ranking_interpretation: SearchRankingInterpretation | None = None
     paper_results: tuple[PaperResultRecord, ...] = ()
     evidence_results: tuple[EvidenceResultRecord, ...] = ()
     failure_category: FailureCategory | None = None
@@ -380,6 +385,22 @@ class SearchAttemptRecord:
                 raise ValueError(f"{name} must be a non-negative integer")
         if not isinstance(self.truncated, bool):
             raise ValueError("truncated must be a boolean")
+        if self.eligible_count is not None and (
+            isinstance(self.eligible_count, bool)
+            or not isinstance(self.eligible_count, int)
+            or self.eligible_count < 0
+        ):
+            raise ValueError("eligible_count must be a non-negative integer or null")
+        if self.result_status is not None and not isinstance(
+            self.result_status, SearchResultStatus
+        ):
+            raise ValueError("result_status must be a SearchResultStatus or null")
+        if self.ranking_interpretation is not None and not isinstance(
+            self.ranking_interpretation, SearchRankingInterpretation
+        ):
+            raise ValueError(
+                "ranking_interpretation must be SearchRankingInterpretation or null"
+            )
         for name, memory_bytes in (
             ("peak_ram_bytes", self.peak_ram_bytes),
             ("peak_accelerator_memory_bytes", self.peak_accelerator_memory_bytes),
@@ -402,6 +423,9 @@ class SearchAttemptRecord:
                 self.request_id is not None
                 or self.effective_mode is not None
                 or self.effective_configuration_id is not None
+                or self.eligible_count is not None
+                or self.result_status is not None
+                or self.ranking_interpretation is not None
                 or self.paper_results
                 or self.evidence_results
             ):
@@ -411,6 +435,9 @@ class SearchAttemptRecord:
             or self.request_id is None
             or self.effective_mode is None
             or self.effective_configuration_id is None
+            or self.eligible_count is None
+            or self.result_status is None
+            or self.ranking_interpretation is None
         ):
             raise ValueError("successful attempts require response data and no failure")
         elif self.status != (
@@ -435,6 +462,24 @@ class SearchAttemptRecord:
             raise ValueError("paper result ranks must be unique")
         if len(set(evidence_ranks)) != len(evidence_ranks):
             raise ValueError("evidence result ranks must be unique")
+        if self.eligible_count is not None:
+            result_count = len(self.paper_results) + len(self.evidence_results)
+            if result_count > self.eligible_count:
+                raise ValueError("returned result count cannot exceed eligible_count")
+            expected_result_status = (
+                SearchResultStatus.NO_ELIGIBLE_RECORDS
+                if self.eligible_count == 0
+                else SearchResultStatus.NO_CANDIDATES_RETURNED
+                if result_count == 0
+                else SearchResultStatus.RANKED_CANDIDATES
+            )
+            if self.result_status is not expected_result_status:
+                raise ValueError("result_status does not match eligibility and results")
+            if (
+                self.ranking_interpretation
+                is not SearchRankingInterpretation.RANKING_ONLY
+            ):
+                raise ValueError("search attempts record ranking-only interpretation")
         if (
             len(self.paper_results) > self.limit
             or len(self.evidence_results) > self.limit
@@ -475,6 +520,15 @@ class SearchAttemptRecord:
             "warning_count": self.warning_count,
             "truncated": self.truncated,
             "omitted_count": self.omitted_count,
+            "eligible_count": self.eligible_count,
+            "result_status": (
+                self.result_status.value if self.result_status is not None else None
+            ),
+            "ranking_interpretation": (
+                self.ranking_interpretation.value
+                if self.ranking_interpretation is not None
+                else None
+            ),
             "failure_category": self.failure_category,
             "peak_ram_bytes": self.peak_ram_bytes,
             "peak_accelerator_memory_bytes": self.peak_accelerator_memory_bytes,
@@ -708,6 +762,9 @@ def successful_search_attempt(
         warning_count=len(response.warnings),
         truncated=response.truncated,
         omitted_count=response.omitted_count,
+        eligible_count=response.eligible_count,
+        result_status=response.result_status,
+        ranking_interpretation=response.ranking_interpretation,
         paper_results=paper_results,
         evidence_results=evidence_results,
         peak_ram_bytes=peak_ram_bytes,
