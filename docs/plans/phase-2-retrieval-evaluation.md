@@ -823,8 +823,10 @@ three prose evidence candidates judged; its table row groups await visual review
 All other q11 candidates, 15 q12 papers, and 103 q12 evidence candidates remain
 unjudged. q13 has two papers and six pooled evidence candidates source-reviewed; a
 seventh source anchor has no current pooled candidate mapping, and 40 papers / 103
-evidence candidates remain unjudged. Its two LongRAG table leads remain unjudged.
-q14–q20 remain unjudged. Continue with 12.3.
+evidence candidates remain unjudged. Its two LongRAG table leads remain unjudged. q14
+has one paper and eight prose evidence candidates source-checked, with 15 papers and
+99 evidence candidates unjudged; its table-row candidates await visual review. q15–q20
+remain unjudged. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 
