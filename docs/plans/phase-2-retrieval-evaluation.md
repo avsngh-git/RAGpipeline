@@ -831,8 +831,13 @@ matched one MTEB passage about SPECTER training on citation graphs, not citation
 traversal for RAG. No direct supporting work was found within the snapshot under this
 review procedure; 44 papers and 137 evidence candidates remain unjudged. q16 has one paper and 11 prose evidence cards source-checked, with 14 papers and 92
 q16 evidence candidates unjudged; the review separates response metrics from generated-
-document human ratings and records terminology variations. q17–q20 remain unjudged.
-Continue with 12.3.
+document human ratings and records terminology variations. q17 has two papers and six
+prose evidence cards source-checked; 35 papers and 110 evidence candidates remain
+unjudged. The comparison records CodeRAG-Bench's four coding-task categories, five
+retrieval-source types, and retrieval, generation, and end-to-end evaluation, alongside
+BERGEN's QA-centered coverage and configurable retrieval, reranking, generation, and
+training pipeline. Both accepted PDF checksums match their snapshot records. q18–q20
+remain unjudged. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 

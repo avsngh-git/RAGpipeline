@@ -589,7 +589,12 @@ snapshot-bounded audit found no direct supporting work; 44 papers and 137 eviden
 candidates remain unjudged. q16 has one paper and 11 prose evidence cards source-checked; 14 papers and 92
 q16 evidence candidates remain unjudged. Its RAGEval review distinguishes generated-
 answer metrics from human ratings of synthetic-document quality and records naming
-variations in the paper. q17–q20 remain unjudged. The q13 review records a
+variations in the paper. q17 has two papers and six prose evidence cards source-checked;
+35 papers and 110 evidence candidates remain unjudged. Its comparison records
+CodeRAG-Bench's four coding-task categories, five retrieval-source types, and retrieval,
+generation, and end-to-end evaluation, alongside BERGEN's QA-centered coverage and
+configurable retrieval, reranking, generation, and training pipeline. The accepted PDF
+checksums match the snapshot records. q18–q20 remain unjudged. The q13 review records a
 PDFTriage document-count inconsistency in its accepted paper. See the tracked
 question/split manifests and `docs/reference/phase-2-pooling-procedure.md`. Continue
 with P2-12.3.
