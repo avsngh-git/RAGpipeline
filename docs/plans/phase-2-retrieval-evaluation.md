@@ -55,8 +55,7 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-09 are complete. P2-10 is in progress; 10.1–10.4 are complete,
-with 10.5 next.
+P2-01–P2-10 are complete. Continue with P2-11.1.
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -71,7 +70,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-07 | Dense retrieval and embedding pilots | P2-03 | Complete |
 | P2-08 | Fusion and consistent candidate filtering | P2-06, P2-07 | Complete |
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Complete |
-| P2-10 | Cross-encoder reranking | P2-05, P2-08 | In progress |
+| P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Pending |
 | P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Pending |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Pending |
@@ -652,6 +651,21 @@ rejected. Tests cover provenance retention, candidate-pool changes and query/pro
 model identity mismatches; focused reranker/pair suite: 28 passed. The full offline
 suite passes (346 passed, 21 deselected) using the existing temporary BM25S
 verification path; Ruff, format, strict source mypy and `git diff --check` pass.
+
+**10.5 complete; assistant-reviewed 2026-09-27:**
+`search/reranker_models.py` loads only the exact reviewed MiniLM/BGE revisions from
+the local cache, with remote code disabled. It explicitly preserves raw logits using
+identity activation and disables softmax. Missing optional runtime or weights,
+unavailable CUDA, device OOM, inference timeout, invalid/alignment output and pair
+budget errors become safe failures. `search/reranker_service.py` returns the exact
+original fused candidates on failure and reports the failed model/revision/type
+without query, evidence or raw exception text. Fake tests cover the failure branches.
+Both pinned real models then passed local-only WSL CUDA smoke and the profile-bound
+adapter plus provenance mapper on one synthetic pair each (19 tokens); no corpus text
+or new download was used. Full offline suite: 356 passed, 21 deselected using the
+existing temporary BM25S verification path; Ruff and format pass (162 files), strict
+mypy reports no issues in 70 source files, and `git diff --check` passes. No retrieval-quality score was computed; candidate
+selection remains OPEN. P2-10's Done condition is met.
 
 1. **10.1 Pilot both candidates.** Evaluate MS MARCO MiniLM-L6-v2 and BGE-reranker-base
    on bounded representative query/prose/table pairs. Record revisions, licenses,

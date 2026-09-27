@@ -27,9 +27,11 @@ from research_platform.search.profiles import (
 from research_platform.search.reranker import (
     CrossEncoderReranker,
     RerankerCandidateLimitExceeded,
+    RerankerDeviceExhausted,
     RerankerInferenceFailure,
     RerankerInferenceTimeout,
     RerankerInvalidScoreError,
+    RerankerModelLoadFailure,
     RerankerOutputAlignmentError,
     RerankerProfileMismatch,
 )
@@ -38,6 +40,7 @@ from research_platform.search.reranker_results import (
     RerankerProvenanceError,
     apply_reranker_scores,
 )
+from research_platform.search.reranker_service import rerank_with_fallback
 
 SNAPSHOT_ID = UUID("4b11fab3-d4a5-4e7a-a58e-8654accf2c6c")
 SNAPSHOT_CONFIG_ID = "sha256:" + "a" * 64
@@ -385,3 +388,85 @@ def test_apply_reranker_scores_rejects_different_profile_or_query() -> None:
         apply_reranker_scores(other_profile, "query", original, scores)
     with pytest.raises(RerankerProvenanceError, match="query identity"):
         apply_reranker_scores(profile, "different query", original, scores)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RerankerModelLoadFailure("cache path must stay private"),
+        RerankerDeviceExhausted("device allocation details must stay private"),
+    ],
+)
+def test_model_load_and_device_failures_return_unchanged_hybrid_order(
+    failure: Exception,
+) -> None:
+    candidates = (_hit(3, 3), _hit(1, 1), _hit(2, 2))
+
+    class FailingScorer:
+        def score_pairs(self, pairs: tuple[tuple[str, str], ...]) -> list[float]:
+            raise failure
+
+    adapter = _adapter(FailingScorer())  # type: ignore[arg-type]
+    try:
+        outcome = asyncio.run(
+            rerank_with_fallback(_profile(), "private query", candidates, adapter)
+        )
+    finally:
+        adapter.close()
+
+    assert outcome.effective_mode == "hybrid"
+    assert outcome.hits == candidates
+    assert all(actual is expected for actual, expected in zip(outcome.hits, candidates))
+    assert outcome.failure is not None
+    details = outcome.failure.to_dict()
+    assert details["error_type"] == type(failure).__name__
+    assert details["reranker_model"] == IDENTITY.model
+    assert details["reranker_revision"] == IDENTITY.revision
+    assert "private query" not in str(details)
+    assert "private" not in str(details)
+
+
+def test_pair_overflow_returns_unchanged_hybrid_order_with_safe_failure_details() -> (
+    None
+):
+    candidates = (_hit(1, 1),)
+    adapter = _adapter(FakeScorer([0.8]), counter=FixedPairCounter(513))
+    try:
+        outcome = asyncio.run(
+            rerank_with_fallback(_profile(), "query", candidates, adapter)
+        )
+    finally:
+        adapter.close()
+
+    assert outcome.effective_mode == "hybrid"
+    assert outcome.hits == candidates
+    assert outcome.failure is not None
+    assert outcome.failure.error_type == "RerankerPairBudgetExceeded"
+
+
+def test_partial_batch_failure_falls_back_without_exposing_partial_scores() -> None:
+    class FailsOnSecondBatch:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def score_pairs(self, pairs: tuple[tuple[str, str], ...]) -> list[float]:
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("sensitive partial batch details")
+            return [0.7] * len(pairs)
+
+    candidates = (_hit(1, 1), _hit(2, 2))
+    adapter = _adapter(FailsOnSecondBatch(), batch_size=1)  # type: ignore[arg-type]
+    try:
+        outcome = asyncio.run(
+            rerank_with_fallback(_profile(), "query", candidates, adapter)
+        )
+    finally:
+        adapter.close()
+
+    assert outcome.effective_mode == "hybrid"
+    assert outcome.hits == candidates
+    assert outcome.failure is not None
+    details = outcome.failure.to_dict()
+    assert details["error_type"] == "RerankerInferenceFailure"
+    assert "sensitive partial batch details" not in str(details)

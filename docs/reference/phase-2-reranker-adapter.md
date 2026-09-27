@@ -1,10 +1,10 @@
 # Phase 2 cross-encoder adapter
 
-Status: P2-10.3–10.4 implemented and assistant-reviewed, 2026-09-27.
+Status: P2-10.3–10.5 implemented and assistant-reviewed, 2026-09-27.
 
 `search/reranker.py` provides `CrossEncoderReranker`, a framework-independent
 asynchronous boundary around an injected synchronous scorer and pair-token counter.
-Model loading and application-level fallback are separate follow-up substeps.
+The P2-10.5 model loader and fallback wrapper are described below.
 
 ## Request contract
 
@@ -49,3 +49,31 @@ ranks, and retained original fused ranks. It updates `EvidenceHit.rank`, preserv
 lexical, dense and fusion components verbatim, and records the cross-encoder's raw
 score and reranked position in its own component. A candidate outside the input pool,
 a missing/duplicate candidate, or an already-reranked hit is rejected.
+
+## Pinned models and safe fallback
+
+`search/reranker_models.py` supports only the two exact P2-10.1 revisions: MiniLM
+(`cross-encoder/ms-marco-MiniLM-L6-v2`,
+`233902d25c440f23af6f7d6e94d2946bac0bee0a`) and BGE
+(`BAAI/bge-reranker-base`, `2cfc18c9415c912f9d8155881c133215df768a70`). It reads
+from the local Hugging Face cache or an explicit cache directory with
+`local_files_only=True`; it does not download weights or execute Hub-provided code.
+The loader uses FP32, the 512-token cap, and a fast tokenizer. CUDA may be requested
+explicitly or selected when available. It surfaces safe typed errors for missing
+weights/runtime, unavailable CUDA and device exhaustion.
+
+The official CrossEncoder API supports pinned revisions and offline loading. Its
+published default can apply sigmoid when there is one output label, so inference
+explicitly passes identity activation and disables softmax to keep raw ranking logits
+([CrossEncoder API](https://www.sbert.net/docs/package_reference/cross_encoder/model.html),
+[Sentence Transformers 6.1.0 source](https://github.com/huggingface/sentence-transformers/blob/v6.1.0/sentence_transformers/cross_encoder/model.py)).
+
+`search/reranker_service.py` catches only controlled inference and pair-budget errors.
+On failure it returns the original fused `EvidenceHit` tuple unchanged with effective
+mode `hybrid`. Safe failure metadata identifies the profile, snapshot, model, revision
+and error type without including query text, passage text or exception messages.
+Integrity/provenance errors still fail closed instead of being hidden as fallback.
+
+Both pinned models passed a one-pair synthetic local-only WSL CUDA smoke through the
+model loader and the full profile-bound scoring/provenance path. This confirms runtime
+compatibility only; retrieval quality has not been evaluated and no model was selected.

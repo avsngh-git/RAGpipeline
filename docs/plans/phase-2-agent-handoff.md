@@ -1,13 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-09 complete; P2-10 is in progress.
-P2-10.1–10.4 are complete; continue with 10.5.
+Updated: 2026-09-27. Plan approved; P2-01–P2-10 complete; continue with P2-11.1.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-10.5**.
+   whose prerequisites are satisfied. Continue at **P2-11.1**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -425,8 +424,8 @@ The focused reranker and pair suites pass (24 tests). The full offline suite pas
 (342 passed, 21 deselected) using the existing temporary BM25S verification path;
 full Ruff and formatting pass (158 files), strict mypy passes (67 source files), and
 `git diff --check` passes. Timeout cannot stop an already-running Python inference
-thread; the adapter serializes later requests behind that worker, and P2-10.5 will
-wire caller-visible fallback. No model weights or project dependencies changed.
+thread; the adapter serializes later requests behind that worker. P2-10.5 wires the
+caller-visible fallback. No model weights or project dependencies changed.
 
 **P2-10.4 complete; assistant-reviewed 2026-09-27:**
 `src/research_platform/search/reranker_results.py` maps scores back onto only the
@@ -441,6 +440,25 @@ mismatch and reranker mismatch; focused suite passes (28 tests). Full offline su
 Ruff check/format pass (159 files), strict mypy passes (68 source files), and
 `git diff --check` passes.
 
+**P2-10.5 complete; assistant-reviewed 2026-09-27:**
+`src/research_platform/search/reranker_models.py` adds local-only, FP32 loaders for
+the exact MiniLM and BGE revisions reviewed in 10.1. It loads fast tokenizers and
+Sentence Transformers `CrossEncoder` with `local_files_only=True` and
+`trust_remote_code=False`; prediction explicitly uses identity activation and no
+softmax so scores remain raw. Device unavailability, allocation exhaustion, missing
+weights/runtime, inference timeout, invalid output, incomplete batches and pair
+overflow have controlled error types. `reranker_service.py` returns the original
+candidate tuple and safe fallback details naming model, revision and error type; it
+omits query, evidence and backend exception text. Fake tests cover these failures and
+success. A local-only CUDA smoke and profile-bound full adapter/provenance smoke both
+passed for each pinned model using one synthetic pair (19 tokens) in WSL; the GPU was
+the RTX 3050, with the Windows host driver exposed as 617.14. No corpus text was used
+in these smokes, no weights were downloaded, and no dependency changed. Full offline
+suite: 355 passed, 21 deselected using the existing temporary BM25S verification
+path; full Ruff and format pass (162 files), strict mypy passes (70 source files), and
+`git diff --check` passes. Retrieval quality remains unmeasured and model selection
+remains OPEN.
+
 The roadmap owns the task status table. For each completed substep record changed
 paths, actual commands/results, code/config/benchmark IDs and any limitations.
 Mark a task complete only when its Done condition is met; update this file's next
@@ -452,8 +470,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-10.5. Exercise controlled model-load, device, timeout, invalid-score
-and partial-batch failures, with explicit unchanged-fusion fallback and safe
-identification of the failed reranker. P2-09 is complete; run its PostgreSQL integration
+**Next step:** P2-11.1. Deduplicate exact evidence and conservative same-document
+source overlap while preserving distinct evidence across papers. P2-09 is complete;
+run its PostgreSQL integration
 fixtures when the dedicated research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.

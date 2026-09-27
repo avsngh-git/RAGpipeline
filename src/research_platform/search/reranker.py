@@ -50,6 +50,22 @@ class RerankerInferenceFailure(RerankerAdapterError):
     """The model boundary failed before returning a complete candidate pool."""
 
 
+class RerankerRuntimeUnavailable(RerankerAdapterError):
+    """The optional local inference runtime is not installed or usable."""
+
+
+class RerankerModelLoadFailure(RerankerAdapterError):
+    """Pinned tokenizer or model weights are missing or cannot be loaded."""
+
+
+class RerankerDeviceUnavailable(RerankerAdapterError):
+    """The requested inference device is not available in this runtime."""
+
+
+class RerankerDeviceExhausted(RerankerAdapterError):
+    """The device could not allocate resources for model load or inference."""
+
+
 class RerankerOutputAlignmentError(RerankerAdapterError):
     """The scorer did not return exactly one score for each input pair."""
 
@@ -267,6 +283,8 @@ class CrossEncoderReranker:
             batch = pair_inputs[start : start + self.batch_size]
             try:
                 batch_scores = self._scorer.score_pairs(batch)
+            except RerankerAdapterError:
+                raise
             except Exception:
                 raise RerankerInferenceFailure(
                     "cross-encoder batch inference failed"
