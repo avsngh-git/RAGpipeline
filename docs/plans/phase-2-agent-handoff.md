@@ -1,12 +1,12 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. Plan approved; P2-01–P2-11 complete; continue with P2-12.1.
+Updated: 2026-09-27. Plan approved; P2-01–P2-11 and P2-12.1 complete; continue with P2-12.2.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md), then the first pending task
-   whose prerequisites are satisfied. Continue at **P2-12.1**.
+   whose prerequisites are satisfied. Continue at **P2-12.2**.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -521,8 +521,8 @@ independent work and report the specific blocker. Any source/schema/permission
 change follows the source-of-truth change-control rule. Keep the original corpus
 usable throughout.
 
-**Next step:** P2-12.1. Freeze the larger benchmark sampling plan after recording
-calibration review effort and coverage.
+**Next step:** P2-12.2. Create the new family questions and prepare their pooled
+candidate sets under the frozen sampling plan.
 P2-09 is complete; run its PostgreSQL integration fixtures when the dedicated
 research_test database is configured. Keep the accepted
 review DB read-only until its migration/readiness gate is met.
@@ -538,3 +538,18 @@ mismatches. Successful evaluation attempts persist the same semantics in run sch
 The offline suite passed 396 tests with 21 deselected; Ruff check passed, formatting
 passed for 176 files, strict mypy passed for 74 source files, and `git diff --check`
 passed; `pip check` found no broken requirements. See `docs/reference/phase-2-search-result-semantics.md` and ADR-0011.
+
+
+**P2-12.1 complete; assistant-reviewed 2026-09-27:** frozen sampling plan v1 fixes
+30 question families (20 development, 10 held-out), keeps the ten calibration
+families in development, requires all six category minima plus direct-prose,
+numeric-table and negative/mixed coverage, and sets a 12-hour review budget with a
+five-new-development-family recheck. Pool bounds are top 50 evidence and top 20
+papers per named core profile, capped at 200 unique evidence items and 80 unique
+papers per family. Ten held-out families support directional comparisons only. The
+TOML parsed successfully and its category taxonomy/counts match the calibration
+manifest; development shortfalls are discovery 4, cross-paper comparison 4, filters
+3, and missing evidence 4. The tracked manifest and review rules are in
+`benchmarks/phase2/benchmark-sampling-plan-v1.toml` and
+`docs/reference/phase-2-benchmark-sampling-plan.md`. The plan is frozen; family
+creation, pooling and source judgments remain open. Continue with P2-12.2.

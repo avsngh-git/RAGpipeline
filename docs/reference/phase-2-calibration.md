@@ -288,6 +288,8 @@ candidate. Search-result pools do not yet exist because the retrieval baselines
 have not been built. These counts describe source-found calibration evidence, not
 system recall or a pooled benchmark.
 
+The frozen P2-12.1 sampling plan is in
+[phase-2-benchmark-sampling-plan.md](phase-2-benchmark-sampling-plan.md).
 For P2-12, use 30 families total: 20 development and 10 held-out. Keep all ten
 calibration families in development and add ten development families. Require at
 least five families per agreed category in development and three in held-out;

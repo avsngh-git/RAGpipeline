@@ -1,6 +1,6 @@
 # Phase 2 run records
 
-Status: schema v1 and the fake-service evaluation runner completed for P2-05.
+Status: schema v2 and the fake-service evaluation runner completed for P2-05/P2-11.
 
 `research_platform.evaluation.run_records` captures one calibrated query and its
 search attempts in an immutable, versioned record. The dataset hash and split policy
@@ -10,8 +10,9 @@ policy, scoring policy, Git revision, and (for a dirty tree) a checksum of the d
 
 Each attempt stores the request operation, filters, result limit, requested and
 actual retrieval modes, retrieval-profile and effective-configuration IDs, request
-ID, status, warning count, truncation, omitted count, elapsed milliseconds and cold
-or warm timing classification. Successful responses retain returned paper/chunk IDs,
+ID, status, warning count, truncation, omitted count, exact eligible count, derived
+result status and `ranking_only` interpretation, elapsed milliseconds and cold or
+warm timing classification. Successful responses retain returned paper/chunk IDs,
 ranks, source provenance and component ranks/scores. Failed attempts store a bounded
 failure category and elapsed time; exception messages are not copied. Hardware data
 includes platform/CPU/Python facts, with optional RAM and accelerator measurements.
@@ -45,7 +46,8 @@ the exact calibration/alignment file hashes, retrieval profile, source-region lo
 and eligible paper IDs for metadata-filtered queries. The P2-05.5 suite exercises this
 entry point with a deterministic fake and no corpus service.
 
-The record schema version is `1`. Additive or incompatible persisted fields require a
-schema-version decision and a reference update. Run IDs identify query runs;
+The record schema version is `2`, which added the P2-11 eligibility count, result
+status and ranking-only interpretation. Additive or incompatible persisted fields
+require a schema-version decision and a reference update. Run IDs identify query runs;
 attempt IDs identify individual requests. Writers refuse to overwrite an existing
 record so reruns retain their own history.

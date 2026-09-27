@@ -1,7 +1,7 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.14\
+**Version:** 1.15\
 **Last updated:** 2026-09-27\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 entry checks complete; retrieval implementation in progress\
@@ -482,8 +482,10 @@ Approved 2026-09-26 after the planning interview. The
 [execution roadmap](../plans/phase-2-retrieval-evaluation.md),
 [evaluation protocol](../plans/phase-2-evaluation-protocol.md),
 [agent handoff](../plans/phase-2-agent-handoff.md),
-[ADR-0008](../adr/0008-phase2-retrieval-evaluation-boundaries.md) and
-[ADR-0011](../adr/0011-explicit-search-result-semantics.md) elaborate these rules.
+[ADR-0008](../adr/0008-phase2-retrieval-evaluation-boundaries.md),
+[ADR-0011](../adr/0011-explicit-search-result-semantics.md) and the frozen
+[benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) elaborate
+these rules.
 
 - **Corpus and provenance:** use the accepted 100-paper corpus for the initial
   benchmark; preserve its finalized snapshot. Model/chunk experiments use separately
@@ -520,11 +522,15 @@ Approved 2026-09-26 after the planning interview. The
   Existing public-display restrictions remain unchanged. A request flag cannot grant
   private inspection rights. Public passage exposure requires a separate decision.
 - **Benchmark and review:** cover discovery, specific evidence, tables, cross-paper
-  comparison, filters and missing evidence. Begin with ten calibration questions;
-  select larger benchmark size/workload after measuring review effort. The user has
-  delegated all Phase 2 implementation, calibration and source review for now. New
-  labels are assistant-reviewed with source checks and uncertainty, never described
-  as human-verified by inheriting Phase 1 annotations.
+  comparison, filters and missing evidence. Ten calibration families were reviewed
+  on 2026-09-26, with about 32 minutes of source-review effort. The frozen
+  `phase2-benchmark-sampling-v1` plan uses 30 families (20 development, 10 held-out),
+  keeps calibration families in development, and sets category, prose/table/negative
+  finding, candidate-pool and 12-hour review-workload bounds. Ten held-out families
+  support directional paired conclusions only. The user has delegated all Phase 2
+  implementation, calibration and source review for now. New labels are
+  assistant-reviewed with source checks and uncertainty, never described as
+  human-verified by inheriting Phase 1 annotations.
 - **Evaluation:** use separate calibration/development and held-out question families;
   source relevance labels are 0 irrelevant, 1 useful context/incomplete support and
   2 direct evidence. Pool candidates across methods and inspect sources. Report paper

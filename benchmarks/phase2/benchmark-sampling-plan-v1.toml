@@ -1,0 +1,58 @@
+schema_version = 1
+plan_id = "phase2-benchmark-sampling-v1"
+dataset_id = "phase2-benchmark-v1"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+calibration_dataset_id = "phase2-calibration-v1"
+split_policy_id = "phase2-benchmark-family-split-v1"
+split_unit = "question_family"
+total_family_count = 30
+development_family_count = 20
+heldout_family_count = 10
+calibration_development_family_count = 10
+new_development_family_count = 10
+new_heldout_family_count = 10
+calibration_families_are_development_only = true
+family_manifest_assignment = "explicit-versioned-family-list-before-pooling"
+paraphrases_inherit_family_split = true
+
+categories = [
+  "discovery",
+  "specific_evidence",
+  "table_result",
+  "cross_paper_comparison",
+  "filters",
+  "missing_evidence",
+]
+
+[category_minimums]
+development_families = 5
+heldout_families = 3
+count_unit = "distinct_question_families"
+
+[modality_minimums]
+direct_positive_prose_families_per_split = 2
+table_result_families_per_split = 3
+numeric_table_families_per_split = 2
+negative_or_mixed_finding_families_per_split = 2
+
+[evidence_pool]
+core_profile_families = ["bm25", "dense", "hybrid", "reranked"]
+evidence_top_k_per_profile = 50
+include_feasible_alternative_configurations = true
+unique_source_evidence_review_cap_per_family = 200
+paper_top_k_per_profile = 20
+unique_paper_review_cap_per_family = 80
+independently_source_found_evidence_is_a_retrieved_result = false
+
+[review_budget]
+reviewer_hours = 12
+families_in_scope = 30
+average_minutes_per_family = 24
+remeasure_after_new_development_families = 5
+if_projected_budget_exceeded = "record actual coverage and freeze a revised size plan before heldout scoring"
+revision_must_not_be_based_on_system_scores = true
+
+[interpretation]
+heldout_support = "directional paired conclusions; not precise small-effect estimates"
+unsupported_case_means = "no supporting evidence found under the documented review procedure"
+claim_of_absence_from_scientific_literature = false
