@@ -820,8 +820,11 @@ private pool manifest and origin maps under
 `local-reference/phase2-runs/benchmark-v1/review-pools-v1/`. Source review is
 underway: q11 has one paper and two evidence anchors judged. q12 has one paper and
 three prose evidence candidates judged; its table row groups await visual review.
-All other q11 candidates, 15 q12 papers, 103 q12 evidence candidates, and q13–q20
-remain unjudged. Continue with 12.3.
+All other q11 candidates, 15 q12 papers, and 103 q12 evidence candidates remain
+unjudged. q13 has two papers and six pooled evidence candidates source-reviewed; a
+seventh source anchor has no current pooled candidate mapping, and 40 papers / 103
+evidence candidates remain unjudged. Its two LongRAG table leads remain unjudged.
+q14–q20 remain unjudged. Continue with 12.3.
 
 ## P2-13 — Add the controlled chunking baseline
 

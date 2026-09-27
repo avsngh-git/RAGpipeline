@@ -576,6 +576,9 @@ disposable database clone. The accepted database and retained E5 collection were
 not modified. Source review has begun. q11 has one paper and two evidence
 anchors judged; 44 paper and 121 evidence candidates remain unjudged. q12 has one
 paper and three prose evidence candidates judged; its table row groups await visual
-review, with 15 papers and 103 evidence candidates still unjudged. q13–q20 remain
-unjudged. See the tracked question/split manifests and
+review, with 15 papers and 103 evidence candidates still unjudged. q13 has two papers and six evidence candidates source-reviewed; one additional
+source-only anchor has no current blinded candidate-card mapping. Forty q13 papers
+and 103 q13 evidence candidates remain unjudged, and its two LongRAG table leads
+remain unjudged. q14–q20 remain unjudged. The q13 review records a PDFTriage
+document-count inconsistency in its accepted paper. See the tracked question/split manifests and
 `docs/reference/phase-2-pooling-procedure.md`. Continue with P2-12.3.

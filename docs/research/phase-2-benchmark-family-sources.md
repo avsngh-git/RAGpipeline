@@ -38,7 +38,8 @@ These additional checks supported question wording only. They do not assign
 relevance labels, source anchors, or unsupported status. q11 has since received a
 partial source reviews recorded privately under
 `local-reference/phase2-runs/benchmark-v1/source-reviews-v1/`; q12 table rows await
-visual review, and q13–q20 remain pending source review.
+visual review, q13 has a documented source-version count inconsistency, and q14–q20
+remain pending source review.
 
 ## Primary-source register
 
@@ -58,4 +59,4 @@ Links below point to the venue or repository record and, where listed, the paper
 
 ## Limits and follow-up
 
-Selection used accepted paper metadata and authoritative venue/repository records, not search-result rankings. This source note does not contain relevance labels or evidence groups. q11 and q12 have partial source reviews; q12 table rows and q13–q20 still need source review against the exact accepted PDFs, including visual table checks where needed. The Emerging Science Journal page’s title and abstract were available in the publisher search result, but a direct page fetch failed during this check; its detailed results remain unverified and should be treated as a lead only. The legal benchmark comparison also mixes a preprint with a later peer-reviewed workshop paper, so it should test metric scope rather than imply equal publication status or independent validation.
+Selection used accepted paper metadata and authoritative venue/repository records, not search-result rankings. This source note does not contain relevance labels or evidence groups. q11–q13 have partial source reviews; q12 table rows and q13–q20 still need source review against the exact accepted PDFs, including visual table checks where needed. The Emerging Science Journal page’s title and abstract were available in the publisher search result, but a direct page fetch failed during this check; its detailed results remain unverified and should be treated as a lead only. The legal benchmark comparison also mixes a preprint with a later peer-reviewed workshop paper, so it should test metric scope rather than imply equal publication status or independent validation.
