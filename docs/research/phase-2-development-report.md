@@ -265,3 +265,12 @@ This report records development-only choices. The subsequent fresh v11 held-out
 assessment passed every frozen gate with the unchanged selected profile and numeric
 limits; see the [acceptance report](../reference/phase-2-acceptance-report.md) for
 sanitized results. Earlier held-out failures remain historical and spent.
+
+
+## R1–R7 integrated verification and R8 freeze — 2026-09-28
+
+The reconciled implementation is frozen at code revision `586f83ce08580b4a206830e83d7f71cab4722d59`. The active profile resolves to v9 with canonical profile identity `sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`. Configuration file hashes: `active-profile.toml` `db2617ecdcc598eef8171ec17bceef88da736fade73e0eecb442eb5c5cb6c039`, `frozen-profile-v9.toml` `11c70b0c3dbd92bf35ad473b0085f42dbd752cb2341e3f28f570c5e77614d32e`, and `acceptance-v9.toml` `3ef732d9a0645371d63dd57aa205f8e066a6eec48b4936bb6f81c4ccfa3bd572`.
+
+Post-reconciliation local checks passed: Ruff lint, formatting (214 files), strict mypy (81 source files), 451 offline tests, 21 integration tests against fresh disposable PostgreSQL/Qdrant services, `pip check`, Linux AMD64 Docker build, packaged-image `pip check`, and active-profile image smoke. The offline suite command used `PYTHONPATH=src` to make the isolated worktree take precedence over the shared Conda environment's editable install. The image smoke resolved `frozen-profile-v9.toml` and the expected canonical profile identity. Hosted CI passed on the exact frozen code revision in [run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795).
+
+The R8 source screen is preparatory only; it contains no family wording or labels. The missing-evidence scan and freshness review remain before the new held-out set can be frozen and scored. No result from the new set has been observed.

@@ -1,7 +1,7 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.22\
+**Version:** 1.23\
 **Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 reopened for R1–R8 completion after the historical v11 pass, with the earlier v3 failure retained; Phase 3 not started\
@@ -1212,9 +1212,10 @@ source-reviewed v11 assessment passed the unchanged gates on the development-sel
 MiniLM-over-Hybrid-E5 profile; it is historical evidence, not acceptance of the
 current R1–R7 implementation. Hosted CI passed on the older sanitized revision
 `fefc04c` (run [36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).
-Phase 2 is reopened for Astra’s R1–R8 completion plan. R1–R7 local implementation
-checks pass; hosted CI for the reconciled revision and one fresh post-freeze R8
-assessment remain. The profile's canonical identity is
+Phase 2 is reopened for Astra’s R1–R8 completion plan. R1–R7 integrated checks and
+hosted CI pass on frozen code revision `586f83c` (run
+[36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)).
+One fresh post-freeze R8 assessment remains. The profile's canonical identity is
 `sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`.
 The v3, v11 and all earlier held-out sets are spent and may not guide tuning. See the
 [historical v11 report](../reference/phase-2-acceptance-report.md) for its aggregate

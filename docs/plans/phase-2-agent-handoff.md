@@ -26,15 +26,17 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   API routes passed with local caches. Measured asset sizes and cache-retention guidance
   are in the [development report](../research/phase-2-development-report.md). Checks:
   451 offline tests, 21 fresh PostgreSQL/Qdrant integrations, Ruff lint/format, mypy,
-  `pip check`, `pip-audit`, and Linux AMD64 Docker build/image smoke all passed on the
-  pre-reconciliation revision. Re-run the shared checks and hosted CI on the reconciled
-  commit before freezing it for R8.
+  `pip check`, `pip-audit`, and Linux AMD64 Docker build/image smoke pass on frozen
+  code revision `586f83c`. Hosted CI passed on that exact revision in run
+  [36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795). The
+  active-profile pointer, frozen-profile v9, and acceptance-v9 SHA-256 values are
+  recorded in the development report.
 - R8 source preparation has a sanitized screen of 12 accepted-snapshot anchors in the
   [source-screening report](../research/phase-2-r8-source-screening.md). It creates no
   questions or labels and cannot certify full freshness against unavailable spent-family
-  identities. A bounded missing-evidence scan and freshness review remain. After code
-  and CI are frozen, finish one fresh source-reviewed set, assess it once, and do not tune
-  from its results.
+  identities. A bounded missing-evidence scan and freshness review remain. Prepare the
+  fresh set privately, freeze it before retrieval, assess it once, and do not tune from
+  its results.
 
 ## Guardrails and operating constraints
 

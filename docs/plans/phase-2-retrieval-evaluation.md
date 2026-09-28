@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26. The earlier v3 assessment failed four frozen gates; a later v11 assessment passed historically. Phase 2 remains unaccepted and is reopened for the [R1–R8 completion plan](phase-2-improvement-plan.md). R1–R7 local checks pass; hosted CI for the reconciled revision and one fresh post-freeze R8 assessment remain.
+Status: approved 2026-09-26. The earlier v3 assessment failed four frozen gates; a later v11 assessment passed historically. Phase 2 remains unaccepted and is reopened for the [R1–R8 completion plan](phase-2-improvement-plan.md). R1–R7 integrated checks and hosted CI pass on frozen code revision `586f83c` (run [36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)); one fresh post-freeze R8 assessment remains.
 
 ## Start and authority
 
@@ -88,7 +88,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Complete |
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
-| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized v11 completion revision `fefc04c` ([run 36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)) |
+| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on frozen R1–R7 code revision `586f83c` ([run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)) |
 | P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Earlier v3 failure; later v11 historical pass; fresh R8 assessment pending after the implementation freeze |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
