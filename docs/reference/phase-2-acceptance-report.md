@@ -2,8 +2,10 @@
 
 **Status:** Phase 2 remains unaccepted. The fresh v10 assessment passed 14 of 15
 frozen gates; selected-profile warm p95 was 1,602.2 ms against a 1,500 ms maximum.
-P2-01–P2-19 implementation and local verification are complete. Hosted CI for the
-current publication revision is pending; P2-20 acceptance remains open.
+P2-01–P2-19 implementation and local verification are complete. Hosted CI passed on
+sanitized revision `8304b8a` ([run
+36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)); P2-20
+acceptance remains open.
 
 ## Decision
 
@@ -160,10 +162,11 @@ Local verification on the current worktree passed Ruff lint, Ruff formatting, st
 mypy (79 source files), 424 non-integration tests and 21 integration tests against
 fresh no-volume PostgreSQL/Qdrant services. `pip check` passed in the Conda environment
 and built image. `pip_audit --skip-editable` found no known vulnerabilities; the
-editable project distributions were skipped. The Docker image built with a 36.69 KB
+editable project distributions were skipped. The Docker image built with a 358.86 KB
 context; its CLI, BM25S/NumPy imports and v8 frozen-profile loader passed smoke checks.
-No dependency lock or runtime dependency changed in this update. Hosted CI for the
-current publication revision is pending.
+No dependency lock or runtime dependency changed in this update. Hosted CI passed on
+sanitized revision `8304b8a` ([run
+36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)).
 
 P2-20 remains open because the frozen held-out gate failed. Use development-only
 measurements for any performance investigation and preserve the thresholds. Any later

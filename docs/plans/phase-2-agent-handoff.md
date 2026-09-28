@@ -1,8 +1,9 @@
 # Phase 2 — Agent handoff
 
 Updated: 2026-09-28. P2-01–P2-19 implementation is complete. The v10 P2-20
-assessment passed 14/15 gates and missed warm p95. Local verification passes; hosted
-CI for the current publication revision is pending. Phase 2 acceptance remains open.
+assessment passed 14/15 gates and missed warm p95. Local verification passes; hosted CI passed on sanitized revision `8304b8a` ([run
+36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)). Phase 2
+acceptance remains open.
 
 ## Start here
 
@@ -731,5 +732,6 @@ Paper/evidence quality, source coverage, hard-failure, fallback, cold-load and m
 gates passed. Warm p95 was 1,602 ms against the 1,500 ms maximum. The v10 set is
 sealed from selection. Local P2-19 checks passed: 424 unit/API/evaluation tests, 21
 isolated PostgreSQL/Qdrant integration tests, lint, formatting, mypy, `pip check`, and
-a Docker build/image smoke check. Hosted CI for the publication revision is pending.
-Phase 2 remains open until every frozen gate passes.
+a Docker build/image smoke check. Hosted CI passed on sanitized revision `8304b8a` ([run
+36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)). Phase 2
+remains open until every frozen gate passes.
