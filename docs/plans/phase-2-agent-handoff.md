@@ -3,8 +3,8 @@
 Updated: 2026-09-28. P2-01–P2-20 implementation, verification and acceptance are
 complete. The fresh v11 held-out assessment passed every frozen gate with the selected
 profile and unchanged limits. The sanitized completion records and frozen manifests
-are being published through the existing draft PR; hosted CI for this documentation
-update is pending.
+are published through the existing draft PR. Hosted CI passed on revision `fefc04c`
+([run 36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).
 
 ## Start here
 

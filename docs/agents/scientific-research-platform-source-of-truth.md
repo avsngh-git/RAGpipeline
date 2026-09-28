@@ -1207,7 +1207,8 @@ storage costs. Metadata-only and failed records are counted separately.
 Status: P2-01 through P2-20 implementation, verification and held-out acceptance are
 complete. A fresh source-reviewed v11 assessment passed every frozen quality and
 operational gate using the development-selected MiniLM-over-Hybrid-E5 profile and
-unchanged numeric limits. The profile's canonical identity is
+unchanged numeric limits. Hosted CI passed on sanitized revision `fefc04c` (run
+[36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)). The profile's canonical identity is
 `sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`.
 The v11 set and all earlier held-out sets are spent and may not guide tuning. See the
 [acceptance report](../reference/phase-2-acceptance-report.md) for sanitized aggregate

@@ -259,5 +259,6 @@ assessment subsequently missed its warm-latency gate, as recorded above.
 
 P2-20 is complete and Phase 2 is accepted after the fresh v11 assessment above. The
 selected profile and all numeric limits remain as frozen. Every held-out set is spent
-and sealed from tuning. Phase 3 has not started. Hosted CI for the sanitized v11
-completion documentation is pending publication.
+and sealed from tuning. Phase 3 has not started. Hosted CI passed on the sanitized
+v11 completion revision `fefc04c` ([run
+36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).

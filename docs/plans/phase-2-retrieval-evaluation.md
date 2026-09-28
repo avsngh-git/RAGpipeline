@@ -85,7 +85,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Complete |
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
-| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized revision `8304b8a` (run 36407122155) |
+| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized v11 completion revision `fefc04c` ([run 36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)) |
 | P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Complete; fresh v11 assessment passed every frozen gate |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
