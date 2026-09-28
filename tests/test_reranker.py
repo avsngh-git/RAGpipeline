@@ -475,6 +475,37 @@ def test_pair_overflow_returns_unchanged_hybrid_order_with_safe_failure_details(
     assert outcome.hits == candidates
     assert outcome.failure is not None
     assert outcome.failure.error_type == "RerankerPairBudgetExceeded"
+    assert outcome.failure.failure_category == "pair_overflow"
+
+
+@pytest.mark.parametrize(
+    ("failure", "category"),
+    [
+        (RerankerInferenceTimeout("timeout"), "inference_timeout"),
+        (RerankerInferenceBusy("busy"), "busy_worker"),
+        (RerankerDeviceExhausted("device"), "device_exhaustion"),
+        (RerankerInferenceFailure("adapter"), "adapter_failure"),
+    ],
+)
+def test_typed_adapter_failures_have_stable_fallback_categories(
+    failure: Exception, category: str
+) -> None:
+    class FailingScorer:
+        def score_pairs(self, pairs: tuple[tuple[str, str], ...]) -> list[float]:
+            raise failure
+
+    candidates = (_hit(1, 1),)
+    adapter = _adapter(FailingScorer())  # type: ignore[arg-type]
+    try:
+        outcome = asyncio.run(
+            rerank_with_fallback(_profile(), "query", candidates, adapter)
+        )
+    finally:
+        adapter.close()
+
+    assert outcome.failure is not None
+    assert outcome.failure.failure_category == category
+    assert outcome.hits == candidates
 
 
 def test_partial_batch_failure_falls_back_without_exposing_partial_scores() -> None:
@@ -503,3 +534,128 @@ def test_partial_batch_failure_falls_back_without_exposing_partial_scores() -> N
     details = outcome.failure.to_dict()
     assert details["error_type"] == "RerankerInferenceFailure"
     assert "sensitive partial batch details" not in str(details)
+
+
+def _prefix_profile() -> RetrievalProfile:
+    profile = _profile(rerank_limit=2)
+    return replace(
+        profile,
+        candidate_limits=replace(
+            profile.candidate_limits, fused_top_k=4, rerank_top_k=2
+        ),
+    )
+
+
+def test_reranker_scores_only_prefix_and_preserves_hybrid_tail() -> None:
+    profile = _prefix_profile()
+    candidates = tuple(_hit(rank, rank) for rank in range(1, 5))
+    scorer = FakeScorer([0.1, 0.9])
+    counter = FixedPairCounter()
+    adapter = _adapter(scorer, counter=counter)
+    try:
+        outcome = asyncio.run(
+            rerank_with_fallback(profile, "query", candidates, adapter)
+        )
+    finally:
+        adapter.close()
+
+    assert outcome.effective_mode == "reranked"
+    assert [hit.chunk_id for hit in outcome.hits] == [
+        candidates[1].chunk_id,
+        candidates[0].chunk_id,
+        candidates[2].chunk_id,
+        candidates[3].chunk_id,
+    ]
+    assert [hit.rank for hit in outcome.hits] == [1, 2, 3, 4]
+    assert outcome.hits[2:] == candidates[2:]
+    assert outcome.hits[2] is candidates[2]
+    assert outcome.hits[3] is candidates[3]
+    assert [pair[1] for batch in scorer.calls for pair in batch] == [
+        candidates[0].text,
+        candidates[1].text,
+    ]
+    assert counter.calls == [("query", hit.text) for hit in candidates[:2]]
+
+
+def test_oversized_hybrid_tail_is_not_counted_or_scored() -> None:
+    profile = _prefix_profile()
+    prefix = (_hit(1, 1), _hit(2, 2))
+    oversized_tail = _hit(3, 3, text="tail " * 1000)
+    candidates = (*prefix, oversized_tail)
+
+    class PrefixOnlyCounter:
+        def __init__(self) -> None:
+            self.texts: list[str] = []
+
+        def count_pair(self, query: str, evidence_text: str) -> int:
+            self.texts.append(evidence_text)
+            if evidence_text == oversized_tail.text:
+                raise AssertionError("the unscored tail reached pair validation")
+            return 16
+
+    counter = PrefixOnlyCounter()
+    scorer = FakeScorer([0.2, 0.8])
+    adapter = _adapter(scorer, counter=counter)
+    try:
+        outcome = asyncio.run(
+            rerank_with_fallback(profile, "query", candidates, adapter)
+        )
+    finally:
+        adapter.close()
+
+    assert outcome.effective_mode == "reranked"
+    assert outcome.hits[-1] is oversized_tail
+    assert counter.texts == [hit.text for hit in prefix]
+    assert len(scorer.calls[0]) == len(prefix)
+
+
+@pytest.mark.parametrize("failure_kind", ["overflow", "timeout", "later_batch"])
+def test_prefix_failures_fall_back_to_complete_original_hybrid_pool(
+    failure_kind: str,
+) -> None:
+    profile = _prefix_profile()
+    candidates = tuple(_hit(rank, rank) for rank in range(1, 5))
+
+    class FailsOnSecondBatch:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def score_pairs(self, pairs: tuple[tuple[str, str], ...]) -> list[float]:
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("private partial score failure")
+            return [0.7] * len(pairs)
+
+    class SlowScorer:
+        def score_pairs(self, pairs: tuple[tuple[str, str], ...]) -> list[float]:
+            time.sleep(0.04)
+            return [0.7] * len(pairs)
+
+    if failure_kind == "overflow":
+        adapter = _adapter(FakeScorer([0.7, 0.6]), counter=FixedPairCounter(513))
+    elif failure_kind == "timeout":
+        adapter = _adapter(
+            SlowScorer(),
+            timeout_seconds=0.002,  # type: ignore[arg-type]
+        )
+    else:
+        adapter = _adapter(
+            FailsOnSecondBatch(),
+            batch_size=1,  # type: ignore[arg-type]
+        )
+    try:
+        outcome = asyncio.run(
+            rerank_with_fallback(profile, "query", candidates, adapter)
+        )
+    finally:
+        adapter.close()
+
+    assert outcome.effective_mode == "hybrid"
+    assert outcome.hits == candidates
+    assert all(actual is expected for actual, expected in zip(outcome.hits, candidates))
+    assert outcome.failure is not None
+    assert outcome.failure.error_type in {
+        "RerankerPairBudgetExceeded",
+        "RerankerInferenceTimeout",
+        "RerankerInferenceFailure",
+    }

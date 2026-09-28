@@ -1650,7 +1650,7 @@ class _IntegrationEmbedder(VectorEmbedder):
 
 
 def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert TEST_DATABASE_URL is not None
     assert TEST_QDRANT_URL is not None
@@ -1828,6 +1828,21 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 evidence_ids = await index.scroll_snapshot_ids(snapshot_id)
                 assert set(evidence_ids) == {unit.id for unit in units}
                 selection = await repository.snapshot_selection_for(snapshot_id)
+                selection_validation_count = 0
+                original_selection_reader = repository._snapshot_selection_on_connection
+
+                async def count_selection_validation(connection, selected_snapshot_id):
+                    nonlocal selection_validation_count
+                    selection_validation_count += 1
+                    return await original_selection_reader(
+                        connection, selected_snapshot_id
+                    )
+
+                monkeypatch.setattr(
+                    repository,
+                    "_snapshot_selection_on_connection",
+                    count_selection_validation,
+                )
                 profile = RetrievalProfile(
                     snapshot=selection,
                     lexical_index=None,
@@ -1850,6 +1865,7 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 with pytest.raises(SnapshotAccessDenied, match="finalized snapshot"):
                     await search.search(profile, (1.0, 0.0), limit=5)
                 evaluation_result = await search.evaluate(profile, (1.0, 0.0), limit=5)
+                assert selection_validation_count == 1
                 matches = evaluation_result.hits
                 assert {match.evidence_id for match in matches} == {
                     unit.id for unit in units
@@ -1859,6 +1875,18 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                     == configuration.configuration_id
                     for match in matches
                 )
+                async with repository.evaluation_index(
+                    selection, configuration
+                ) as active_scope:
+                    assert repository.read_index_scope_is_active(active_scope)
+                    scoped_hydrated = await repository.hydrate_snapshot_matches(
+                        selection, configuration, matches, allow_draft=True
+                    )
+                    assert selection_validation_count == 2
+                    assert tuple(item.evidence_id for item in scoped_hydrated) == tuple(
+                        match.evidence_id for match in matches
+                    )
+                assert not repository.read_index_scope_is_active(active_scope)
                 with pytest.raises(SnapshotAccessDenied, match="explicit evaluation"):
                     await repository.hydrate_snapshot_matches(
                         selection, configuration, matches
@@ -1866,6 +1894,7 @@ def test_permitted_evidence_rebuilds_and_queries_a_snapshot_index(
                 hydrated = await repository.hydrate_snapshot_matches(
                     selection, configuration, matches, allow_draft=True
                 )
+                assert selection_validation_count == 3
                 assert tuple(item.evidence_id for item in hydrated) == tuple(
                     match.evidence_id for match in matches
                 )

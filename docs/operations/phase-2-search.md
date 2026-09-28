@@ -1,11 +1,12 @@
 # Phase 2 search operations
 
-**Status:** assistant-reviewed 2026-09-28. P2-01–P2-20 implementation, verification
-and acceptance are complete. The fresh v11 held-out assessment passed every frozen
-gate; the selected cap16 profile's warm p95 was 1,485.8 ms against the 1,500 ms limit.
-Hosted CI passed on the final published revision `074d7a8` ([run
-36421230309](https://github.com/avsngh-git/RAGpipeline/actions/runs/36421230309)). See the
-[acceptance report](../reference/phase-2-acceptance-report.md).
+**Status:** assistant-reviewed 2026-09-28. The v11 acceptance result is historical;
+Phase 2 is reopened for R1–R8 completion. R1–R7 local checks pass, and one fresh R8
+assessment remains after the implementation freeze. Use the
+[completion plan](../plans/phase-2-improvement-plan.md), current
+[handoff](../plans/phase-2-agent-handoff.md), and historical
+[acceptance report](../reference/phase-2-acceptance-report.md) for current scope and
+status.
 
 ## Service boundary
 
@@ -21,7 +22,11 @@ uses the separately named `phase2-e5-small-v2-filtered` Qdrant collection and th
 profile/configuration recorded in `benchmarks/phase2/`. The retained
 `phase1-e5-small-v2` collection is not a Phase 2 rebuild target.
 
-The frozen profile binds to the exact 44,277 selected evidence units. The current frozen profile
+The active profile is selected through
+[`active-profile.toml`](../../benchmarks/phase2/active-profile.toml), which verifies
+the frozen manifest digest and profile ID. Runtime startup, the ingestion CLI,
+packaging, and profile tests use this pointer. Historical manifests remain available
+for replay. The active profile binds to the exact 44,277 selected evidence units,
 retains the filter-ready Phase 2 collection and reranks the first 16 fused candidates.
 On success it appends the remaining candidates in hybrid order; an over-budget pair
 or typed inference failure returns the complete unchanged hybrid pool. The model,
@@ -50,13 +55,13 @@ docker run -d --rm --name ragpipeline-phase2-test-postgres \
   -e POSTGRES_DB=research_test \
   -e POSTGRES_USER=research_test \
   -e POSTGRES_PASSWORD=research_test \
-  -p 127.0.0.1:25432:5432 postgres:16-alpine
+  -p 127.0.0.1:35432:5432 postgres:16-alpine
 
 docker run -d --rm --name ragpipeline-phase2-test-qdrant \
-  -p 127.0.0.1:26333:6333 qdrant/qdrant:v1.14.1
+  -p 127.0.0.1:36333:6333 qdrant/qdrant:v1.14.1
 
-export RESEARCH_PLATFORM_TEST_DATABASE_URL='postgresql://research_test:research_test@127.0.0.1:25432/research_test'
-export RESEARCH_PLATFORM_TEST_QDRANT_URL='http://127.0.0.1:26333'
+export RESEARCH_PLATFORM_TEST_DATABASE_URL='postgresql://research_test:research_test@127.0.0.1:35432/research_test'
+export RESEARCH_PLATFORM_TEST_QDRANT_URL='http://127.0.0.1:36333'
 conda run -n sci_research_agent python -m pytest -m integration
 
 docker stop ragpipeline-phase2-test-postgres
@@ -118,10 +123,15 @@ python -c 'from huggingface_hub import snapshot_download; snapshot_download("int
 ```
 
 The first call stores E5 under `HF_HOME`; the second stores the reranker in its
-explicit cache directory. Both paths are ignored by Git and excluded from Docker
-build context. After preparation, run with `HF_HUB_OFFLINE=1` and
-`TRANSFORMERS_OFFLINE=1`. Startup fails readiness if a pinned model is absent; it does
-not download weights.
+explicit cache directory. Choose stable local paths with enough space; `/tmp` is
+appropriate only for disposable diagnostics because it may be cleared between WSL
+sessions. Both paths are ignored by Git and excluded from Docker build context. After
+preparation, set `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` before startup. The
+runtime resolves the active profile pointer and loads only the pinned local revisions.
+Readiness fails if either cache is absent or incomplete; startup does not download
+weights in offline mode. Verify `/ready`, then exercise both `POST /v1/search` and
+`POST /v1/evidence/search` with the private local client and check status/counts only;
+do not log response text or identifiers.
 
 ## Build and verify indexes
 
@@ -222,6 +232,15 @@ PYTHONPATH=src:/tmp/ragpipeline-phase2/bm25s-pilot/pydeps \
 The runner uses the disposable Qdrant service at `127.0.0.1:26333` and offline
 model caches. Its private inputs and outputs are not part of a clean checkout; the
 sanitized report is the portable result.
+
+For bounded warm-latency and typed fallback diagnostics on the synthetic fixture and
+allowlisted development families only, use the tracked
+[`phase2_dev_benchmark.py`](../../scripts/phase2_dev_benchmark.py) command. It requires
+an explicit allowlist, records stage timings and safe response fingerprints, and
+writes mode-0600 output to `/tmp` by default. Reproduce comparisons with three
+sessions of 100 warm requests, six warm-ups, fixed device/thread/concurrency/load
+settings and the same input/profile. Do not supply q20/q21, any spent assessment, or
+files whose name ends in `origins.json`.
 
 The v2 profile prefix-cap ablation can be reproduced on the original workspace after
 the v1 local development inputs are present:

@@ -1,11 +1,13 @@
 # Phase 2 held-out acceptance report
 
-**Current status — Phase 2 accepted.** The fresh, source-reviewed `phase2-benchmark-v11`
-assessment passed every frozen quality and operational gate. The selected profile and
-all numeric limits were unchanged. P2-01–P2-20 are complete; Phase 3 has not started.
-This report publishes aggregate measurements and artifact identities only. Held-out
-questions, source excerpts, candidate text, item-level judgments, rankings and raw run
-records remain private.
+**Current status — Phase 2 is reopened for R1–R8 completion and reassessment.** The
+fresh, source-reviewed `phase2-benchmark-v11` assessment was a historical pass; it
+predates the current implementation revision. R1–R7 local checks pass. One fresh
+source-reviewed R8 held-out assessment remains after the implementation freeze. This
+report preserves the v11 aggregate measurement as historical evidence and publishes
+artifact identities only. Held-out questions, source excerpts, candidate text,
+item-level judgments, rankings and raw run records remain private. Phase 3 has not
+started.
 
 ## v11 decision and scope
 
@@ -173,10 +175,11 @@ The reranked profile reuses the hybrid lexical artifact. Qdrant dense collection
 use was not captured.
 
 Across the selected profile's 20 primary attempts, hard failures were 0/20 and explicit
-reranker fallback was 2/20 (10%). The harness's broader degradation flag was set for
-20/20 attempts because any response warning marks an attempt degraded. All 100 warm
-repeats completed without failure and result ordering was stable. This warning
-classification is reported separately from hard failures and explicit fallbacks.
+reranker fallback was 2/20 (10%). The historical schema-v2 run record marked all 20
+attempts degraded because it treated any response warning as degradation; that status
+combined truncation warnings with actual fallback. All 100 warm repeats completed
+without failure and result ordering was stable. Schema v3 records fallback status,
+warning count and truncation separately.
 
 Evidence-requirement-group coverage was descriptive: seven groups, piece coverage 0.5556
 at @10 and @50, and complete-group fraction 0.4286 at both cutoffs. No numeric group-
@@ -199,11 +202,11 @@ unit/integration, migration, dependency and Docker checks.
 
 ## Historical v10 assessment
 
-The v10 assessment below is retained as historical evidence. It passed 14 of 15
+The v10 assessment below is retained as historical evidence. It passed 13 of 14
 frozen gates and missed warm p95 at 1,602.2 ms. Its set is spent and was not used for
 v11 selection or tuning. Its item-level results remain private.
 
-**Historical v10 status:** The v10 assessment passed 14 of 15 frozen gates and missed
+**Historical v10 status:** The v10 assessment passed 13 of 14 frozen gates and missed
 warm p95 at 1,602.2 ms against a 1,500 ms maximum. This historical result was superseded
 by the fresh v11 acceptance assessment above.
 
@@ -351,7 +354,7 @@ All results are ranking measurements; no generated answer quality was tested.
 | v7 | 12/14 | Paper nDCG@10; warm p95 |
 | v8 | 13/14 | Evidence direct MRR@10 |
 | v9 | 13/14 | Paper nDCG@10 |
-| v10 | 14/15 | Warm p95 |
+| v10 | 13/14 | Warm p95 |
 
 Earlier sets are also spent and cannot guide selection. Their item-level records remain
 private. The v10 profile, threshold and result identities are recorded above; raw
@@ -368,8 +371,9 @@ assessment subsequently missed its warm-latency gate, as recorded above.
 
 ## Current project status
 
-P2-20 is complete and Phase 2 is accepted after the fresh v11 assessment above. The
-selected profile and all numeric limits remain as frozen. Every held-out set is spent
-and sealed from tuning. Phase 3 has not started. Hosted CI passed on the sanitized
-v11 completion revision `fefc04c` ([run
+Historical v11 checkpoint: P2-20 passed with the selected profile and numeric limits
+unchanged. That set and every earlier held-out set are spent and sealed from tuning.
+The current acceptance decision is pending R8 on one fresh source-reviewed set after
+the R1–R7 implementation freeze. Phase 3 has not started. Hosted CI passed on the
+sanitized v11 completion revision `fefc04c` ([run
 36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).

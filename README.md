@@ -11,13 +11,13 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 is complete and accepted.** A fresh, source-reviewed v11 held-out
-assessment passed every frozen quality and operational gate; warm p95 was 1,485.8 ms
-against the 1,500 ms ceiling. Hosted CI passed on the sanitized completion revision
-[`fefc04c`](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867).
-Questions, candidate text and item-level results remain private. See the [held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
-[detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
-[agent handoff](docs/plans/phase-2-agent-handoff.md), and
+**Phase 2 is in final verification.** The v11 held-out assessment was a historical
+pass, but it predates the current R1–R8 completion plan. R1–R7 implementation and
+local checks are complete; the frozen hosted CI run and one fresh, source-reviewed R8
+assessment remain. The R8 set will be sealed from tuning. See Astra’s
+[completion plan](docs/plans/phase-2-improvement-plan.md), the current
+[handoff](docs/plans/phase-2-agent-handoff.md), the historical
+[acceptance report](docs/reference/phase-2-acceptance-report.md), and the
 [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not
 started.
 ## Development environment

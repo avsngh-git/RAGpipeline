@@ -7,6 +7,7 @@ from time import perf_counter
 from typing import Literal, Protocol
 from uuid import UUID
 
+from research_platform.ingestion.indexing import ReadySnapshotIndex
 from research_platform.search.contracts import (
     DEFAULT_SEARCH_LIMITS,
     SearchFilters,
@@ -148,6 +149,7 @@ class DenseEvidenceBranch(Protocol):
         *,
         limit: int,
         filters: SearchFilters = SearchFilters(),
+        ready_index: ReadySnapshotIndex | None = None,
     ) -> DenseSearchResponse: ...
 
     async def evaluate_hybrid_component_query(
@@ -177,10 +179,15 @@ class HybridEvidenceSearch:
         query: str,
         *,
         filters: SearchFilters = SearchFilters(),
+        ready_index: ReadySnapshotIndex | None = None,
     ) -> HybridEvidenceSearchResponse:
-        """Serve a finalized snapshot through both branches and the fused cap."""
+        """Serve both branches, reusing a caller-held exact index lease if supplied."""
         return await self._search_query(
-            profile, query, filters=filters, evaluation=False
+            profile,
+            query,
+            filters=filters,
+            evaluation=False,
+            ready_index=ready_index,
         )
 
     async def evaluate_query(
@@ -202,6 +209,7 @@ class HybridEvidenceSearch:
         *,
         filters: SearchFilters,
         evaluation: bool,
+        ready_index: ReadySnapshotIndex | None = None,
     ) -> HybridEvidenceSearchResponse:
         if not isinstance(profile, RetrievalProfile):
             raise ValueError("profile must be a RetrievalProfile")
@@ -274,16 +282,25 @@ class HybridEvidenceSearch:
         except Exception as cause:
             raise _hybrid_failure("lexical", profile, cause) from cause
         lexical_duration_ms = (perf_counter() - lexical_started) * 1000
-        dense_method = (
-            self._dense.evaluate_hybrid_component_query
-            if evaluation
-            else self._dense.search_hybrid_component_query
-        )
         dense_started = perf_counter()
         try:
-            dense_result = await dense_method(
-                profile, query, limit=dense_limit, filters=filters
-            )
+            if not evaluation and ready_index is not None:
+                dense_result = await self._dense.search_hybrid_component_query(
+                    profile,
+                    query,
+                    limit=dense_limit,
+                    filters=filters,
+                    ready_index=ready_index,
+                )
+            else:
+                dense_method = (
+                    self._dense.evaluate_hybrid_component_query
+                    if evaluation
+                    else self._dense.search_hybrid_component_query
+                )
+                dense_result = await dense_method(
+                    profile, query, limit=dense_limit, filters=filters
+                )
             _validate_dense_branch_response(
                 dense_result,
                 profile=profile,

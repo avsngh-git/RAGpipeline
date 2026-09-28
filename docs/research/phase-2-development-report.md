@@ -201,6 +201,64 @@ or profile changed. The later fresh v11 assessment is recorded below and in the
 [acceptance report](../reference/phase-2-acceptance-report.md).
 
 
+
+
+## Typed fallback and warm API diagnostic — 2026-09-28
+
+After the request-scoped selection change, the tracked development runner exercised the
+actual HTTP routes on only allowlisted q11–q19 development families (18 cases across
+paper and evidence search). It used frozen profile v9
+(`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`), six
+warm-ups and 100 measured requests in each of three sessions, with result limit 10,
+concurrency one, four CPU threads, automatic device selection, and no intentional
+background load. The private input and aggregate output are mode 0600 under `/tmp`;
+the output identifies the code revision, tracked diff, input, and run by digest.
+
+| Session | HTTP median | HTTP p95 (nearest rank) | Hard failures | Whole-pool fallbacks | Selection reconstructions |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 635.18 ms | 851.00 ms | 0 | 23/100 | 100 |
+| 2 | 648.59 ms | 875.56 ms | 0 | 23/100 | 100 |
+| 3 | 670.47 ms | 893.61 ms | 0 | 23/100 | 100 |
+
+All 69 fallbacks were typed `pair_overflow` events (23%); there were no timeout, busy,
+device-exhaustion, or other adapter failures. Every fallback query was in the 0–512
+character bucket, and the length-only candidate breakdown associates the observed
+overflow with long prose inputs (2,049+ characters); table candidates in the rerank
+prefix were in the 513–2,048 bucket. Each request performed one exact selection
+reconstruction. The fallback rate is below the frozen 35% allowance, so this diagnostic
+does not justify changing pair formatting, reranker policy, or profile thresholds.
+The private per-request report retains response fingerprints and stage timings without
+query text, evidence identifiers, or passage text; it remains outside Git.
+
+
+## Offline runtime and retained asset inventory — 2026-09-28
+
+The digest-checked `active-profile.toml` resolves to frozen profile v9 in the source
+checkout, the CLI and the rebuilt Linux AMD64 image. A real FastAPI lifespan loaded
+the pinned E5 and MiniLM revisions with `HF_HUB_OFFLINE=1` and
+`TRANSFORMERS_OFFLINE=1`; the loopback `/ready` returned 200 with PostgreSQL, Qdrant
+and Phase 2 runtime ready. Synthetic requests to `/v1/search` and
+`/v1/evidence/search` both returned 200 with five results and effective mode
+`reranked`. The smoke printed counts and mode only. Both model adapters use
+`local_files_only=True`; no model download was enabled. One initial Uvicorn start logged
+runtime unavailable, but the same settings succeeded through direct runtime and API
+lifespan checks and the subsequent loopback run; no repeatable startup error was found.
+
+Read-only size checks recorded the current local footprint:
+
+| Asset | Measured size | Retention note |
+| --- | ---: | --- |
+| `local-reference/phase2-indexes` lexical artifacts | 111 MB | Keep; configured runtime input for BM25 and Hybrid-E5. |
+| `/tmp/phase1-embedding-hf-cache` E5 cache | 634 MB | Diagnostic cache; copy to a durable configured cache before clearing `/tmp`. |
+| `/tmp/phase2-reranker-hf-cache` MiniLM cache | 1.2 GB | Diagnostic cache; copy to a durable configured cache before clearing `/tmp`. |
+| `ragpipeline_qdrant_data` total | 564 MB | Keep; contains retained Phase 1 and Phase 2 data. Phase 2 collection directory measures 157 MB. |
+| `p2_eval_20260927_qdrant_data` total | 557 MB | Preserve; isolated comparison volume may contain referenced evaluation variants. |
+
+No index, model cache or volume was deleted. The two `ragpipeline-phase2-r3-test-*`
+containers used for integration are disposable and run without named persistent volumes;
+they can be stopped after verification. The locally built `ragpipeline-phase2-r7` image
+is also a verification artifact and can be removed after publication checks.
+
 ## Later Phase 2 acceptance — 2026-09-28
 
 This report records development-only choices. The subsequent fresh v11 held-out

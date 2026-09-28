@@ -30,6 +30,7 @@ from research_platform.evaluation.matching import (
 from research_platform.evaluation.run_records import (
     RunRecordError,
     sanitized_run_summary,
+    successful_search_attempt,
     write_run_record,
 )
 from research_platform.evaluation.runner import (
@@ -632,7 +633,7 @@ def test_run_writer_serializes_privately_without_overwriting(tmp_path: Path) -> 
         serialized = written.read_bytes()
         payload = json.loads(serialized)
         assert payload == record.to_dict()
-        assert payload["schema_version"] == 2
+        assert payload["schema_version"] == 3
         assert payload["attempts"][0]["eligible_count"] == 1
         assert payload["attempts"][0]["result_status"] == "ranked_candidates"
         assert payload["attempts"][0]["ranking_interpretation"] == "ranking_only"
@@ -649,3 +650,54 @@ def test_run_writer_serializes_privately_without_overwriting(tmp_path: Path) -> 
     finally:
         destination.unlink(missing_ok=True)
         destination.parent.rmdir()
+
+
+def test_run_attempt_degrades_for_fallback_and_tracks_warnings_separately() -> None:
+    request = SearchRequest(
+        query="synthetic question",
+        snapshot_id=SNAPSHOT_ID,
+        retrieval_profile_id=PROFILE_ID,
+        mode=RetrievalMode.RERANKED,
+        operation=SearchOperation.EVIDENCE_SEARCH,
+        limit=10,
+    )
+    warning_response = SearchResponse(
+        request_id="warning-request",
+        snapshot_id=SNAPSHOT_ID,
+        retrieval_profile_id=PROFILE_ID,
+        effective_configuration_id=CONFIGURATION_ID,
+        requested_mode=RetrievalMode.RERANKED,
+        effective_mode=RetrievalMode.RERANKED,
+        hits=(),
+        eligible_count=0,
+        warnings=("candidate pool truncated",),
+        truncated=True,
+    )
+    warning_attempt = successful_search_attempt(
+        request,
+        warning_response,
+        attempt_id=uuid4(),
+        latency_ms=1.0,
+        latency_kind="warm",
+    )
+    assert warning_attempt.status == "success"
+    assert warning_attempt.warning_count == 1
+    assert warning_attempt.truncated is True
+
+    fallback_response = replace(
+        warning_response,
+        request_id="fallback-request",
+        effective_mode=RetrievalMode.HYBRID,
+        warnings=("reranking failed; unchanged hybrid order was returned",),
+        truncated=False,
+    )
+    fallback_attempt = successful_search_attempt(
+        request,
+        fallback_response,
+        attempt_id=uuid4(),
+        latency_ms=1.0,
+        latency_kind="warm",
+    )
+    assert fallback_attempt.status == "degraded"
+    assert fallback_attempt.warning_count == 1
+    assert fallback_attempt.truncated is False

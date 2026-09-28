@@ -1,6 +1,6 @@
 # Phase 2 run records
 
-Status: schema v2 and the fake-service evaluation runner completed for P2-05/P2-11.
+Status: schema v3; warning, truncation and fallback outcomes are recorded separately.
 
 `research_platform.evaluation.run_records` captures one calibrated query and its
 search attempts in an immutable, versioned record. The dataset hash and split policy
@@ -46,8 +46,10 @@ the exact calibration/alignment file hashes, retrieval profile, source-region lo
 and eligible paper IDs for metadata-filtered queries. The P2-05.5 suite exercises this
 entry point with a deterministic fake and no corpus service.
 
-The record schema version is `2`, which added the P2-11 eligibility count, result
-status and ranking-only interpretation. Additive or incompatible persisted fields
-require a schema-version decision and a reference update. Run IDs identify query runs;
+The record schema version is `3`. Version 2 added eligibility count, result status and
+ranking-only interpretation; version 3 defines `degraded` only when the effective
+retrieval mode differs from the requested mode. Warning count and truncation remain
+separate fields, so ordinary truncation does not imply fallback or failure. Additive or
+incompatible persisted fields require a schema-version decision and a reference update. Run IDs identify query runs;
 attempt IDs identify individual requests. Writers refuse to overwrite an existing
 record so reruns retain their own history.

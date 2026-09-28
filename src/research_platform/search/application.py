@@ -16,7 +16,10 @@ import asyncpg  # type: ignore[import-untyped]
 import httpx
 
 from research_platform.config import Settings
-from research_platform.ingestion.embeddings import E5SmallV2Embedder
+from research_platform.ingestion.embeddings import (
+    E5SmallV2Embedder,
+    EmbeddingModelError,
+)
 from research_platform.ingestion.evidence import (
     EvidenceKind,
     EvidenceSourceSpan,
@@ -31,6 +34,7 @@ from research_platform.ingestion.indexing import (
     IndexRepository,
     QdrantIndex,
 )
+from research_platform.search.active_profile import resolve_frozen_profile_path
 from research_platform.search.application_errors import (
     IncompatibleRetrievalProfile,
     RetrievalExecutionFailure,
@@ -321,7 +325,7 @@ class Phase2SearchExecutor:
                 "retrieval_duration_ms": retrieval_ms,
                 "total_duration_ms": round((perf_counter() - started) * 1000, 2),
                 "fallback": effective_mode is not request.mode,
-                "failure_category": "reranker_fallback"
+                "failure_category": stage_counts.get("reranker_failure_category")
                 if effective_mode is not request.mode
                 else None,
             },
@@ -377,12 +381,26 @@ class Phase2SearchExecutor:
 
         if mode is RetrievalMode.DENSE:
             dense_started = perf_counter()
-            dense = await self._dense.search_query(
-                profile,
-                request.query,
-                limit=cast(int, profile.candidate_limits.dense_top_k),
-                filters=request.filters,
-            )
+            try:
+                dense = await self._dense.search_query(
+                    profile,
+                    request.query,
+                    limit=cast(int, profile.candidate_limits.dense_top_k),
+                    filters=request.filters,
+                )
+            except EmbeddingModelError as error:
+                logger.error(
+                    "retrieval_component_failed",
+                    extra={
+                        "snapshot_id": str(request.snapshot_id),
+                        "retrieval_profile_id": profile.profile_id,
+                        "failure_stage": "query_embedding",
+                        "failure_type": type(error).__name__,
+                    },
+                )
+                raise RetrievalExecutionFailure(
+                    "the required dense stage failed"
+                ) from None
             ranked = tuple(
                 (
                     item.evidence.evidence_id,
@@ -417,33 +435,40 @@ class Phase2SearchExecutor:
 
         if mode not in {RetrievalMode.HYBRID, RetrievalMode.RERANKED}:
             raise IncompatibleRetrievalProfile("unsupported retrieval mode")
-        try:
-            hybrid = await self._hybrid.search_query(
-                self._hybrid_profile, request.query, filters=request.filters
-            )
-        except Exception as error:
-            from research_platform.search.hybrid_search import HybridSearchFailure
-
-            if isinstance(error, HybridSearchFailure):
-                logger.error(
-                    "retrieval_component_failed",
-                    extra={
-                        "snapshot_id": str(request.snapshot_id),
-                        "retrieval_profile_id": self._hybrid_profile.profile_id,
-                        "failure_stage": error.details.stage,
-                        "failure_type": error.details.error_type,
-                    },
+        async with self._repository.serving_index(
+            self._hybrid_profile.snapshot, self._configuration
+        ) as ready_index:
+            try:
+                hybrid = await self._hybrid.search_query(
+                    self._hybrid_profile,
+                    request.query,
+                    filters=request.filters,
+                    ready_index=ready_index,
                 )
-                raise RetrievalExecutionFailure(
-                    "a required hybrid stage failed"
-                ) from None
-            raise
-        ranked_fused = tuple(
-            (hit.evidence_id, hit.score, hit.component_scores) for hit in hybrid.hits
-        )
-        candidates, source_units = await self._hydrate(
-            self._hybrid_profile, ranked_fused
-        )
+            except Exception as error:
+                from research_platform.search.hybrid_search import HybridSearchFailure
+
+                if isinstance(error, HybridSearchFailure):
+                    logger.error(
+                        "retrieval_component_failed",
+                        extra={
+                            "snapshot_id": str(request.snapshot_id),
+                            "retrieval_profile_id": self._hybrid_profile.profile_id,
+                            "failure_stage": error.details.stage,
+                            "failure_type": error.details.error_type,
+                        },
+                    )
+                    raise RetrievalExecutionFailure(
+                        "a required hybrid stage failed"
+                    ) from None
+                raise
+            ranked_fused = tuple(
+                (hit.evidence_id, hit.score, hit.component_scores)
+                for hit in hybrid.hits
+            )
+            candidates, source_units = await self._hydrate(
+                self._hybrid_profile, ranked_fused
+            )
         counts: dict[str, int | float | str] = {
             "lexical": hybrid.lexical_pool.available_count,
             "dense": hybrid.dense_pool.available_count,
@@ -480,6 +505,11 @@ class Phase2SearchExecutor:
                         outcome.failure.error_type
                         if outcome.failure is not None
                         else "unknown"
+                    ),
+                    "reranker_failure_category": (
+                        outcome.failure.failure_category
+                        if outcome.failure is not None
+                        else "adapter_failure"
                     ),
                 },
                 self._hybrid_profile.profile_id,
@@ -647,18 +677,21 @@ class Phase2Runtime:
     http: httpx.AsyncClient
     api_services: Any
     reranker: CrossEncoderReranker
+    embedder: E5SmallV2Embedder
 
     async def close(self) -> None:
+        self.embedder.close()
         self.reranker.close()
         await self.http.aclose()
         await self.pool.close()
 
 
-async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
+async def create_phase2_runtime(
+    settings: Settings, *, frozen_profile_path: Path | None = None
+) -> Phase2Runtime:
     """Load frozen local indexes/models without migrating or downloading data."""
-    repo_root = Path(__file__).resolve().parents[3]
-    manifest_dir = repo_root / "benchmarks" / "phase2"
-    frozen_profile_path = manifest_dir / "frozen-profile-v8.toml"
+    frozen_profile_path = resolve_frozen_profile_path(frozen_profile_path)
+    manifest_dir = frozen_profile_path.parent
     frozen = load_frozen_profile(frozen_profile_path)
     hybrid_profile = load_retrieval_profile_manifest(
         manifest_dir / "hybrid-e5-profile-v1.toml"
@@ -707,6 +740,8 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
     http = httpx.AsyncClient(
         base_url=settings.qdrant_url.rstrip("/"), timeout=httpx.Timeout(10.0)
     )
+    embedder: E5SmallV2Embedder | None = None
+    reranker: CrossEncoderReranker | None = None
     try:
         repository = IndexRepository(pool)
         async with pool.acquire() as connection:
@@ -806,8 +841,12 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
             papers=SnapshotPaperReader(pool),
             citations=CitationGraphReader(pool),
         )
-        return Phase2Runtime(pool, http, services, reranker)
+        return Phase2Runtime(pool, http, services, reranker, embedder)
     except BaseException:
+        if reranker is not None:
+            reranker.close()
+        if embedder is not None:
+            embedder.close()
         await http.aclose()
         await pool.close()
         raise

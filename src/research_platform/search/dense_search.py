@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
-from contextlib import AbstractAsyncContextManager
+from collections.abc import AsyncIterator, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from typing import Protocol, cast
 from uuid import UUID
@@ -70,6 +70,8 @@ class SnapshotIndexGate(Protocol):
         snapshot_selection: SnapshotSelection,
         configuration: IndexConfiguration,
     ) -> AbstractAsyncContextManager[ReadySnapshotIndex]: ...
+
+    def read_index_scope_is_active(self, ready: ReadySnapshotIndex) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -192,8 +194,9 @@ class SnapshotDenseSearch:
         *,
         limit: int,
         filters: SearchFilters = SearchFilters(),
+        ready_index: ReadySnapshotIndex | None = None,
     ) -> DenseSearchResponse:
-        """Run the dense branch of a profile that also requires lexical fusion."""
+        """Run the dense branch inside a caller-held serving lease when supplied."""
         return await self._search_query(
             profile,
             query,
@@ -201,6 +204,7 @@ class SnapshotDenseSearch:
             filters=filters,
             evaluation=False,
             hybrid_component=True,
+            ready_index=ready_index,
         )
 
     async def evaluate_hybrid_component_query(
@@ -230,6 +234,7 @@ class SnapshotDenseSearch:
         filters: SearchFilters,
         evaluation: bool,
         hybrid_component: bool,
+        ready_index: ReadySnapshotIndex | None = None,
     ) -> DenseSearchResponse:
         if self._query_embedder is None or self._evidence_hydrator is None:
             raise RuntimeError(
@@ -260,6 +265,7 @@ class SnapshotDenseSearch:
             evaluation=evaluation,
             hydrate=True,
             hybrid_component=hybrid_component,
+            ready_index=ready_index,
         )
 
     async def evaluate(
@@ -281,6 +287,36 @@ class SnapshotDenseSearch:
             hybrid_component=False,
         )
 
+    @asynccontextmanager
+    async def _index_lease(
+        self,
+        snapshot_selection: SnapshotSelection,
+        configuration: IndexConfiguration,
+        *,
+        evaluation: bool,
+        ready_index: ReadySnapshotIndex | None,
+    ) -> AsyncIterator[ReadySnapshotIndex]:
+        if ready_index is None:
+            lease_factory = (
+                self._gate.evaluation_index if evaluation else self._gate.serving_index
+            )
+            async with lease_factory(snapshot_selection, configuration) as ready:
+                yield ready
+            return
+
+        active_check = getattr(self._gate, "read_index_scope_is_active", None)
+        if (
+            evaluation
+            or ready_index.snapshot_selection != snapshot_selection
+            or ready_index.configuration_id != configuration.configuration_id
+            or not callable(active_check)
+            or not active_check(ready_index)
+        ):
+            raise SnapshotIndexMismatch(
+                "a matching active serving lease is required for this search"
+            )
+        yield ready_index
+
     async def _search(
         self,
         profile: RetrievalProfile,
@@ -291,6 +327,7 @@ class SnapshotDenseSearch:
         evaluation: bool,
         hydrate: bool,
         hybrid_component: bool,
+        ready_index: ReadySnapshotIndex | None = None,
     ) -> DenseSearchResponse:
         configuration = self._index.configuration
         _validate_search_request(
@@ -300,10 +337,12 @@ class SnapshotDenseSearch:
         if _has_active_filters(filters) and self._evidence_hydrator is None:
             raise RuntimeError("filtered dense search requires authoritative hydration")
 
-        lease_factory = (
-            self._gate.evaluation_index if evaluation else self._gate.serving_index
-        )
-        async with lease_factory(profile.snapshot, configuration) as ready:
+        async with self._index_lease(
+            profile.snapshot,
+            configuration,
+            evaluation=evaluation,
+            ready_index=ready_index,
+        ) as ready:
             if (
                 ready.snapshot_selection != profile.snapshot
                 or ready.configuration_id != configuration.configuration_id

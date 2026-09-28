@@ -1,5 +1,6 @@
 """Checks profile-bounded paper result selection and truncation semantics."""
 
+from dataclasses import replace
 from uuid import UUID
 
 import pytest
@@ -24,6 +25,7 @@ from research_platform.search.profiles import (
     DenseIndexIdentity,
     FusionSettings,
     LexicalIndexIdentity,
+    RerankerIdentity,
     RetrievalProfile,
     SelectionRules,
 )
@@ -170,3 +172,29 @@ def test_selection_contract_requires_truncation_for_inexact_omission_count() -> 
             omitted_count=0,
             omitted_count_exact=False,
         )
+
+
+def test_paper_scan_covers_fused_evidence_tail_beyond_reranker_prefix() -> None:
+    profile = _profile()
+    profile = replace(
+        profile,
+        reranker=RerankerIdentity(
+            model="test-reranker",
+            revision="revision-a",
+            preprocessing_revision="query-source-v1",
+            maximum_input_tokens=512,
+        ),
+        candidate_limits=replace(
+            profile.candidate_limits, rerank_top_k=2, fused_top_k=5
+        ),
+    )
+
+    assert paper_candidate_scan_limit(profile) == 8
+    page = select_paper_results(
+        _candidates(8),
+        limit=8,
+        profile=profile,
+        candidate_pools_truncated=False,
+    )
+    assert page.candidate_count == 8
+    assert len(page.hits) == 8

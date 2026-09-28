@@ -85,3 +85,72 @@ def test_missing_lexical_artifact_is_a_safe_dependency_failure(
 
     with pytest.raises(SearchDependencyUnavailable, match="artifact is not built"):
         _load_lexical_artifact(tmp_path, profile, "evidence", mmap=False)
+
+
+def test_active_profile_pointer_is_shared_by_runtime_cli_and_image() -> None:
+    from research_platform.ingestion.cli import _load_retrieval_profile
+    from research_platform.search.active_profile import (
+        ACTIVE_PROFILE_POINTER_FILENAME,
+        resolve_frozen_profile_path,
+    )
+
+    pointer_path = ROOT / "benchmarks/phase2" / ACTIVE_PROFILE_POINTER_FILENAME
+    manifest_path = resolve_frozen_profile_path(pointer_path)
+    runtime_profile = load_frozen_profile(manifest_path)
+    cli_profile = _load_retrieval_profile(pointer_path)
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+
+    assert manifest_path.name == "frozen-profile-v9.toml"
+    assert cli_profile.profile_id == runtime_profile.profile_id
+    assert runtime_profile.profile_id == (
+        "sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be"
+    )
+    assert runtime_profile.candidate_limits.rerank_top_k == 16
+    assert "acceptance-v9.toml" in manifest_path.read_text(encoding="utf-8")
+    assert ACTIVE_PROFILE_POINTER_FILENAME in dockerfile
+    assert "frozen-profile-v9.toml" in dockerfile
+    assert "acceptance-v9.toml" in dockerfile
+    assert f"!benchmarks/phase2/{ACTIVE_PROFILE_POINTER_FILENAME}" in dockerignore
+
+
+def test_default_active_profile_resolves_from_runtime_bundle_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    from research_platform.search.active_profile import resolve_frozen_profile_path
+
+    benchmark_dir = tmp_path / "benchmarks" / "phase2"
+    benchmark_dir.mkdir(parents=True)
+    for name in ("active-profile.toml", "frozen-profile-v9.toml"):
+        shutil.copyfile(ROOT / "benchmarks/phase2" / name, benchmark_dir / name)
+    monkeypatch.chdir(tmp_path)
+
+    assert resolve_frozen_profile_path() == benchmark_dir / "frozen-profile-v9.toml"
+
+
+def test_active_profile_pointer_rejects_a_changed_manifest_digest(
+    tmp_path: Path,
+) -> None:
+    import shutil
+
+    from research_platform.search.active_profile import resolve_frozen_profile_path
+
+    benchmark_dir = tmp_path / "benchmarks" / "phase2"
+    benchmark_dir.mkdir(parents=True)
+    shutil.copyfile(
+        ROOT / "benchmarks/phase2/frozen-profile-v9.toml",
+        benchmark_dir / "frozen-profile-v9.toml",
+    )
+    pointer = (ROOT / "benchmarks/phase2/active-profile.toml").read_text(
+        encoding="utf-8"
+    )
+    (benchmark_dir / "active-profile.toml").write_text(
+        pointer.replace("sha256:", "sha256:0", 1), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="manifest digest differs"):
+        resolve_frozen_profile_path(
+            benchmark_dir / "active-profile.toml", repository_root=tmp_path
+        )

@@ -30,7 +30,7 @@ are SHA-256 bound in the private run artifacts. Aggregate hashes are: questions
 Item-level records remain in the ignored private run directory. No query text, paper
 identity, passage, candidate rank, score or per-family result is included here.
 
-The v10 run passed 14 of 15 frozen acceptance gates; only the selected profile's warm
+The v10 run passed 13 of 14 frozen acceptance gates; only the selected profile's warm
 p95 exceeded its limit. This is a bounded, purposive review over the accepted 100-paper
 snapshot. Complete candidate judgment coverage means all pooled candidates have a
 resolved label; it does not establish corpus-wide recall. See the

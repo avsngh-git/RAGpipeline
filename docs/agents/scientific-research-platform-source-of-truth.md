@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.20\
+**Version:** 1.21\
 **Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation and held-out acceptance complete under v11; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 reopened for R1–R8 completion after the historical v11 pass; Phase 3 not started\
 
 ---
 
@@ -552,9 +552,11 @@ these rules.
   probabilities; optional rejection cutoffs require calibration for their profile.
 
 The plan authorized the Phase 2 decisions and delegated implementation, calibration,
-benchmark preparation and source review. Phase 2 is accepted under the v11 assessment;
-its spent held-out sets cannot guide later tuning. Routine Phase 2 decisions remain
-within these boundaries. Material deviations follow section 1 change control.
+benchmark preparation and source review. The v11 assessment was a historical pass;
+Phase 2 is reopened for the bounded R1–R8 completion plan and fresh post-freeze
+assessment. All previous held-out sets are spent and cannot guide tuning. Routine
+Phase 2 decisions remain within these boundaries. Material deviations follow section 1
+change control.
 
 ---
 
@@ -1204,11 +1206,14 @@ storage costs. Metadata-only and failed records are counted separately.
 
 ### Phase 2 — Retrieval and evaluation
 
-Status: P2-01 through P2-20 implementation, verification and held-out acceptance are
-complete. A fresh source-reviewed v11 assessment passed every frozen quality and
-operational gate using the development-selected MiniLM-over-Hybrid-E5 profile and
-unchanged numeric limits. Hosted CI passed on sanitized revision `fefc04c` (run
-[36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)). The profile's canonical identity is
+Historical v11 checkpoint: P2-01 through P2-20 implementation and verification were
+complete at the time. The fresh source-reviewed v11 assessment passed every frozen
+quality and operational gate using the development-selected MiniLM-over-Hybrid-E5
+profile and unchanged numeric limits. Hosted CI passed on sanitized revision `fefc04c`
+(run [36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).
+Current status: Phase 2 is reopened for Astra’s R1–R8 completion plan. R1–R7 local
+implementation checks pass; hosted CI and one fresh post-freeze R8 assessment remain.
+The profile's canonical identity is
 `sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`.
 The v11 set and all earlier held-out sets are spent and may not guide tuning. See the
 [acceptance report](../reference/phase-2-acceptance-report.md) for sanitized aggregate

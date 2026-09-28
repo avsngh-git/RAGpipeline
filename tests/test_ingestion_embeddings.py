@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from collections.abc import Sequence
 
 import pytest
@@ -16,6 +18,8 @@ from research_platform.ingestion.embeddings import (
     E5_SMALL_V2_REVISION,
     BGEBaseEnV15Embedder,
     E5SmallV2Embedder,
+    EmbeddingInferenceBusy,
+    EmbeddingInferenceTimeout,
     EmbeddingModelError,
     create_embedder_for_configuration,
 )
@@ -52,6 +56,51 @@ class _FakeModel:
             [1.0 if index == 0 else 0.0 for index in range(self.dimensions)]
             for _ in texts
         ]
+
+
+class _BlockingModel(_FakeModel):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+        self._active_lock = threading.Lock()
+        self._active = 0
+        self.maximum_active = 0
+
+    def encode(self, texts: list[str], **options: object) -> Sequence[Sequence[float]]:
+        with self._active_lock:
+            self._active += 1
+            self.maximum_active = max(self.maximum_active, self._active)
+        self.started.set()
+        try:
+            if not self.release.wait(timeout=2):
+                raise TimeoutError("test encoder release was not signaled")
+            return super().encode(texts, **options)
+        finally:
+            with self._active_lock:
+                self._active -= 1
+            self.finished.set()
+
+
+class _SlowLoadingEmbedder(E5SmallV2Embedder):
+    def __init__(self, model: _FakeModel) -> None:
+        super().__init__()
+        self._fixture_model = model
+        self.load_started = threading.Event()
+        self.release_load = threading.Event()
+
+    def _ensure_model(self):
+        if self._model is not None:
+            return self._model
+        with self._model_lock:
+            if self._model is None:
+                self.load_started.set()
+                if not self.release_load.wait(timeout=2):
+                    raise TimeoutError("test model-load release was not signaled")
+                self._model = self._fixture_model
+                self._tokenizer = self._fixture_model.tokenizer
+        return self._model
 
 
 def test_e5_embedder_prepends_passage_and_returns_normalized_dimension() -> None:
@@ -92,6 +141,7 @@ def test_e5_query_uses_query_prefix() -> None:
     assert len(vector) == 384
     assert model.calls[0][0] == ["query: retrieval query"]
     assert model.calls[0][1]["normalize_embeddings"] is True
+    embedder.close()
 
 
 def test_e5_tokenizer_offsets_are_reusable_for_source_chunks() -> None:
@@ -162,6 +212,7 @@ def test_bge_query_uses_the_exact_retrieval_instruction() -> None:
     assert len(vector) == 768
     assert model.calls[0][0] == [BGE_BASE_EN_V1_5_QUERY_PREFIX + "retrieval query"]
     assert model.calls[0][1]["normalize_embeddings"] is True
+    embedder.close()
 
 
 def test_bge_embedder_rejects_mismatched_profile_and_overlong_passage() -> None:
@@ -194,3 +245,91 @@ def test_configuration_factory_selects_only_a_pinned_local_adapter() -> None:
     )
     with pytest.raises(ValueError, match="pinned E5-small-v2 or BGE"):
         create_embedder_for_configuration(unsupported)
+
+
+def test_cancelled_query_keeps_single_worker_capacity_until_inference_finishes() -> (
+    None
+):
+    model = _BlockingModel()
+    embedder = E5SmallV2Embedder(model=model, query_timeout_seconds=1.0)
+    config = embedder.index_configuration()
+
+    async def exercise() -> None:
+        request = asyncio.create_task(
+            embedder.embed_query("blocked query", configuration=config)
+        )
+        assert await asyncio.to_thread(model.started.wait, 1)
+        request.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await request
+
+        for _ in range(8):
+            with pytest.raises(EmbeddingInferenceBusy):
+                await embedder.embed_query("another query", configuration=config)
+        assert model.maximum_active == 1
+
+        model.release.set()
+        assert await asyncio.to_thread(model.finished.wait, 1)
+        vector = await embedder.embed_query("after completion", configuration=config)
+        assert len(vector) == 384
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        model.release.set()
+        embedder.close()
+    assert model.maximum_active == 1
+
+
+def test_query_timeout_does_not_free_worker_until_encoder_completes() -> None:
+    model = _BlockingModel()
+    embedder = E5SmallV2Embedder(model=model, query_timeout_seconds=0.01)
+    config = embedder.index_configuration()
+
+    async def exercise() -> None:
+        request = asyncio.create_task(
+            embedder.embed_query("slow query", configuration=config)
+        )
+        assert await asyncio.to_thread(model.started.wait, 1)
+        with pytest.raises(EmbeddingInferenceTimeout):
+            await request
+        with pytest.raises(EmbeddingInferenceBusy):
+            await embedder.embed_query("queued query", configuration=config)
+        model.release.set()
+        assert await asyncio.to_thread(model.finished.wait, 1)
+        assert (
+            len(await embedder.embed_query("recovered query", configuration=config))
+            == 384
+        )
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        model.release.set()
+        embedder.close()
+
+
+def test_slow_model_load_occupies_bounded_query_worker() -> None:
+    model = _FakeModel()
+    embedder = _SlowLoadingEmbedder(model)
+    config = embedder.index_configuration()
+
+    async def exercise() -> None:
+        startup_probe = asyncio.create_task(
+            embedder.embed_query("readiness probe", configuration=config)
+        )
+        assert await asyncio.to_thread(embedder.load_started.wait, 1)
+        with pytest.raises(EmbeddingInferenceBusy):
+            await embedder.embed_query("concurrent search", configuration=config)
+        embedder.release_load.set()
+        assert len(await startup_probe) == 384
+        assert (
+            len(await embedder.embed_query("subsequent search", configuration=config))
+            == 384
+        )
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        embedder.release_load.set()
+        embedder.close()

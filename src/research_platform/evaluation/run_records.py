@@ -40,7 +40,7 @@ from research_platform.search.contracts import (
     SearchResultStatus,
 )
 
-_RUN_SCHEMA_VERSION = 2
+_RUN_SCHEMA_VERSION = 3
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 _CODE_REVISION = re.compile(r"^[0-9a-f]{7,40}$")
 _FAILURE_CATEGORIES = {
@@ -441,9 +441,7 @@ class SearchAttemptRecord:
         ):
             raise ValueError("successful attempts require response data and no failure")
         elif self.status != (
-            "degraded"
-            if self.effective_mode is not self.requested_mode or self.warning_count
-            else "success"
+            "degraded" if self.effective_mode is not self.requested_mode else "success"
         ):
             raise ValueError("attempt status does not match its effective response")
         if not isinstance(self.paper_results, tuple) or any(
@@ -741,9 +739,7 @@ def successful_search_attempt(
         metadata_response = cast(SearchResponse[PaperMetadataHit], response)
         paper_results = tuple(_metadata_result(hit) for hit in metadata_response.hits)
     status: AttemptStatus = (
-        "degraded"
-        if response.effective_mode is not request.mode or response.warnings
-        else "success"
+        "degraded" if response.effective_mode is not request.mode else "success"
     )
     return SearchAttemptRecord(
         attempt_id=attempt_id,

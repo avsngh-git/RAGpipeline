@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-20 complete; the fresh v11 P2-20 assessment passed all frozen gates; Phase 2 is accepted.
+Status: approved 2026-09-26. The original P2-01–P2-20 implementation remains delivered and the v11 assessment remains a historical pass. Phase 2 is reopened for the [R1–R8 completion plan](phase-2-improvement-plan.md); R1–R7 local checks pass and one fresh post-freeze R8 assessment is pending.
 
 ## Start and authority
 
@@ -55,9 +55,12 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-20 are complete. A fresh source-reviewed v11 assessment passed every frozen
-acceptance gate with the selected profile and unchanged numeric limits. The current
-aggregate outcome and frozen identities are in the [acceptance report](../reference/phase-2-acceptance-report.md).
+The original P2-01–P2-20 implementation is delivered. A fresh source-reviewed v11
+assessment passed every frozen acceptance gate with the selected profile and unchanged
+numeric limits at that checkpoint. Phase 2 is now reopened for the bounded R1–R8
+completion plan; its current aggregate outcomes and frozen identities are in the
+[acceptance report](../reference/phase-2-acceptance-report.md), and current work is in
+the [agent handoff](phase-2-agent-handoff.md).
 Question text, source excerpts, candidate text, item-level results and origin ledgers
 remain private; do not tune on any spent held-out set. Never read any `*origins.json`
 file.
@@ -86,7 +89,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized v11 completion revision `fefc04c` ([run 36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)) |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Complete; fresh v11 assessment passed every frozen gate |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Historical v11 pass; fresh R8 assessment pending after the implementation freeze |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -601,7 +604,7 @@ and out-of-snapshot endpoint tests pass. No live OpenAlex call occurs on search.
 ## P2-10 — Cross-encoder reranking
 
 **Inputs:** fixed pilot candidate lists, initially from the existing E5 hybrid path.
-Final embedding/reranker selection happens in P2-14/15.
+Final embedding/reranker selection happens in P2-13/14.
 
 **10.1 complete; assistant-reviewed 2026-09-27:** the source audit and bounded
 resource pilot are recorded in the [candidate report](../research/phase-2-reranker-candidate-research.md).
@@ -1247,7 +1250,7 @@ Do not count skipped integration tests as a live pass.
 | Development/test size and split | P2-04/12 | Select after ten-question review; document coverage/uncertainty |
 | Chunk/window sizes and overlap | P2-13 | Versioned development choices preserving source meaning |
 | Ranking pools, fusion/diversity settings | P2-08/11/14 | Bound and compare on development questions |
-| Quality/latency thresholds and default | P2-14/15 | Freeze before held-out evaluation |
+| Quality/latency thresholds and default | P2-13/14 | Freeze before held-out evaluation |
 | Permanent schema changes | P2-03 or first consumer | ADR and new migration; preserve existing evidence |
 
 Escalate a genuine change to the locked corpus, public-access policy, paid compute,
@@ -1285,7 +1288,7 @@ and sealed from selection.
 ## Historical v10 P2-20 outcome — assistant-reviewed 2026-09-28
 
 The v10 held-out assessment completed against the frozen profile and unchanged
-thresholds. It passed 14 of 15 gates; warm p95 was 1,602.2 ms against the 1,500 ms
+thresholds. It passed 13 of 14 gates; warm p95 was 1,602.2 ms against the 1,500 ms
 maximum. Every quality, source-coverage, hard-failure, fallback, cold-load and CUDA
 allocation gate passed. The sanitized [acceptance report](../reference/phase-2-acceptance-report.md)
 contains the profile aggregates, paired bootstrap intervals, category summaries,

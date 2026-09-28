@@ -7,6 +7,7 @@ import importlib
 import math
 import threading
 from collections.abc import Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal
 
@@ -109,6 +110,22 @@ class EmbeddingModelError(RuntimeError):
     """A safe local embedding failure without model or source text details."""
 
 
+class EmbeddingInferenceTimeout(EmbeddingModelError):
+    """Query encoding exceeded its configured wait deadline."""
+
+
+class EmbeddingInferenceBusy(EmbeddingModelError):
+    """A previous query still occupies the adapter's single worker."""
+
+
+def _consume_query_future_exception(
+    future: asyncio.Future[tuple[tuple[float, ...], ...]],
+) -> None:
+    """Retrieve errors from an encoder call that outlives its awaiting request."""
+    if not future.cancelled():
+        future.exception()
+
+
 class _SentenceTransformerEmbedder:
     """Shared lazy loader, input validation and normalized encoding implementation."""
 
@@ -119,14 +136,29 @@ class _SentenceTransformerEmbedder:
         *,
         device: EmbeddingDevice = "auto",
         model: Any | None = None,
+        query_timeout_seconds: float = 10.0,
     ) -> None:
         if device not in {"auto", "cpu", "cuda"}:
             raise ValueError("device must be auto, cpu or cuda")
         self.device = device
         self._model = model
         self._tokenizer = getattr(model, "tokenizer", None)
+        if (
+            isinstance(query_timeout_seconds, bool)
+            or not isinstance(query_timeout_seconds, (int, float))
+            or not math.isfinite(query_timeout_seconds)
+            or query_timeout_seconds <= 0
+        ):
+            raise ValueError("query_timeout_seconds must be finite and positive")
+        self.query_timeout_seconds = float(query_timeout_seconds)
         self._model_lock = threading.Lock()
         self._tokenizer_lock = threading.Lock()
+        self._query_submission_lock = threading.Lock()
+        self._query_executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="query-embedding"
+        )
+        self._active_query_future: Future[tuple[tuple[float, ...], ...]] | None = None
+        self._closed = False
 
     @classmethod
     def index_configuration(
@@ -171,15 +203,51 @@ class _SentenceTransformerEmbedder:
         self._validate_configuration(configuration)
         if not isinstance(text, str) or not text.strip():
             raise ValueError("query text must be non-empty")
+        loop = asyncio.get_running_loop()
+        with self._query_submission_lock:
+            if self._closed:
+                raise EmbeddingModelError("local query embedder is closed")
+            if (
+                self._active_query_future is not None
+                and not self._active_query_future.done()
+            ):
+                raise EmbeddingInferenceBusy(
+                    "query embedding worker is completing a previous request"
+                )
+            try:
+                worker_future = self._query_executor.submit(
+                    self._encode_texts,
+                    (text,),
+                    self._profile.query_prefix,
+                    configuration,
+                )
+            except RuntimeError:
+                raise EmbeddingModelError("local query embedder is closed") from None
+            self._active_query_future = worker_future
+        future = asyncio.wrap_future(worker_future, loop=loop)
+        future.add_done_callback(_consume_query_future_exception)
         try:
-            vectors = await asyncio.to_thread(
-                self._encode_texts, (text,), self._profile.query_prefix, configuration
+            vectors = await asyncio.wait_for(
+                asyncio.shield(future), timeout=self.query_timeout_seconds
             )
             return vectors[0]
+        except TimeoutError:
+            raise EmbeddingInferenceTimeout(
+                "local query embedding exceeded its configured timeout"
+            ) from None
+        except asyncio.CancelledError:
+            raise
         except EmbeddingModelError:
             raise
         except Exception:
             raise EmbeddingModelError("local query embedding failed") from None
+
+    def close(self) -> None:
+        """Reject new query work and cancel queued work while the active call finishes."""
+        with self._query_submission_lock:
+            if not self._closed:
+                self._closed = True
+                self._query_executor.shutdown(wait=False, cancel_futures=True)
 
     def token_spans(self, text: str) -> Sequence[TokenSpan]:
         """Return tokenizer offsets for source-aware chunking."""
