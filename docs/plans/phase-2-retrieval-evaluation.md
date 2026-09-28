@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-19 implementation complete; the v10 P2-20 assessment passed 14/15 gates and missed warm p95; Phase 2 acceptance remains open.
+Status: approved 2026-09-26; P2-01–P2-20 complete; the fresh v11 P2-20 assessment passed all frozen gates; Phase 2 is accepted.
 
 ## Start and authority
 
@@ -55,12 +55,12 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-19 implementation is complete. The v10 candidate review and acceptance
-assessment are complete: 14 frozen gates passed and the selected profile's warm p95
-failed at 1,602 ms against 1,500 ms. The selected profile and numerical limits remain
-frozen pending a development-only repair investigation. Raw questions, item-level
-results and origin ledgers remain private; do not tune on any spent held-out set.
-Never read any `*origins.json` file.
+P2-01–P2-20 are complete. A fresh source-reviewed v11 assessment passed every frozen
+acceptance gate with the selected profile and unchanged numeric limits. The current
+aggregate outcome and frozen identities are in the [acceptance report](../reference/phase-2-acceptance-report.md).
+Question text, source excerpts, candidate text, item-level results and origin ledgers
+remain private; do not tune on any spent held-out set. Never read any `*origins.json`
+file.
 
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
@@ -86,7 +86,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized revision `8304b8a` (run 36407122155) |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | v10 assessment complete; warm p95 gate failed; acceptance remains open |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Complete; fresh v11 assessment passed every frozen gate |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -578,7 +578,8 @@ combinations and one-branch failure tests pass with component provenance preserv
    document version and metadata availability, and distinguish unknown IDs from
    records outside the requested snapshot. Use bounded service-layer queries.
 2. **09.2 Group evidence into papers.** Use the strongest eligible evidence hit as
-   the initial paper evidence score. Retain up to three distinct supporting hits;
+   the initial paper evidence score. Retain up to five distinct supporting hits in the
+   accepted profile, as recorded in ADR-0012;
    summing all chunk scores is not the baseline.
 3. **09.3 Combine metadata and evidence candidates.** Keep title/abstract ranking and
    evidence-derived ranking separate, then use a documented rank-based fusion rule
@@ -1211,9 +1212,9 @@ and exact lock. `git diff --check` passes. Hosted CI passed on sanitized revisio
 P2-19 is complete. P2-20 ran against the frozen v3 assessment and failed paper
 nDCG@10, evidence nDCG@10, reranker fallback fraction, and warm p95. The completed
 aggregate report is [phase-2-acceptance-report.md](../reference/phase-2-acceptance-report.md).
-P2-20's Done condition requires the held-out gate to pass, so Phase 2 is not accepted.
-Do not tune on v3 or reuse it as an unseen test. Any renewed selection requires
-development-only changes and a fresh held-out set frozen before assessment.
+At this historical checkpoint, P2-20's Done condition was unmet because the v3
+held-out gate failed. Do not tune on v3 or reuse it as an unseen test. The later v11
+assessment completed P2-20 with a fresh held-out set and unchanged profile/limits.
 
 ## Shared verification commands
 
@@ -1281,7 +1282,7 @@ The v9 result and its gate outcome are retained in the aggregate
 [acceptance report](../reference/phase-2-acceptance-report.md). The v9 set is spent
 and sealed from selection.
 
-## Current v10 P2-20 outcome — assistant-reviewed 2026-09-28
+## Historical v10 P2-20 outcome — assistant-reviewed 2026-09-28
 
 The v10 held-out assessment completed against the frozen profile and unchanged
 thresholds. It passed 14 of 15 gates; warm p95 was 1,602.2 ms against the 1,500 ms
@@ -1295,3 +1296,19 @@ or change the profile or limits based on them. Any performance repair must be gr
 in calibration/development evidence, preserve the locked paper aggregation rule and
 be assessed on a fresh source-reviewed held-out set. P2-20 and Phase 2 remain open
 until every frozen gate passes.
+
+A subsequent development-only search-service timing replay measured paper-search p95
+of 1,433.45 ms and evidence-search p95 of 1,336.92 ms on 95 samples per operation.
+At the time, this did not clear the v10 held-out latency failure; the later v11
+assessment below is the current acceptance evidence. See the
+[development report](../research/phase-2-development-report.md).
+
+
+## Current v11 P2-20 outcome — assistant-reviewed 2026-09-28
+
+A fresh source-reviewed ten-family assessment passed every frozen quality and
+operational gate without changing the selected profile or numeric limits. The selected
+profile's warm p95 was 1,485.8 ms against the 1,500 ms limit; aggregate quality, source
+coverage, failure, fallback, cold-load and CUDA-allocation results are recorded in the
+[acceptance report](../reference/phase-2-acceptance-report.md). The v11 set is spent and
+sealed from tuning. P2-20 and Phase 2 are complete; Phase 3 has not started.

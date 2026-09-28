@@ -174,3 +174,36 @@ coverage. Its development fallback share (3/19) and reranker p95 remained below 
 frozen operational limits. This is a development-only selection rationale; v9 later
 missed the paper nDCG gate, and that spent held-out outcome does not change this
 selection or authorize tuning from v9.
+
+## Integrated search-service timing replay — 2026-09-28
+
+A separate warm timing replay exercised the frozen v8 profile on the ten calibration
+families and nine source-reviewed development families only. It made five measured
+repeats for each family and operation after one full warm-up pass (95 paper-search
+and 95 evidence-search samples). This calls the integrated application search
+executor; it does not include HTTP transport or response serialization.
+
+| Operation | Samples | Median | Warm p95 (nearest rank) | Maximum |
+| --- | ---: | ---: | ---: | ---: |
+| Paper search | 95 | 1,179.79 ms | 1,433.45 ms | 1,563.31 ms |
+| Evidence search | 95 | 1,127.83 ms | 1,336.92 ms | 1,412.76 ms |
+
+The replay had zero hard failures and 30 explicit reranker fallbacks across 190
+measured requests (15.8%). It ran on the WSL-exposed RTX 3050 Laptop GPU with profile
+`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`. The
+mode-0600 aggregate and reproduction script are retained under ignored
+`local-reference/phase2-runs/p2-14-validation/`.
+
+Both operation-specific development p95 values are below the frozen 1,500 ms limit.
+At that checkpoint, this development replay did not replace or clear the v10 held-out
+result, whose selected-profile p95 was 1,602.2 ms across 100 warm requests. No threshold
+or profile changed. The later fresh v11 assessment is recorded below and in the
+[acceptance report](../reference/phase-2-acceptance-report.md).
+
+
+## Later Phase 2 acceptance — 2026-09-28
+
+This report records development-only choices. The subsequent fresh v11 held-out
+assessment passed every frozen gate with the unchanged selected profile and numeric
+limits; see the [acceptance report](../reference/phase-2-acceptance-report.md) for
+sanitized results. Earlier held-out failures remain historical and spent.

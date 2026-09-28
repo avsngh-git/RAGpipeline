@@ -38,7 +38,9 @@ selections. Graph-based ranking, new corpus acquisition, generation, MCP and pub
 deployment remain outside this phase. External scientific benchmarks are optional
 follow-up work, and reported conclusions are limited accordingly.
 
-The [source of truth](../agents/scientific-research-platform-source-of-truth.md#94-phase-2-retrieval-and-evaluation-policy--locked)
+The Phase 2 profile and its accepted model, lexical, selection and ranking choices are
+recorded in [ADR-0012](0012-phase2-accepted-retrieval-profile.md). The
+[source of truth](../agents/scientific-research-platform-source-of-truth.md#94-phase-2-retrieval-and-evaluation-policy--locked)
 owns the approved policy. The [roadmap](../plans/phase-2-retrieval-evaluation.md)
 and [evaluation protocol](../plans/phase-2-evaluation-protocol.md) define execution.
 Exact persistence/schema changes require a separate implementation ADR when needed.

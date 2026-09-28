@@ -1,24 +1,114 @@
 # Phase 2 held-out acceptance report
 
-**Status:** Phase 2 remains unaccepted. The fresh v10 assessment passed 14 of 15
-frozen gates; selected-profile warm p95 was 1,602.2 ms against a 1,500 ms maximum.
-P2-01–P2-19 implementation and local verification are complete. Hosted CI passed on
-sanitized revision `8304b8a` ([run
-36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)); P2-20
-acceptance remains open.
+**Current status — Phase 2 accepted.** The fresh, source-reviewed `phase2-benchmark-v11`
+assessment passed every frozen quality and operational gate. The selected profile and
+all numeric limits were unchanged. P2-01–P2-20 are complete; Phase 3 has not started.
+This report publishes aggregate measurements and artifact identities only. Held-out
+questions, source excerpts, candidate text, item-level judgments, rankings and raw run
+records remain private.
 
-## Decision
+## v11 decision and scope
+
+The ten-family v11 set was frozen before scoring and reviewed by the assistant against
+primary source material. Its composition was 10 discovery, 8 specific-evidence, 4
+table-result, 3 cross-paper-comparison, 5 filters and 3 missing-evidence families
+(category membership may overlap). All 622 pooled candidates were resolved: 235 paper
+candidates and 387 evidence candidates. Nine direct source anchors were independently
+reviewed, with eight actual retrieval-hit links in the candidate pool; no gold item was
+inserted into a result. The accepted snapshot contains 100 papers and 44,277 selected
+chunks.
+
+The sample is purposive and supports directional evidence, not precise population
+estimates or a claim about the whole literature. This measures ranking and retrieval;
+no generated-answer quality was tested. Source/group coverage beyond the predeclared
+gates is descriptive. Public passage display remains disabled.
+
+## Frozen v11 identities
+
+| Field | Value |
+| --- | --- |
+| Assessment | `phase2-benchmark-v11`, ten held-out families |
+| Acceptance config | [`acceptance-v9.toml`](../../benchmarks/phase2/acceptance-v9.toml); SHA-256 `3ef732d9a0645371d63dd57aa205f8e066a6eec48b4936bb6f81c4ccfa3bd572` |
+| Frozen profile | [`frozen-profile-v9.toml`](../../benchmarks/phase2/frozen-profile-v9.toml); SHA-256 `11c70b0c3dbd92bf35ad473b0085f42dbd752cb2341e3f28f570c5e77614d32e` |
+| Selected profile identity | `sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be` |
+| Question-manifest SHA-256 | `d9c307c35dce3f97ad3b26885ebb74da47d1338a21e319404db22dd066f41175` |
+| Split-manifest SHA-256 | `185ec18ad7e9483e2b4f636e0ed3d5e9baa06c063f6ba002dc8886086744d2fd` |
+| Source-review SHA-256 | `1cc76aab917cbaed8d73aaead305cd862127ed87d9d1b7bce6ed97fc282b5dba` |
+| Source-judgment SHA-256 | `32308177ba07d44e2a58997a7711656b25b22a4ea84e8ed40310b38aa3f10c4a` |
+| Source-chunk mapping SHA-256 | `d1430c94ad31c1e2f42675ccbe7e8a28c7bd90b0622093bbe3fee9e8472bd958` |
+| Snapshot | `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c`, 100 papers, 44,277 selected chunks |
+| Run-record SHA-256 | `39e209c09e376b26adeaf7f5a692fa39e40cffe878484b3c4c196b804b440fd1` |
+
+The v11 question set, split, source review, source judgments, source map, candidate
+cards and raw run are retained under the ignored private `local-reference/` directory.
+The public config files contain frozen hashes and model/ranking settings, not question
+text or item-level labels.
+
+## v11 profile comparison
+
+Quality values are macro means over ten held-out families. Source-anchor recall is over
+nine independently reviewed anchors. Warm latency p95 is the nearest rank across 100
+requests per profile.
+
+| Profile | Paper nDCG@10 | Paper MRR@10 | Paper Recall@20 | Evidence nDCG@10 | Evidence MRR@10 | Evidence Recall@20 | Source Recall@10 / @50 | Warm p95 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| BM25 lexical | 0.7270 | 0.7381 | 1.0000 | 0.4459 | 0.3571 | 0.3723 | 0.2222 / 0.3333 | 576.7 |
+| Dense E5 | 0.9037 | 0.9286 | 1.0000 | 0.4958 | 0.5000 | 0.4278 | 0.4444 / 0.4444 | 883.2 |
+| Hybrid E5 | 0.9301 | 1.0000 | 1.0000 | 0.4871 | 0.4762 | 0.4437 | 0.4444 / 0.5556 | 1,232.1 |
+| MiniLM over Hybrid E5 (selected) | 0.9208 | 1.0000 | 1.0000 | 0.6682 | 0.6357 | 0.8737 | 0.5556 / 0.5556 | 1,485.8 |
+| Fixed-window dense E5 | 0.9202 | 0.9286 | 1.0000 | 0.3408 | 0.4286 | 0.2561 | 0.4444 / 0.4444 | 370.6 |
+
+The MiniLM-over-Hybrid-E5 profile remains the selected serving profile under its frozen
+identity. Its result shows the strongest evidence-ranking metrics in this comparison;
+profile selection was made from development evidence before v11.
+
+## v11 selected-profile acceptance gates
+
+| Gate | Frozen limit | v11 aggregate | Result |
+| --- | ---: | ---: | --- |
+| Paper nDCG@10 | ≥ 0.80 | 0.9208 | Pass |
+| Paper direct MRR@10 | ≥ 0.70 | 1.0000 | Pass |
+| Paper judged Recall@20 | ≥ 0.90 | 1.0000 | Pass |
+| Evidence nDCG@10 | ≥ 0.45 | 0.6682 | Pass |
+| Evidence direct MRR@10 | ≥ 0.45 | 0.6357 | Pass |
+| Evidence judged Recall@20 | ≥ 0.60 | 0.8737 | Pass |
+| Source-anchor Recall@10 | ≥ 0.25 | 0.5556 | Pass |
+| Source-anchor Recall@50 | ≥ 0.35 | 0.5556 | Pass |
+| Positive source families with a hit at @10 | ≥ 0.50 | 0.5714 (4/7) | Pass |
+| Hard-failure fraction | ≤ 0.01 | 0.0000 | Pass |
+| Reranker-fallback fraction | ≤ 0.35 | 0.1000 | Pass |
+| Warm p95 | ≤ 1,500 ms | 1,485.8 ms | Pass |
+| Combined cold model load | ≤ 15,000 ms | 6,142.4 ms | Pass |
+| Summed CUDA allocation | ≤ 1 GiB | 224,966,656 bytes | Pass |
+
+The warm p95 cleared its frozen ceiling by 14.2 ms. The WSL-exposed GPU was an NVIDIA
+GeForce RTX 3050 Laptop GPU. Evidence-requirement-group coverage was descriptive: seven
+groups, piece coverage 0.5556 at @10 and @50, and complete-group fraction 0.4286. No separate numeric group-coverage gate was predeclared. Every listed quality and
+operational gate passed.
+
+## Historical v10 assessment
+
+The v10 assessment below is retained as historical evidence. It passed 14 of 15
+frozen gates and missed warm p95 at 1,602.2 ms. Its set is spent and was not used for
+v11 selection or tuning. Its item-level results remain private.
+
+**Historical v10 status:** The v10 assessment passed 14 of 15 frozen gates and missed
+warm p95 at 1,602.2 ms against a 1,500 ms maximum. This historical result was superseded
+by the fresh v11 acceptance assessment above.
+
+## Historical v10 decision
 
 The v10 assessment is complete and spent. All quality, source-coverage, hard-failure,
 reranker-fallback, cold-load and CUDA-allocation gates passed. The warm-latency gate
 failed by 102.2 ms. The predeclared thresholds were not changed. No v10 item-level
 result will be used to select or tune a profile. Phase 3 has not started.
 
-The development-selected MiniLM-over-Hybrid-E5 profile remains the serving candidate
-while acceptance is open. Any repair must use calibration/development evidence, retain
-the locked strongest-passage paper aggregation rule and the numeric limits, and be
-assessed on a fresh source-reviewed held-out set. The current failed gate is not a
-basis for inspecting v10 families or changing the profile from v10 scores.
+At that time, the development-selected MiniLM-over-Hybrid-E5 profile remained the
+serving candidate while acceptance was open. Any repair was required to use
+calibration/development evidence, retain the locked strongest-passage paper aggregation
+rule and numeric limits, and be assessed on a fresh source-reviewed held-out set. The
+failed v10 gate was not used to inspect v10 families or change the profile from v10
+scores.
 
 ## Frozen v10 inputs
 
@@ -48,7 +138,7 @@ population estimates. Question identities, raw rankings, candidate text, per-fam
 results and run files remain in the ignored private directory. This report contains
 sanitized aggregates only.
 
-## Aggregate profile comparison
+## Historical v10 aggregate profile comparison
 
 Metrics are macro means over the ten held-out families except source-anchor recall,
 which is micro recall over nine independently reviewed direct anchors. Latency is the
@@ -62,7 +152,7 @@ nearest-rank p95 across 100 warm requests per profile.
 | MiniLM over Hybrid E5 (selected) | 0.8465 | 0.9286 | 1.0000 | 0.7040 | 0.6786 | 0.6905 | 0.7778 / 0.7778 | 1,602.2 |
 | Fixed-window dense E5 | 0.8147 | 0.7429 | 0.8571 | 0.5574 | 0.5000 | 0.5238 | 0.4444 / 0.4444 | 412.8 |
 
-## Paired difference versus Hybrid E5
+## Historical v10 paired difference versus Hybrid E5
 
 The bootstrap used 10,000 paired family resamples with seed 20260930. Deltas are
 selected MiniLM-over-Hybrid-E5 minus Hybrid E5; intervals are percentile 95% intervals.
@@ -81,7 +171,7 @@ The profile comparison describes this spent set and does not authorize selection
 it. The paired evidence nDCG interval is positive; paper nDCG's interval includes
 zero. Source recall matches Hybrid E5 on this sample.
 
-## Selected-profile category summaries
+## Historical v10 selected-profile category summaries
 
 Categories overlap. Source recall is omitted where a category has no positive direct
 source anchor.
@@ -95,7 +185,7 @@ source anchor.
 | Specific evidence | 10 | 0.8465 | 0.7040 | 0.7778 |
 | Table result | 5 | 0.8415 | 0.6369 | 0.6667 |
 
-## Selected-profile acceptance gates
+## Historical v10 selected-profile acceptance gates
 
 | Gate | Frozen limit | v10 aggregate | Result |
 | --- | ---: | ---: | --- |
@@ -122,7 +212,7 @@ status is reported separately from the frozen hard-failure and explicit fallback
 gates. Four of 20 primary requests used the unchanged Hybrid-E5 fallback. This status
 classification should be made more specific in any future evaluation harness.
 
-## Runtime, unsupported behavior and limitations
+## Historical v10 runtime, unsupported behavior and limitations
 
 The run used a WSL-exposed NVIDIA GeForce RTX 3050 Laptop GPU. Combined cold model
 load was 5.61 s; E5 plus reranker allocated 224,966,656 bytes at load. Peak CUDA
@@ -156,19 +246,18 @@ Earlier sets are also spent and cannot guide selection. Their item-level records
 private. The v10 profile, threshold and result identities are recorded above; raw
 artifacts are mode-restricted under ignored `local-reference/phase2-runs/`.
 
-## P2-19 verification and next step
+## Historical P2-19 verification
 
-Local verification on the current worktree passed Ruff lint, Ruff formatting, strict
-mypy (79 source files), 424 non-integration tests and 21 integration tests against
-fresh no-volume PostgreSQL/Qdrant services. `pip check` passed in the Conda environment
-and built image. `pip_audit --skip-editable` found no known vulnerabilities; the
-editable project distributions were skipped. The Docker image built with a 358.86 KB
-context; its CLI, BM25S/NumPy imports and v8 frozen-profile loader passed smoke checks.
-No dependency lock or runtime dependency changed in this update. Hosted CI passed on
-sanitized revision `8304b8a` ([run
-36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)).
+Local verification on the implementation worktree passed Ruff lint, Ruff formatting,
+strict mypy, unit/API/evaluation and isolated PostgreSQL/Qdrant integration checks,
+package audits, and a Docker build/image smoke check. Hosted CI passed on sanitized
+implementation revision `8304b8a` ([run
+36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)). The v10
+assessment subsequently missed its warm-latency gate, as recorded above.
 
-P2-20 remains open because the frozen held-out gate failed. Use development-only
-measurements for any performance investigation and preserve the thresholds. Any later
-acceptance assessment must use a fresh, source-reviewed held-out set frozen before
-scoring. Do not inspect v10 item-level outcomes or reuse v10 as an unseen test.
+## Current project status
+
+P2-20 is complete and Phase 2 is accepted after the fresh v11 assessment above. The
+selected profile and all numeric limits remain as frozen. Every held-out set is spent
+and sealed from tuning. Phase 3 has not started. Hosted CI for the sanitized v11
+completion documentation is pending publication.

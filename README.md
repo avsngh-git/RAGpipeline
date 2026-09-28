@@ -11,14 +11,14 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 implementation is complete; acceptance remains open.** The fresh v10
-held-out assessment passed 14 of 15 frozen gates; warm p95 was 1,602 ms against the
-1,500 ms ceiling. The v10 set is spent and cannot guide tuning. Question identities,
-candidate text and raw results remain private. See the [held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
+**Phase 2 is complete and accepted.** A fresh, source-reviewed v11 held-out
+assessment passed every frozen quality and operational gate; warm p95 was 1,485.8 ms
+against the 1,500 ms ceiling. Questions, candidate text and item-level results remain
+private. See the [held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
 [detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
 [agent handoff](docs/plans/phase-2-agent-handoff.md), and
-[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). New source
-judgments are recorded as assistant-reviewed.
+[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not
+started.
 ## Development environment
 
 This project uses Conda as its development dependency manager.
@@ -282,8 +282,9 @@ outcomes and snapshot lifecycle.
 
 The snapshot configuration JSON includes the chosen `index_configuration_id`.
 For the Phase 1 pilot, use the reversible E5-small-v2 configuration recorded in
-[ADR-0005](docs/adr/0005-phase1-embedding-pilot.md). The final model choice remains
-open until Phase 2 retrieval-quality evaluation. Install the optional parser and
+[ADR-0005](docs/adr/0005-phase1-embedding-pilot.md). Phase 2 evaluation selected
+E5-small-v2 for retrieval; its frozen profile and acceptance results are documented in
+the Phase 2 report. Install the optional parser and
 embedding dependencies only in the local ingestion environment; ordinary CI does
 not download their model weights.
 

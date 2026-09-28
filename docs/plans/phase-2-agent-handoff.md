@@ -1,18 +1,18 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-28. P2-01–P2-19 implementation is complete. The v10 P2-20
-assessment passed 14/15 gates and missed warm p95. Local verification passes; hosted CI passed on sanitized revision `8304b8a` ([run
-36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)). Phase 2
-acceptance remains open.
+Updated: 2026-09-28. P2-01–P2-20 implementation, verification and acceptance are
+complete. The fresh v11 held-out assessment passed every frozen gate with the selected
+profile and unchanged limits. The sanitized completion records and frozen manifests
+are being published through the existing draft PR; hosted CI for this documentation
+update is pending.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md) and the
-   [held-out acceptance report](../reference/phase-2-acceptance-report.md). The v10
-   held-out set is spent and cannot guide tuning or be reused as an unseen test. Use
-   development-only evidence for any repair; any later acceptance run needs a fresh
-   source-reviewed set.
+   [held-out acceptance report](../reference/phase-2-acceptance-report.md). The v11
+   held-out set and all earlier assessment sets are spent and cannot guide tuning or
+   be reused as unseen tests. Phase 2 is accepted; Phase 3 has not started.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -66,13 +66,13 @@ existing worktree and publication workflow.
   schema before querying with newer code; tests use isolated services.
 - P2-01–P2-19 delivered snapshot-bound lexical, dense, hybrid and reranked search,
   filters, paper/evidence APIs, citations and local rebuild/operations workflows.
-  P2-20 acceptance remains open after the v10 warm-latency gate miss.
+  P2-20 acceptance passed on fresh v11; see the final checkpoint below.
 - Model shortlist and hardware memory figures are not feasibility proof. Remeasure
   current resources. Keep synthetic CPU CI independent of model downloads.
 - JSON is broadly ignored. Use deliberately tracked sanitized config/fixture paths;
   full text, source PDFs and private review artifacts stay outside Git.
 
-## Phase 2 active checkpoint
+## Historical v10 checkpoint
 
 The v10 benchmark has ten families; all 231 paper and 328 evidence candidates were
 assistant-reviewed. Nine direct source anchors have ten direct pooled-candidate links.
@@ -88,6 +88,13 @@ repair must use development-only evidence, preserve the locked strongest-passage
 paper aggregation rule and numeric limits, and be assessed on a fresh source-reviewed
 held-out set. Never read any `*origins.json` file. Continue to mark new judgments
 assistant-reviewed and preserve source-check uncertainty and sampling limits.
+
+A 2026-09-28 development-only integrated search-service replay measured 95 warm
+requests per operation on the frozen v8 profile. Paper-search p95 was 1,433.45 ms and
+evidence-search p95 was 1,336.92 ms, with zero hard failures. This is development
+evidence only and did not clear the v10 p95 failure at that checkpoint. The planned
+next step was a fresh, source-reviewed held-out assessment with frozen identities;
+that work was completed in v11 without changing the profile or numeric limits.
 
 ## Progress and stop rules
 
@@ -724,7 +731,7 @@ their questions, rankings and item-level results remain private.
 The v9 result and its aggregate gate outcome remain documented in the acceptance
 report. The set is sealed from selection.
 
-## Current v10 P2-20 outcome — assistant-reviewed 2026-09-28
+## Historical v10 P2-20 outcome — assistant-reviewed 2026-09-28
 
 All 559 pooled candidates received assistant judgments; nine direct source anchors
 have ten direct candidate links. The selected profile passed 14 of 15 frozen gates.
@@ -734,4 +741,20 @@ sealed from selection. Local P2-19 checks passed: 424 unit/API/evaluation tests,
 isolated PostgreSQL/Qdrant integration tests, lint, formatting, mypy, `pip check`, and
 a Docker build/image smoke check. Hosted CI passed on sanitized revision `8304b8a` ([run
 36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)). Phase 2
-remains open until every frozen gate passes.
+was still open at this historical checkpoint; the fresh v11 assessment below later passed.
+
+
+## Final Phase 2 acceptance — assistant-reviewed 2026-09-28
+
+The fresh `phase2-benchmark-v11` held-out assessment passed every frozen acceptance
+gate. The selected reranked MiniLM-over-Hybrid-E5 profile achieved paper nDCG@10
+0.9208, direct MRR@10 1.0000 and judged Recall@20 1.0000; evidence nDCG@10 0.6682,
+direct MRR@10 0.6357 and judged Recall@20 0.8737. Source-anchor recall was 0.5556
+at both @10 and @50. Warm p95 was 1,485.8 ms (100 samples) against the 1,500 ms
+ceiling; all failure, fallback, cold-load and GPU-allocation limits passed. The v11
+set is spent and sealed from tuning. See the sanitized [acceptance report](../reference/phase-2-acceptance-report.md) and tracked frozen profile/configuration.
+
+P2-20 is complete and Phase 2 is accepted. Phase 3 remains unstarted. The public
+report contains aggregate results and hashes only; the question set, source review
+materials, candidate pools, judgments and raw run are retained in the ignored private
+`local-reference/phase2-runs/` area.

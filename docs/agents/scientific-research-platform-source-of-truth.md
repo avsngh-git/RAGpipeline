@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.19\
+**Version:** 1.20\
 **Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation complete; acceptance remains open after v10 missed the frozen warm-latency gate; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation and held-out acceptance complete under v11; Phase 3 not started\
 
 ---
 
@@ -423,10 +423,10 @@ records finalization and quality acceptance.
 - **Quality failures:** unresolved extraction failures, including a results-table validation failure, prevent a paper from counting as successfully ingested. Preserve intermediate outputs for alternative extraction or reviewed correction with provenance. Exclusions and replacements MUST be explicit selection decisions, never silent quality filtering.
 - **Verification scope:** prepare human-verified text/table samples from every paper in the 10-paper comparison before evaluating approaches. For the 100-paper pilot, run automated integrity checks across all papers and a documented manual quality sample. Report sampling and coverage without implying exhaustive cell-level review.
 
-Chunk-size/token-overlap baselines remain OPEN pending later corpus and retrieval
-evaluation. The ten-paper indexing pilot uses reversible E5-small-v2 settings;
-the final embedding choice remains OPEN for Phase 2. The measured ten-paper
-source-artifact footprint is 11,587,433 bytes, and the 2 GiB hard acquisition cap
+Chunk-size/token-overlap baselines remain OPEN for future corpus variants and new
+retrieval evaluations. Phase 2 selected E5-small-v2 in the accepted profile after
+development comparison and held-out validation; changing that choice requires a new
+evaluation. The measured ten-paper source-artifact footprint is 11,587,433 bytes, and the 2 GiB hard acquisition cap
 is retained for the 100-paper pilot with an explicit tenfold-size projection in
 the [pilot report](../reference/phase-1-full-extraction-pilot.md). Disposable
 retention periods remain OPEN. Extraction quality thresholds are in the P1-08
@@ -483,7 +483,8 @@ Approved 2026-09-26 after the planning interview. The
 [evaluation protocol](../plans/phase-2-evaluation-protocol.md),
 [agent handoff](../plans/phase-2-agent-handoff.md),
 [ADR-0008](../adr/0008-phase2-retrieval-evaluation-boundaries.md),
-[ADR-0011](../adr/0011-explicit-search-result-semantics.md) and the frozen
+[ADR-0011](../adr/0011-explicit-search-result-semantics.md), the accepted
+[Phase 2 retrieval profile](../adr/0012-phase2-accepted-retrieval-profile.md), and the frozen
 [benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) elaborate
 these rules.
 
@@ -496,16 +497,17 @@ these rules.
   inherited selection identity before its draft representation changes
   ([ADR-0009](../adr/0009-exact-snapshot-variant-lineage.md)).
 - **Search:** implement lexical BM25, dense, rank fusion and cross-encoder reranking.
-  BM25S is the local lexical implementation candidate, conditional on measured
-  resource, filter and reproducibility checks before dependency acceptance.
-  Compare E5-small-v2 with BGE-base-en-v1.5 if feasible; compare MiniLM-L6-v2 and
-  BGE-reranker-base rerankers after bounded hardware pilots. Revisions, preprocessing
-  and input limits are recorded. Final defaults are selected by development results.
+  BM25S 0.3.11 with the scientific-en-v1 analyzer is the accepted local lexical
+  implementation. E5-small-v2 and MiniLM-L6-v2 over Hybrid E5 are the selected dense
+  and reranked choices after development comparison and held-out validation; the
+  frozen revisions, preprocessing and input limits are recorded in the profile. Later
+  model or ranking changes require a new development and held-out evaluation.
 - **Paper/evidence behavior:** return one result per paper, combining title/abstract
   and evidence discovery while retaining separate component scores. The strongest
-  passage is the initial paper evidence score, with up to three distinct supporting
-  hits. Evidence results remove redundant overlap and use configurable per-paper
-  limits; structured tables retain source-linked headers, values, units and footnotes.
+  passage is the initial paper evidence score. The accepted Phase 2 profile retains up
+  to five distinct supporting hits per paper. Evidence results remove redundant overlap
+  and use configurable per-paper limits; structured tables retain source-linked headers,
+  values, units and footnotes.
 - **Outcome semantics:** every search response reports the exact eligible-record
   count before ranking limits and distinguishes `no_eligible_records`,
   `no_candidates_returned` and `ranked_candidates`. A ranking-only response does
@@ -549,9 +551,10 @@ these rules.
   the actual ranking used and count separately in evaluation. Scores are not support
   probabilities; optional rejection cutoffs require calibration for their profile.
 
-The plan authorizes its decisions and delegated workflow; Phase 2 implementation
-begins on an implementation request. Routine decisions within these boundaries are
-delegated. Material deviations follow section 1 change control.
+The plan authorized the Phase 2 decisions and delegated implementation, calibration,
+benchmark preparation and source review. Phase 2 is accepted under the v11 assessment;
+its spent held-out sets cannot guide later tuning. Routine Phase 2 decisions remain
+within these boundaries. Material deviations follow section 1 change control.
 
 ---
 
@@ -1087,8 +1090,8 @@ This status update records evidence; it does not relax the requirements below.
 
 The Phase 1 indexing pilot uses the reversible `intfloat/e5-small-v2`
 configuration recorded in [ADR-0005](../adr/0005-phase1-embedding-pilot.md).
-This hardware-feasibility result does not close the final embedding-model choice;
-that remains open pending Phase 2 retrieval-quality evaluation.
+At this Phase 0 checkpoint, the hardware-feasibility result left the final embedding
+choice open. Phase 2 later selected E5-small-v2 after retrieval-quality evaluation.
 
 Deliver:
 
@@ -1179,8 +1182,7 @@ one figure from table to caption-only figure evidence in a fourth paper. All eig
 flagged table checks now pass. The current draft has 5,944 sections, 112 tables,
 15,628 evidence units and 9,684 searchable chunks. PostgreSQL and Qdrant reconcile
 9,684 points across 606 batches, and validation at the ten-paper minimum reports
-no issues. This ten-paper snapshot remains a draft because it has fewer than 100 papers; the separate 100-paper acceptance snapshot is finalized. The final embedding-model decision remains open for Phase 2. See the
-[ten-paper pilot report](../reference/phase-1-full-extraction-pilot.md).
+no issues. This ten-paper snapshot remains a draft because it has fewer than 100 papers; the separate 100-paper acceptance snapshot is finalized. At this Phase 1 checkpoint, the final embedding choice remained open; Phase 2 later selected E5-small-v2 after retrieval-quality evaluation. See the [ten-paper pilot report](../reference/phase-1-full-extraction-pilot.md).
 
 An export attempt on 2026-09-24 applied migrations 002–012 to the default research
 database; it found no discovery manifest or candidate rows there. The reviewed
@@ -1202,16 +1204,15 @@ storage costs. Metadata-only and failed records are counted separately.
 
 ### Phase 2 — Retrieval and evaluation
 
-Status: P2-01 through P2-19 implementation is complete. The fresh v10 held-out
-assessment passed 14 of 15 frozen gates and missed warm p95 (1,602 ms against the
-1,500 ms ceiling). The selected MiniLM-over-Hybrid-E5 profile and its rank settings
-were chosen from development-only evidence. The v10 set is spent and may not guide
-tuning. Acceptance remains open until every frozen quality and operational gate
-passes; further repair work must use development evidence and preserve the locked
-paper aggregation rule and numeric limits. See the
+Status: P2-01 through P2-20 implementation, verification and held-out acceptance are
+complete. A fresh source-reviewed v11 assessment passed every frozen quality and
+operational gate using the development-selected MiniLM-over-Hybrid-E5 profile and
+unchanged numeric limits. The profile's canonical identity is
+`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`.
+The v11 set and all earlier held-out sets are spent and may not guide tuning. See the
 [acceptance report](../reference/phase-2-acceptance-report.md) for sanitized aggregate
-outcomes. Question identities, candidate text, per-family results and raw rankings
-remain private. Spent held-out sets are not used for further selection.
+outcomes and frozen identities. Question identities, candidate text, per-family
+results and raw rankings remain private. Phase 3 has not started.
 
 Deliver:
 
@@ -1327,18 +1328,21 @@ Resolve these progressively; do not decide all of them before evidence is availa
 
 1. Expansion beyond the initial RAG/retrieval/reranking collection into broader ML research; initial boundaries are fixed in Section 8.6.
 2. Exact supported full-text adapters and per-source permission/access verification under the agreed policy; the bounded direct-source adapter is resolved by [accepted ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md).
-3. Exact lexical library/version and analyzer: BM25 is approved; BM25S remains the measured implementation candidate under section 9.4.
-4. Final embedding-model choice after Phase 2 retrieval-quality evaluation;
-   the current E5-small-v2 configuration is a reversible Phase 1 pilot choice
-   recorded in ADR-0005.
-5. Final reranker choice/settings after the approved MiniLM-L6-v2 and BGE-reranker-base pilots and development benchmark.
+3. Phase 2 lexical choice is frozen as BM25S 0.3.11 with scientific-en-v1; later
+   library or analyzer changes require new evidence.
+4. Phase 2 embedding choice is frozen as E5-small-v2 in ADR-0012; later model changes
+   require a new evaluation.
+5. Phase 2 reranker choice/settings are frozen as MiniLM-L6-v2 in ADR-0012; later
+   changes require a new evaluation.
 6. Tool-capable local generator shortlist, quantization, and serving backend.
 7. Chunk-size/token-overlap baseline after corpus analysis.
 8. Background execution for research runs and later API-controlled ingestion; terminal-driven resumable ingestion is settled for Phase 1.
 9. Authentication and caching implementations.
 10. Production hosting target and cost envelope.
 11. Thin UI choice.
-12. General retrieval, reranking and end-to-end quality/latency regression thresholds after those baselines exist.
+12. Phase 2 retrieval and runtime thresholds are frozen in the accepted benchmark
+    profile; thresholds for later answer-generation and end-to-end evaluations remain
+    open.
 13. Exact remote MCP SDK/transport version at implementation time.
 14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was
     retained after measuring the complete ten-paper source-artifact footprint.
