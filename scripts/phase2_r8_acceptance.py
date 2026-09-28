@@ -690,8 +690,8 @@ def _measure_model_loads(torch: Any) -> Any:
 def _hardware(torch: Any) -> dict[str, Any]:
     cuda_available = bool(torch.cuda.is_available())
     if cuda_available:
-        device_name = torch.cuda.get_device_name(0)
-        memory_bytes = int(torch.cuda.get_device_properties(0).total_memory)
+        device_name = torch.cuda.get_device_name("cuda:0")
+        memory_bytes = int(torch.cuda.get_device_properties("cuda:0").total_memory)
     else:
         device_name = None
         memory_bytes = None
@@ -951,7 +951,7 @@ async def _run_assessment(
         reranker_cache_dir=Path("/tmp/phase2-reranker-hf-cache"),
     )
     if torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats(0)
+        torch.cuda.reset_peak_memory_stats("cuda:0")
 
     manifest_dir = REPOSITORY_ROOT / "benchmarks/phase2"
     frozen_path = manifest_dir / "frozen-profile-v9.toml"
@@ -1220,9 +1220,9 @@ async def _run_assessment(
                 }
 
             if torch.cuda.is_available():
-                torch.cuda.synchronize(0)
-                peak_cuda_allocated = int(torch.cuda.max_memory_allocated(0))
-                peak_cuda_reserved = int(torch.cuda.max_memory_reserved(0))
+                torch.cuda.synchronize("cuda:0")
+                peak_cuda_allocated = int(torch.cuda.max_memory_allocated("cuda:0"))
+                peak_cuda_reserved = int(torch.cuda.max_memory_reserved("cuda:0"))
             else:
                 peak_cuda_allocated = None
                 peak_cuda_reserved = None
