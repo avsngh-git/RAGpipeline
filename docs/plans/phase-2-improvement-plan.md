@@ -286,10 +286,11 @@ P2-19 has evidence for the actual revision intended for acceptance.
 1. Require R1–R7 completion evidence, development usefulness checks and repeated
    latency headroom before spending effort on another test set. Retain all prior
    failed assessments; repeated new tests are not a substitute for fixing the loop.
-2. Freeze the implementation revision, unchanged numeric gates, selected profile,
-   scoring/report versions and timing procedure. Purely operational optimization
-   should preserve ranking configuration; record code changes even if the profile ID
-   remains unchanged.
+2. Freeze the implementation revision, owner-approved acceptance-v10 numeric gates
+   (including the 2,000 ms maximum warm p95; every other numeric gate remains
+   unchanged), selected profile, scoring/report versions and timing procedure. Purely
+   operational optimization should preserve ranking configuration; record code changes
+   even if the profile ID remains unchanged.
 3. Prepare fresh source-reviewed held-out families under the established protocol.
    Keep test questions, judgments and origins inaccessible to tuning; document source,
    modality/category coverage, review effort and assistant-review limitations.
@@ -301,5 +302,4 @@ P2-19 has evidence for the actual revision intended for acceptance.
    decision records coherently, with Phase 3 inputs and known limitations.
 
 **Done:** reproducible, honest Phase 2 acceptance. No new corpus, answer generation,
-public deployment, larger infrastructure or benchmark-threshold relaxation is needed
-for this plan.
+public deployment or larger infrastructure is needed for this plan.
