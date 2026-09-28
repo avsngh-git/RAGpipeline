@@ -1,9 +1,10 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-28. The earlier v3 assessment failed four frozen gates; the later
-v11 assessment passed historically. Neither spent set may be used to tune the current
-R1–R7 implementation. Phase 2 remains unaccepted until a fresh assessment follows the
-implementation freeze. Follow the [completion plan](phase-2-improvement-plan.md), the authoritative
+Updated: 2026-09-28. The earlier v3 assessment failed four frozen gates and v11
+passed historically. The one-time R8 v12 assessment has now completed and failed six
+of 14 gates; the selected profile passed warm p95 at 894.3 ms against the 2,000 ms
+gate. Phase 2 remains open, and v12 is spent and sealed from tuning. Follow the
+[completion plan](phase-2-improvement-plan.md), the authoritative
 [source of truth](../agents/scientific-research-platform-source-of-truth.md), the
 [roadmap](phase-2-retrieval-evaluation.md), and the
 [evaluation protocol](phase-2-evaluation-protocol.md). Detailed prior checkpoints are
@@ -43,17 +44,20 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   source-context hits across 40 papers; primary-source checks of the closest candidates
   found no study meeting the fixed end-user task comparison criterion ([review note](../research/phase-2-r8-end-user-study-source-review.md)).
   All three absence findings are bounded by their stated scan/candidate scopes and do
-  not claim a literature-wide absence. Fresh family preparation, freeze and one-time
-  assessment remain. Keep the set private and do not tune from its results.
+  not claim a literature-wide absence. R8 v12 was prepared, frozen and assessed once;
+  six quality/source gates failed while the latency gate passed. The sanitized result is
+  in the [acceptance report](../reference/phase-2-acceptance-report.md). Keep this spent
+  set private and sealed from further tuning.
 
 ## Guardrails and operating constraints
 
 - The accepted Phase 1 snapshot remains `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` in
   `research_phase1_review`, with 100 papers and 44,277 selected chunks. Keep its database
   and `phase1-e5-small-v2` index separate from disposable tests and Phase 2 variants.
-- All previous held-out sets, including v11, are spent. Never read `*origins.json`; do
-  not expose question text, judgments, candidate IDs, or passages in tracked files or
-  ordinary logs. New judgments are assistant-reviewed and retain source uncertainty.
+- All previous held-out sets, including v11 and R8 v12, are spent. Never read
+  `*origins.json`; do not expose question text, judgments, candidate IDs, or passages in
+  tracked files or ordinary logs. New judgments are assistant-reviewed and retain
+  source uncertainty.
 - Preserve the locked numeric gates, strongest-passage paper aggregation, permissions,
   and exact snapshot boundaries. The user approved one versioned exception: fresh R8
   acceptance-v10 uses a 2,000 ms maximum warm p95; all other gates remain unchanged.
@@ -68,7 +72,7 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
 1. Preserve the R7 asset inventory and confirm the exact frozen revision in hosted CI;
    do not delete accepted indexes or referenced variants.
 2. Freeze implementation, profile, scoring/report versions and timing procedure.
-3. Prepare and run one fresh held-out set; report every gate honestly. If any gate fails,
-   leave Phase 2 open and return subsequent fixes to development data.
+3. R8 v12 failed six gates, so Phase 2 stays open. Return fixes to development data;
+   prepare and source-review a new held-out set before a later one-time assessment.
 4. Reconcile source of truth, roadmap, handoff, README, operations, and acceptance report.
 5. Commit and publish the exact revision; verify hosted CI. Do not merge the draft PR.

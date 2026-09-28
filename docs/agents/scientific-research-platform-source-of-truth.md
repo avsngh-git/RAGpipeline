@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.24\
+**Version:** 1.25\
 **Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 reopened for R1–R8 completion after the historical v11 pass, with the earlier v3 failure retained; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v12 failed 6 of 14 acceptance gates; Phase 3 not started\
 
 ---
 
@@ -557,8 +557,9 @@ these rules.
 
 The plan authorized the Phase 2 decisions and delegated implementation, calibration,
 benchmark preparation and source review. The v11 assessment was a historical pass;
-Phase 2 is reopened for the bounded R1–R8 completion plan and fresh post-freeze
-assessment. All previous held-out sets are spent and cannot guide tuning. Routine
+R8 v12 later completed and failed six of 14 acceptance gates. Phase 2 remains open.
+The v12 set and all previous held-out sets are spent and cannot guide tuning. Repairs
+must use development data, followed by a newly source-reviewed held-out set. Routine
 Phase 2 decisions remain within these boundaries. Material deviations follow section 1
 change control.
 
@@ -1213,17 +1214,16 @@ storage costs. Metadata-only and failed records are counted separately.
 The v3 assessment failed four frozen gates and is preserved in the
 [v3 acceptance report](../reference/phase-2-acceptance-report-v3.md). A later
 source-reviewed v11 assessment passed the unchanged gates on the development-selected
-MiniLM-over-Hybrid-E5 profile; it is historical evidence, not acceptance of the
-current R1–R7 implementation. Hosted CI passed on the older sanitized revision
-`fefc04c` (run [36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).
-Phase 2 is reopened for Astra’s R1–R8 completion plan. R1–R7 integrated checks and
-hosted CI pass on frozen code revision `586f83c` (run
-[36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)).
-One fresh post-freeze R8 assessment remains. The profile's canonical identity is
-`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`.
-The v3, v11 and all earlier held-out sets are spent and may not guide tuning. See the
-[historical v11 report](../reference/phase-2-acceptance-report.md) for its aggregate
-outcomes and frozen identities. Phase 3 has not started.
+MiniLM-over-Hybrid-E5 profile; it is historical evidence. R8 v12 then completed with
+8 of 14 gates passing: selected warm p95 was 894.349 ms against the approved 2,000 ms
+limit, while six paper/evidence ranking and source-coverage gates failed. The detailed
+[acceptance report](../reference/phase-2-acceptance-report.md) records the result and
+frozen identities. Hosted CI passed on R8 runner revision
+`506dd34646fea763758eddf1c91b932f08c4ef20` (run
+[36477359301](https://github.com/avsngh-git/RAGpipeline/actions/runs/36477359301)).
+Phase 2 remains open. R8 v12 and all earlier held-out sets are spent and may not guide
+tuning; use development data and then a new source-reviewed held-out set. Phase 3 has
+not started.
 
 Deliver:
 

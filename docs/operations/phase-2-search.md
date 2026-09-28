@@ -1,12 +1,12 @@
 # Phase 2 search operations
 
-**Status:** assistant-reviewed 2026-09-28. The v11 acceptance result is historical;
-Phase 2 is reopened for R1–R8 completion. R1–R7 local checks pass, and one fresh R8
-assessment remains after the implementation freeze. Use the
-[completion plan](../plans/phase-2-improvement-plan.md), current
-[handoff](../plans/phase-2-agent-handoff.md), and historical
-[acceptance report](../reference/phase-2-acceptance-report.md) for current scope and
-status.
+**Status:** assistant-reviewed 2026-09-28. R8 v12 completed with 8/14 gates passing;
+the selected profile passed warm p95 at 894.3 ms against the 2,000 ms gate, while six
+quality/source gates failed. Phase 2 remains open and the v12 set is sealed from
+tuning. Use development data for repairs, then prepare a new source-reviewed held-out
+set. See the [completion plan](../plans/phase-2-improvement-plan.md),
+[handoff](../plans/phase-2-agent-handoff.md), and
+[current acceptance report](../reference/phase-2-acceptance-report.md).
 
 ## Service boundary
 

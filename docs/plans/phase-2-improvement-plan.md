@@ -13,10 +13,13 @@ its lexical/dense/hybrid/reranked services, provenance, table handling and exact
 snapshot boundaries. The immediate need is reliable acceptance and reproducibility,
 not a larger model or another ranking-parameter search.
 
-The latest published assessment missed warm p95: **1,602.2 ms versus 1,500 ms**.
-That 1,500 ms value was the prior acceptance gate, not a request timeout. Per the
-owner’s 2026-09-28 direction, a fresh R8 assessment will use a 2,000 ms maximum warm
-p95; the independent per-request deadline remains 30 seconds. Historical results keep
+The v10 assessment, before the fresh R8 run, measured warm p95 at **1,602.2 ms versus
+its 1,500 ms acceptance gate**. That was a frozen aggregate acceptance threshold, not
+a per-request timeout. The owner said 1.6 seconds is reasonable and approved a 2,000 ms
+maximum warm p95 for R8; the separate per-request deadline remains 30 seconds. R8 v12
+later passed that latency gate at 894.349 ms, but failed six of 14 total gates. Phase 2
+remains open. The v12 set is sealed; use development data for fixes and a new
+source-reviewed held-out set for the next acceptance attempt. Historical results keep
 the limits against which they were originally scored.
 There is a concrete source of avoidable overhead: hybrid requests reconstruct the
 entire 44,277-chunk selection three times. Readiness checks, dense-hit hydration and

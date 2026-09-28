@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26. The earlier v3 assessment failed four frozen gates; a later v11 assessment passed historically. Phase 2 remains unaccepted and is reopened for the [R1–R8 completion plan](phase-2-improvement-plan.md). R1–R7 integrated checks and hosted CI pass on frozen code revision `586f83c` (run [36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)); one fresh post-freeze R8 assessment remains.
+Status: approved 2026-09-26; current status assistant-reviewed 2026-09-28. The earlier v3 assessment failed four frozen gates and v11 passed historically. The fresh R8 v12 assessment completed with 8/14 gates passing: warm p95 passed at 894.3 ms against the approved 2,000 ms limit, while six paper/evidence quality and source-coverage gates failed. Phase 2 remains open; the v12 set is sealed. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values and next steps.
 
 ## Start and authority
 
@@ -56,11 +56,12 @@ and review work are delegated; ask only when a material decision exceeds this sc
 ## Roadmap and progress
 
 The original P2-01–P2-20 implementation is delivered. A fresh source-reviewed v11
-assessment passed every frozen acceptance gate with the selected profile and unchanged
-numeric limits at that checkpoint. Phase 2 is now reopened for the bounded R1–R8
-completion plan; its current aggregate outcomes and frozen identities are in the
-[acceptance report](../reference/phase-2-acceptance-report.md), and current work is in
-the [agent handoff](phase-2-agent-handoff.md).
+assessment passed historically. The later R8 v12 assessment passed 8/14 gates and
+failed six paper/evidence ranking and source-coverage gates; its warm-p95 gate passed.
+Phase 2 remains open. The v12 set is spent and cannot guide tuning. Use development
+data for repairs, then prepare a new source-reviewed held-out set. Current outcome and
+frozen identities are in the [acceptance report](../reference/phase-2-acceptance-report.md),
+and the [agent handoff](phase-2-agent-handoff.md) records guardrails.
 Question text, source excerpts, candidate text, item-level results and origin ledgers
 remain private; do not tune on any spent held-out set. Never read any `*origins.json`
 file.
@@ -89,7 +90,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on frozen R1–R7 code revision `586f83c` ([run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)) |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Earlier v3 failure; later v11 historical pass; fresh R8 assessment pending after the implementation freeze |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | R8 v12 completed: 8/14 gates passed; six quality/source gates failed; Phase 2 remains open |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -1320,11 +1321,23 @@ sealed from tuning. P2-20 and Phase 2 were complete at that historical checkpoin
 
 The v10 held-out result remains 1,602.2 ms against its original 1,500 ms gate. The
 owner has said 1.6 seconds is reasonable and approved a new 2,000 ms maximum warm-p95
-criterion for the fresh R8 assessment. The new
+criterion for the fresh R8 assessment. The
 [acceptance-v10 configuration](../../benchmarks/phase2/acceptance-v10.toml) binds
 `phase2-benchmark-v12`; its SHA-256 is
 `dd75323a5fa263dc29f91056c646e001756e76192cfa6025ec59148709a50377`. The existing
 30-second request deadline is a separate timeout, and every other acceptance gate is
 unchanged. Preserve historical outcomes and all spent held-out sets. See
-[ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md); the fresh R8 source review,
-freeze, and one-time assessment remain pending.
+[ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md); the fresh R8 assessment is
+recorded below and in the acceptance report.
+
+
+## Current R8 v12 outcome — assistant-reviewed 2026-09-28
+
+The frozen assessment passed 8 of 14 acceptance gates. The selected profile's warm
+p95 was 894.349 ms across 300 measured HTTP requests, below the 2,000 ms limit. Six
+gates failed: paper nDCG@10; evidence nDCG@10, direct MRR@10 and judged Recall@20;
+source-anchor Recall@50; and the fraction of positive families with a source hit at
+@10. P2-20 and Phase 2 remain open. The v12 set is spent: do not inspect item-level
+results or tune from its aggregate profile comparison. Continue with development data,
+then freeze and assess a newly source-reviewed set. See the
+[acceptance report](../reference/phase-2-acceptance-report.md) for all gate values.

@@ -1,13 +1,12 @@
 # Phase 2 held-out acceptance report
 
-**Current status — Phase 2 is reopened for R1–R8 completion and reassessment.** The
-fresh, source-reviewed `phase2-benchmark-v11` assessment was a historical pass; it
-predates the current implementation revision. R1–R7 local checks pass. One fresh
-source-reviewed R8 held-out assessment remains after the implementation freeze. This
-report preserves the v11 aggregate measurement as historical evidence and publishes
-artifact identities only. Held-out questions, source excerpts, candidate text,
-item-level judgments, rankings and raw run records remain private. Phase 3 has not
-started.
+**Current status — Phase 2 remains unaccepted after R8 v12 failed 6 of 14 gates.**
+The selected profile passed warm p95 at 894.3 ms against the owner-approved 2,000 ms
+limit. Six paper/evidence ranking and source-coverage gates failed. The v12 set is
+spent and sealed from tuning; fixes must use development data and a later fresh,
+source-reviewed held-out set. The historical v11 pass predates the current
+implementation. Held-out questions, source excerpts, candidate text, item-level
+judgments, rankings and raw run records remain private. Phase 3 has not started.
 
 ## v11 decision and scope
 
@@ -372,8 +371,72 @@ assessment subsequently missed its warm-latency gate, as recorded above.
 ## Current project status
 
 Historical v11 checkpoint: P2-20 passed with the selected profile and numeric limits
-unchanged. That set and every earlier held-out set are spent and sealed from tuning.
-The current acceptance decision is pending R8 on one fresh source-reviewed set after
-the R1–R7 implementation freeze. Phase 3 has not started. Hosted CI passed on the
-sanitized v11 completion revision `fefc04c` ([run
-36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).
+unchanged. The later R8 v12 assessment is the current acceptance evidence: 8 of 14
+gates passed, including the 2,000 ms warm-p95 gate at 894.3 ms; six quality/source
+gates failed. P2-20 and Phase 2 remain open. The v12 set and every earlier held-out
+set are spent and sealed from tuning. Phase 3 has not started. Hosted CI passed on the
+R8 runner revision `506dd34646fea763758eddf1c91b932f08c4ef20` ([run
+36477359301](https://github.com/avsngh-git/RAGpipeline/actions/runs/36477359301)).
+
+## R8 v12 result — assistant-reviewed 2026-09-28
+
+The one-time frozen assessment used `phase2-benchmark-v12`,
+`phase2-acceptance-v10`, and freeze manifest `phase2-r8-v1`. The selected profile was
+`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`; the source
+snapshot was `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c`. The freeze manifest SHA-256 is
+`ad2dab06ea1fd103f16ac64ca9f2e458e1c21654149a2e91e1c7dece14d0547c`; its held-out
+dataset and source-alignment hashes are `04c42aad7ce45a1480712a2d7e819cb7d98ed9a7254372c8160f5dcb4ac8436f`
+and `29c2e139048a587663fa14baaaa3f3729165519cdb1b89df1698763e8665b28e`. The frozen
+acceptance configuration hash is
+`dd75323a5fa263dc29f91056c646e001756e76192cfa6025ec59148709a50377`. The manifest
+records that source freshness cannot be fully certified against earlier private
+family identities; this limitation remains part of the result.
+
+### Selected-profile gates
+
+| Gate | Frozen limit | R8 aggregate | Result |
+| --- | ---: | ---: | --- |
+| Paper nDCG@10 | ≥ 0.80 | 0.5793 | **Fail** |
+| Paper direct MRR@10 | ≥ 0.70 | 0.8143 | Pass |
+| Paper judged Recall@20 | ≥ 0.90 | 1.0000 | Pass |
+| Evidence nDCG@10 | ≥ 0.45 | 0.3231 | **Fail** |
+| Evidence direct MRR@10 | ≥ 0.45 | 0.2857 | **Fail** |
+| Evidence judged Recall@20 | ≥ 0.60 | 0.4286 | **Fail** |
+| Source-anchor Recall@10 | ≥ 0.25 | 0.3000 | Pass |
+| Source-anchor Recall@50 | ≥ 0.35 | 0.3000 | **Fail** |
+| Positive source families with a hit at @10 | ≥ 0.50 | 0.4286 (3/7) | **Fail** |
+| Hard-failure fraction | ≤ 0.01 | 0.0000 | Pass |
+| Reranker-fallback fraction | ≤ 0.35 | 0.1000 | Pass |
+| Warm p95 | ≤ 2,000 ms | 894.349 ms | Pass |
+| Combined cold model load | ≤ 15,000 ms | 5,500.9119 ms | Pass |
+| Summed CUDA allocation | ≤ 1 GiB | 224,966,656 bytes | Pass |
+
+### Sanitized profile comparison
+
+The following aggregate comparison is retained only as a description of this spent
+set. It does not authorize profile selection or tuning from v12. Direct-MRR and other
+profile metrics are omitted because they were not present in the sanitized run summary.
+
+| Profile | Paper nDCG@10 | Evidence nDCG@10 | Source Recall@10 / @50 | Warm p95 |
+| --- | ---: | ---: | ---: | ---: |
+| BM25 lexical | 0.3426 | 0.1803 | 0.2000 / 0.2000 | 568.8 ms (100 samples) |
+| Dense E5 | 0.6375 | 0.3044 | 0.3000 / 0.3000 | 659.7 ms (100 samples) |
+| Hybrid E5 | 0.5437 | 0.3044 | 0.3000 / 0.3000 | 690.0 ms (100 samples) |
+| MiniLM-over-Hybrid selected | 0.5793 | 0.3231 | 0.3000 / 0.3000 | 894.3 ms (300 samples) |
+| Fixed-window Dense E5 | 0.6624 | 0.4286 | 0.3000 / 0.3000 | 341.8 ms (100 samples) |
+
+The selected-profile timing used 300 measured HTTP requests across three sessions,
+with six warmups per session, result limit 10, concurrency 1, four CPU threads, and
+`auto` device selection. No-match filter cases were included. Each comparison profile
+used one 100-request session. The selected run used a WSL-exposed NVIDIA GeForce RTX
+3050 Laptop GPU; combined cold model load was 5,500.9119 ms and summed CUDA allocation
+was 224,966,656 bytes. The raw result is retained privately (SHA-256
+`6205c14af18613654516ba7a9e28d08a254a0a605d17a592bec52840710fdecb`) and is not
+included in this report. The sanitized run summary did not include category or
+bootstrap rows, so this report does not publish those statistics.
+
+The v12 set is spent and sealed. Do not inspect its item-level outcomes or tune on its
+aggregate comparison. Make further changes using development data, then prepare and
+source-review another held-out set before a new freeze and one-time assessment. The
+sample is purposive and directional; this ranking evaluation does not test generated
+answer quality.

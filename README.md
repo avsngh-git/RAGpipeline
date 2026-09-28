@@ -11,17 +11,14 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 remains unaccepted pending a fresh R8 assessment.** The earlier v3
-assessment failed four frozen gates and is preserved in the
-[v3 report](docs/reference/phase-2-acceptance-report-v3.md). A later v11 assessment
-passed historically, but predates the current R1–R7 implementation. R1–R7 local
-checks and hosted CI are complete on frozen code revision `586f83c` (run
-[36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)).
-One fresh, source-reviewed R8 assessment remains. Its owner-approved v10 protocol
-uses a 2,000 ms maximum warm p95; the 30-second request deadline remains separate.
-Keep all spent held-out sets out of tuning.
-See Astra’s [completion plan](docs/plans/phase-2-improvement-plan.md), the current
-[handoff](docs/plans/phase-2-agent-handoff.md), the [historical v11 report](docs/reference/phase-2-acceptance-report.md), and the
+**Phase 2 remains unaccepted after the R8 v12 assessment failed 6 of 14 gates.**
+The selected profile passed the owner-approved 2,000 ms warm-p95 gate at 894.3 ms;
+paper/evidence ranking and source-coverage gates remain open. The v12 set is spent and
+sealed from tuning. Work on development data, then prepare a new source-reviewed
+held-out set for a later acceptance attempt. The 30-second request deadline is a
+separate timeout. See the [current acceptance report](docs/reference/phase-2-acceptance-report.md),
+Astra’s [completion plan](docs/plans/phase-2-improvement-plan.md), the
+[handoff](docs/plans/phase-2-agent-handoff.md), and the
 [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not
 started.
 ## Development environment
