@@ -34,9 +34,13 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
 - R8 source preparation has a sanitized screen of 12 accepted-snapshot anchors in the
   [source-screening report](../research/phase-2-r8-source-screening.md). It creates no
   questions or labels and cannot certify full freshness against unavailable spent-family
-  identities. A bounded missing-evidence scan and freshness review remain. Prepare the
-  fresh set privately, freeze it before retrieval, assess it once, and do not tune from
-  its results.
+  identities. The bounded scope-03 review of persistent index updates checked the 10
+  distinct candidate papers from the supplied scan and found no direct source-change or
+  deletion experiment; the closest cases refresh embeddings while the corpus stays
+  fixed. Its coverage is limited to those supplied candidates; see the
+  [source-review note](../research/phase-2-r8-index-update-source-review.md). Other
+  missing-evidence screening, fresh family preparation, freeze and one-time assessment
+  remain. Keep the set private and do not tune from its results.
 
 ## Guardrails and operating constraints
 
