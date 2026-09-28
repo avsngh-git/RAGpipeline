@@ -1,5 +1,3 @@
-**Historical v3 report.** The current v4 assessment is in [phase-2-acceptance-report.md](phase-2-acceptance-report.md).
-
 # Phase 2 held-out acceptance report
 
 **Status:** Acceptance gate failed; Phase 2 is not accepted.

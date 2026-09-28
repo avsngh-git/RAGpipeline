@@ -1,0 +1,69 @@
+schema_version = 1
+dataset_id = "phase2-benchmark-v1"
+split_manifest_id = "phase2-benchmark-family-splits-v1"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+question_status = "assistant_source_reviewed_frozen_before_pooling"
+calibration_family_ids = [
+  "q01", "q02", "q03", "q04", "q05",
+  "q06", "q07", "q08", "q09", "q10",
+]
+
+[[families]]
+id = "q21"
+categories = ["discovery", "specific_evidence", "filters"]
+filters = { year_from = 2024, year_to = 2024 }
+queries = [{ id = "q21-v1", role = "canonical", text = "Among 2024 retrieval-embedding papers, what three axes define M3-Embedding's design, which retrieval modes does it support, and what maximum input length does it report for long documents?" }]
+
+[[families]]
+id = "q22"
+categories = ["specific_evidence", "table_result", "filters"]
+filters = { year_from = 2025, year_to = 2025 }
+queries = [{ id = "q22-v1", role = "canonical", text = "Among works listed as 2025 in this snapshot, what F1@5 values does the semantic-chunking study report for Fixed-size, Breakpoint, and Clustering on MIRACL*, which method leads, and what does the asterisk mean?" }]
+
+[[families]]
+id = "q23"
+categories = ["cross_paper_comparison", "specific_evidence", "table_result", "filters"]
+filters = { year_from = 2024, year_to = 2024 }
+queries = [{ id = "q23-v1", role = "canonical", text = "For 2024 long-document retrieval results on MLDR, what test-set nDCG@10 scores do M3-Embedding report for Dense and Sparse retrieval and mGTE-TRM report for Dense and Dense+Sparse, and what input lengths are listed?" }]
+
+[[families]]
+id = "q24"
+categories = ["cross_paper_comparison", "specific_evidence", "filters"]
+filters = { year_from = 2023, year_to = 2023 }
+queries = [{ id = "q24-v1", role = "canonical", text = "Among the 2023 query-transformation papers, how does Query2doc generate its expanded query and how does Rewrite-Retrieve-Read adapt the query before retrieval?" }]
+
+[[families]]
+id = "q25"
+categories = ["missing_evidence"]
+filters = {}
+queries = [{ id = "q25-v1", role = "canonical", text = "Within this accepted snapshot, do empirical RAG evaluations test whether a model resists malicious instructions embedded in retrieved passages? Distinguish attack evaluations from broad discussion of poisoned or conflicting evidence." }]
+
+[[families]]
+id = "q26"
+categories = ["missing_evidence", "specific_evidence"]
+filters = {}
+queries = [{ id = "q26-v1", role = "canonical", text = "Within the accepted works, is there an evaluation of a persistent RAG index after its source documents are revised or deleted, measuring whether stale evidence still affects retrieval or answers? Distinguish online index updates during training from post-index source freshness." }]
+
+[[families]]
+id = "q27"
+categories = ["missing_evidence", "cross_paper_comparison", "specific_evidence", "filters"]
+filters = { year_from = 2023, year_to = 2025 }
+queries = [{ id = "q27-v1", role = "canonical", text = "Do the 2023–2025 RAG studies in this snapshot calibrate an evidence-sufficiency threshold for refusing unanswerable queries and report a risk–coverage trade-off? How does QA-RAG's 500-question rejection test differ from FLARE's uncertainty-triggered retrieval?" }]
+
+[[families]]
+id = "q28"
+categories = ["discovery", "specific_evidence", "filters"]
+filters = { year_from = 2024, year_to = 2024 }
+queries = [{ id = "q28-v1", role = "canonical", text = "In the 2024 PDFTriage work, what document structures and retrieval operations does the system represent, and which question categories in its evaluation directly test table reasoning and document structure?" }]
+
+[[families]]
+id = "q29"
+categories = ["specific_evidence", "table_result", "filters"]
+filters = { year_from = 2026, year_to = 2026 }
+queries = [{ id = "q29-v1", role = "canonical", text = "In the 2026 structure-aware table-chunking paper's Table 4, what scores does the Proposed Method report for Faithfulness, Content Precision, and Answer Accuracy, and which baseline scores higher on Faithfulness?" }]
+
+[[families]]
+id = "q30"
+categories = ["cross_paper_comparison", "discovery", "filters"]
+filters = { year_from = 2024, year_to = 2024 }
+queries = [{ id = "q30-v1", role = "canonical", text = "Among the 2024 BEIR listwise-reranking studies, what initial retriever and candidate-pool depth does FIRST use, what BM25 pool depths does ListT5 report, and which ranking metric do the papers use?" }]

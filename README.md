@@ -11,15 +11,16 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 is in final verification.** The v11 held-out assessment was a historical
-pass, but it predates the current R1–R8 completion plan. R1–R7 implementation and
-local checks are complete; the frozen hosted CI run and one fresh, source-reviewed R8
-assessment remain. The R8 set will be sealed from tuning. See Astra’s
-[completion plan](docs/plans/phase-2-improvement-plan.md), the current
-[handoff](docs/plans/phase-2-agent-handoff.md), the historical
-[acceptance report](docs/reference/phase-2-acceptance-report.md), and the
-[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not
-started.
+**Phase 2 remains unaccepted pending a fresh R8 assessment.** The earlier v3
+assessment failed four frozen gates and is preserved in the
+[v3 report](docs/reference/phase-2-acceptance-report-v3.md). A later v11 assessment
+passed historically, but predates the current R1–R7 implementation. R1–R7 local
+checks are complete; hosted CI for the reconciled revision and one fresh,
+source-reviewed R8 assessment remain. Keep all spent held-out sets out of tuning.
+See Astra’s [completion plan](docs/plans/phase-2-improvement-plan.md), the current
+[handoff](docs/plans/phase-2-agent-handoff.md), the [historical v11 report]
+(docs/reference/phase-2-acceptance-report.md), and the [evaluation protocol]
+(docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not started.
 ## Development environment
 
 This project uses Conda as its development dependency manager.

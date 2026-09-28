@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26. The original P2-01–P2-20 implementation remains delivered and the v11 assessment remains a historical pass. Phase 2 is reopened for the [R1–R8 completion plan](phase-2-improvement-plan.md); R1–R7 local checks pass and one fresh post-freeze R8 assessment is pending.
+Status: approved 2026-09-26. The earlier v3 assessment failed four frozen gates; a later v11 assessment passed historically. Phase 2 remains unaccepted and is reopened for the [R1–R8 completion plan](phase-2-improvement-plan.md). R1–R7 local checks pass; hosted CI for the reconciled revision and one fresh post-freeze R8 assessment remain.
 
 ## Start and authority
 
@@ -89,7 +89,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized v11 completion revision `fefc04c` ([run 36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)) |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Historical v11 pass; fresh R8 assessment pending after the implementation freeze |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Earlier v3 failure; later v11 historical pass; fresh R8 assessment pending after the implementation freeze |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may

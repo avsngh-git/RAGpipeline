@@ -1,9 +1,9 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-28. The v11 assessment remains a historical pass. Phase 2 has been
-reopened for Astra’s bounded completion and reproducibility plan; a fresh assessment
-is required after the implementation freeze. Follow the
-[completion plan](phase-2-improvement-plan.md), the authoritative
+Updated: 2026-09-28. The earlier v3 assessment failed four frozen gates; the later
+v11 assessment passed historically. Neither spent set may be used to tune the current
+R1–R7 implementation. Phase 2 remains unaccepted until a fresh assessment follows the
+implementation freeze. Follow the [completion plan](phase-2-improvement-plan.md), the authoritative
 [source of truth](../agents/scientific-research-platform-source-of-truth.md), the
 [roadmap](phase-2-retrieval-evaluation.md), and the
 [evaluation protocol](phase-2-evaluation-protocol.md). Detailed prior checkpoints are
@@ -26,10 +26,15 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   API routes passed with local caches. Measured asset sizes and cache-retention guidance
   are in the [development report](../research/phase-2-development-report.md). Checks:
   451 offline tests, 21 fresh PostgreSQL/Qdrant integrations, Ruff lint/format, mypy,
-  `pip check`, `pip-audit`, and Linux AMD64 Docker build/image smoke all passed. Hosted
-  CI remains pending for the frozen implementation commit.
-- R8 is pending. After that commit is frozen, create one fresh, source-reviewed held-out
-  assessment under the existing protocol. Run it once and do not tune from it.
+  `pip check`, `pip-audit`, and Linux AMD64 Docker build/image smoke all passed on the
+  pre-reconciliation revision. Re-run the shared checks and hosted CI on the reconciled
+  commit before freezing it for R8.
+- R8 source preparation has a sanitized screen of 12 accepted-snapshot anchors in the
+  [source-screening report](../research/phase-2-r8-source-screening.md). It creates no
+  questions or labels and cannot certify full freshness against unavailable spent-family
+  identities. A bounded missing-evidence scan and freshness review remain. After code
+  and CI are frozen, finish one fresh source-reviewed set, assess it once, and do not tune
+  from its results.
 
 ## Guardrails and operating constraints
 

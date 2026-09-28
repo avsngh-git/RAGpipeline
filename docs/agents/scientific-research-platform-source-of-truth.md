@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.21\
+**Version:** 1.22\
 **Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 reopened for R1–R8 completion after the historical v11 pass; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 reopened for R1–R8 completion after the historical v11 pass, with the earlier v3 failure retained; Phase 3 not started\
 
 ---
 
@@ -1206,19 +1206,19 @@ storage costs. Metadata-only and failed records are counted separately.
 
 ### Phase 2 — Retrieval and evaluation
 
-Historical v11 checkpoint: P2-01 through P2-20 implementation and verification were
-complete at the time. The fresh source-reviewed v11 assessment passed every frozen
-quality and operational gate using the development-selected MiniLM-over-Hybrid-E5
-profile and unchanged numeric limits. Hosted CI passed on sanitized revision `fefc04c`
-(run [36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).
-Current status: Phase 2 is reopened for Astra’s R1–R8 completion plan. R1–R7 local
-implementation checks pass; hosted CI and one fresh post-freeze R8 assessment remain.
-The profile's canonical identity is
+The v3 assessment failed four frozen gates and is preserved in the
+[v3 acceptance report](../reference/phase-2-acceptance-report-v3.md). A later
+source-reviewed v11 assessment passed the unchanged gates on the development-selected
+MiniLM-over-Hybrid-E5 profile; it is historical evidence, not acceptance of the
+current R1–R7 implementation. Hosted CI passed on the older sanitized revision
+`fefc04c` (run [36420803867](https://github.com/avsngh-git/RAGpipeline/actions/runs/36420803867)).
+Phase 2 is reopened for Astra’s R1–R8 completion plan. R1–R7 local implementation
+checks pass; hosted CI for the reconciled revision and one fresh post-freeze R8
+assessment remain. The profile's canonical identity is
 `sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`.
-The v11 set and all earlier held-out sets are spent and may not guide tuning. See the
-[acceptance report](../reference/phase-2-acceptance-report.md) for sanitized aggregate
-outcomes and frozen identities. Question identities, candidate text, per-family
-results and raw rankings remain private. Phase 3 has not started.
+The v3, v11 and all earlier held-out sets are spent and may not guide tuning. See the
+[historical v11 report](../reference/phase-2-acceptance-report.md) for its aggregate
+outcomes and frozen identities. Phase 3 has not started.
 
 Deliver:
 
