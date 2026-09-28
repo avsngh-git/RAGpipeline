@@ -34,13 +34,14 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
 - R8 source preparation has a sanitized screen of 12 accepted-snapshot anchors in the
   [source-screening report](../research/phase-2-r8-source-screening.md). It creates no
   questions or labels and cannot certify full freshness against unavailable spent-family
-  identities. The bounded scope-03 review of persistent index updates checked the 10
-  distinct candidate papers from the supplied scan and found no direct source-change or
-  deletion experiment; the closest cases refresh embeddings while the corpus stays
-  fixed. Its coverage is limited to those supplied candidates; see the
-  [source-review note](../research/phase-2-r8-index-update-source-review.md). Other
-  missing-evidence screening, fresh family preparation, freeze and one-time assessment
-  remain. Keep the set private and do not tune from its results.
+  identities. Two bounded missing-evidence source reviews are complete: the access-control
+  review checked six supplied candidate papers and found no persistent user/role/tenant
+  retrieval-leakage test ([review note](../research/phase-2-r8-access-control-source-review.md));
+  the index-update review checked 10 supplied candidate papers and found no direct
+  source-change or deletion experiment ([review note](../research/phase-2-r8-index-update-source-review.md)).
+  Both findings are limited to their supplied candidates. The end-user study scan,
+  fresh family preparation, freeze and one-time assessment remain. Keep the set private
+  and do not tune from its results.
 
 ## Guardrails and operating constraints
 
