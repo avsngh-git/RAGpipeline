@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.16\
-**Last updated:** 2026-09-27\
+**Version:** 1.17\
+**Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation and held-out assessment complete; frozen acceptance gate failed; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation complete but v4 held-out acceptance failed two frozen gates after judgment-coverage correction; Phase 3 not started\
 
 ---
 
@@ -1202,14 +1202,25 @@ storage costs. Metadata-only and failed records are counted separately.
 
 ### Phase 2 — Retrieval and evaluation
 
-Status: implementation and P2-20 assessment completed 2026-09-27. P2-19 hosted CI
-passed on the sanitized implementation revision. The frozen v3 acceptance gate failed
-four thresholds, so Phase 2 is not accepted and its selected profile is provisional.
-See the [20-task roadmap](../plans/phase-2-retrieval-evaluation.md),
-[agent handoff](../plans/phase-2-agent-handoff.md), and
-[held-out acceptance report](../reference/phase-2-acceptance-report.md). Policy is in
-section 9.4. The user delegated implementation and benchmark source review; record
-reviewer identity and preserve uncertainty. See the [P2-01 entry check](../reviews/phase-2-entry-check.md).
+Status: the corrected v4 held-out assessment failed two of fourteen frozen thresholds
+on 2026-09-28. The selected MiniLM-over-Hybrid-E5 profile remains the development-
+selected v2 profile; it was not changed using held-out outcomes. Paper nDCG@10 was
+0.7455 against a 0.80 minimum, and warm p95 was 1,533.96 ms against a 1,500 ms
+maximum. The other twelve gates passed. The full aggregate result is in the
+[acceptance report](../reference/phase-2-acceptance-report.md); v3 details are
+historical in [the v3 report](../reference/phase-2-acceptance-report-v3.md).
+
+A coverage audit found that the first v4 paper pool did not cover every top-50
+returned paper. A shuffled, rank-free supplement added 99 papers; all five saved
+rankings were rescored with 100% paper and evidence judgment coverage. The serving
+profile and numerical limits did not change. Do not tune on v4 or use it as an unseen
+test. Any follow-up selection must use development data and a new frozen held-out
+set. P2-20 is not complete because its acceptance gate did not pass. P2-19 hosted CI
+passed on the sanitized implementation revision. See the
+[20-task roadmap](../plans/phase-2-retrieval-evaluation.md) and
+[agent handoff](../plans/phase-2-agent-handoff.md). Policy is in section 9.4. The
+user delegated implementation and benchmark source review; record reviewer identity
+and preserve uncertainty.
 
 Deliver:
 
@@ -1220,14 +1231,12 @@ Deliver:
 - retrieval benchmark and ablations.
 
 Gate: private local paper/evidence services pass correctness, permission, filtering,
-rebuild and failure tests; reproducible held-out results satisfy the useful-quality
-and operational limits frozen after development evaluation. Report the measured
-quality/latency effects of hybrid retrieval and reranking even if a simpler method
-wins. Keep benchmark coverage and assistant-review limitations explicit. The v3
-assessment failed paper and evidence nDCG, reranker fallback, and warm p95 gates; its
-results are disclosed and cannot be reused for tuning or as an unseen test. Further
-selection requires development-only changes and a newly frozen held-out set.
-
+rebuild and failure checks; a frozen held-out benchmark passes the useful-quality and
+operational limits set using development data. Report hybrid and reranking effects,
+even if a simpler method wins. Keep benchmark coverage and assistant-review limits
+explicit. The v3 and v4 assessments are disclosed and cannot be reused for tuning or
+as unseen tests. Further selection requires development-only changes and a new
+source-reviewed held-out set.
 ### Phase 3 — Agent and structured answers
 
 Deliver:

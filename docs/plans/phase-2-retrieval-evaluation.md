@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-19 complete; P2-20 assessment complete with failed acceptance gate; Phase 2 not accepted.
+Status: approved 2026-09-26; P2-01–P2-19 complete; corrected v4 P2-20 assessment completed but failed two frozen gates; Phase 2 remains unaccepted.
 
 ## Start and authority
 
@@ -56,7 +56,16 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-19 are complete. Development comparisons and numeric acceptance limits are recorded in the [P2-14 report](../research/phase-2-development-report.md); the MiniLM-over-Hybrid-E5 profile remains the frozen comparison candidate, not a quality-accepted final default. The typed private-local API, failure handling, observability and operating/rebuild runbook are implemented. Local verification passed and hosted P2-19 CI passed on the sanitized implementation branch. The v3 split contains 20 development and 10 held-out families; q20 is excluded from tuning after partial unblinding and q21 after held-out rank/score exposure. P2-20 has now run after CI passed. Four frozen gates failed; see the [acceptance report](../reference/phase-2-acceptance-report.md). Do not tune on v3 or reuse it as an unseen test. Do not read any `*origins.json` file.
+P2-01–P2-19 implementation is complete and hosted P2-19 CI passed on the
+sanitized branch. The v3 assessment is historical. Development-only comparison
+selected rerank_top_k=20 over the shared 50-candidate Hybrid-E5 pool, and the API
+loads profile v2. The corrected v4 assessment passed 12/14 limits; paper nDCG@10 and
+warm p95 failed. The final paper pool has 100% judgment coverage after a shuffled,
+rank-free supplement and score-only replay. No serving configuration or threshold
+changed. Do not tune on v4 or reuse it as an unseen test; follow-up selection needs
+development data and a newly source-reviewed held-out set. Never read any
+`*origins.json` file.
+
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -81,7 +90,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized revision |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Assessment complete; gate failed; Phase 2 not accepted |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | v4 assessment complete; two frozen gates failed; phase acceptance open |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -1270,11 +1279,21 @@ are retained as source-only/out-of-scope anchors. All 21 active held-out anchors
 to review candidates, with 34 anchor-to-candidate links. The [dataset card](../reference/phase-2-benchmark-dataset-card.md), [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md), and [held-out source audit](../research/phase-2-heldout-question-source-audit.md) record counts, hashes, modality coverage and limits. q20 remains partially unblinded and is excluded from tuning; q21 is excluded after held-out rank/score exposure. No held-out scores have informed configuration choices. All `*origins.json` files remain outside the review path.
 
 
-## P2-20 outcome — 2026-09-27
+## P2-20 outcome — 2026-09-28
 
-The v3 held-out assessment and required aggregate report are complete. The frozen gate
-failed four thresholds; therefore P2-20 is not marked complete and Phase 2 is not
-accepted. See the [acceptance report](../reference/phase-2-acceptance-report.md) for
-profile comparisons, paired uncertainty, source-map policy, operations, failures and
-resource measurements. The v3 results are disclosed and must not guide tuning or be
-claimed as an unseen test.
+The v4 held-out run used the unchanged development-selected profile and acceptance
+limits. A pre-scoring coverage audit found that the initial paper review pool did not
+cover every result at the frozen top-50 quality depth. A shuffled supplement added
+99 papers from all five saved comparison profiles with profile, rank and score
+provenance removed. The completed common pool contains 348 reviewed papers and 418
+reviewed evidence candidates. All five unchanged saved rankings were rescored with
+100% judgment coverage; the original latency sample was retained.
+
+Twelve of fourteen gates passed. Paper nDCG@10 was 0.7455 (<0.80), and warm p95 was
+1,533.96 ms (>1,500 ms). P2-20's assessment evidence is documented, but its Done
+condition requires the frozen gate to pass. Phase 2 is not accepted. Do not tune on
+v4 or reuse it as an unseen test. Any subsequent selection must use development data
+and a new source-reviewed, frozen held-out set. See the
+[acceptance report](../reference/phase-2-acceptance-report.md),
+[dataset card](../reference/phase-2-benchmark-dataset-card.md), and
+[source coverage audit](../research/phase-2-benchmark-source-coverage-audit.md).

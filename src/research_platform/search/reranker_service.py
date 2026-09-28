@@ -79,7 +79,11 @@ async def rerank_with_fallback(
     candidates: Sequence[EvidenceHit],
     reranker: CrossEncoderReranker,
 ) -> RerankerStageOutcome:
-    """Rerank exactly the supplied pool or return the unchanged fused hit sequence."""
+    """Rerank the configured fused prefix and preserve its untouched hybrid tail.
+
+    Any failure while scoring the selected prefix returns the complete original
+    fused sequence, so the caller never receives a partial reranker result.
+    """
     if not isinstance(profile, RetrievalProfile):
         raise ValueError("profile must be a RetrievalProfile")
     if profile.reranker is None:
@@ -91,10 +95,17 @@ async def rerank_with_fallback(
     candidate_tuple = tuple(candidates)
     if any(not isinstance(hit, EvidenceHit) for hit in candidate_tuple):
         raise TypeError("candidates must contain EvidenceHit values")
+    rerank_limit = profile.candidate_limits.rerank_top_k
+    if rerank_limit is None:
+        raise ValueError("profile must configure a rerank candidate limit")
+    rerank_candidates = candidate_tuple[:rerank_limit]
+    hybrid_tail = candidate_tuple[len(rerank_candidates) :]
 
     try:
-        scores = await reranker.rerank(profile, query, candidate_tuple)
-        hits = apply_reranker_scores(profile, query, candidate_tuple, scores)
+        scores = await reranker.rerank(profile, query, rerank_candidates)
+        reranked_prefix = apply_reranker_scores(
+            profile, query, rerank_candidates, scores
+        )
     except (RerankerAdapterError, RerankerPairBudgetExceeded) as error:
         failure = RerankerFailureDetails(
             profile_id=profile.profile_id,
@@ -105,4 +116,6 @@ async def rerank_with_fallback(
         return RerankerStageOutcome(
             hits=candidate_tuple, effective_mode="hybrid", failure=failure
         )
-    return RerankerStageOutcome(hits=hits, effective_mode="reranked")
+    return RerankerStageOutcome(
+        hits=(*reranked_prefix, *hybrid_tail), effective_mode="reranked"
+    )

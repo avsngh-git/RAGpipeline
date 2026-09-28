@@ -11,10 +11,11 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 implementation and held-out assessment are complete, but Phase 2 is not
-accepted.** P2-19 passed hosted CI on the sanitized implementation. The frozen P2-20
-assessment failed four quality/operations gates; the selected profile remains
-provisional and v3 must not be reused for tuning or as an unseen test. See the
+**Phase 2 implementation is complete, but acceptance remains open.** The corrected
+v4 held-out assessment passed 12 of 14 frozen gates. Paper nDCG@10 (0.7455, minimum
+0.80) and warm p95 (1,533.96 ms, maximum 1,500 ms) failed; the other gates passed.
+Judgment coverage was corrected to 100% before the final score-only replay. Do not
+tune on v4; any follow-up must use development data and a new held-out set. See the
 [held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
 [detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
 [agent handoff](docs/plans/phase-2-agent-handoff.md), and

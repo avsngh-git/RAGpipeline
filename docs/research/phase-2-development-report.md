@@ -93,3 +93,38 @@ default. The held-out run failed paper nDCG@10, evidence nDCG@10, reranker fallb
 and warm p95 gates. See the [P2-20 acceptance report](../reference/phase-2-acceptance-report.md).
 Do not tune from v3 results; new selection work must use development data and a newly
 frozen held-out question set.
+
+## Reranker prefix cap follow-up — 2026-09-27
+
+After the v3 gate failed, a bounded follow-up varied only the MiniLM reranker prefix
+size over the same 50-candidate Hybrid-E5 pool. Calibration q01–q10 and source-
+reviewed development q11–q19 were used; q20, q21 and every held-out family were
+excluded. A successful run reranks the first *k* fused candidates and keeps the
+remaining candidates in their original hybrid order. Any token-budget or typed
+inference failure returns the complete unchanged 50-candidate hybrid order. The
+pair budget, model revision, query text, filters, source judgments, selection caps
+and quality gates were unchanged.
+
+| Reranked prefix | Fallbacks | Paper nDCG@10 | Paper direct MRR@10 | Evidence nDCG@10 | Evidence direct MRR@10 | Evidence judged Recall@20 | Source anchors @10 / @50 | Positive families hit @10 | Reranker warm p95 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 | 0/19 | 0.9255 | 0.9444 | 0.5018 | 0.5556 | 0.6667 | 7/31 / 12/31 | 7/7 | 75 ms |
+| 20 | 4/19 (21.1%) | 0.9583 | 1.0000 | 0.5124 | 0.5370 | 0.6667 | 9/31 / 13/31 | 7/7 | 134 ms |
+| 50 | 6/19 (31.6%) | 0.9277 | 0.9444 | 0.4957 | 0.5093 | 0.6667 | 9/31 / 13/31 | 7/7 | 315 ms |
+
+The 10-candidate setting missed the development source-anchor recall@10 floor
+(0.226 < 0.25). The 20-candidate setting met the development floors and matched
+the full-pool setting's source-anchor recall while improving calibration ranking
+scores and lowering reranker fallback and latency. Its 90 successful timing samples
+included five warm repeats per family. Adding the previously measured Hybrid-E5
+p95 of 1,037 ms to the reranker p95 gives a conservative stagewise estimate of
+1,171 ms. This is not an observed joint API p95; the integrated API measurement is
+still required. The selected profile is frozen at
+sha256:3a8b4b57638d025405f276ddc22f9e5593f99e2807f40ee2c0e7a3fea8df7692,
+with rerank prefix 20 and hybrid tail preservation. Numeric acceptance thresholds
+are unchanged in acceptance-v2.toml.
+
+Raw rankings and timing samples, together with mode-0600 reproduction scripts, are
+under ignored local-reference/phase2-runs/p2-14-validation/. These results use
+development-only data and do not use or disclose v3 item-level results. The v3
+acceptance failure remains in the historical report; the profile requires a new,
+freshly frozen held-out assessment.

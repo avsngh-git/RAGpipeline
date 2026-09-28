@@ -1,5 +1,50 @@
 # Phase 2 benchmark source and review coverage audit
 
+## Active v4 coverage — assistant-reviewed 2026-09-28
+
+| Check | Result |
+| --- | ---: |
+| Held-out families | 10 |
+| Paper candidates reviewed | 348 / 348 |
+| Evidence candidates reviewed | 418 / 418 |
+| Source anchors | 18 |
+| Direct source-anchor candidate links | 15 |
+| Evidence requirement groups | 7 |
+| Returned paper/evidence judgment coverage after correction | 100% / 100% |
+
+The corrected v4 split manifest hash is
+`sha256:e1bc1b9225f467f540e7968394aae1f797c9b03b9784c9b44586bfe0270585ae`; the
+private question manifest hash is
+`sha256:5895890c8a0cd7ab784ce2965e4689d0cb5e003b0dc0e01f33fa27fd76e85df2`. The
+source-judgment hash is
+`sha256:d47f5df784f747ee89a81a1001cc46d8ca7bab437934eeba5e443a9f86d5306e`, and the
+source-map hash is
+`sha256:b1739a120010ab024486231d4d39ef1da4f3e9ae21cda1b556609ef1777669c5`.
+
+The initial v4 paper pool stopped at the declared per-profile top-20 depth while
+quality scoring requested up to 50 results. The resulting judgment-coverage audit
+triggered a blinded supplement of 99 paper candidates from the saved top-50 outputs
+across all five frozen profiles. The supplement omitted profile/rank/score provenance,
+was shuffled, and used the same frozen relevance rubric. All five saved rankings were
+rescored after the labels were complete. No retrieval configuration or threshold
+changed.
+
+The active families meet each predeclared category floor: discovery 3, specific
+evidence 10, table results 3, cross-paper comparison 3, filters 6, missing evidence
+3. Categories overlap. Source prose uses the frozen 80% coverage threshold. Tables
+require exact target rows and their row/header and interpretation context. Three of
+18 anchors have no reviewed-pool candidate link; they remain source-only and are not
+credited as retrieved candidates.
+
+This audit reports review completeness, not retrieval success. The separate
+[acceptance report](../reference/phase-2-acceptance-report.md) records aggregate
+scores and the two failed frozen gates. No questions, titles, passages, candidate
+identities, per-family results or result positions are included here. Detailed review
+cards and run records remain private; `*origins.json` files were not read.
+
+## Historical v3 coverage audit
+
+
 | Field | Value |
 | --- | --- |
 | Reviewer | Assistant |

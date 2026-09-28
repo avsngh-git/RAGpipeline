@@ -1,14 +1,15 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-27. P2-01–P2-19 complete; P2-20 assessment recorded four failed frozen gates. Phase 2 remains unaccepted.
+Updated: 2026-09-28. P2-01–P2-19 are complete. The corrected v4 P2-20 assessment passed 12/14 gates; paper nDCG@10 and warm p95 failed, so Phase 2 remains unaccepted.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md) and the
-   [held-out acceptance report](../reference/phase-2-acceptance-report.md). The v3
-   held-out set is now disclosed and must not be reused for tuning or as an unseen
-   test. Any renewed selection work must use development data and a new held-out set.
+   [held-out acceptance report](../reference/phase-2-acceptance-report.md). V3 and v4
+   are disclosed held-out assessments; neither may guide tuning or be reused as an
+   unseen test. The development-selected profile and frozen limits remain unchanged.
+   Any follow-up selection must use development data and a new held-out set.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -91,7 +92,7 @@ table units, passes source-span/tokenizer fairness checks, and has a paired q11�
 dense-E5 development comparison. The section-aware baseline supported one more
 reviewed prose anchor at rank 10; both chunkers supported 13/27 by rank 50. The
 [fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md)
-records the comparison and limitations. P2-14 through P2-19 are complete, and hosted CI passed. P2-20 assessed v3 and failed four frozen gates; the aggregate result is documented in the acceptance report. Do not tune on v3 or treat it as an unseen test.
+records the comparison and limitations. P2-14 through P2-19 are complete, and hosted CI passed. The v3 result is historical. The corrected v4 P2-20 assessment also failed two frozen gates; see the current acceptance report. Neither disclosed set may guide tuning or be treated as unseen.
 ## Progress and stop rules
 
 - **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,
@@ -745,3 +746,19 @@ P2-20's evidence collection is complete, but its Done condition is not met and P
 is not accepted. Do not tune on v3 or inspect any `*origins.json`. Future selection
 requires development evaluation followed by a fresh held-out set frozen before the
 next acceptance run.
+
+## Current P2-20 outcome — assistant-reviewed 2026-09-28
+
+The v4 profile freeze and numerical limits were unchanged. The initial paper pool
+covered the top-20 collection while quality scoring used top-50 responses. Before
+final scoring, a blinded supplement added all missing papers from the saved top-50
+outputs across the five frozen profiles; the corrected paper and evidence coverage
+is 100%. A score-only replay reused the saved rankings and original timing sample.
+
+The final result passed 12/14 gates. Paper nDCG@10 is 0.7455 against a minimum of
+0.80; warm p95 is 1,533.96 ms against a maximum of 1,500 ms. Do not tune on v4 or
+rerun it as an unseen test. The next selection work must use development data, then
+freeze a new source-reviewed held-out set. See the
+[acceptance report](../reference/phase-2-acceptance-report.md) for the aggregate
+comparison and gate table. The private question manifest, review cards and per-family
+results remain outside Git.

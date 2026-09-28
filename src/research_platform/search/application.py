@@ -658,7 +658,8 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
     """Load frozen local indexes/models without migrating or downloading data."""
     repo_root = Path(__file__).resolve().parents[3]
     manifest_dir = repo_root / "benchmarks" / "phase2"
-    frozen = load_frozen_profile(manifest_dir / "frozen-profile-v1.toml")
+    frozen_profile_path = manifest_dir / "frozen-profile-v2.toml"
+    frozen = load_frozen_profile(frozen_profile_path)
     hybrid_profile = load_retrieval_profile_manifest(
         manifest_dir / "hybrid-e5-profile-v1.toml"
     )
@@ -682,7 +683,7 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
         "hybrid_e5": hybrid_profile.profile_id,
         "reranked_minilm_hybrid": frozen.profile_id,
     }
-    comparison_ids = _comparison_profiles(manifest_dir / "frozen-profile-v1.toml")
+    comparison_ids = _comparison_profiles(frozen_profile_path)
     if any(comparison_ids.get(name) != value for name, value in expected_ids.items()):
         raise SearchDependencyUnavailable(
             "frozen retrieval profile identities disagree"

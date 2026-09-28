@@ -1,4 +1,36 @@
-# P2-12.3 held-out question source audit
+# Phase 2 held-out question source audit
+
+## Active v4 source and coverage audit — 2026-09-28
+
+The active held-out split contains ten source-reviewed families across all six
+predeclared categories. Category counts are discovery 3, specific evidence 10,
+table result 3, cross-paper comparison 3, filters 6 and missing evidence 3; categories
+overlap. The split hash is
+`sha256:e1bc1b9225f467f540e7968394aae1f797c9b03b9784c9b44586bfe0270585ae`, and the
+private question manifest hash is
+`sha256:5895890c8a0cd7ab784ce2965e4689d0cb5e003b0dc0e01f33fa27fd76e85df2`.
+
+The final pool has 348 paper and 418 evidence candidates, all assistant-reviewed
+with resolved 0/1/2 labels. A post-run coverage audit added a rank-free, profile-free
+supplement from the saved top-50 outputs across all five frozen profiles; every
+profile was rescored against the same expanded pool. Paper and evidence judgment
+coverage is 100% after correction. The serving profile, query set, thresholds and
+saved response order were unchanged.
+
+There are 18 independently source-checked anchors, 15 source-anchor-to-candidate
+links and seven multi-piece evidence groups. Text matching requires at least 80%
+coverage of the annotated source span. Table matching requires the exact target rows
+and the frozen header/context checks. Three source anchors have no candidate mapping;
+they remain in source-anchor accounting and are not inserted into rankings.
+
+The review cards and item-level result records are private. No v4 questions, paper
+titles, evidence passages, candidate identities or result positions appear in this
+sanitized audit. Aggregate retrieval outcomes are in the
+[acceptance report](../reference/phase-2-acceptance-report.md). The frozen gate failed
+paper nDCG@10 and warm p95; this source audit does not change that decision.
+
+## Historical v3 source audit
+
 
 **Reviewer:** assistant · **Date:** 2026-09-27 · **Status:** active v3 split q22–q31; source review and candidate relevance review are complete. The historical v1/v2 records are retained for audit, and q21 is excluded after the integrity incident below. This is a source and review record, not a report of held-out retrieval scores.
 

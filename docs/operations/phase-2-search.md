@@ -1,10 +1,10 @@
 # Phase 2 search operations
 
-**Status:** assistant-reviewed 2026-09-27. This runbook describes the local Phase 2
-profile and its current private-local data requirements. The held-out evaluation
-failed four frozen acceptance gates; see the
-[acceptance report](../reference/phase-2-acceptance-report.md). Treat the configured
-profile as provisional until a new frozen assessment passes.
+**Status:** assistant-reviewed 2026-09-28. The corrected v4 held-out evaluation
+passed 12 of 14 frozen acceptance gates; paper nDCG@10 and warm p95 failed. See the
+[acceptance report](../reference/phase-2-acceptance-report.md). The API loads
+frozen-profile-v2.toml, with a 20-candidate MiniLM rerank prefix over a 50-candidate
+Hybrid-E5 pool. Profile v2 remains unaccepted until a new frozen assessment passes.
 
 ## Service boundary
 
@@ -20,10 +20,12 @@ uses the separately named `phase2-e5-small-v2-filtered` Qdrant collection and th
 profile/configuration recorded in `benchmarks/phase2/`. The retained
 `phase1-e5-small-v2` collection is not a Phase 2 rebuild target.
 
-The frozen profile binds to the exact 44,277 selected evidence units. Its identity was
-corrected before held-out scoring to name the filter-ready Phase 2 collection used by
-the development evaluation. Model, query set, ranking policy, limits, and acceptance
-thresholds did not change. The accepted Phase 1 collection remains separate.
+The frozen profile binds to the exact 44,277 selected evidence units. Profile v2
+retains the filter-ready Phase 2 collection and reranks the first 20 fused candidates.
+On success it appends the remaining candidates in hybrid order; an over-budget pair
+or typed inference failure returns the complete unchanged hybrid pool. The model,
+512-token pair budget, corpus and acceptance thresholds remain unchanged. The accepted
+Phase 1 collection remains separate.
 
 ## Small checks
 
@@ -218,7 +220,23 @@ PYTHONPATH=src:/tmp/ragpipeline-phase2/bm25s-pilot/pydeps \
 
 The runner uses the disposable Qdrant service at `127.0.0.1:26333` and offline
 model caches. Its private inputs and outputs are not part of a clean checkout; the
-sanitized report is the portable result. For source-only table rechecks in the original
+sanitized report is the portable result.
+
+The v2 profile prefix-cap ablation can be reproduced on the original workspace after
+the v1 local development inputs are present:
+
+```bash
+umask 077
+PYTHONPATH=src:/tmp/ragpipeline-phase2/bm25s-pilot/pydeps \
+  conda run -n sci_research_agent \
+  python local-reference/phase2-runs/p2-14-validation/run-poolcap-dev-v1.py
+PYTHONPATH=src:/tmp/ragpipeline-phase2/bm25s-pilot/pydeps \
+  conda run -n sci_research_agent \
+  python local-reference/phase2-runs/p2-14-validation/score-poolcap-dev-v1.py
+```
+
+These scripts use only q01–q10 and q11–q19. Raw outputs remain mode 0600 in
+local-reference and do not include held-out families. For source-only table rechecks in the original
 workspace, the bounded audit scripts are:
 
 ```bash
