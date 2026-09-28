@@ -82,7 +82,7 @@ fixed_index_configuration = "8cabfaa77488678da5aa71029c86a0ed398cebbc2b62a56171c
 fixed_variant = "57e8ac335aa85c4fbb80871f72012441ce9a1b476627e774fcd4f4949144ed2d"
 
 [code_sha256]
-"scripts/phase2_r8_acceptance.py" = "ff23ac4db52774937744acc308273e86536779d903ca563f334e38006bcb83dd"
+"scripts/phase2_r8_acceptance.py" = "3b16a1b1e34af1492d8808cda8319fec17b18c3b026e3fe6fb6033c3bb12f397"
 "scripts/phase2_acceptance_report.py" = "2c92af88e119fa889df9f7685d5019e35e2658f6a17c7817f3dc2f19b5bf45a0"
 "src/research_platform/evaluation/runner.py" = "68a178e542485178a8ec88a5c872563001062baa7d76c8927abbecfcfde7cff9"
 "src/research_platform/evaluation/scoring.py" = "778c1dee67c444de8fbdfc371be208c53e7d97b4dbb3355110af8961d1609559"

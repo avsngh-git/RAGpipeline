@@ -951,6 +951,7 @@ async def _run_assessment(
         reranker_cache_dir=Path("/tmp/phase2-reranker-hf-cache"),
     )
     if torch.cuda.is_available():
+        torch.cuda.init()
         torch.cuda.reset_peak_memory_stats("cuda:0")
 
     manifest_dir = REPOSITORY_ROOT / "benchmarks/phase2"
