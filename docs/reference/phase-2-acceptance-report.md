@@ -12,11 +12,16 @@ records remain private.
 The ten-family v11 set was frozen before scoring and reviewed by the assistant against
 primary source material. Its composition was 10 discovery, 8 specific-evidence, 4
 table-result, 3 cross-paper-comparison, 5 filters and 3 missing-evidence families
-(category membership may overlap). All 622 pooled candidates were resolved: 235 paper
-candidates and 387 evidence candidates. Nine direct source anchors were independently
-reviewed, with eight actual retrieval-hit links in the candidate pool; no gold item was
-inserted into a result. The accepted snapshot contains 100 papers and 44,277 selected
-chunks.
+(category membership may overlap). All 622 pooled candidates were assistant-reviewed: 235 paper candidates (204 label 0,
+22 label 1, 9 label 2) and 387 evidence candidates (273 label 0, 88 label 1, 26 label 2).
+Nine direct source anchors were checked by assistant review against their sources, with
+eight actual retrieval-hit links in the candidate pool; no gold item was inserted into
+a result. The selected profile's judgment coverage over evaluated results was 217/301
+paper results (72.1% micro; 82.3% macro across ten families) and 173/173 evidence
+results (100%). Review time was not separately measured. Source uncertainty and
+judgments remain recorded in the private assistant-reviewed materials; no second
+reviewer or human verification is claimed. The accepted snapshot contains 100 papers
+and 44,277 selected chunks.
 
 The sample is purposive and supports directional evidence, not precise population
 estimates or a claim about the whole literature. This measures ranking and retrieval;
@@ -37,6 +42,11 @@ gates is descriptive. Public passage display remains disabled.
 | Source-judgment SHA-256 | `32308177ba07d44e2a58997a7711656b25b22a4ea84e8ed40310b38aa3f10c4a` |
 | Source-chunk mapping SHA-256 | `d1430c94ad31c1e2f42675ccbe7e8a28c7bd90b0622093bbe3fee9e8472bd958` |
 | Snapshot | `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c`, 100 papers, 44,277 selected chunks |
+| Snapshot selection identity | `sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18` |
+| Candidate-pool manifest SHA-256 | `00ad816857fdc08a8de0be22b6c225a51f6b9c1c7d0fd85e60b57190ece042f6` |
+| Evaluated worktree identity | Git revision `ed56e59451203cc4ddaadfb6c4a070ba18260368`; tracked diff SHA-256 `70757330c2c03197eeae6c536bb53486a54c0e5f678ace2cb59bf91f429c6a44` (tracked worktree was dirty) |
+| Evaluated implementation content | Runtime/source/test/dependency files match sanitized implementation revision `8304b8a44a862f6737c14f6434112ee619908f83` |
+| Bootstrap | 10,000 paired family resamples; seed 20260930 |
 | Run-record SHA-256 | `39e209c09e376b26adeaf7f5a692fa39e40cffe878484b3c4c196b804b440fd1` |
 
 The v11 question set, split, source review, source judgments, source map, candidate
@@ -46,9 +56,11 @@ text or item-level labels.
 
 ## v11 profile comparison
 
-Quality values are macro means over ten held-out families. Source-anchor recall is over
-nine independently reviewed anchors. Warm latency p95 is the nearest rank across 100
-requests per profile.
+nDCG values are macro means over ten held-out families. Direct MRR and judged recall
+use the seven families with applicable positive judgments; source-anchor recall is micro
+recall over nine independently reviewed anchors. Each profile has 100 warm requests
+(50 paper and 50 evidence searches), after one warm-up pass; the run uses five repeats
+per family and operation.
 
 | Profile | Paper nDCG@10 | Paper MRR@10 | Paper Recall@20 | Evidence nDCG@10 | Evidence MRR@10 | Evidence Recall@20 | Source Recall@10 / @50 | Warm p95 (ms) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -61,6 +73,66 @@ requests per profile.
 The MiniLM-over-Hybrid-E5 profile remains the selected serving profile under its frozen
 identity. Its result shows the strongest evidence-ranking metrics in this comparison;
 profile selection was made from development evidence before v11.
+
+### Selected-profile category results
+
+Categories overlap. Source recall is micro recall and is omitted where there is no
+positive direct source anchor.
+
+| Category | Families | Paper nDCG@10 | Evidence nDCG@10 | Source Recall@10 |
+| --- | ---: | ---: | ---: | ---: |
+| Cross-paper comparison | 3 | 0.7870 | 0.6959 | 0.7500 |
+| Discovery | 10 | 0.9208 | 0.6682 | 0.5556 |
+| Filters | 5 | 0.9663 | 0.6883 | 0.4000 |
+| Missing evidence | 3 | 0.7824 | 0.7066 | — |
+| Specific evidence | 8 | 0.9734 | 0.6616 | 0.5556 |
+| Table result | 4 | 0.9875 | 0.6518 | 0.2500 |
+
+### Paired differences and uncertainty
+
+Deltas are selected MiniLM-over-Hybrid-E5 minus each named profile; intervals are
+percentile 95% intervals from 10,000 paired family resamples with seed 20260930.
+The number of families with a defined paired metric varies by row. These intervals are
+descriptive for the purposive ten-family sample, not population estimates.
+
+| Baseline | Metric | Families | Mean delta [95% interval] |
+| --- | --- | ---: | ---: |
+| BM25 lexical | Paper nDCG@10 | 10 | +0.1938 [+0.0877, +0.3209] |
+| BM25 lexical | Paper direct MRR@10 | 7 | +0.2619 [+0.0714, +0.5000] |
+| BM25 lexical | Paper judged Recall@20 | 7 | +0.0000 [0.0000, 0.0000] |
+| BM25 lexical | Evidence nDCG@10 | 10 | +0.2222 [+0.0871, +0.3497] |
+| BM25 lexical | Evidence direct MRR@10 | 7 | +0.2786 [-0.1286, +0.6429] |
+| BM25 lexical | Evidence judged Recall@20 | 7 | +0.5014 [+0.2157, +0.7857] |
+| BM25 lexical | Source Recall@10 | 7 | +0.2857 [0.0000, +0.5714] |
+| BM25 lexical | Source Recall@50 | 7 | +0.2143 [0.0000, +0.5000] |
+| Dense E5 | Paper nDCG@10 | 10 | +0.0171 [-0.0896, +0.1341] |
+| Dense E5 | Paper direct MRR@10 | 7 | +0.0714 [0.0000, +0.2143] |
+| Dense E5 | Paper judged Recall@20 | 7 | +0.0000 [0.0000, 0.0000] |
+| Dense E5 | Evidence nDCG@10 | 10 | +0.1723 [+0.0962, +0.2495] |
+| Dense E5 | Evidence direct MRR@10 | 7 | +0.1357 [-0.1857, +0.4929] |
+| Dense E5 | Evidence judged Recall@20 | 7 | +0.4459 [+0.1429, +0.7619] |
+| Dense E5 | Source Recall@10 | 7 | +0.0714 [0.0000, +0.2143] |
+| Dense E5 | Source Recall@50 | 7 | +0.0714 [0.0000, +0.2143] |
+| Hybrid E5 | Paper nDCG@10 | 10 | -0.0092 [-0.0428, +0.0137] |
+| Hybrid E5 | Paper direct MRR@10 | 7 | +0.0000 [0.0000, 0.0000] |
+| Hybrid E5 | Paper judged Recall@20 | 7 | +0.0000 [0.0000, 0.0000] |
+| Hybrid E5 | Evidence nDCG@10 | 10 | +0.1811 [+0.0779, +0.2861] |
+| Hybrid E5 | Evidence direct MRR@10 | 7 | +0.1595 [-0.2024, +0.5167] |
+| Hybrid E5 | Evidence judged Recall@20 | 7 | +0.4300 [+0.1429, +0.7302] |
+| Hybrid E5 | Source Recall@10 | 7 | +0.0714 [0.0000, +0.2143] |
+| Hybrid E5 | Source Recall@50 | 7 | +0.0000 [0.0000, 0.0000] |
+| Fixed-window dense E5 | Paper nDCG@10 | 10 | +0.0006 [-0.0867, +0.0718] |
+| Fixed-window dense E5 | Paper direct MRR@10 | 7 | +0.0714 [0.0000, +0.2143] |
+| Fixed-window dense E5 | Paper judged Recall@20 | 7 | +0.0000 [0.0000, 0.0000] |
+| Fixed-window dense E5 | Evidence nDCG@10 | 10 | +0.3274 [+0.1944, +0.4333] |
+| Fixed-window dense E5 | Evidence direct MRR@10 | 7 | +0.2071 [-0.2571, +0.6714] |
+| Fixed-window dense E5 | Evidence judged Recall@20 | 7 | +0.6176 [+0.2987, +0.9048] |
+| Fixed-window dense E5 | Source Recall@10 | 7 | +0.0714 [0.0000, +0.2143] |
+| Fixed-window dense E5 | Source Recall@50 | 7 | +0.0714 [0.0000, +0.2143] |
+
+The selected profile's evidence nDCG interval is above zero against all four baselines.
+Paper nDCG intervals against Dense E5, Hybrid E5 and Fixed-window Dense E5 include
+zero. The small sample and purposive selection limit the strength of these conclusions.
 
 ## v11 selected-profile acceptance gates
 
@@ -81,10 +153,49 @@ profile selection was made from development evidence before v11.
 | Combined cold model load | ≤ 15,000 ms | 6,142.4 ms | Pass |
 | Summed CUDA allocation | ≤ 1 GiB | 224,966,656 bytes | Pass |
 
-The warm p95 cleared its frozen ceiling by 14.2 ms. The WSL-exposed GPU was an NVIDIA
-GeForce RTX 3050 Laptop GPU. Evidence-requirement-group coverage was descriptive: seven
-groups, piece coverage 0.5556 at @10 and @50, and complete-group fraction 0.4286. No separate numeric group-coverage gate was predeclared. Every listed quality and
-operational gate passed.
+The warm p95 cleared its frozen ceiling by 14.2 ms. Per-operation timing was:
+
+| Operation | Samples | Median | p95 (nearest rank) |
+| --- | ---: | ---: | ---: |
+| Paper search | 50 | 1,208.2 ms | 1,480.4 ms |
+| Evidence search | 50 | 1,188.3 ms | 1,492.7 ms |
+| Combined selected profile | 100 | 1,201.3 ms | 1,485.8 ms |
+
+The WSL-exposed GPU was an NVIDIA GeForce RTX 3050 Laptop GPU. Full
+`create_phase2_runtime` startup, which constructs the local model/index runtime, was
+8,900.3 ms; instrumented combined model load was 6,142.4 ms within that startup window.
+Summed model-load CUDA allocation was 224,966,656 bytes; peak CUDA allocation/reservation
+after replay was 278,103,552 / 329,252,864 bytes. Process peak RSS was 1,715,552,256
+bytes. The acceptance replay reused existing indexes and did not measure index-build
+cost; the development report records the build/chunking experiments. The BM25 lexical and hybrid artifacts each occupied
+38,737,423 bytes; the fixed-window comparison artifacts occupied 28,179,129 bytes.
+The reranked profile reuses the hybrid lexical artifact. Qdrant dense collection disk
+use was not captured.
+
+Across the selected profile's 20 primary attempts, hard failures were 0/20 and explicit
+reranker fallback was 2/20 (10%). The harness's broader degradation flag was set for
+20/20 attempts because any response warning marks an attempt degraded. All 100 warm
+repeats completed without failure and result ordering was stable. This warning
+classification is reported separately from hard failures and explicit fallbacks.
+
+Evidence-requirement-group coverage was descriptive: seven groups, piece coverage 0.5556
+at @10 and @50, and complete-group fraction 0.4286 at both cutoffs. No numeric group-
+coverage gate was predeclared. Every frozen quality and operational gate passed.
+
+## Reproduction and permissions
+
+The private acceptance run was produced from the repository root with:
+
+```bash
+python local-reference/phase2-runs/benchmark-v11-private/run-heldout-evaluation-v11.py
+```
+
+Reproduction requires the ignored v11 benchmark/source-review files, the accepted local
+snapshot and indexes, and the pinned model weights. Those files remain private and are
+not part of the published change. The source snapshot retains its existing storage and
+indexing permissions; public passage display is disabled. Hosted CI on the published
+implementation and completion revisions verifies the CPU-only lint, formatting, type,
+unit/integration, migration, dependency and Docker checks.
 
 ## Historical v10 assessment
 

@@ -1,11 +1,10 @@
 # Phase 2 search operations
 
-**Status:** assistant-reviewed 2026-09-28. P2-01–P2-19 implementation is complete.
-The v10 assessment passed 14/15 frozen gates and missed warm p95 (1,602 ms versus a
-1,500 ms maximum). The runtime uses the development-selected cap16 profile. Local
-verification passes; hosted CI passed on sanitized revision `8304b8a` ([run
-36407122155](https://github.com/avsngh-git/RAGpipeline/actions/runs/36407122155)). Until all
-frozen gates pass, Phase 2 remains unaccepted. See the
+**Status:** assistant-reviewed 2026-09-28. P2-01–P2-20 implementation, verification
+and acceptance are complete. The fresh v11 held-out assessment passed every frozen
+gate; the selected cap16 profile's warm p95 was 1,485.8 ms against the 1,500 ms limit.
+Hosted CI passed on the final published revision `074d7a8` ([run
+36421230309](https://github.com/avsngh-git/RAGpipeline/actions/runs/36421230309)). See the
 [acceptance report](../reference/phase-2-acceptance-report.md).
 
 ## Service boundary
