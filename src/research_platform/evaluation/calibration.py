@@ -124,11 +124,11 @@ class QuestionFamily:
 
 @dataclass(frozen=True)
 class CalibrationDataset:
-    """Validated, immutable view of a calibration TOML file."""
+    """Validated, immutable view of a source-grounded evaluation dataset."""
 
     schema_version: int
     dataset_id: str
-    dataset_kind: Literal["calibration"]
+    dataset_kind: Literal["calibration", "held_out"]
     snapshot_id: UUID
     split_policy_id: str
     source_documents: tuple[CalibrationSourceDocument, ...]
@@ -146,13 +146,39 @@ def load_calibration(path: str | Path) -> CalibrationDataset:
             f"cannot read calibration file {source_path}"
         ) from exc
     try:
-        return parse_calibration(contents)
+        return _parse_dataset(contents, expected_kind="calibration")
+    except CalibrationLoadError as exc:
+        raise CalibrationLoadError(f"{source_path}: {exc}") from exc
+
+
+def load_heldout_dataset(path: str | Path) -> CalibrationDataset:
+    """Load a versioned held-out dataset, rejecting development families."""
+    source_path = Path(path)
+    try:
+        contents = source_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise CalibrationLoadError(
+            f"cannot read held-out dataset {source_path}"
+        ) from exc
+    try:
+        return _parse_dataset(contents, expected_kind="held_out")
     except CalibrationLoadError as exc:
         raise CalibrationLoadError(f"{source_path}: {exc}") from exc
 
 
 def parse_calibration(contents: str) -> CalibrationDataset:
-    """Parse TOML text and reject malformed fields and invalid references."""
+    """Parse a calibration dataset and require development-only families."""
+    return _parse_dataset(contents, expected_kind="calibration")
+
+
+def parse_heldout_dataset(contents: str) -> CalibrationDataset:
+    """Parse held-out TOML and require every family to remain held out."""
+    return _parse_dataset(contents, expected_kind="held_out")
+
+
+def _parse_dataset(
+    contents: str, *, expected_kind: Literal["calibration", "held_out"]
+) -> CalibrationDataset:
     if not isinstance(contents, str):
         raise CalibrationLoadError("TOML contents must be text")
     try:
@@ -180,8 +206,8 @@ def parse_calibration(contents: str) -> CalibrationDataset:
     dataset_id = _string(raw["dataset_id"], "dataset_id")
     if not _DATASET_ID.fullmatch(dataset_id):
         raise CalibrationLoadError("dataset_id must be a lowercase hyphenated ID")
-    if raw["dataset_kind"] != "calibration":
-        raise CalibrationLoadError('dataset_kind must be "calibration"')
+    if raw["dataset_kind"] != expected_kind:
+        raise CalibrationLoadError(f'dataset_kind must be "{expected_kind}"')
     snapshot_id = _uuid(raw["snapshot_id"], "snapshot_id")
     split_policy_id = _string(raw["split_policy_id"], "split_policy_id")
     if not _RECORD_ID.fullmatch(split_policy_id):
@@ -217,9 +243,11 @@ def parse_calibration(contents: str) -> CalibrationDataset:
     _unique((record.id for record in families), "family ID")
     if not families:
         raise CalibrationLoadError("families must not be empty")
-    if any(family.split != "development" for family in families):
+    expected_split = "development" if expected_kind == "calibration" else "held_out"
+    if any(family.split != expected_split for family in families):
+        split_label = "calibration" if expected_kind == "calibration" else "held-out"
         raise CalibrationLoadError(
-            "calibration families must all use the development split"
+            f"{split_label} families must all use the {expected_split} split"
         )
     _unique((query.id for family in families for query in family.queries), "query ID")
     all_group_ids = (
@@ -230,7 +258,7 @@ def parse_calibration(contents: str) -> CalibrationDataset:
     return CalibrationDataset(
         schema_version=schema_version,
         dataset_id=dataset_id,
-        dataset_kind="calibration",
+        dataset_kind=expected_kind,
         snapshot_id=snapshot_id,
         split_policy_id=split_policy_id,
         source_documents=documents,

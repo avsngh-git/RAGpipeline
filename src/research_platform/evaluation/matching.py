@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TypeAlias
 from uuid import UUID
 
@@ -305,6 +305,84 @@ def region_from_evidence_unit(
         table_ordinal=table.ordinal,
         cells=tuple(covered_cells[key] for key in sorted(covered_cells)),
         context_types=frozenset(context_types),
+    )
+
+
+def regions_from_search_hits(
+    hits: Sequence[EvidenceHit],
+) -> dict[str, SourceEvidenceRegion]:
+    """Build conservative source regions from returned hit provenance.
+
+    Full table rows and canonical text spans are retained. Segmented table-cell
+    values are omitted because the public hit does not include the source cell's
+    total token count; this keeps partial cells from being credited as complete.
+    """
+    regions: dict[str, SourceEvidenceRegion] = {}
+    for hit in hits:
+        if not isinstance(hit, EvidenceHit):
+            raise SourceMatchingError("hits must contain EvidenceHit values")
+        region = _region_from_search_hit(hit)
+        for evidence_id in hit.source_evidence_ids:
+            candidate = replace(region, evidence_id=evidence_id)
+            existing = regions.get(evidence_id)
+            if existing is not None and existing != candidate:
+                raise SourceMatchingError(
+                    "one source evidence ID has inconsistent returned geometry"
+                )
+            regions[evidence_id] = candidate
+    return regions
+
+
+def _region_from_search_hit(hit: EvidenceHit) -> SourceEvidenceRegion:
+    if hit.kind == "text" and hit.source_spans:
+        spans = tuple(
+            TextEvidenceSpan(
+                section_ordinal=span.section_ordinal,
+                start_offset=span.start_offset,
+                end_offset=span.end_offset,
+            )
+            for span in hit.source_spans
+        )
+        first, *additional = spans
+        return TextEvidenceRegion(
+            evidence_id=hit.source_evidence_ids[0],
+            document_id=hit.document_id,
+            extraction_id=hit.extraction_id,
+            section_ordinal=first.section_ordinal,
+            start_offset=first.start_offset,
+            end_offset=first.end_offset,
+            additional_spans=tuple(additional),
+        )
+    if hit.kind in {"table", "table_row_group"} and hit.table_context is not None:
+        context = hit.table_context
+        cells: dict[CellCoordinate, TableCellCoverage] = {}
+        for row in (*context.header_rows, *context.selected_rows):
+            for cell in row.cells:
+                coordinate = CellCoordinate(cell.row_index, cell.column_index)
+                cells[coordinate] = TableCellCoverage(
+                    cell=coordinate, start=0, end=1, total_units=1
+                )
+        context_types = frozenset(
+            name
+            for name, present in (
+                ("caption", bool(context.caption and context.caption.strip())),
+                ("units", bool(context.units and context.units.strip())),
+                ("footnotes", bool(context.footnotes)),
+            )
+            if present
+        )
+        return TableEvidenceRegion(
+            evidence_id=hit.source_evidence_ids[0],
+            document_id=hit.document_id,
+            extraction_id=hit.extraction_id,
+            table_ordinal=context.table_ordinal,
+            cells=tuple(cells[key] for key in sorted(cells)),
+            context_types=context_types,
+        )
+    return UnalignedEvidenceRegion(
+        evidence_id=hit.source_evidence_ids[0],
+        document_id=hit.document_id,
+        extraction_id=hit.extraction_id,
     )
 
 

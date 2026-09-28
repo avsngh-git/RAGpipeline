@@ -89,19 +89,70 @@ async def evaluate_calibration(
     run_ids_by_query: Mapping[str, UUID] | None = None,
     started_at: datetime | None = None,
 ) -> tuple[QueryRunRecord, ...]:
-    """Search and score every calibration query without persisting passages.
+    """Search and score development calibration queries without persisting passages."""
+    if calibration.dataset_kind != "calibration" or any(
+        family.split != "development" for family in calibration.families
+    ):
+        raise ValueError("calibration evaluation requires development-only data")
+    return await _evaluate_dataset(
+        search_service,
+        calibration,
+        alignments,
+        options=options,
+        regions_by_evidence_id=regions_by_evidence_id,
+        eligible_paper_ids_by_query=eligible_paper_ids_by_query,
+        run_ids_by_query=run_ids_by_query,
+        started_at=started_at,
+    )
 
-    Search failures remain as failed attempts. A query receives no score unless both
-    its paper and evidence requests returned valid responses.
-    """
+
+async def evaluate_heldout(
+    search_service: SearchService,
+    heldout: CalibrationDataset,
+    alignments: SourceAlignmentDataset,
+    *,
+    options: EvaluationOptions,
+    regions_by_evidence_id: Mapping[str, SourceEvidenceRegion],
+    eligible_paper_ids_by_query: Mapping[str, Collection[str]] | None = None,
+    run_ids_by_query: Mapping[str, UUID] | None = None,
+    started_at: datetime | None = None,
+) -> tuple[QueryRunRecord, ...]:
+    """Search and score a held-out dataset only after the caller freezes it."""
+    if heldout.dataset_kind != "held_out" or any(
+        family.split != "held_out" for family in heldout.families
+    ):
+        raise ValueError("held-out evaluation requires held-out-only data")
+    return await _evaluate_dataset(
+        search_service,
+        heldout,
+        alignments,
+        options=options,
+        regions_by_evidence_id=regions_by_evidence_id,
+        eligible_paper_ids_by_query=eligible_paper_ids_by_query,
+        run_ids_by_query=run_ids_by_query,
+        started_at=started_at,
+    )
+
+
+async def _evaluate_dataset(
+    search_service: SearchService,
+    dataset: CalibrationDataset,
+    alignments: SourceAlignmentDataset,
+    *,
+    options: EvaluationOptions,
+    regions_by_evidence_id: Mapping[str, SourceEvidenceRegion],
+    eligible_paper_ids_by_query: Mapping[str, Collection[str]] | None,
+    run_ids_by_query: Mapping[str, UUID] | None,
+    started_at: datetime | None,
+) -> tuple[QueryRunRecord, ...]:
     run_started_at = started_at or datetime.now(timezone.utc)
     records: list[QueryRunRecord] = []
-    for family in calibration.families:
+    for family in dataset.families:
         for query in family.queries:
             records.append(
                 await _evaluate_query(
                     search_service,
-                    calibration,
+                    dataset,
                     alignments,
                     family_id=family.id,
                     query_id=query.id,

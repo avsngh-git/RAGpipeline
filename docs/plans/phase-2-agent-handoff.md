@@ -39,9 +39,12 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   retrieval-leakage test ([review note](../research/phase-2-r8-access-control-source-review.md));
   the index-update review checked 10 supplied candidate papers and found no direct
   source-change or deletion experiment ([review note](../research/phase-2-r8-index-update-source-review.md)).
-  Both findings are limited to their supplied candidates. The end-user study scan,
-  fresh family preparation, freeze and one-time assessment remain. Keep the set private
-  and do not tune from its results.
+  The end-user evidence scan covers all 100 accepted snapshot members and records 72
+  source-context hits across 40 papers; primary-source checks of the closest candidates
+  found no study meeting the fixed end-user task comparison criterion ([review note](../research/phase-2-r8-end-user-study-source-review.md)).
+  All three absence findings are bounded by their stated scan/candidate scopes and do
+  not claim a literature-wide absence. Fresh family preparation, freeze and one-time
+  assessment remain. Keep the set private and do not tune from its results.
 
 ## Guardrails and operating constraints
 
