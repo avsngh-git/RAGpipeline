@@ -42,4 +42,6 @@ benchmarks/phase2/*
 !benchmarks/phase2/frozen-profile-v1.toml
 !benchmarks/phase2/acceptance-v2.toml
 !benchmarks/phase2/frozen-profile-v2.toml
+!benchmarks/phase2/acceptance-v7.toml
+!benchmarks/phase2/frozen-profile-v7.toml
 !benchmarks/phase2/hybrid-e5-profile-v1.toml

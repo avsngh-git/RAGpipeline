@@ -1,10 +1,10 @@
 # Phase 2 search operations
 
-**Status:** assistant-reviewed 2026-09-28. The corrected v4 held-out evaluation
-passed 12 of 14 frozen acceptance gates; paper nDCG@10 and warm p95 failed. See the
-[acceptance report](../reference/phase-2-acceptance-report.md). The API loads
-frozen-profile-v2.toml, with a 20-candidate MiniLM rerank prefix over a 50-candidate
-Hybrid-E5 pool. Profile v2 remains unaccepted until a new frozen assessment passes.
+**Status:** assistant-reviewed 2026-09-28. P2-01–P2-19 and hosted CI are complete.
+The v9 assessment passed 13/14 frozen gates and missed paper nDCG@10. The runtime
+uses the development-selected cap16 profile. Until all frozen gates pass, Phase 2
+remains unaccepted. See the
+[acceptance report](../reference/phase-2-acceptance-report.md).
 
 ## Service boundary
 
@@ -20,8 +20,8 @@ uses the separately named `phase2-e5-small-v2-filtered` Qdrant collection and th
 profile/configuration recorded in `benchmarks/phase2/`. The retained
 `phase1-e5-small-v2` collection is not a Phase 2 rebuild target.
 
-The frozen profile binds to the exact 44,277 selected evidence units. Profile v2
-retains the filter-ready Phase 2 collection and reranks the first 20 fused candidates.
+The frozen profile binds to the exact 44,277 selected evidence units. The current frozen profile
+retains the filter-ready Phase 2 collection and reranks the first 16 fused candidates.
 On success it appends the remaining candidates in hybrid order; an over-budget pair
 or typed inference failure returns the complete unchanged hybrid pool. The model,
 512-token pair budget, corpus and acceptance thresholds remain unchanged. The accepted

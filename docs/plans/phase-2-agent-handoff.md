@@ -1,15 +1,15 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-28. P2-01–P2-19 are complete. The corrected v4 P2-20 assessment passed 12/14 gates; paper nDCG@10 and warm p95 failed, so Phase 2 remains unaccepted.
+Updated: 2026-09-28. P2-01–P2-19 and hosted CI are complete. The v9 P2-20 assessment passed 13/14 gates and missed paper nDCG@10. Phase 2 acceptance remains open.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md) and the
-   [held-out acceptance report](../reference/phase-2-acceptance-report.md). V3 and v4
-   are disclosed held-out assessments; neither may guide tuning or be reused as an
-   unseen test. The development-selected profile and frozen limits remain unchanged.
-   Any follow-up selection must use development data and a new held-out set.
+   [held-out acceptance report](../reference/phase-2-acceptance-report.md). The v9
+   held-out set is spent and cannot guide tuning or be reused as an unseen test. Use
+   development-only evidence for any repair; any later acceptance run needs a fresh
+   source-reviewed set.
 3. Read the [evaluation protocol](phase-2-evaluation-protocol.md) when working on
    judgments, experiments or scoring. Read ADR-0008 for variant/access boundaries.
 
@@ -72,27 +72,21 @@ existing worktree and publication workflow.
 
 ## Phase 2 active checkpoint
 
-P2-12 is complete. The active v3 split has 20 development families and 10 held-out
-families; all q11–q20 and q22–q31 review-card candidates have resolved labels. The
-sanitized [dataset card](../reference/phase-2-benchmark-dataset-card.md) and
-[coverage audit](../research/phase-2-benchmark-source-coverage-audit.md) record
-category/modality coverage, candidate counts, hashes, source mappings and limits.
-The q12/q14 table audit records visual checks against the exact accepted PDFs and
-the source-only Table 1/Table 2 anchors, which are not inserted into ranked results.
+P2-01–P2-19 and hosted CI are complete. The v9 benchmark has ten families; all 339
+paper and 496 evidence candidates were assistant-reviewed. Nine direct source anchors
+have nine direct pooled-candidate links. The held-out run passed 13/14 gates and failed
+paper nDCG@10. The sanitized [dataset card](../reference/phase-2-benchmark-dataset-card.md),
+[coverage audit](../research/phase-2-benchmark-source-coverage-audit.md) and
+[acceptance report](../reference/phase-2-acceptance-report.md) contain aggregate
+results only.
 
-The v3 split excludes q21 after private held-out rank/score exposure and replaces it
-with source-checked q31. q20 is disclosed as partially unblinded and its origins and
-results are excluded from tuning. The v3 held-out set has since been assessed after
-hosted CI passed; its aggregate results and failed gates are in the
-[acceptance report](../reference/phase-2-acceptance-report.md). Do not use v3 results
-for tuning or as an unseen test. Never read any `*origins.json` file.
+The v9 set and earlier assessment sets are spent. Their questions, rankings, candidate
+origins and per-family results remain private and cannot guide profile selection. The
+next work is a development-only investigation of the paper ranking gate, preserving
+the locked strongest-passage aggregation rule and numerical limits. Never read any
+`*origins.json` file. Continue to mark new judgments assistant-reviewed and preserve
+source-check uncertainty and sampling limits.
 
-P2-13 is complete: the fixed-window variant reuses the accepted extractions and
-table units, passes source-span/tokenizer fairness checks, and has a paired q11–q19
-dense-E5 development comparison. The section-aware baseline supported one more
-reviewed prose anchor at rank 10; both chunkers supported 13/27 by rank 50. The
-[fixed-window audit](../research/phase-2-fixed-window-source-fairness-audit.md)
-records the comparison and limitations. P2-14 through P2-19 are complete, and hosted CI passed. The v3 result is historical. The corrected v4 P2-20 assessment also failed two frozen gates; see the current acceptance report. Neither disclosed set may guide tuning or be treated as unseen.
 ## Progress and stop rules
 
 - **P2-02 complete** in the user commit `5f2a7db5835df2fa6b89692a06701d564901a8bb`: search contract, framework-independent contracts,
@@ -712,53 +706,23 @@ See `docs/research/phase-2-fixed-window-source-fairness-audit.md`.
 
 ## Final local implementation checkpoint — 2026-09-27
 
-P2-14's development comparison and numeric gates are recorded in
-[phase-2-development-report.md](../research/phase-2-development-report.md). P2-15
-freezes MiniLM over Hybrid E5 with whole-pool reranked-to-hybrid fallback and no
-unsupported-query cutoff. Serving profile:
-`sha256:243e3d5923ee930940a29cf4ba79db2392cf4a5bfe777a54cedd2a316fd22870`;
-acceptance configuration:
-`sha256:6beb525c6a5d76b2bcf28dd0c03bce527872ca462ce44dceba4ea5ce383590bb`.
-The identity correction binds runtime to the separate filter-ready Phase 2 dense
-collection used by development evaluation. It does not change ranking, selection,
-thresholds or the accepted Phase 1 index.
+P2-14 development selection and the P2-15 profile freeze are recorded in the
+[development report](../research/phase-2-development-report.md). P2-16 typed search,
+evidence, paper, reference and citation routes; P2-17 failure handling; and P2-18
+[local operations](../operations/phase-2-search.md) are complete. P2-19 verification
+and hosted CI passed on the sanitized implementation revision. The service uses the
+accepted Phase 1 snapshot and its separately identified filter-ready search index.
 
-P2-16 typed search/evidence/paper/reference/citation routes, P2-17 failure handling
-and P2-18 [local operations runbook](../operations/phase-2-search.md) are complete.
-Real-model WSL API smoke requests passed for paper/evidence search (including a
-zero-eligible filter), metadata and one-hop citation routes. Five warm table-filtered
-requests measured 1,128.81–1,245.15 ms, with nearest-rank p95 below 1,500 ms. The
-isolated dense collection reconciles all 44,277 selected evidence units.
-
-Local P2-19 verification passed under the updated exact Linux lock: Ruff check/format,
-strict mypy (79 source files), the complete CI-equivalent suite (445 passed, including
-21 fresh PostgreSQL/Qdrant integration tests), migration rerun, `pip check`, and
-`pip-audit --skip-editable` (no known vulnerabilities; the editable project is skipped).
-The Docker build passed with a 47.45 KB context; image BM25S/NumPy import, CLI smoke,
-and image `pip check` passed. Image smoke found the missing NumPy runtime dependency;
-NumPy 2.5.3 and its BLAS libraries are now pinned in the Conda specification and
-Linux lock. `git diff --check` passes. Hosted P2-19 CI passed on sanitized revision `b1c12320c223518dca926f4de128d25a4c6ff4eb`
-([run 36344475763](https://github.com/avsngh-git/RAGpipeline/actions/runs/36344475763)).
-The v3 P2-20 assessment ran on code revision `0ea87098608f24c14f518c370f2f5a65c488d7c5`.
-Paper nDCG@10, evidence nDCG@10, reranker fallback fraction, and warm p95 failed;
-other frozen gates passed. The assessment is documented in the acceptance report.
-P2-20's evidence collection is complete, but its Done condition is not met and Phase 2
-is not accepted. Do not tune on v3 or inspect any `*origins.json`. Future selection
-requires development evaluation followed by a fresh held-out set frozen before the
-next acceptance run.
+Earlier held-out assessments, including v9, are spent. Their sanitized aggregate
+history is kept in the [acceptance report](../reference/phase-2-acceptance-report.md);
+their questions, rankings and item-level results remain private. P2-20 remains open
+after v9 missed the paper nDCG@10 gate.
 
 ## Current P2-20 outcome — assistant-reviewed 2026-09-28
 
-The v4 profile freeze and numerical limits were unchanged. The initial paper pool
-covered the top-20 collection while quality scoring used top-50 responses. Before
-final scoring, a blinded supplement added all missing papers from the saved top-50
-outputs across the five frozen profiles; the corrected paper and evidence coverage
-is 100%. A score-only replay reused the saved rankings and original timing sample.
-
-The final result passed 12/14 gates. Paper nDCG@10 is 0.7455 against a minimum of
-0.80; warm p95 is 1,533.96 ms against a maximum of 1,500 ms. Do not tune on v4 or
-rerun it as an unseen test. The next selection work must use development data, then
-freeze a new source-reviewed held-out set. See the
-[acceptance report](../reference/phase-2-acceptance-report.md) for the aggregate
-comparison and gate table. The private question manifest, review cards and per-family
-results remain outside Git.
+The v9 candidate review and held-out run are complete. All 835 pooled candidates have
+assistant judgments; nine source anchors have nine direct candidate links. The selected
+cap16 profile passed 13 of 14 frozen gates; paper nDCG@10 was 0.7218 against the 0.80
+minimum. All other quality, source-coverage and operational gates passed. The v9 set
+is sealed from selection. The sanitized [acceptance report](../reference/phase-2-acceptance-report.md)
+contains aggregate results only. Phase 2 remains open until every frozen gate passes.

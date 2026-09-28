@@ -2,100 +2,68 @@
 
 | Field | Value |
 | --- | --- |
-| Dataset | `phase2-benchmark-v4` |
-| Snapshot | `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` |
-| Status | Assistant review complete; held-out acceptance gate failed two of fourteen limits |
-| Active split | `phase2-benchmark-family-splits-v4` |
-| Active held-out families | 10 |
+| Dataset | `phase2-benchmark-v9` |
+| Status | Assistant source review and held-out assessment complete; acceptance failed one frozen gate |
+| Scope | Ten purposive families from the accepted 100-paper snapshot |
+| Candidate review | 339 papers and 496 evidence passages; all candidates resolved |
+| Positive source mapping | Nine source anchors; nine direct pooled-candidate links |
+| Family coverage | Seven source-positive and three snapshot-scoped unsupported families |
 
 ## Purpose and scope
 
-This benchmark measures scholarly paper and evidence retrieval over the fixed
-100-paper Phase 1 snapshot. It covers discovery, specific evidence, numeric table
-results, cross-paper comparisons, filters, and bounded missing-evidence questions.
-It is a purposive, corpus-grounded sample for this snapshot. It is not a random
-sample of scientific questions and does not support claims about general scientific
-retrieval.
+This benchmark checks paper retrieval, evidence retrieval, source-grounded matching,
+filters and operational behavior for the private local research service. Category
+counts overlap: discovery (2), specific evidence (7), table result (4), cross-paper
+comparison (3), filters (2), and missing evidence (3). These counts are not additive.
+The set is purposive and does not represent all scientific questions or measure
+corpus-wide recall.
 
-| Category | Held-out family count |
-| --- | ---: |
-| Discovery | 3 |
-| Specific evidence | 10 |
-| Table result | 3 |
-| Cross-paper comparison | 3 |
-| Filters | 6 |
-| Missing evidence | 3 |
-
-Categories overlap. The ten-family set supports directional paired assessment only.
-Question text and family-level records remain private. The tracked report records
-manifest hashes and aggregate category counts.
+The held-out questions and source identities are private. Public documents report
+sanitized aggregates only and do not reproduce question text, paper identities,
+passages, candidate rankings or per-family results.
 
 ## Data and labels
 
-The active split binds the private question manifest
-`sha256:5895890c8a0cd7ab784ce2965e4689d0cb5e003b0dc0e01f33fa27fd76e85df2` and split
-manifest `sha256:e1bc1b9225f467f540e7968394aae1f797c9b03b9784c9b44586bfe0270585ae`.
-Paraphrases inherit their family split. The held-out set shares the fixed corpus
-snapshot with development data while keeping information needs separate.
+Candidates were collected from five frozen retrieval profiles and reviewed from
+shuffled cards with profile and rank provenance removed. Assistant judgments use the
+frozen 0/1/2 rubric. Unjudged items remain unresolved rather than being treated as
+irrelevant. All 339 pooled papers and 496 pooled evidence candidates have a resolved
+judgment.
 
-Candidate relevance uses the approved 0/1/2 scale: 0 is irrelevant, 1 is useful
-context or incomplete support, and 2 is direct support for a requested part. Labels
-measure relevance rather than whether a finding is favorable. Paper and evidence
-labels are separate.
-
-| Reviewed pool | Candidates | Evidence labels 0 / 1 / 2 | Paper candidates | Paper labels 0 / 1 / 2 |
-| --- | ---: | --- | ---: | --- |
-| Held-out v4 | 418 | 269 / 111 / 38 | 348 | 269 / 69 / 10 |
-
-All 348 paper and 418 evidence candidates have assistant-reviewed labels. A coverage
-correction added 99 papers from the saved top-50 outputs pooled across all five frozen
-profiles. Profile, rank and score provenance was removed before the supplement was
-shuffled and reviewed. All profiles were rescored on the same completed pool. The
-retrieval settings and numeric acceptance limits did not change.
+Positive source anchors were independently reviewed and mapped to evidence
+candidates only when the frozen source-matching rule was met. Prose matching uses
+the frozen 80% span-coverage threshold. Table matching requires exact target rows
+and validated header and context. Source-found anchors were not inserted into system
+rankings. The three unsupported checks are bounded to this snapshot and do not claim
+that the topic is absent from the wider literature.
 
 ## Source mapping and review
 
-The source map has 18 independent source anchors: 12 direct and 6 contextual. Fifteen
-anchors map to a reviewed candidate; three remain source-only. Seven evidence
-requirement groups describe multi-part needs. Text anchors use the frozen 80% minimum
-span-coverage rule. Table anchors require exact target rows with relevant header and
-context checks.
+The split, question manifest, source review, source judgments, source map, review
+cards and raw profile pools are private, mode-restricted artifacts under
+`local-reference/phase2-runs/benchmark-v9-private/`. The directory is ignored by Git.
+The sanitized aggregate review audit is
+[here](../research/phase-2-benchmark-source-coverage-audit.md).
 
-An assistant reviewed candidate relevance and checked source evidence against the
-accepted local PDFs. These labels are not independent human validation. Candidate
-relevance and exact source-span matching are separate measurements.
+The scoring protocol reports judgment coverage and separates returned-hit behavior
+on unsupported queries from positive-retrieval recall. Profile selection uses
+calibration/development evidence only; a held-out set is spent after scoring and
+cannot guide tuning.
 
 ## Access, permissions and intended use
 
-Question manifests, candidate cards, source offsets, raw pools, profiles, rankings,
-and detailed run records remain in the ignored private
-`local-reference/phase2-runs/benchmark-v4/` tree. They are not part of the sanitized
-card or public repository. The tracked manifests and reports contain aggregate
-metadata and hashes only.
-
-Use development judgments for bounded experiments. The v4 held-out result is
-unblinded and cannot guide parameter selection or be reused as an unseen test. Report
-judged-pool coverage and the snapshot-bounded nature of negative findings. Do not
-describe judged recall as recall over all relevant literature or passages.
+The accepted corpus permits storage and indexing but not public passage display.
+Raw questions, candidate text, source mappings and results stay within the trusted
+private-local review boundary. This card and the aggregate acceptance report do not
+grant access to those artifacts.
 
 ## Known limitations
 
-- The sample is small, purposive, and tied to one 100-paper snapshot.
-- Assistant-only labels can contain source interpretation errors; there is no
-  independent human reliability estimate.
-- Candidate pooling is bounded and profile-dependent. The paper coverage correction
-  pooled the saved top-50 results from the five frozen comparisons; items outside
-  that pool remain unjudged.
-- Three source anchors do not map to a candidate, even though all returned v4
-  evidence candidates are judged.
-- The final acceptance gate failed paper nDCG@10 and warm p95; see the
-  [acceptance report](phase-2-acceptance-report.md).
-- Negative or unsupported findings describe only the documented review procedure
-  over this snapshot, not the literature as a whole.
-- Ten held-out families support directional paired assessment, not precise
-  small-effect estimation.
-
-See the [source coverage audit](../research/phase-2-benchmark-source-coverage-audit.md),
-[held-out source audit](../research/phase-2-heldout-question-source-audit.md), and
-[evaluation protocol](../plans/phase-2-evaluation-protocol.md) for review and scoring
-rules.
+- Ten families provide directional evidence, not precise estimates of small effects.
+- The set covers one fixed 100-paper snapshot and cannot support claims about the
+  whole literature.
+- Complete judgment coverage applies to the pooled candidates only.
+- Source-anchor recall uses nine reviewed anchors and is not exhaustive corpus recall.
+- Unsupported findings apply only to the screened candidates in this fixed snapshot.
+- The selected profile failed the frozen paper nDCG@10 acceptance gate; Phase 2 is
+  not accepted.

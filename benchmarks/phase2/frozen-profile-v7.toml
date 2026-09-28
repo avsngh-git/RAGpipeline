@@ -1,0 +1,93 @@
+schema_version = 1
+freeze_id = "phase2-profile-freeze-v7"
+reviewer = "assistant"
+frozen_at = "2026-09-28"
+status = "frozen_for_implementation_and_heldout"
+identity_correction = "phase2-filter-ready-index-binding-v1"
+identity_correction_reviewed_by = "assistant"
+identity_correction_date = "2026-09-27"
+identity_correction_scope = "dense collection identity only; model, ranking, selection, thresholds, and held-out set unchanged"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+snapshot_selected_chunk_count = 44277
+snapshot_selection_identity = "sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18"
+profile_id = "sha256:a546f01870ba76ce38dff5ba24520be76b88db49bde62b406a9124d55a3e3ceb"
+base_hybrid_profile_id = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
+default_mode = "reranked"
+unsupported_query_cutoff = "disabled"
+access_profile = "trusted_private_local"
+candidate_pool_limit = 50
+default_result_limit = 10
+selection_policy = "strongest_passage; paper_support_limit=5; evidence_per_paper_limit=5; result_context=4000 tokens/12000 characters"
+reranker_fallback_policy = "on success rerank the configured fused prefix and append the untouched hybrid tail; on pair-budget overflow or typed adapter/inference failure return the whole unchanged hybrid order; integrity, permission and profile mismatches fail closed"
+acceptance_config = "benchmarks/phase2/acceptance-v7.toml"
+acceptance_config_sha256 = "sha256:2b0736a3c7226826a6befff715082f75a3e140ef5e99eca8e77b04dbfff7a9cd"
+scoring_policy = "evaluation-scoring-policy-v1"
+source_matching_policy = "source-match-policy-v1"
+
+[snapshot]
+configuration_id = "sha256:4d6a82110a37bd21974bd5fcc0aeae416b2996b79082b6645e6d39e7720f5ca7"
+
+[candidate_limits]
+lexical_top_k = 50
+dense_top_k = 50
+fused_top_k = 50
+rerank_top_k = 16
+
+[selection]
+paper_score_policy = "strongest_passage"
+paper_support_limit = 5
+evidence_per_paper_limit = 5
+evidence_result_character_budget = 12000
+evidence_result_token_budget = 4000
+text_budget_tokenizer = "unicode-token-v1"
+
+[embedding]
+model = "intfloat/e5-small-v2"
+revision = "e8b23a92af33fd81c865283d505f8f058a570cc8"
+preprocessing_revision = "e5-small-v2:passage-prefix:mean-mask:l2-normalize:v1"
+dimensions = 384
+maximum_input_tokens = 512
+index_configuration_id = "sha256:21cb8e4df7f24affb524a84a788f275fa54b08076d519afb1ecf5961ac88ee02"
+
+[lexical]
+implementation = "bm25s"
+revision = "0.3.11-k1.5-b0.75-delta0.5-lucene-idf-lucene-float32-int32-numpy-csc-numpy-auto-compile-true"
+analyzer = "scientific-en"
+analyzer_revision = "v1"
+normalization_revision = "unicode-nfc-casefold-dashes-micro-v1"
+index_format_revision = "bm25s-csc-numpy-row-map-v2"
+index_configuration_id = "sha256:5e38809545dc6b4a09110767a7ff4b576bc48971de2f4573baa797a0ba8caa14"
+
+[fusion]
+method = "rrf-v1"
+rank_constant = 60
+
+[reranker]
+model = "cross-encoder/ms-marco-MiniLM-L6-v2"
+revision = "233902d25c440f23af6f7d6e94d2946bac0bee0a"
+preprocessing_revision = "query-source-chunk-v1"
+maximum_pair_tokens = 512
+input_pool_policy = "configured-prefix-all-or-fallback"
+batch_size = 4
+
+[benchmark_identity]
+calibration_sha256 = "sha256:e7f7983ad2af564b24d86464c76f18432e5985a3a74e44849f8323048180c3b6"
+source_alignment_sha256 = "sha256:a85081e2df368815c5717edc16f8748904ae73cef33a61efc68471cc24cb0f4f"
+heldout_question_manifest_sha256 = "sha256:356723c79aaff404168e1247b30a159ab4df77375525c6bfd79334d652e265a0"
+source_review_sha256 = "sha256:b090c249a46f26e0baa3770348b8c2c685ae3582c782b1ba39c613d8e42d227d"
+source_judgments_sha256 = "sha256:0d1acd09969fea6d5fa1e1df2c90284f9a1007f93c56b10cedf3ab9d4d4c0036"
+split_manifest_sha256 = "sha256:9cad05f205ff8db22829f2286f330c2f808da6a29a4a6452373b589143e35cb8"
+development_questions_sha256 = "sha256:607fe3dd245a5c2b5614629e2c44598fba61685c3d9d02ecef3aa2e82710913b"
+benchmark_version = "phase2-benchmark-v9"
+
+source_chunk_mapping_sha256 = "sha256:e2713afce1faf876b75f174481fcca42d723d0be41f770363d2dff44b90b1b6e"
+[comparison_profiles]
+bm25_lexical = "sha256:f36849d5b7ce411a2ddbc35f5516b9462a5948bf9651728ac84a65005922b5e6"
+dense_e5 = "sha256:1eb792e949142afbd45a34b081149565fd273156fdcf2f21f5c456f845736884"
+hybrid_e5 = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
+reranked_minilm_hybrid = "sha256:a546f01870ba76ce38dff5ba24520be76b88db49bde62b406a9124d55a3e3ceb"
+fixed_window_dense_e5 = "sha256:c2c7429ca329014e1d2b24f3dfd958cb461d93f5315a2977d5e23b9681b7f785"
+
+[heldout_comparisons]
+profiles = ["bm25_lexical", "dense_e5", "hybrid_e5", "reranked_minilm_hybrid", "fixed_window_dense_e5"]
+family_set = "fresh source-reviewed held-out families q82-q91; identities retained privately"

@@ -658,7 +658,7 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
     """Load frozen local indexes/models without migrating or downloading data."""
     repo_root = Path(__file__).resolve().parents[3]
     manifest_dir = repo_root / "benchmarks" / "phase2"
-    frozen_profile_path = manifest_dir / "frozen-profile-v2.toml"
+    frozen_profile_path = manifest_dir / "frozen-profile-v7.toml"
     frozen = load_frozen_profile(frozen_profile_path)
     hybrid_profile = load_retrieval_profile_manifest(
         manifest_dir / "hybrid-e5-profile-v1.toml"

@@ -619,7 +619,7 @@ async def _execute_index_inspect(args: argparse.Namespace, settings: Settings) -
 
 def _load_retrieval_profile(path: Path) -> RetrievalProfile:
     if path.suffix.lower() == ".toml":
-        if path.name in {"frozen-profile-v1.toml", "frozen-profile-v2.toml"}:
+        if path.name in {"frozen-profile-v1.toml", "frozen-profile-v7.toml"}:
             return load_frozen_profile(path)
         return load_retrieval_profile_manifest(path)
     raw = json.loads(path.read_text(encoding="utf-8"))

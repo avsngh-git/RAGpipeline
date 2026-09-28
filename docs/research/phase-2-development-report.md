@@ -128,3 +128,49 @@ under ignored local-reference/phase2-runs/p2-14-validation/. These results use
 development-only data and do not use or disclose v3 item-level results. The v3
 acceptance failure remains in the historical report; the profile requires a new,
 freshly frozen held-out assessment.
+
+## Development-only prefix re-selection — 2026-09-28
+
+After the v5 held-out assessment failed its paper nDCG gate, the spent holdout was
+sealed from selection. A fresh development-only cap sweep used calibration q01–q10
+and source-reviewed q11–q19; no held-out ranks, scores, or judgments informed this
+choice. All candidates used the same 50-item Hybrid-E5 pool, source labels,
+per-paper selection limits, pair budget, and acceptance floors. Only the MiniLM
+reranker prefix changed.
+
+| Rerank prefix | Fallbacks | Paper nDCG@10 / MRR@10 / Recall@20 | Evidence nDCG@10 / MRR@10 / Recall@20 | Source anchors @10 / @50 | Positive families hit @10 | Reranker p95 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 12 | 0/19 | 0.9438 / 0.9444 / 1.0000 | 0.4938 / 0.5370 / 0.6667 | 8/31 / 12/31 | 7/7 | 86 ms |
+| 14 | 1/19 | 0.9799 / 1.0000 / 1.0000 | 0.4938 / 0.5370 / 0.6667 | 8/31 / 12/31 | 7/7 | 95.89 ms |
+| 16 | 3/19 | 0.9799 / 1.0000 / 1.0000 | 0.5282 / 0.5556 / 0.6667 | 8/31 / 12/31 | 7/7 | 106.83 ms |
+| 18 | 3/19 | 0.9778 / 1.0000 / 1.0000 | 0.5282 / 0.5556 / 0.6667 | 8/31 / 12/31 | 7/7 | 120.81 ms |
+
+At that checkpoint, cap14 was selected using development data only. It ties cap16 on paper
+nDCG@10, MRR@10 and Recall@20; its evidence nDCG@10 remains above the frozen floor,
+while the observed fallback share is lower (1/19 rather than 3/19) and reranker p95
+is 95.89 ms rather than 106.83 ms. Source-anchor counts and positive-family coverage
+are unchanged across these two caps. Cap14's profile identity is
+`sha256:c8a974c9956a408ae8baa50a0d16b49930f68e2dc0062d66007ef5cf61ecd9b4`.
+This interim selection used no held-out outcomes. The cap16 re-selection below
+supersedes it. The v7 assessment is recorded separately; any later
+acceptance attempt must use a newly source-reviewed held-out set and the unchanged
+numerical gates.
+
+
+## Development-only prefix re-selection — 2026-09-28
+
+A further comparison used only calibration q01–q10 and source-reviewed development
+q11–q19. It compared the already measured prefix 14 and 16 configurations; no held-
+out question, score, rank or judgment informed this freeze.
+
+| Prefix | Paper nDCG / MRR / Recall@20 | Evidence nDCG / MRR / Recall@20 | Source anchors @10 / @50 | Fallbacks | Reranker p95 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 14 | 0.9799 / 1.0000 / 1.0000 | 0.4938 / 0.5370 / 0.6667 | 8/31 / 12/31 | 1/19 | 95.89 ms |
+| 16 | 0.9799 / 1.0000 / 1.0000 | 0.5282 / 0.5556 / 0.6667 | 8/31 / 12/31 | 3/19 | 106.83 ms |
+
+Prefix 16 was selected for the v9 freeze because it improved development evidence
+nDCG and direct MRR while tying cap14 on paper metrics, evidence Recall@20 and source
+coverage. Its development fallback share (3/19) and reranker p95 remained below the
+frozen operational limits. This is a development-only selection rationale; v9 later
+missed the paper nDCG gate, and that spent held-out outcome does not change this
+selection or authorize tuning from v9.

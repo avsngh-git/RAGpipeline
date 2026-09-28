@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-19 complete; corrected v4 P2-20 assessment completed but failed two frozen gates; Phase 2 remains unaccepted.
+Status: approved 2026-09-26; P2-01–P2-19 complete; the v9 P2-20 assessment passed 13/14 gates and missed paper nDCG@10; Phase 2 acceptance remains open.
 
 ## Start and authority
 
@@ -13,9 +13,8 @@ defines judgments, metrics and experiment discipline.
 
 The user delegated implementation, benchmark preparation, calibration and source
 review to the agent. All new source judgments must identify their reviewer as
-assistant, not human. Planning approval authorized these decisions. This roadmap records both the approved
-work and its implementation evidence; task status below distinguishes completed work
-from the failed Phase 2 acceptance gate.
+assistant, not human. Planning approval authorized these decisions. This roadmap records the approved work and implementation evidence; task status
+below distinguishes completed work from the remaining acceptance gate.
 
 ## Outcome
 
@@ -57,13 +56,11 @@ and review work are delegated; ask only when a material decision exceeds this sc
 ## Roadmap and progress
 
 P2-01–P2-19 implementation is complete and hosted P2-19 CI passed on the
-sanitized branch. The v3 assessment is historical. Development-only comparison
-selected rerank_top_k=20 over the shared 50-candidate Hybrid-E5 pool, and the API
-loads profile v2. The corrected v4 assessment passed 12/14 limits; paper nDCG@10 and
-warm p95 failed. The final paper pool has 100% judgment coverage after a shuffled,
-rank-free supplement and score-only replay. No serving configuration or threshold
-changed. Do not tune on v4 or reuse it as an unseen test; follow-up selection needs
-development data and a newly source-reviewed held-out set. Never read any
+sanitized branch. The v9 candidate review and acceptance assessment are complete.
+Thirteen frozen gates passed; paper nDCG@10 failed at 0.7218 against 0.80. The
+development-selected cap16 profile and numerical limits remain frozen pending a
+development-only repair investigation. Raw questions, item-level results and origin
+ledgers remain private; do not tune on any spent held-out set. Never read any
 `*origins.json` file.
 
 The table is the single implementation status checklist.
@@ -90,7 +87,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized revision |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | v4 assessment complete; two frozen gates failed; phase acceptance open |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | v9 assessment complete; paper nDCG@10 gate failed; acceptance remains open |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -1279,21 +1276,16 @@ are retained as source-only/out-of-scope anchors. All 21 active held-out anchors
 to review candidates, with 34 anchor-to-candidate links. The [dataset card](../reference/phase-2-benchmark-dataset-card.md), [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md), and [held-out source audit](../research/phase-2-heldout-question-source-audit.md) record counts, hashes, modality coverage and limits. q20 remains partially unblinded and is excluded from tuning; q21 is excluded after held-out rank/score exposure. No held-out scores have informed configuration choices. All `*origins.json` files remain outside the review path.
 
 
-## P2-20 outcome — 2026-09-28
+## P2-20 outcome — assistant-reviewed 2026-09-28
 
-The v4 held-out run used the unchanged development-selected profile and acceptance
-limits. A pre-scoring coverage audit found that the initial paper review pool did not
-cover every result at the frozen top-50 quality depth. A shuffled supplement added
-99 papers from all five saved comparison profiles with profile, rank and score
-provenance removed. The completed common pool contains 348 reviewed papers and 418
-reviewed evidence candidates. All five unchanged saved rankings were rescored with
-100% judgment coverage; the original latency sample was retained.
+The v9 held-out assessment completed against the frozen profile and thresholds. It
+passed 13 of 14 gates; paper nDCG@10 was 0.7218 against the 0.80 minimum. Paper MRR
+and Recall@20, all evidence and source-coverage gates, and all operational gates
+passed. The public [acceptance report](../reference/phase-2-acceptance-report.md)
+contains aggregate comparisons and gate values only.
 
-Twelve of fourteen gates passed. Paper nDCG@10 was 0.7455 (<0.80), and warm p95 was
-1,533.96 ms (>1,500 ms). P2-20's assessment evidence is documented, but its Done
-condition requires the frozen gate to pass. Phase 2 is not accepted. Do not tune on
-v4 or reuse it as an unseen test. Any subsequent selection must use development data
-and a new source-reviewed, frozen held-out set. See the
-[acceptance report](../reference/phase-2-acceptance-report.md),
-[dataset card](../reference/phase-2-benchmark-dataset-card.md), and
-[source coverage audit](../research/phase-2-benchmark-source-coverage-audit.md).
+The spent v9 set is sealed from selection. The next action is a development-only
+investigation of paper-ranking performance. Preserve the frozen paper aggregation
+rule and numerical limits; use a new source-reviewed held-out set only after any
+profile repair is justified and frozen. P2-20 and Phase 2 remain open until every
+frozen gate passes.
