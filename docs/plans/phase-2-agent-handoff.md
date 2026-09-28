@@ -47,8 +47,10 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   not expose question text, judgments, candidate IDs, or passages in tracked files or
   ordinary logs. New judgments are assistant-reviewed and retain source uncertainty.
 - Preserve the locked numeric gates, strongest-passage paper aggregation, permissions,
-  and exact snapshot boundaries. Use synthetic or allowlisted development data for
-  implementation and tuning. R8 is assessment only after freeze.
+  and exact snapshot boundaries. The user approved one versioned exception: fresh R8
+  acceptance-v10 uses a 2,000 ms maximum warm p95; all other gates remain unchanged.
+  The 30-second request deadline is separate. Use synthetic or allowlisted development
+  data for implementation and tuning. R8 is assessment only after freeze.
 - The user delegated Phase 2 implementation and source review, authorized local commits
   and publication through the existing draft PR, and did not authorize merging it.
   Preserve unrelated workspace changes.

@@ -1,7 +1,7 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.23\
+**Version:** 1.24\
 **Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 reopened for R1–R8 completion after the historical v11 pass, with the earlier v3 failure retained; Phase 3 not started\
@@ -484,7 +484,8 @@ Approved 2026-09-26 after the planning interview. The
 [agent handoff](../plans/phase-2-agent-handoff.md),
 [ADR-0008](../adr/0008-phase2-retrieval-evaluation-boundaries.md),
 [ADR-0011](../adr/0011-explicit-search-result-semantics.md), the accepted
-[Phase 2 retrieval profile](../adr/0012-phase2-accepted-retrieval-profile.md), and the frozen
+[Phase 2 retrieval profile](../adr/0012-phase2-accepted-retrieval-profile.md),
+[ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md), and the frozen
 [benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) elaborate
 these rules.
 
@@ -547,7 +548,10 @@ these rules.
   simpler retrieval may win. External benchmarks are optional follow-up work.
 - **Operations:** target interactive single-user laptop operation, measure cold costs
   separately from warm median/p95 latency, and retain CPU operation and GPU-free CI.
-  Execution is bounded. Default failures are explicit; requested fallbacks identify
+  For the fresh R8 acceptance, the owner-approved v10 protocol sets maximum warm
+  p95 to 2,000 ms; the separately frozen per-request deadline remains 30 seconds.
+  Earlier assessments retain their original limits and outcomes. Execution is bounded.
+  Default failures are explicit; requested fallbacks identify
   the actual ranking used and count separately in evaluation. Scores are not support
   probabilities; optional rejection cutoffs require calibration for their profile.
 

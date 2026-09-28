@@ -17,8 +17,9 @@ assessment failed four frozen gates and is preserved in the
 passed historically, but predates the current R1–R7 implementation. R1–R7 local
 checks and hosted CI are complete on frozen code revision `586f83c` (run
 [36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)).
-One fresh, source-reviewed R8 assessment remains. Keep all spent held-out sets out of
-tuning.
+One fresh, source-reviewed R8 assessment remains. Its owner-approved v10 protocol
+uses a 2,000 ms maximum warm p95; the 30-second request deadline remains separate.
+Keep all spent held-out sets out of tuning.
 See Astra’s [completion plan](docs/plans/phase-2-improvement-plan.md), the current
 [handoff](docs/plans/phase-2-agent-handoff.md), the [historical v11 report](docs/reference/phase-2-acceptance-report.md), and the
 [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not

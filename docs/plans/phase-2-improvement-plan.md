@@ -14,6 +14,10 @@ snapshot boundaries. The immediate need is reliable acceptance and reproducibili
 not a larger model or another ranking-parameter search.
 
 The latest published assessment missed warm p95: **1,602.2 ms versus 1,500 ms**.
+That 1,500 ms value was the prior acceptance gate, not a request timeout. Per the
+owner’s 2026-09-28 direction, a fresh R8 assessment will use a 2,000 ms maximum warm
+p95; the independent per-request deadline remains 30 seconds. Historical results keep
+the limits against which they were originally scored.
 There is a concrete source of avoidable overhead: hybrid requests reconstruct the
 entire 44,277-chunk selection three times. Readiness checks, dense-hit hydration and
 fused-hit hydration each repeat that work. A measured diagnostic found an average
@@ -173,9 +177,11 @@ checkout with supplied local assets. No held-out information enters this loop.
    Leave global caches, schema changes and parallel model execution out of this first fix.
 
 **Done:** unchanged retrieval behavior on the development comparisons, integrity
-regressions pass, and repeated performance runs meet 1,500 ms. Aim for roughly
-1,200 ms as engineering headroom; this is **not** a replacement acceptance threshold.
-If the target is missed, use measured residual stage cost for the next bounded change.
+regressions pass, and repeated performance runs meet the then-current 1,500 ms
+engineering target. The R6 development runs met it. The fresh held-out R8 gate is the
+owner-approved 2,000 ms maximum in acceptance-v10; 1,200 ms remains optional engineering
+headroom, not an acceptance threshold. Use measured residual stage cost for any next
+bounded change.
 
 ### R4 — Bound embedding work after request cancellation
 

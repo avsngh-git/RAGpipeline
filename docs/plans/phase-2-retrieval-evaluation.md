@@ -1314,4 +1314,17 @@ operational gate without changing the selected profile or numeric limits. The se
 profile's warm p95 was 1,485.8 ms against the 1,500 ms limit; aggregate quality, source
 coverage, failure, fallback, cold-load and CUDA-allocation results are recorded in the
 [acceptance report](../reference/phase-2-acceptance-report.md). The v11 set is spent and
-sealed from tuning. P2-20 and Phase 2 are complete; Phase 3 has not started.
+sealed from tuning. P2-20 and Phase 2 were complete at that historical checkpoint; Phase 2 was later reopened for R1–R8.
+
+## Owner-directed warm-latency gate — assistant-reviewed 2026-09-28
+
+The v10 held-out result remains 1,602.2 ms against its original 1,500 ms gate. The
+owner has said 1.6 seconds is reasonable and approved a new 2,000 ms maximum warm-p95
+criterion for the fresh R8 assessment. The new
+[acceptance-v10 configuration](../../benchmarks/phase2/acceptance-v10.toml) binds
+`phase2-benchmark-v12`; its SHA-256 is
+`dd75323a5fa263dc29f91056c646e001756e76192cfa6025ec59148709a50377`. The existing
+30-second request deadline is a separate timeout, and every other acceptance gate is
+unchanged. Preserve historical outcomes and all spent held-out sets. See
+[ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md); the fresh R8 source review,
+freeze, and one-time assessment remain pending.
