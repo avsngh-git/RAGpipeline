@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.18\
+**Version:** 1.19\
 **Last updated:** 2026-09-28\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation complete; acceptance remains open after v9 missed the frozen paper nDCG@10 gate; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 implementation complete; acceptance remains open after v10 missed the frozen warm-latency gate; Phase 3 not started\
 
 ---
 
@@ -1202,15 +1202,16 @@ storage costs. Metadata-only and failed records are counted separately.
 
 ### Phase 2 — Retrieval and evaluation
 
-Status: P2-01 through P2-19 are complete. The fresh v9 held-out assessment passed
-13 of 14 frozen gates and missed paper nDCG@10 (0.7218 against 0.80). The selected
-cap16 profile was chosen from development-only evidence. The v9 set is spent and may
-not guide tuning. Acceptance remains open until every frozen quality and operational
-gate passes; further repair work must use development evidence and preserve the locked
-paper aggregation rule. See the [acceptance report](../reference/phase-2-acceptance-report.md) for
-sanitized aggregate outcomes. Question identities, candidate text, per-family
-results and raw rankings remain private. Spent held-out sets are not used for further
-selection.
+Status: P2-01 through P2-19 implementation is complete. The fresh v10 held-out
+assessment passed 14 of 15 frozen gates and missed warm p95 (1,602 ms against the
+1,500 ms ceiling). The selected MiniLM-over-Hybrid-E5 profile and its rank settings
+were chosen from development-only evidence. The v10 set is spent and may not guide
+tuning. Acceptance remains open until every frozen quality and operational gate
+passes; further repair work must use development evidence and preserve the locked
+paper aggregation rule and numeric limits. See the
+[acceptance report](../reference/phase-2-acceptance-report.md) for sanitized aggregate
+outcomes. Question identities, candidate text, per-family results and raw rankings
+remain private. Spent held-out sets are not used for further selection.
 
 Deliver:
 

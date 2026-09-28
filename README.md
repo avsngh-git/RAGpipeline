@@ -11,10 +11,10 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 implementation is complete; acceptance remains open.** The fresh v9
-held-out assessment passed 13 of 14 frozen gates and missed paper nDCG@10. The v9
-set is spent; no tuning may use its item-level results. Question identities, candidate
-text and raw results remain private. See the [held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
+**Phase 2 implementation is complete; acceptance remains open.** The fresh v10
+held-out assessment passed 14 of 15 frozen gates; warm p95 was 1,602 ms against the
+1,500 ms ceiling. The v10 set is spent and cannot guide tuning. Question identities,
+candidate text and raw results remain private. See the [held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
 [detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
 [agent handoff](docs/plans/phase-2-agent-handoff.md), and
 [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). New source

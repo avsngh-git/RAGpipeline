@@ -1,12 +1,14 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-28. P2-01–P2-19 and hosted CI are complete. The v9 P2-20 assessment passed 13/14 gates and missed paper nDCG@10. Phase 2 acceptance remains open.
+Updated: 2026-09-28. P2-01–P2-19 implementation is complete. The v10 P2-20
+assessment passed 14/15 gates and missed warm p95. Local verification passes; hosted
+CI for the current publication revision is pending. Phase 2 acceptance remains open.
 
 ## Start here
 
 1. Follow AGENTS.md and read the authoritative source of truth in full.
 2. Read the [roadmap](phase-2-retrieval-evaluation.md) and the
-   [held-out acceptance report](../reference/phase-2-acceptance-report.md). The v9
+   [held-out acceptance report](../reference/phase-2-acceptance-report.md). The v10
    held-out set is spent and cannot guide tuning or be reused as an unseen test. Use
    development-only evidence for any repair; any later acceptance run needs a fresh
    source-reviewed set.
@@ -61,10 +63,9 @@ existing worktree and publication workflow.
   and migrations 013/014. They provide versioned indexing, query embeddings,
   finalization checks and separate extraction/chunk checkpoints. Verify applied
   schema before querying with newer code; tests use isolated services.
-- Existing query_snapshot handles snapshot filtering; richer filters, lexical
-  search, fusion, reranking, evaluation and the new API remain Phase 2 work.
-- Existing draft preview is not the finalized evidence service. The API currently
-  exposes health/readiness only. New routes call shared services.
+- P2-01–P2-19 delivered snapshot-bound lexical, dense, hybrid and reranked search,
+  filters, paper/evidence APIs, citations and local rebuild/operations workflows.
+  P2-20 acceptance remains open after the v10 warm-latency gate miss.
 - Model shortlist and hardware memory figures are not feasibility proof. Remeasure
   current resources. Keep synthetic CPU CI independent of model downloads.
 - JSON is broadly ignored. Use deliberately tracked sanitized config/fixture paths;
@@ -72,20 +73,20 @@ existing worktree and publication workflow.
 
 ## Phase 2 active checkpoint
 
-P2-01–P2-19 and hosted CI are complete. The v9 benchmark has ten families; all 339
-paper and 496 evidence candidates were assistant-reviewed. Nine direct source anchors
-have nine direct pooled-candidate links. The held-out run passed 13/14 gates and failed
-paper nDCG@10. The sanitized [dataset card](../reference/phase-2-benchmark-dataset-card.md),
+The v10 benchmark has ten families; all 231 paper and 328 evidence candidates were
+assistant-reviewed. Nine direct source anchors have ten direct pooled-candidate links.
+The held-out run passed 14/15 gates and failed warm p95 at 1,602 ms against 1,500 ms.
+The sanitized [dataset card](../reference/phase-2-benchmark-dataset-card.md),
 [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md) and
 [acceptance report](../reference/phase-2-acceptance-report.md) contain aggregate
 results only.
 
-The v9 set and earlier assessment sets are spent. Their questions, rankings, candidate
-origins and per-family results remain private and cannot guide profile selection. The
-next work is a development-only investigation of the paper ranking gate, preserving
-the locked strongest-passage aggregation rule and numerical limits. Never read any
-`*origins.json` file. Continue to mark new judgments assistant-reviewed and preserve
-source-check uncertainty and sampling limits.
+The v10 set and earlier assessment sets are spent. Their questions, rankings, candidate
+origins and per-family results remain private and cannot guide profile selection. Any
+repair must use development-only evidence, preserve the locked strongest-passage
+paper aggregation rule and numeric limits, and be assessed on a fresh source-reviewed
+held-out set. Never read any `*origins.json` file. Continue to mark new judgments
+assistant-reviewed and preserve source-check uncertainty and sampling limits.
 
 ## Progress and stop rules
 
@@ -715,14 +716,20 @@ accepted Phase 1 snapshot and its separately identified filter-ready search inde
 
 Earlier held-out assessments, including v9, are spent. Their sanitized aggregate
 history is kept in the [acceptance report](../reference/phase-2-acceptance-report.md);
-their questions, rankings and item-level results remain private. P2-20 remains open
-after v9 missed the paper nDCG@10 gate.
+their questions, rankings and item-level results remain private.
 
-## Current P2-20 outcome — assistant-reviewed 2026-09-28
+## Historical v9 P2-20 outcome — assistant-reviewed 2026-09-28
 
-The v9 candidate review and held-out run are complete. All 835 pooled candidates have
-assistant judgments; nine source anchors have nine direct candidate links. The selected
-cap16 profile passed 13 of 14 frozen gates; paper nDCG@10 was 0.7218 against the 0.80
-minimum. All other quality, source-coverage and operational gates passed. The v9 set
-is sealed from selection. The sanitized [acceptance report](../reference/phase-2-acceptance-report.md)
-contains aggregate results only. Phase 2 remains open until every frozen gate passes.
+The v9 result and its aggregate gate outcome remain documented in the acceptance
+report. The set is sealed from selection.
+
+## Current v10 P2-20 outcome — assistant-reviewed 2026-09-28
+
+All 559 pooled candidates received assistant judgments; nine direct source anchors
+have ten direct candidate links. The selected profile passed 14 of 15 frozen gates.
+Paper/evidence quality, source coverage, hard-failure, fallback, cold-load and memory
+gates passed. Warm p95 was 1,602 ms against the 1,500 ms maximum. The v10 set is
+sealed from selection. Local P2-19 checks passed: 424 unit/API/evaluation tests, 21
+isolated PostgreSQL/Qdrant integration tests, lint, formatting, mypy, `pip check`, and
+a Docker build/image smoke check. Hosted CI for the publication revision is pending.
+Phase 2 remains open until every frozen gate passes.

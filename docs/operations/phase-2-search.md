@@ -1,9 +1,10 @@
 # Phase 2 search operations
 
-**Status:** assistant-reviewed 2026-09-28. P2-01–P2-19 and hosted CI are complete.
-The v9 assessment passed 13/14 frozen gates and missed paper nDCG@10. The runtime
-uses the development-selected cap16 profile. Until all frozen gates pass, Phase 2
-remains unaccepted. See the
+**Status:** assistant-reviewed 2026-09-28. P2-01–P2-19 implementation is complete.
+The v10 assessment passed 14/15 frozen gates and missed warm p95 (1,602 ms versus a
+1,500 ms maximum). The runtime uses the development-selected cap16 profile. Local
+verification passes; hosted CI for the current publication revision is pending. Until
+all frozen gates pass, Phase 2 remains unaccepted. See the
 [acceptance report](../reference/phase-2-acceptance-report.md).
 
 ## Service boundary

@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-19 complete; the v9 P2-20 assessment passed 13/14 gates and missed paper nDCG@10; Phase 2 acceptance remains open.
+Status: approved 2026-09-26; P2-01–P2-19 implementation complete; the v10 P2-20 assessment passed 14/15 gates and missed warm p95; Phase 2 acceptance remains open.
 
 ## Start and authority
 
@@ -55,13 +55,12 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-19 implementation is complete and hosted P2-19 CI passed on the
-sanitized branch. The v9 candidate review and acceptance assessment are complete.
-Thirteen frozen gates passed; paper nDCG@10 failed at 0.7218 against 0.80. The
-development-selected cap16 profile and numerical limits remain frozen pending a
-development-only repair investigation. Raw questions, item-level results and origin
-ledgers remain private; do not tune on any spent held-out set. Never read any
-`*origins.json` file.
+P2-01–P2-19 implementation is complete. The v10 candidate review and acceptance
+assessment are complete: 14 frozen gates passed and the selected profile's warm p95
+failed at 1,602 ms against 1,500 ms. The selected profile and numerical limits remain
+frozen pending a development-only repair investigation. Raw questions, item-level
+results and origin ledgers remain private; do not tune on any spent held-out set.
+Never read any `*origins.json` file.
 
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
@@ -86,8 +85,8 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Complete |
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
-| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized revision |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | v9 assessment complete; paper nDCG@10 gate failed; acceptance remains open |
+| P2-19 | Full verification and hosted CI | P2-18 | Local checks complete; hosted CI pending for current publication revision |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | v10 assessment complete; warm p95 gate failed; acceptance remains open |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -1276,16 +1275,23 @@ are retained as source-only/out-of-scope anchors. All 21 active held-out anchors
 to review candidates, with 34 anchor-to-candidate links. The [dataset card](../reference/phase-2-benchmark-dataset-card.md), [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md), and [held-out source audit](../research/phase-2-heldout-question-source-audit.md) record counts, hashes, modality coverage and limits. q20 remains partially unblinded and is excluded from tuning; q21 is excluded after held-out rank/score exposure. No held-out scores have informed configuration choices. All `*origins.json` files remain outside the review path.
 
 
-## P2-20 outcome — assistant-reviewed 2026-09-28
+## Historical v9 P2-20 outcome — assistant-reviewed 2026-09-28
 
-The v9 held-out assessment completed against the frozen profile and thresholds. It
-passed 13 of 14 gates; paper nDCG@10 was 0.7218 against the 0.80 minimum. Paper MRR
-and Recall@20, all evidence and source-coverage gates, and all operational gates
-passed. The public [acceptance report](../reference/phase-2-acceptance-report.md)
-contains aggregate comparisons and gate values only.
+The v9 result and its gate outcome are retained in the aggregate
+[acceptance report](../reference/phase-2-acceptance-report.md). The v9 set is spent
+and sealed from selection.
 
-The spent v9 set is sealed from selection. The next action is a development-only
-investigation of paper-ranking performance. Preserve the frozen paper aggregation
-rule and numerical limits; use a new source-reviewed held-out set only after any
-profile repair is justified and frozen. P2-20 and Phase 2 remain open until every
-frozen gate passes.
+## Current v10 P2-20 outcome — assistant-reviewed 2026-09-28
+
+The v10 held-out assessment completed against the frozen profile and unchanged
+thresholds. It passed 14 of 15 gates; warm p95 was 1,602.2 ms against the 1,500 ms
+maximum. Every quality, source-coverage, hard-failure, fallback, cold-load and CUDA
+allocation gate passed. The sanitized [acceptance report](../reference/phase-2-acceptance-report.md)
+contains the profile aggregates, paired bootstrap intervals, category summaries,
+resource measurements and gate values.
+
+The v10 set is spent and sealed from selection. Do not inspect its item-level outcomes
+or change the profile or limits based on them. Any performance repair must be grounded
+in calibration/development evidence, preserve the locked paper aggregation rule and
+be assessed on a fresh source-reviewed held-out set. P2-20 and Phase 2 remain open
+until every frozen gate passes.
