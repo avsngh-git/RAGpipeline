@@ -198,3 +198,13 @@ score exists, and Phase 2 remains unaccepted.
   checkout's ignored `local-reference/phase2-runs/benchmark-v13-backup-20260929/`. That handoff
   scopes the remaining work: absence review, verification, question freeze, pooling, blind review,
   coverage top-up, freeze and CI. The owner must confirm before the single scored run.
+
+## Next session entry point — 2026-09-29
+
+Start from the private handoff `local-reference/phase2-runs/benchmark-v13/HANDOFF-phase2-after-v13.md`. It is backed
+up under the main checkout's ignored `local-reference/phase2-runs/benchmark-v13-backup-20260929/`. The next step is an
+owner decision between two options:
+- a development-only diagnosis, followed by at most one replacement set (ADR-0014 §9);
+- a gate revision through change control.
+
+Do not tune on v13 held-out item-level data.
