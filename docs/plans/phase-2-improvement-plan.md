@@ -18,10 +18,11 @@ its 1,500 ms acceptance gate**. That was a frozen aggregate acceptance threshold
 a per-request timeout. The owner said 1.6 seconds is reasonable and approved a 2,000 ms
 maximum warm p95 for R8; the separate per-request deadline remains 30 seconds. R8 v12
 later passed that latency gate at 894.349 ms, but failed six of 14 total gates. Phase 2
-remains open. The v12 set is sealed; use development data for fixes and a new
-source-reviewed held-out set for the next acceptance attempt. [ADR-0014](../adr/0014-phase2-acceptance-method.md)
-(owner-approved 2026-09-29) fixes that attempt as an enlarged v13 set (30 held-out
-families) with unchanged gates. Historical results keep the limits against which they
+remains open. The v12 set is sealed. [ADR-0014](../adr/0014-phase2-acceptance-method.md)
+(owner-approved 2026-09-29) fixed the next attempt as an enlarged v13 set (30 held-out
+families) with unchanged gates; it ran on 2026-09-29 and failed 10 of 14 gates (paper
+nDCG@10 and three evidence gates), so v13 is sealed. Next is a development-only
+diagnosis note; at most one replacement set remains. Historical results keep the limits against which they
 were originally scored.
 There is a concrete source of avoidable overhead: hybrid requests reconstruct the
 entire 44,277-chunk selection three times. Readiness checks, dense-hit hydration and
@@ -312,6 +313,9 @@ P2-19 has evidence for the actual revision intended for acceptance.
    acceptance runs (v13 and one replacement, which needs a validated material change or
    an explicit owner decision) are authorized; after a second failure the owner chooses
    via change control.
+   **Outcome (2026-09-29):** the v13 assessment failed 10/14 (paper nDCG@10; evidence
+   nDCG@10, direct MRR@10, judged Recall@20). v13 is sealed; the next step is a
+   development-only diagnosis note with no tuning on v13 item-level data.
 5. Mark Phase 2 accepted only when every frozen gate and implementation obligation
    passes. Then update the source of truth, roadmap, handoff, README, operations and
    decision records coherently, with Phase 3 inputs and known limitations.

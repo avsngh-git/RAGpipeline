@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; current status assistant-reviewed 2026-09-29. The earlier v3 assessment failed four frozen gates and v11 passed historically. The fresh R8 v12 assessment completed with 8/14 gates passing: warm p95 passed at 894.3 ms against the approved 2,000 ms limit, while six paper/evidence quality and source-coverage gates failed. Phase 2 remains open; the v12 set is sealed. [ADR-0014](../adr/0014-phase2-acceptance-method.md) (owner-approved 2026-09-29) fixes the next acceptance method: v13 enlarged to 30 held-out families. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values and next steps.
+Status: approved 2026-09-26; current status assistant-reviewed 2026-09-29. The earlier v3 assessment failed four frozen gates and v11 passed historically. The fresh R8 v12 assessment completed with 8/14 gates passing: warm p95 passed at 894.3 ms against the approved 2,000 ms limit, while six paper/evidence quality and source-coverage gates failed. Phase 2 remains open; the v12 set is sealed. The enlarged R8 v13 assessment ([ADR-0014](../adr/0014-phase2-acceptance-method.md), 30 held-out families) then failed, passing 10 of 14 gates (paper nDCG@10 and three evidence gates failed); v13 is sealed and a development-only diagnosis note is next. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values and next steps.
 
 ## Start and authority
 
@@ -58,9 +58,9 @@ and review work are delegated; ask only when a material decision exceeds this sc
 The original P2-01–P2-20 implementation is delivered. A fresh source-reviewed v11
 assessment passed historically. The later R8 v12 assessment passed 8/14 gates and
 failed six paper/evidence ranking and source-coverage gates; its warm-p95 gate passed.
-Phase 2 remains open. The v12 set is spent and cannot guide tuning. Use development
-data for repairs, then prepare the v13 source-reviewed held-out set of 30 families
-(floor 24) under ADR-0014, at most two acceptance runs in total. Current outcome and
+Phase 2 remains open. The v12 and v13 sets are spent and cannot guide tuning. R8 v13
+(30 families, ADR-0014) passed 10/14 gates. Next is a development-only diagnosis note;
+at most one replacement set remains authorized. Current outcome and
 frozen identities are in the [acceptance report](../reference/phase-2-acceptance-report.md),
 and the [agent handoff](phase-2-agent-handoff.md) records guardrails.
 Question text, source excerpts, candidate text, item-level results and origin ledgers
@@ -91,7 +91,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on frozen R1–R7 code revision `586f83c` ([run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)) |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | R8 v12 completed: 8/14 gates passed; six quality/source gates failed; Phase 2 remains open; v13 (30 held-out, ADR-0014) pending, at most two runs |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | R8 v13 completed 2026-09-29: FAIL, 10/14 gates passed (paper nDCG@10; evidence nDCG@10, direct MRR@10, judged Recall@20 failed); v13 sealed; Phase 2 remains open; development-only diagnosis next, at most one replacement set |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may

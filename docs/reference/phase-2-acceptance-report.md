@@ -1,12 +1,14 @@
 # Phase 2 held-out acceptance report
 
-**Current status — Phase 2 remains unaccepted after R8 v12 failed 6 of 14 gates.**
-The selected profile passed warm p95 at 894.3 ms against the owner-approved 2,000 ms
-limit. Six paper/evidence ranking and source-coverage gates failed. The v12 set is
-spent and sealed from tuning; fixes must use development data and a later fresh,
-source-reviewed held-out set (v13, 30 families, method per
-[ADR-0014](../adr/0014-phase2-acceptance-method.md); pending, no scores). The historical v11 pass predates the current
-implementation. Held-out questions, source excerpts, candidate text, item-level
+**Current status — Phase 2 remains unaccepted after R8 v13 failed 10 of 14 gates; v13
+is spent and sealed.** The selected profile passed warm p95 (885.7 ms against the
+2,000 ms limit) and the source-coverage, hard-failure, fallback, cold-load and CUDA
+gates, but failed paper nDCG@10 and three evidence gates (nDCG@10, direct MRR@10,
+judged Recall@20). v12 (6 of 14 failed) and all earlier held-out sets are also spent.
+Per [ADR-0014](../adr/0014-phase2-acceptance-method.md) point 9, the next step is a
+development-only diagnosis note; at most one replacement set remains, and a second
+failure goes to the owner via change control. The historical v11 pass predates the
+current implementation. Held-out questions, source excerpts, candidate text, item-level
 judgments, rankings and raw run records remain private. Phase 3 has not started.
 
 ## v11 decision and scope
@@ -355,8 +357,10 @@ All results are ranking measurements; no generated answer quality was tested.
 | v8 | 13/14 | Evidence direct MRR@10 |
 | v9 | 13/14 | Paper nDCG@10 |
 | v10 | 13/14 | Warm p95 |
+| v12 | 8/14 | Paper nDCG@10; evidence nDCG@10, direct MRR@10, judged Recall@20; source Recall@50; positive-family hit@10 |
+| v13 | 10/14 | Paper nDCG@10; evidence nDCG@10, direct MRR@10, judged Recall@20 |
 
-Earlier sets are also spent and cannot guide selection. Their item-level records remain
+Earlier sets, including v13, are also spent and cannot guide selection. Their item-level records remain
 private. The v10 profile, threshold and result identities are recorded above; raw
 artifacts are mode-restricted under ignored `local-reference/phase2-runs/`.
 
@@ -372,12 +376,12 @@ assessment subsequently missed its warm-latency gate, as recorded above.
 ## Current project status
 
 Historical v11 checkpoint: P2-20 passed with the selected profile and numeric limits
-unchanged. The later R8 v12 assessment is the current acceptance evidence: 8 of 14
-gates passed, including the 2,000 ms warm-p95 gate at 894.3 ms; six quality/source
-gates failed. P2-20 and Phase 2 remain open. The v12 set and every earlier held-out
-set are spent and sealed from tuning. Phase 3 has not started. Hosted CI passed on the
-R8 runner revision `506dd34646fea763758eddf1c91b932f08c4ef20` ([run
-36477359301](https://github.com/avsngh-git/RAGpipeline/actions/runs/36477359301)).
+unchanged. The later R8 v12 assessment passed 8 of 14 gates. The R8 v13 assessment
+(30 families, ADR-0014) is the current acceptance evidence: 10 of 14 gates passed,
+including warm p95 at 885.7 ms; paper nDCG@10 and three evidence gates failed. P2-20
+and Phase 2 remain open. v13 and every earlier held-out set are spent and sealed from
+tuning. Phase 3 has not started. Hosted CI passed on the v13 run commit `5ab0070`
+([run 36598523416](https://github.com/avsngh-git/RAGpipeline/actions/runs/36598523416)).
 
 ## R8 v12 result — assistant-reviewed 2026-09-28
 
@@ -442,17 +446,111 @@ source-review another held-out set before a new freeze and one-time assessment. 
 sample is purposive and directional; this ranking evaluation does not test generated
 answer quality.
 
-## v13 assessment — pending, method per ADR-0014
+## R8 v13 result — assistant-reviewed 2026-09-29
 
-No v13 held-out set has been frozen or scored; this section records the method only.
-Under [ADR-0014](../adr/0014-phase2-acceptance-method.md) (owner-approved 2026-09-29)
-the assessment uses `phase2-benchmark-v13` with 30 held-out families (floor 24) from
-[sampling plan v3](phase-2-benchmark-sampling-plan.md), the 14 unchanged gates in
-`acceptance-v13.toml`, a single run on a frozen dataset, and the unchanged selected
-profile and snapshot. Before freeze, judgment coverage must reach at least 95% judged
-in each profile's top 10 and 90% in its top 20, with no selected-profile family below
-80% at top 10; the coverage table will be published here. Gates are judged on point
-estimates; paired family-bootstrap 95% intervals (10,000 resamples, seed 20260930) and
-per-category results are reported beside them and never pass or fail a gate. A
-descriptive BM25 difficulty band is recorded before scoring. At most two acceptance
-runs are authorized (v13 and one replacement).
+**Result: FAIL, 10 of 14 gates passed.** The one-time frozen assessment used
+`phase2-benchmark-v13` (30 families) under [ADR-0014](../adr/0014-phase2-acceptance-method.md),
+with the unchanged selected profile
+`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`, the
+unchanged 14 gate thresholds and the accepted snapshot
+`4b11fab3-d4a5-4e7a-a58e-8654accf2c6c`. It ran on 2026-09-29 at commit `5ab0070`;
+hosted CI run [36598523416](https://github.com/avsngh-git/RAGpipeline/actions/runs/36598523416)
+passed on that commit. **v13 is spent and sealed from tuning. Phase 2 remains
+unaccepted.** Per ADR-0014 point 9, work returns to a development-only diagnosis note
+(aggregates only); at most one replacement set remains authorized, and a second failure
+goes to the owner through change control.
+
+### Frozen v13 identities
+
+| Field | Value |
+| --- | --- |
+| Freeze manifest SHA-256 | `bccc6310c83715d2125feae6334b3eff67e6d5ff30b51b0a8ab53c3e03b351fd` |
+| Held-out dataset SHA-256 | `b0f86851da70bd73a9d350ef2972e16e00cb153c394af4026cdede2a997071e8` |
+| Source-alignment SHA-256 | `c6ca4bd8b113456a1b697bacdf5e8db7a6e68a330e8f1a93a4d6d4b3b167169d` |
+| Private raw run record SHA-256 | `ac7778510e44bc8a706c441cc00bd6889e6da47d4a5c4c565e20111ce3a58819` |
+| Evaluated commit | `5ab0070` |
+
+The raw record, dataset, alignment and review files stay in the ignored private
+`local-reference/` directory and are not published.
+
+### Composition and review process
+
+The set has 30 families: 25 positive and 5 missing-evidence. Category membership
+overlaps: discovery 10, specific evidence 18, table result 16, filters 12,
+cross-paper comparison 5, missing evidence 5. There are 96 positive anchors: 84
+source-first builder anchors across 25 families and 12 pool-found label-2 anchors.
+The source alignment holds 135 table and 2,290 prose anchors, mostly derived label-0
+anchors that exist for coverage.
+
+Every builder anchor was verified against the PDF by a separate verifier. Blind
+reviewers judged pooled candidates without seeing profile or rank. Builder-anchor
+disagreements arose in 9 families and were resolved in favour of the twice-verified
+anchors (decision O11). Eleven cards were unmatchable (segmented or figure chunks).
+Eight reranker fallbacks occurred during pooling. All judgments are assistant-reviewed;
+no human verification is claimed.
+
+### Coverage pre-check
+
+Judged fraction of results at top 10 / top 20. Every profile's paper coverage was
+1.000 / 1.000. The per-family 80% rule was applied to both paper and evidence, and every
+selected-profile family reached 1.000 at top 10. The pre-check was met.
+
+| Profile | Evidence @10 / @20 |
+| --- | ---: |
+| BM25 | 0.998 / 0.996 |
+| Dense E5 | 0.989 / 0.993 |
+| Hybrid E5 | 1.000 / 0.995 |
+| Selected | 1.000 / 0.996 |
+| Fixed-window | 0.997 / 0.997 |
+
+### Selected-profile gates
+
+| Gate | Frozen limit | v13 aggregate | Result |
+| --- | ---: | ---: | --- |
+| Paper nDCG@10 | ≥ 0.80 | 0.6863 | **Fail** |
+| Paper direct MRR@10 | ≥ 0.70 | 0.7582 | Pass |
+| Paper judged Recall@20 | ≥ 0.90 | 1.0000 | Pass |
+| Evidence nDCG@10 | ≥ 0.45 | 0.2733 | **Fail** |
+| Evidence direct MRR@10 | ≥ 0.45 | 0.2831 | **Fail** |
+| Evidence judged Recall@20 | ≥ 0.60 | 0.3492 | **Fail** |
+| Source-anchor Recall@10 | ≥ 0.25 | 0.3854 | Pass |
+| Source-anchor Recall@50 | ≥ 0.35 | 0.3958 | Pass |
+| Positive families with a hit at @10 | ≥ 0.50 | 0.6800 | Pass |
+| Hard-failure fraction | ≤ 0.01 | 0.0000 | Pass |
+| Reranker-fallback fraction | ≤ 0.35 | 0.0667 | Pass |
+| Warm p95 | ≤ 2,000 ms | 885.7 ms | Pass |
+| Combined cold model load | ≤ 15,000 ms | 6,087.2 ms | Pass |
+| Summed CUDA allocation | ≤ 1 GiB | 224,311,296 bytes | Pass |
+
+### Profile comparison
+
+Descriptive only; it does not authorize profile selection or tuning from v13. The
+selected profile has 366 timing samples; each other profile has 122.
+
+| Profile | Paper nDCG@10 | Evidence nDCG@10 | Source Recall@10 / @50 | Warm p95 |
+| --- | ---: | ---: | ---: | ---: |
+| BM25 | 0.3873 | 0.2022 | 0.2604 / 0.2708 | 584.9 ms |
+| Dense E5 | 0.7474 | 0.2458 | 0.3854 / 0.3854 | 644.2 ms |
+| Hybrid E5 | 0.6889 | 0.2589 | 0.3333 / 0.3542 | 713.7 ms |
+| MiniLM-over-Hybrid (selected) | 0.6863 | 0.2733 | 0.3854 / 0.3958 | 885.7 ms |
+| Fixed-window Dense E5 | 0.7332 | 0.2224 | 0.3646 / 0.3646 | 393.0 ms |
+
+### Baseline context
+
+BM25 paper nDCG@10 (0.3873) and evidence nDCG@10 (0.2022) are both outside the
+descriptive reference bands (0.50–0.85 and 0.25–0.75), so the "set difficulty unusual"
+flag is set. This is descriptive and changes no gate.
+
+### Limitations and caveats
+
+- Bootstrap intervals and per-category rows exist in the private record but were not
+  extracted; they are withheld pending a sanitized extraction, and none are reported
+  here.
+- Freshness against the spent sets v3–v12 cannot be certified. Some anchor facts were
+  already named in the tracked v13 evidence map (ADR-0014 O3(c) caveat).
+- The O11 resolution favoured the twice-verified anchors in 9 families' disagreements;
+  no human verification is claimed.
+- The set is purposive and directional. It measures ranking and retrieval, not
+  generated-answer quality, and supports no whole-literature claim.
+- Paper and evidence gates failed while warm p95, cold load, CUDA memory, hard-failure
+  and fallback gates passed. Do not read item-level v13 data or tune on this result.

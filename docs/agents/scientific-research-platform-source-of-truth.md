@@ -4,7 +4,7 @@
 **Version:** 1.27\
 **Last updated:** 2026-09-29\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v12 failed 6 of 14 acceptance gates; acceptance method fixed by ADR-0014 (30-family v13 pending); Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v13 failed 10 of 14 acceptance gates (v13 sealed; development-only diagnosis next); acceptance method fixed by ADR-0014; Phase 3 not started\
 
 ---
 
@@ -564,13 +564,12 @@ these rules.
 
 The plan authorized the Phase 2 decisions and delegated implementation, calibration,
 benchmark preparation and source review. The v11 assessment was a historical pass;
-R8 v12 later completed and failed six of 14 acceptance gates. Phase 2 remains open.
-The v12 set and all previous held-out sets are spent and cannot guide tuning. Repairs
-must use development data, followed by a newly source-reviewed held-out set.
-ADR-0014 fixes the acceptance method for the next attempt: the 14 gate thresholds,
-frozen profile and snapshot are unchanged; at most two acceptance runs are authorized
-(enlarged v13 and one replacement), and after a second failure the owner decides via
-change control. Routine
+R8 v12 later failed six of 14 acceptance gates, and the enlarged v13 assessment
+(ADR-0014) failed four of 14 (passed 10). Phase 2 remains open. v13 and all previous
+held-out sets are spent and cannot guide tuning. Under ADR-0014 point 9 the next step
+is a development-only diagnosis note (aggregates only); at most one replacement set
+remains authorized, and after a second failure the owner decides via change control.
+The 14 gate thresholds, frozen profile and snapshot are unchanged. Routine
 Phase 2 decisions remain within these boundaries. Material deviations follow section 1
 change control.
 
@@ -1232,11 +1231,14 @@ limit, while six paper/evidence ranking and source-coverage gates failed. The de
 frozen identities. Hosted CI passed on R8 runner revision
 `506dd34646fea763758eddf1c91b932f08c4ef20` (run
 [36477359301](https://github.com/avsngh-git/RAGpipeline/actions/runs/36477359301)).
-Phase 2 remains open. R8 v12 and all earlier held-out sets are spent and may not guide
-tuning; use development data and then a new source-reviewed held-out set. Under
-[ADR-0014](../adr/0014-phase2-acceptance-method.md) the next attempt is the unscored
-v13 set enlarged to 30 held-out families (floor 24) with a judgment-coverage
-pre-check; thresholds are unchanged and at most two acceptance runs are authorized.
+The enlarged R8 v13 assessment (30 families, ADR-0014) then completed on 2026-09-29
+with 10 of 14 gates passing (warm p95 885.7 ms); paper nDCG@10 and evidence nDCG@10,
+direct MRR@10 and judged Recall@20 failed. Phase 2 remains open. v13, v12 and all
+earlier held-out sets are spent and may not guide tuning. Per
+[ADR-0014](../adr/0014-phase2-acceptance-method.md) point 9 the next step is a
+development-only diagnosis note using aggregates only; at most one replacement set
+remains authorized (needing a validated material change or an explicit owner decision),
+and a second failure goes to the owner via change control.
 Phase 3 has not started.
 
 Deliver:

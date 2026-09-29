@@ -1,11 +1,14 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-29. The earlier v3 assessment failed four frozen gates and v11
-passed historically. The one-time R8 v12 assessment has now completed and failed six
-of 14 gates; the selected profile passed warm p95 at 894.3 ms against the 2,000 ms
-gate. Phase 2 remains open, and v12 is spent and sealed from tuning. The owner
-approved [ADR-0014](../adr/0014-phase2-acceptance-method.md) on 2026-09-29: v13 is
-enlarged to 30 held-out families with unchanged gates. Follow the
+Updated: 2026-09-29. **Current status: the one-time R8 v13 assessment (30 families,
+[ADR-0014](../adr/0014-phase2-acceptance-method.md)) failed 10 of 14 gates; v13 is
+spent and sealed and Phase 2 remains unaccepted.** Paper nDCG@10 and three evidence
+gates failed; warm p95 passed at 885.7 ms. **Next action: a development-only diagnosis
+note (aggregates only), with no tuning on v13 item-level data; at most one replacement
+set remains, and a second failure goes to the owner via change control.** The earlier
+v3 assessment failed four gates, v11 passed historically, and v12 failed six of 14;
+all are spent. Older sections below describe the pre-freeze v13 state and are
+historical. Follow the
 [completion plan](phase-2-improvement-plan.md), the authoritative
 [source of truth](../agents/scientific-research-platform-source-of-truth.md), the
 [roadmap](phase-2-retrieval-evaluation.md), and the
@@ -82,6 +85,11 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   final freeze, and one-time v13 acceptance run remain open; no held-out scores have been produced.
 
 ## Current continuation handoff — assistant-reviewed 2026-09-29
+
+**Superseded by the v13 result above:** the frozen v13 run happened on commit `5ab0070`
+(hosted CI run 36598523416 passed) and failed 10/14 gates; see the
+[acceptance report](../reference/phase-2-acceptance-report.md). Do not read private v13
+item-level data, or `*origins.json`, to diagnose. The actions below are historical.
 
 ### Verified current state
 
@@ -169,10 +177,10 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
 1. Preserve the R7 asset inventory and confirm the exact frozen revision in hosted CI;
    do not delete accepted indexes or referenced variants.
 2. Freeze implementation, profile, scoring/report versions and timing procedure.
-3. R8 v12 failed six gates, so Phase 2 stays open. Complete source-first review of the
-   30-family v13 set (ADR-0014), pass the judgment-coverage pre-check, freeze its
-   dataset/alignment/configuration, then assess it once. If a gate fails, return fixes
-   to development; at most one replacement set is authorized.
+3. R8 v12 and the enlarged v13 assessment failed (v13: 10/14), so Phase 2 stays open.
+   v13 is sealed. Write the development-only diagnosis note (aggregates only); at most
+   one replacement set is authorized, needing a validated material change or an
+   explicit owner decision.
 4. Reconcile source of truth, roadmap, handoff, README, operations, and acceptance report.
 5. Commit and publish the exact revision; verify hosted CI. Do not merge the draft PR.
 

@@ -11,14 +11,13 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 remains unaccepted after the R8 v12 assessment failed 6 of 14 gates.**
-The selected profile passed the owner-approved 2,000 ms warm-p95 gate at 894.3 ms;
-paper/evidence ranking and source-coverage gates remain open. The v12 set is spent and
-sealed from tuning. Work on development data, then assess a newly source-reviewed
-v13 held-out set of 30 families under the owner-approved
-[ADR-0014](docs/adr/0014-phase2-acceptance-method.md) method (gates unchanged, at most
-two acceptance runs); v13 is pending and unscored. The 30-second request deadline is a
-separate timeout. See the [current acceptance report](docs/reference/phase-2-acceptance-report.md),
+**Phase 2 remains unaccepted after the R8 v13 assessment failed 4 of 14 gates (10
+passed).** The selected profile passed the 2,000 ms warm-p95 gate at 885.7 ms, but
+paper nDCG@10 and three evidence gates failed. v13 (30 families) and v12 are spent and
+sealed from tuning. Next is a development-only diagnosis note; under the
+owner-approved [ADR-0014](docs/adr/0014-phase2-acceptance-method.md) method at most
+one replacement set remains, and a second failure goes to the owner. The 30-second
+request deadline is a separate timeout. See the [current acceptance report](docs/reference/phase-2-acceptance-report.md),
 Astra’s [completion plan](docs/plans/phase-2-improvement-plan.md), the
 [handoff](docs/plans/phase-2-agent-handoff.md), and the
 [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not
