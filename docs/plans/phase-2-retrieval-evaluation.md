@@ -1372,3 +1372,20 @@ v12 item-level result informed the review. Phase 2 remains open with six v12
 quality/source gates failed; use broader development evidence before a fresh,
 source-reviewed held-out assessment. Details are in the
 [development report](../research/phase-2-development-report.md).
+
+## V13 acceptance preparation — assistant-reviewed 2026-09-29
+
+The v13 plan's publication-year filter option now has exact accepted-snapshot counts:
+29 of the 100 papers fall in 2020–2021, including seven of the 13 screened source
+documents. The inclusive filter contract and counts are recorded in the
+[v13 source evidence map](../research/phase-2-v13-heldout-source-evidence-map.md).
+A separate [v13 acceptance config](../../benchmarks/phase2/acceptance-v13.toml) keeps
+the v10 held-out and operational thresholds while binding the new dataset ID. Its
+companion runner preserves v12 scoring/timing behavior and checks a new freeze manifest;
+the historical v12 runner and freeze remain unchanged. Hosted CI passed on commit
+`557277a` (run [36554779665](https://github.com/avsngh-git/RAGpipeline/actions/runs/36554779665)).
+
+Missing-evidence scan coverage and support adjudication, all ten family reviews,
+dataset/alignment freeze, and the one-time v13 acceptance run are still pending. No v13 held-out scores have been
+produced. Phase 2 remains open until the fresh set is source-reviewed, frozen, and every
+acceptance gate passes.

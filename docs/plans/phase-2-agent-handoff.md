@@ -63,6 +63,15 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   contextual near-miss material but no direct source-positive passage. This sample
   does not establish acceptance or justify changing frozen v9 / RRF k=10. The sanitized
   summary is in the [development report](../research/phase-2-development-report.md).
+- V13 acceptance preparation verified inclusive publication-year filter counts against
+  the accepted 100-paper snapshot: 29 papers fall in 2020–2021, including seven screened
+  source documents. The [source map](../research/phase-2-v13-heldout-source-evidence-map.md)
+  records the supporting metadata counts. A separate v13 gate config and acceptance runner
+  preserve the v10 thresholds and v12 scoring/timing procedure; v12 code and freeze remain
+  unchanged. Hosted CI passed for commit `557277a` (run
+  [36554779665](https://github.com/avsngh-git/RAGpipeline/actions/runs/36554779665)). The
+  missing-evidence scan adjudication, ten source-reviewed family records, final freeze, and one-time
+  v13 acceptance run remain open; no held-out scores have been produced.
 
 ## Guardrails and operating constraints
 
@@ -87,7 +96,8 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
 1. Preserve the R7 asset inventory and confirm the exact frozen revision in hosted CI;
    do not delete accepted indexes or referenced variants.
 2. Freeze implementation, profile, scoring/report versions and timing procedure.
-3. R8 v12 failed six gates, so Phase 2 stays open. Return fixes to development data;
-   prepare and source-review a new held-out set before a later one-time assessment.
+3. R8 v12 failed six gates, so Phase 2 stays open. Complete source-first review of the
+   fresh v13 set, freeze its dataset/alignment/configuration, then assess it once. If a
+   gate fails, return fixes to development and reserve a later fresh set.
 4. Reconcile source of truth, roadmap, handoff, README, operations, and acceptance report.
 5. Commit and publish the exact revision; verify hosted CI. Do not merge the draft PR.
