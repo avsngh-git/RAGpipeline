@@ -208,3 +208,11 @@ owner decision between two options:
 - a gate revision through change control.
 
 Do not tune on v13 held-out item-level data.
+
+## Path A outcome — 2026-09-29
+
+The owner chose development-only diagnosis (Path A), with a stop rule: build a replacement set only if a development
+variant clears the gates. The [development diagnosis](../research/phase-2-development-diagnosis-post-v13.md) rebuilt
+the 21 development families with v13 pooling and judging. Selected paper nDCG@10 is 0.717 on all 21 and 0.685 on
+q11–q19. The best of ten offline paper-ranking variants reached about 0.79. No variant clears the gates, so no v14 is
+built. Next: the owner decides on [ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md), which is proposed.
