@@ -5,6 +5,10 @@ This file preserves the detailed phase narrative that was moved out of the conci
 statements describe the v11 checkpoint and are historical; use the current handoff,
 roadmap, and acceptance report for present status.
 
+**Note, 2026-09-29:** this file's statement that Phase 2 was accepted on v11 was
+superseded. Later code changes invalidated the v11 evidence, the R8 v12 assessment
+failed 6 of 14 gates, and Phase 2 remains open under [ADR-0014](../adr/0014-phase2-acceptance-method.md).
+
 ---
 
 # Phase 2 — Agent handoff

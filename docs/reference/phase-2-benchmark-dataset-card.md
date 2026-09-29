@@ -1,5 +1,12 @@
 # Phase 2 benchmark dataset card
 
+**Current status:** this card documents the spent v10 set below. The next acceptance
+set, `phase2-benchmark-v13`, is pending: under
+[ADR-0014](../adr/0014-phase2-acceptance-method.md) it has a target of 30 held-out
+families (floor 24), composition floors and a judgment-coverage pre-check defined in
+the [v3 sampling plan](phase-2-benchmark-sampling-plan.md). It has no frozen records,
+judgments or scores, and this card will be updated when it is frozen.
+
 | Field | Value |
 | --- | --- |
 | Dataset | `phase2-benchmark-v10` |
@@ -61,7 +68,8 @@ grant access to those artifacts.
 
 ## Known limitations
 
-- Ten families provide directional evidence, not precise estimates of small effects.
+- Ten families provide directional evidence, not precise estimates of small effects;
+  ADR-0014 enlarges the next acceptance set to 30 for that reason.
 - The set covers one fixed 100-paper snapshot and cannot support claims about the
   whole literature.
 - Complete judgment coverage applies to the pooled candidates only.

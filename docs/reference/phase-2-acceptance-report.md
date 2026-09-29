@@ -4,7 +4,8 @@
 The selected profile passed warm p95 at 894.3 ms against the owner-approved 2,000 ms
 limit. Six paper/evidence ranking and source-coverage gates failed. The v12 set is
 spent and sealed from tuning; fixes must use development data and a later fresh,
-source-reviewed held-out set. The historical v11 pass predates the current
+source-reviewed held-out set (v13, 30 families, method per
+[ADR-0014](../adr/0014-phase2-acceptance-method.md); pending, no scores). The historical v11 pass predates the current
 implementation. Held-out questions, source excerpts, candidate text, item-level
 judgments, rankings and raw run records remain private. Phase 3 has not started.
 
@@ -440,3 +441,18 @@ aggregate comparison. Make further changes using development data, then prepare 
 source-review another held-out set before a new freeze and one-time assessment. The
 sample is purposive and directional; this ranking evaluation does not test generated
 answer quality.
+
+## v13 assessment — pending, method per ADR-0014
+
+No v13 held-out set has been frozen or scored; this section records the method only.
+Under [ADR-0014](../adr/0014-phase2-acceptance-method.md) (owner-approved 2026-09-29)
+the assessment uses `phase2-benchmark-v13` with 30 held-out families (floor 24) from
+[sampling plan v3](phase-2-benchmark-sampling-plan.md), the 14 unchanged gates in
+`acceptance-v13.toml`, a single run on a frozen dataset, and the unchanged selected
+profile and snapshot. Before freeze, judgment coverage must reach at least 95% judged
+in each profile's top 10 and 90% in its top 20, with no selected-profile family below
+80% at top 10; the coverage table will be published here. Gates are judged on point
+estimates; paired family-bootstrap 95% intervals (10,000 resamples, seed 20260930) and
+per-category results are reported beside them and never pass or fail a gate. A
+descriptive BM25 difficulty band is recorded before scoring. At most two acceptance
+runs are authorized (v13 and one replacement).

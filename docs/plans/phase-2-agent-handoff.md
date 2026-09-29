@@ -3,7 +3,9 @@
 Updated: 2026-09-29. The earlier v3 assessment failed four frozen gates and v11
 passed historically. The one-time R8 v12 assessment has now completed and failed six
 of 14 gates; the selected profile passed warm p95 at 894.3 ms against the 2,000 ms
-gate. Phase 2 remains open, and v12 is spent and sealed from tuning. Follow the
+gate. Phase 2 remains open, and v12 is spent and sealed from tuning. The owner
+approved [ADR-0014](../adr/0014-phase2-acceptance-method.md) on 2026-09-29: v13 is
+enlarged to 30 held-out families with unchanged gates. Follow the
 [completion plan](phase-2-improvement-plan.md), the authoritative
 [source of truth](../agents/scientific-research-platform-source-of-truth.md), the
 [roadmap](phase-2-retrieval-evaluation.md), and the
@@ -76,8 +78,8 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   thresholds and v12 scoring/timing procedure; v12 code and freeze remain unchanged.
   Hosted CI passed for commit `557277a` (run
   [36554779665](https://github.com/avsngh-git/RAGpipeline/actions/runs/36554779665)). The
-  source adjudication, ten source-reviewed family records, final freeze, and one-time
-  v13 acceptance run remain open; no held-out scores have been produced.
+  source adjudication, source-reviewed family records (now 30 held-out under ADR-0014),
+  final freeze, and one-time v13 acceptance run remain open; no held-out scores have been produced.
 
 ## Current continuation handoff — assistant-reviewed 2026-09-29
 
@@ -121,16 +123,27 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
 2. If a direct source-positive is found for the development-only unsupported family,
    correct its source alignment and development labels, then rescore the development
    profiles. If no hit is direct, record the bounded scope and source-review limits.
-3. Build the fresh ten-family held-out set only after source screening. Preserve the
-   v2 plan floors: at least three families in each of six categories, two direct-positive
-   prose families, three table-result families including two numeric-table families,
-   and two negative/mixed findings. If evidence cannot satisfy a floor, revise and
-   document the sampling plan before held-out scoring; do not lower floors silently.
-4. Freeze dataset, source alignment, profile/configuration, code, scorer, and timing
-   procedure. Run the v13 runner in validation-only mode first, then score the frozen
-   held-out set once. Do not tune against that result; a failed gate requires a later
-   fresh set.
-5. Update the acceptance report, roadmap, operations guidance, README, and source of
+3. Build the fresh held-out set of 30 families (floor 24, recorded with the failing
+   category before pooling) only after source screening, per
+   [ADR-0014](../adr/0014-phase2-acceptance-method.md) and
+   [sampling plan v3](../reference/phase-2-benchmark-sampling-plan.md): at least 5
+   families in each of discovery, specific evidence, table result, comparison and
+   filters; at least 4 missing-evidence; 5 direct-positive prose; 8 table-result with 5
+   numeric-table; 5 negative/mixed; 24 positive families; 20 direct anchors across 15
+   positive families; at most two families per anchor paper. About 22 families need new
+   screening. Do not lower floors silently; below 24 needs a further ADR.
+4. Pool every declared profile (top 20 papers, top 50 evidence) and pass the
+   coverage-only pre-check (at least 95% judged in each top 10, 90% in top 20, no
+   selected-profile family below 80% at top 10) by blind source review before freeze.
+   Freeze dataset, source alignment, profile/configuration, code, scorer, timing
+   procedure, coverage table and the descriptive BM25 difficulty band
+   (`r8-v13-freeze-v1.toml`). Run the v13 runner in validation-only mode first, then
+   score the frozen held-out set once, on point estimates with bootstrap intervals
+   reported. Do not tune against that result.
+5. A failed gate seals v13: diagnose on development data with an aggregate-only written
+   note before any new set; a replacement needs a validated material change or an
+   explicit owner decision. At most two acceptance runs are authorized (v13 and one
+   replacement); after a second failure the owner decides via change control. Update the acceptance report, roadmap, operations guidance, README, and source of
    truth as required, then commit/push the verified revision and check hosted CI.
 
 ## Guardrails and operating constraints
@@ -157,7 +170,8 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
    do not delete accepted indexes or referenced variants.
 2. Freeze implementation, profile, scoring/report versions and timing procedure.
 3. R8 v12 failed six gates, so Phase 2 stays open. Complete source-first review of the
-   fresh v13 set, freeze its dataset/alignment/configuration, then assess it once. If a
-   gate fails, return fixes to development and reserve a later fresh set.
+   30-family v13 set (ADR-0014), pass the judgment-coverage pre-check, freeze its
+   dataset/alignment/configuration, then assess it once. If a gate fails, return fixes
+   to development; at most one replacement set is authorized.
 4. Reconcile source of truth, roadmap, handoff, README, operations, and acceptance report.
 5. Commit and publish the exact revision; verify hosted CI. Do not merge the draft PR.

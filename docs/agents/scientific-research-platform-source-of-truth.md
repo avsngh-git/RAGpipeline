@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.26\
+**Version:** 1.27\
 **Last updated:** 2026-09-29\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v12 failed 6 of 14 acceptance gates; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v12 failed 6 of 14 acceptance gates; acceptance method fixed by ADR-0014 (30-family v13 pending); Phase 3 not started\
 
 ---
 
@@ -485,7 +485,8 @@ Approved 2026-09-26 after the planning interview. The
 [ADR-0008](../adr/0008-phase2-retrieval-evaluation-boundaries.md),
 [ADR-0011](../adr/0011-explicit-search-result-semantics.md), the accepted
 [Phase 2 retrieval profile](../adr/0012-phase2-accepted-retrieval-profile.md),
-[ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md), and the frozen
+[ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md),
+[ADR-0014](../adr/0014-phase2-acceptance-method.md), and the
 [benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) elaborate
 these rules.
 
@@ -527,13 +528,16 @@ these rules.
 - **Benchmark and review:** cover discovery, specific evidence, tables, cross-paper
   comparison, filters and missing evidence. Ten calibration families were reviewed
   on 2026-09-26, with about 32 minutes of source-review effort. The current
-  [phase2-benchmark-sampling-v2 plan](../reference/phase-2-benchmark-sampling-plan.md)
-  uses 31 families (21 development, 10 held-out), keeps the ten calibration families in
-  development, and sets category, prose/table/negative-finding, candidate-pool and 13-hour
-  review-workload bounds. It adds two source-reviewed development families to repair the
-  eligible-roster and category shortfalls; the ten held-out families will be constructed
-  afresh. The v1 size decision is historical. Ten held-out families support directional
-  paired conclusions only. The user has delegated all Phase 2
+  [phase2-benchmark-sampling-v3 plan](../reference/phase-2-benchmark-sampling-plan.md)
+  ([ADR-0014](../adr/0014-phase2-acceptance-method.md), approved 2026-09-29) targets
+  30 held-out families (floor 24, recorded before pooling) plus the 21 development
+  families, keeps the ten calibration families in development, and sets category
+  (at least 5 each; missing evidence at least 4), prose/table/negative-finding,
+  positive-anchor, two-families-per-paper, candidate-pool and review-workload bounds.
+  The held-out families will be constructed afresh; v1 and v2 size decisions are
+  historical. Held-out results are judged on point estimates against the unchanged
+  gates, with paired bootstrap intervals reported beside them; a 30-family sample still
+  supports directional conclusions with explicit uncertainty. The user has delegated all Phase 2
   implementation, calibration and source review for now. New labels are
   assistant-reviewed with source checks and uncertainty, never described as
   human-verified by inheriting Phase 1 annotations.
@@ -562,7 +566,11 @@ The plan authorized the Phase 2 decisions and delegated implementation, calibrat
 benchmark preparation and source review. The v11 assessment was a historical pass;
 R8 v12 later completed and failed six of 14 acceptance gates. Phase 2 remains open.
 The v12 set and all previous held-out sets are spent and cannot guide tuning. Repairs
-must use development data, followed by a newly source-reviewed held-out set. Routine
+must use development data, followed by a newly source-reviewed held-out set.
+ADR-0014 fixes the acceptance method for the next attempt: the 14 gate thresholds,
+frozen profile and snapshot are unchanged; at most two acceptance runs are authorized
+(enlarged v13 and one replacement), and after a second failure the owner decides via
+change control. Routine
 Phase 2 decisions remain within these boundaries. Material deviations follow section 1
 change control.
 
@@ -1225,8 +1233,11 @@ frozen identities. Hosted CI passed on R8 runner revision
 `506dd34646fea763758eddf1c91b932f08c4ef20` (run
 [36477359301](https://github.com/avsngh-git/RAGpipeline/actions/runs/36477359301)).
 Phase 2 remains open. R8 v12 and all earlier held-out sets are spent and may not guide
-tuning; use development data and then a new source-reviewed held-out set. Phase 3 has
-not started.
+tuning; use development data and then a new source-reviewed held-out set. Under
+[ADR-0014](../adr/0014-phase2-acceptance-method.md) the next attempt is the unscored
+v13 set enlarged to 30 held-out families (floor 24) with a judgment-coverage
+pre-check; thresholds are unchanged and at most two acceptance runs are authorized.
+Phase 3 has not started.
 
 Deliver:
 
@@ -1237,7 +1248,8 @@ Deliver:
 
 Gate: private local paper/evidence services pass correctness, permission, filtering,
 rebuild and failure checks, and the frozen held-out benchmark passes the useful-quality
-and operational limits selected using development data. Report the limits and their
+and operational limits selected using development data (30 held-out families under
+ADR-0014, judged on point estimates with intervals reported). Report the limits and their
 aggregate results without exposing private questions, item-level evidence or rankings.
 Phase 3 remains separate and starts after Phase 2 acceptance.
 
@@ -1355,7 +1367,8 @@ Resolve these progressively; do not decide all of them before evidence is availa
 10. Production hosting target and cost envelope.
 11. Thin UI choice.
 12. Phase 2 retrieval and runtime thresholds are frozen in the accepted benchmark
-    profile; thresholds for later answer-generation and end-to-end evaluations remain
+    profile and are unchanged by ADR-0014, which sets the acceptance method (30
+    held-out families, coverage pre-check, at most two runs); thresholds for later answer-generation and end-to-end evaluations remain
     open.
 13. Exact remote MCP SDK/transport version at implementation time.
 14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was

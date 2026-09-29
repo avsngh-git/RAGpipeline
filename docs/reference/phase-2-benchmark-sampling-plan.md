@@ -1,30 +1,53 @@
 # Phase 2 benchmark sampling plans
 
-## Current plan: v2 (frozen 2026-09-29)
+## Current plan: v3 (adopted 2026-09-29, ADR-0014)
 
-The machine-readable current plan is [benchmark-sampling-plan-v2.toml](../../benchmarks/phase2/benchmark-sampling-plan-v2.toml).
-It freezes 31 families over the same accepted snapshot: 21 development and 10 held-out.
-Development contains the ten calibration families, nine admissible reviewed families,
-and two new source-reviewed additions. The ten held-out families will be constructed
-afresh and source-reviewed; no spent set is reused.
+The machine-readable current plan is [benchmark-sampling-plan-v3.toml](../../benchmarks/phase2/benchmark-sampling-plan-v3.toml),
+adopted under [ADR-0014](../adr/0014-phase2-acceptance-method.md) (owner-approved
+2026-09-29). It keeps dataset ID `phase2-benchmark-v13`, the accepted snapshot, the 21
+development families and the split policy, and replaces v2's ten held-out families with
+a target of 30 (floor 24). Nothing in v13 was scored or frozen, so no set is spent. The
+held-out families will be constructed afresh and source-reviewed; no spent set is reused.
 
-The revision addresses the eligible roster and aggregate category shortfalls in the
-v1 plan. Current development counts are discovery 5, specific evidence 9, table result
-8, cross-paper comparison 4, filters 4, and missing evidence 4. The planned additions
-bring each category to at least five; source review must confirm their assigned
-categories before pooling. The plan keeps all six category floors, modality floors,
-and candidate-pool bounds. Its 13-hour budget is 31 families at 24 minutes each,
-rounded up; review time is remeasured after both new development families.
+Held-out composition, counting distinct families (categories overlap): each of
+discovery, specific evidence, table result, cross-paper comparison and filters at least
+5; missing evidence at least 4; direct-positive prose at least 5; table result at least
+8, of which numeric-table at least 5; negative or mixed findings at least 5; at least
+24 positive families; at least 20 independently source-reviewed direct anchors across
+at least 15 positive families; no more than two families taking positive anchors from
+the same paper. If the feasibility screen supports fewer than 30, record a revised N no
+lower than 24, naming the failing category, before pooling; below 24 needs a further ADR.
 
-No held-out score informed this revision. The plan supports directional paired
-conclusions only, and complete freshness against unavailable spent-family identities
-cannot be certified. If source review cannot meet the frozen floors, revise the plan
-before any held-out scoring.
+Before freeze, every declared profile (BM25, Dense, Hybrid, selected, fixed-window) is
+pooled to the top 20 papers and top 50 evidence results per query (per-family caps of 80
+papers and 200 evidence are raised if they bind). A coverage-only check must show at
+least 95 percent judged in each profile's top 10 and 90 percent in the top 20 (micro),
+and no family below 80 percent at top 10 for the selected profile. Shortfalls are closed
+by blind source review of the missing candidates, never by relabeling them 0 or
+dropping queries.
+
+Budget: 24 minutes per family is 12 reviewer-hours at 30 families (9.6 at 24); adding
+20 percent for coverage top-up and cross-paper/absence review gives 11.5-14.4 hours, so
+the plan budgets 15 (16-20 at a pessimistic 40 minutes per family). This replaces v2's
+13 hours for 31 families; review time is remeasured after the first five new held-out
+families. About 22 families need new source screening. At most two acceptance runs are
+authorized.
+
+No held-out score informed this revision. Gates use point estimates against unchanged
+thresholds with bootstrap intervals reported beside them; complete freshness against
+unavailable spent-family identities cannot be certified.
+
+## Superseded plan: v2 (frozen 2026-09-29)
+
+Status: superseded before any v13 scoring by v3. The machine-readable v2 plan is
+[benchmark-sampling-plan-v2.toml](../../benchmarks/phase2/benchmark-sampling-plan-v2.toml).
+It froze 31 families (21 development, 10 held-out) and a 13-hour budget; its
+development composition and split policy carry into v3 unchanged.
 
 ## Historical plan: v1 (frozen 2026-09-27)
 
 Status: frozen for its original P2-12.1 benchmark construction. Its size decision is
-superseded by v2; its original records remain unchanged. The machine-readable v1 plan is
+superseded by v2 and then v3; its original records remain unchanged. The machine-readable v1 plan is
 [benchmark-sampling-plan-v1.toml](../../benchmarks/phase2/benchmark-sampling-plan-v1.toml).
 
 ## Size and split
