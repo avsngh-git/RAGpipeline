@@ -686,6 +686,15 @@ class Phase2Runtime:
         await self.pool.close()
 
 
+async def _warm_phase2_embedder(
+    embedder: E5SmallV2Embedder, configuration: IndexConfiguration
+) -> None:
+    """Load local model weights before warming the deadline-bound query path."""
+    probe = "local readiness probe"
+    await embedder.embed((probe,), configuration=configuration)
+    await embedder.embed_query(probe, configuration=configuration)
+
+
 async def create_phase2_runtime(
     settings: Settings, *, frozen_profile_path: Path | None = None
 ) -> Phase2Runtime:
@@ -802,7 +811,7 @@ async def create_phase2_runtime(
             timeout_seconds=15,
         )
         # Warm the exact pinned local models during startup; their adapters prohibit downloads.
-        await embedder.embed_query("local readiness probe", configuration=configuration)
+        await _warm_phase2_embedder(embedder, configuration)
         await asyncio.to_thread(local_reranker.count_pair, "local readiness", "probe")
         await asyncio.to_thread(
             local_reranker.score_pairs, (("local readiness", "probe"),)

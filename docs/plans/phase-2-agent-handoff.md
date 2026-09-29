@@ -1,6 +1,6 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-28. The earlier v3 assessment failed four frozen gates and v11
+Updated: 2026-09-29. The earlier v3 assessment failed four frozen gates and v11
 passed historically. The one-time R8 v12 assessment has now completed and failed six
 of 14 gates; the selected profile passed warm p95 at 894.3 ms against the 2,000 ms
 gate. Phase 2 remains open, and v12 is spent and sealed from tuning. Follow the
@@ -48,6 +48,14 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   six quality/source gates failed while the latency gate passed. The sanitized result is
   in the [acceptance report](../reference/phase-2-acceptance-report.md). Keep this spent
   set private and sealed from further tuning.
+- The 2026-09-29 calibration plus q11–q19 RRF follow-up compared paper constants
+  1, 3, 5 and 10. The best reviewed-development mean was k=3 (0.7008 nDCG@10), but
+  its paired 95% family-bootstrap interval versus k=10 crossed zero; keep frozen k=10.
+  All four 19-request p95 samples were below the prospective 2,000 ms limit and are
+  diagnostic only. A cold-start warmup regression was fixed and covered by a focused
+  test; the 10-second live query watchdog is unchanged. Details are in the
+  [development report](../research/phase-2-development-report.md). This work does not
+  reopen or reveal v12.
 
 ## Guardrails and operating constraints
 

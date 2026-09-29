@@ -274,3 +274,47 @@ The reconciled implementation is frozen at code revision `586f83ce08580b4a206830
 Post-reconciliation local checks passed: Ruff lint, formatting (214 files), strict mypy (81 source files), 451 offline tests, 21 integration tests against fresh disposable PostgreSQL/Qdrant services, `pip check`, Linux AMD64 Docker build, packaged-image `pip check`, and active-profile image smoke. The offline suite command used `PYTHONPATH=src` to make the isolated worktree take precedence over the shared Conda environment's editable install. The image smoke resolved `frozen-profile-v9.toml` and the expected canonical profile identity. Hosted CI passed on the exact frozen code revision in [run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795).
 
 The R8 source screen is preparatory only; it contains no family wording or labels. The missing-evidence scan and freshness review remain before the new held-out set can be frozen and scored. No result from the new set has been observed.
+
+## Post-v12 paper RRF development follow-up — assistant-reviewed 2026-09-29
+
+This completed development-only comparison used calibration q01–q10 plus the nine
+source-reviewed development families q11–q19. It did not read or use R8 v12 outcomes.
+The only variable was the paper metadata/evidence RRF rank constant (1, 3, 5, 10),
+with frozen v9 as the base. Evidence hybrid retrieval, reranker, filters, selection,
+and candidate limits stayed fixed. Each profile received one 19-request HTTP session
+with 50 results per request. All 76 requests returned HTTP 200; each session had zero
+HTTP failures and three reranker fallbacks. Paired family bootstrap used 10,000 draws
+with seed `20260928`. The runtime source SHA-256 was
+`819d4130cf18ab1f9923d935d5de2063a7cd00415951713c3abbf7c4ae4daee3`; the private
+runner SHA-256 was
+`658e68ec5529f33ea837a7a8a5a1af5c762c741f44ddef34552c278264aeddbd`. The private
+aggregate record is
+`local-reference/phase2-runs/p2-14-validation/paper-rrf-lower-20260929T020612Z.json`
+(mode 0600, SHA-256
+`53ad32c54e9c311bf504533c24587901022a060955acb001b608fe75ceeb1f61`); it remains
+outside Git. Two earlier harness attempts were excluded: an incomplete temporary
+manifest failed readiness, and a later launch with private evidence access disabled
+returned 403 for all requests. Neither produced scores used in the decision.
+
+| Paper RRF k | Calibration nDCG@10 (10 families) | Reviewed-development nDCG@10 (9 families) | Paired development delta vs k=10 (95% family bootstrap CI) | Warm request p95 (19 samples) |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.9262 | 0.6901 | +0.0054 [−0.0388, +0.0499] | 1,928.47 ms |
+| 3 | 0.8893 | 0.7008 | +0.0161 [−0.0266, +0.0599] | 1,593.43 ms |
+| 5 | 0.8893 | 0.6918 | +0.0071 [−0.0294, +0.0410] | 1,511.34 ms |
+| 10 (current) | 0.8762 | 0.6847 | 0.0000 [0.0000, 0.0000] | 1,440.66 ms |
+
+The k=3 mean is highest on reviewed development, but its paired interval includes no
+gain and the score remains below the 0.80 development floor. Keep k=10; the sample
+does not justify changing the frozen profile. The 19-sample p95 values are descriptive,
+not an acceptance benchmark. All are below the prospective 2,000 ms gate; the historical
+1,500 ms limit remains only in spent acceptance freezes. This sweep does not address
+the R8 evidence-ranking and source-coverage failures, so a new source-reviewed held-out
+set is still required after development work and a new freeze.
+
+The runner's cold API startup was also repaired without lengthening the live query
+watchdog: startup first loads model weights through the batch embedding path, then warms
+the normal query encoder. A delayed-load regression test failed on the old sequence and
+passed on the corrected sequence. The completed four-profile loop started each API and
+returned HTTP 200 for every request. Follow-up verification passed 459 offline tests
+(with 21 integration tests excluded), project-wide Ruff lint and formatting, and strict
+mypy over 81 source files. Hosted CI is pending publication of this revision.

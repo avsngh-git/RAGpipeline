@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; current status assistant-reviewed 2026-09-28. The earlier v3 assessment failed four frozen gates and v11 passed historically. The fresh R8 v12 assessment completed with 8/14 gates passing: warm p95 passed at 894.3 ms against the approved 2,000 ms limit, while six paper/evidence quality and source-coverage gates failed. Phase 2 remains open; the v12 set is sealed. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values and next steps.
+Status: approved 2026-09-26; current status assistant-reviewed 2026-09-29. The earlier v3 assessment failed four frozen gates and v11 passed historically. The fresh R8 v12 assessment completed with 8/14 gates passing: warm p95 passed at 894.3 ms against the approved 2,000 ms limit, while six paper/evidence quality and source-coverage gates failed. Phase 2 remains open; the v12 set is sealed. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values and next steps.
 
 ## Start and authority
 
@@ -1341,3 +1341,18 @@ source-anchor Recall@50; and the fraction of positive families with a source hit
 results or tune from its aggregate profile comparison. Continue with development data,
 then freeze and assess a newly source-reviewed set. See the
 [acceptance report](../reference/phase-2-acceptance-report.md) for all gate values.
+
+## Development follow-up after R8 v12 — assistant-reviewed 2026-09-29
+
+A calibration plus q11–q19 development-only comparison of paper RRF constants 1, 3,
+5 and 10 did not justify changing the v9 selected profile: k=3 had the highest reviewed
+development nDCG@10 (0.7008), but its paired gain over k=10 was uncertain (95% family
+bootstrap interval −0.0266 to +0.0599). All four 19-request p95 measurements were below
+the prospective 2,000 ms limit; these small samples are diagnostic only. The normal
+10-second query watchdog remains unchanged. Cold API startup now loads model weights
+outside that watchdog before warming the query path. See the
+[development report](../research/phase-2-development-report.md) for exact metrics.
+
+No spent held-out data informed these choices. Phase 2 remains open because R8 v12
+failed six quality/source gates. The next acceptance attempt needs further development
+work, a new assistant-reviewed source set, and a fresh freeze; v12 remains sealed.
