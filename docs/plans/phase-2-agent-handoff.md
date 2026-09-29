@@ -175,3 +175,18 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
    to development; at most one replacement set is authorized.
 4. Reconcile source of truth, roadmap, handoff, README, operations, and acceptance report.
 5. Commit and publish the exact revision; verify hosted CI. Do not merge the draft PR.
+
+## Stage 2 construction checkpoint — assistant-reviewed 2026-09-29
+
+The v13 enlarged held-out set is under construction per ADR-0014 and is not frozen. No held-out
+score exists, and Phase 2 remains unaccepted.
+- **Families:** 28 of 30 held-out families have source-first family records. Two missing-evidence
+  families still need absence review, and nine built families still need independent anchor
+  verification.
+- **Tooling:** the private pool, card and merge tooling passed a development-only coverage smoke
+  (all profiles fully judged).
+- **Next agent:** start from the private handoff
+  `local-reference/phase2-runs/benchmark-v13/HANDOFF-stage2-v13.md`. It is backed up under the main
+  checkout's ignored `local-reference/phase2-runs/benchmark-v13-backup-20260929/`. That handoff
+  scopes the remaining work: absence review, verification, question freeze, pooling, blind review,
+  coverage top-up, freeze and CI. The owner must confirm before the single scored run.
