@@ -5,6 +5,13 @@
 **Benchmark scope:** canonical calibration q01–q10 and source-reviewed development q11–q19.
 q20, q21 and held-out q22–q31 were excluded. No held-out labels or rankings informed these decisions.
 
+**Latency threshold note (2026-09-29):** The 1,500 ms figures in this earlier P2-14
+report describe the limits frozen for those historical experiments and assessments.
+The current fresh R8 v12 acceptance run used the owner-approved 2,000 ms warm-p95
+gate in [acceptance-v10.toml](../../benchmarks/phase2/acceptance-v10.toml). The separate
+per-request deadline remains 30 seconds. Historical pass/fail results retain the
+threshold frozen for their own run.
+
 ## Method and replay
 
 The harness was first reconciled on a one-query replay against the saved result IDs and source matches. The full comparison then used the same snapshot selection, candidate cap of 50, eligible filters, query set and five warm repeats for BM25, dense E5, dense BGE, hybrid E5 and hybrid BGE. The 19 query families comprise ten calibration families and nine development families. Four queries applied metadata filters. No retrieval first-run or warm-repeat failures occurred.

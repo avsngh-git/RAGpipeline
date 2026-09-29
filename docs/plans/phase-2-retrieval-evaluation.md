@@ -82,7 +82,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Complete |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Complete |
-| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Complete |
+| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Reopened for v13; v2 sampling plan frozen, source review in progress |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Complete |
 | P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Complete |
 | P2-15 | Default selection and experiment freeze | P2-14 | Complete |

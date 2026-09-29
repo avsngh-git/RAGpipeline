@@ -1,9 +1,31 @@
-# Phase 2 benchmark sampling plan v1
+# Phase 2 benchmark sampling plans
 
-Status: frozen 2026-09-27 for P2-12.1. This fixes the sample size, category floors,
-review budget and pool bounds; question-family creation and source judgments remain
-P2-12.2–12.5 work. The machine-readable plan is
-[`benchmark-sampling-plan-v1.toml`](../../benchmarks/phase2/benchmark-sampling-plan-v1.toml).
+## Current plan: v2 (frozen 2026-09-29)
+
+The machine-readable current plan is [benchmark-sampling-plan-v2.toml](../../benchmarks/phase2/benchmark-sampling-plan-v2.toml).
+It freezes 31 families over the same accepted snapshot: 21 development and 10 held-out.
+Development contains the ten calibration families, nine admissible reviewed families,
+and two new source-reviewed additions. The ten held-out families will be constructed
+afresh and source-reviewed; no spent set is reused.
+
+The revision addresses the eligible roster and aggregate category shortfalls in the
+v1 plan. Current development counts are discovery 5, specific evidence 9, table result
+8, cross-paper comparison 4, filters 4, and missing evidence 4. The planned additions
+bring each category to at least five; source review must confirm their assigned
+categories before pooling. The plan keeps all six category floors, modality floors,
+and candidate-pool bounds. Its 13-hour budget is 31 families at 24 minutes each,
+rounded up; review time is remeasured after both new development families.
+
+No held-out score informed this revision. The plan supports directional paired
+conclusions only, and complete freshness against unavailable spent-family identities
+cannot be certified. If source review cannot meet the frozen floors, revise the plan
+before any held-out scoring.
+
+## Historical plan: v1 (frozen 2026-09-27)
+
+Status: frozen for its original P2-12.1 benchmark construction. Its size decision is
+superseded by v2; its original records remain unchanged. The machine-readable v1 plan is
+[benchmark-sampling-plan-v1.toml](../../benchmarks/phase2/benchmark-sampling-plan-v1.toml).
 
 ## Size and split
 

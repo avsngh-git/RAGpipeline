@@ -1,8 +1,8 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.25\
-**Last updated:** 2026-09-28\
+**Version:** 1.26\
+**Last updated:** 2026-09-29\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v12 failed 6 of 14 acceptance gates; Phase 3 not started\
 
@@ -526,11 +526,14 @@ these rules.
   private inspection rights. Public passage exposure requires a separate decision.
 - **Benchmark and review:** cover discovery, specific evidence, tables, cross-paper
   comparison, filters and missing evidence. Ten calibration families were reviewed
-  on 2026-09-26, with about 32 minutes of source-review effort. The frozen
-  `phase2-benchmark-sampling-v1` plan uses 30 families (20 development, 10 held-out),
-  keeps calibration families in development, and sets category, prose/table/negative
-  finding, candidate-pool and 12-hour review-workload bounds. Ten held-out families
-  support directional paired conclusions only. The user has delegated all Phase 2
+  on 2026-09-26, with about 32 minutes of source-review effort. The current
+  [phase2-benchmark-sampling-v2 plan](../reference/phase-2-benchmark-sampling-plan.md)
+  uses 31 families (21 development, 10 held-out), keeps the ten calibration families in
+  development, and sets category, prose/table/negative-finding, candidate-pool and 13-hour
+  review-workload bounds. It adds two source-reviewed development families to repair the
+  eligible-roster and category shortfalls; the ten held-out families will be constructed
+  afresh. The v1 size decision is historical. Ten held-out families support directional
+  paired conclusions only. The user has delegated all Phase 2
   implementation, calibration and source review for now. New labels are
   assistant-reviewed with source checks and uncertainty, never described as
   human-verified by inheriting Phase 1 annotations.
