@@ -1352,6 +1352,8 @@ the prospective 2,000 ms limit; these small samples are diagnostic only. The nor
 10-second query watchdog remains unchanged. Cold API startup now loads model weights
 outside that watchdog before warming the query path. See the
 [development report](../research/phase-2-development-report.md) for exact metrics.
+The startup regression fix passed hosted CI on commit `68218f1` (run
+[36511846347](https://github.com/avsngh-git/RAGpipeline/actions/runs/36511846347)).
 
 No spent held-out data informed these choices. Phase 2 remains open because R8 v12
 failed six quality/source gates. The next acceptance attempt needs further development

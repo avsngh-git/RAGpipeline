@@ -55,7 +55,8 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   diagnostic only. A cold-start warmup regression was fixed and covered by a focused
   test; the 10-second live query watchdog is unchanged. Details are in the
   [development report](../research/phase-2-development-report.md). This work does not
-  reopen or reveal v12.
+  reopen or reveal v12. The startup fix and focused regression test passed hosted CI
+  on code-and-test commit `68218f1` ([run 36511846347](https://github.com/avsngh-git/RAGpipeline/actions/runs/36511846347)).
 
 ## Guardrails and operating constraints
 

@@ -317,4 +317,4 @@ the normal query encoder. A delayed-load regression test failed on the old seque
 passed on the corrected sequence. The completed four-profile loop started each API and
 returned HTTP 200 for every request. Follow-up verification passed 459 offline tests
 (with 21 integration tests excluded), project-wide Ruff lint and formatting, and strict
-mypy over 81 source files. Hosted CI is pending publication of this revision.
+mypy over 81 source files. Hosted CI passed on code-and-test commit `68218f13e0466ce6d8274b76a688d6024ebad569` in [run 36511846347](https://github.com/avsngh-git/RAGpipeline/actions/runs/36511846347).
