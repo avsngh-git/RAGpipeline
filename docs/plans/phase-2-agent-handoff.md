@@ -57,6 +57,12 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   [development report](../research/phase-2-development-report.md). This work does not
   reopen or reveal v12. The startup fix and focused regression test passed hosted CI
   on code-and-test commit `68218f1` ([run 36511846347](https://github.com/avsngh-git/RAGpipeline/actions/runs/36511846347)).
+- V13 development review added one supported comparison family and one unsupported
+  family to actual-profile diagnostics. The selected reranked profile retrieved all
+  required source anchors on the single positive family; the unsupported family had
+  contextual near-miss material but no direct source-positive passage. This sample
+  does not establish acceptance or justify changing frozen v9 / RRF k=10. The sanitized
+  summary is in the [development report](../research/phase-2-development-report.md).
 
 ## Guardrails and operating constraints
 

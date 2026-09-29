@@ -325,3 +325,51 @@ passed on the corrected sequence. The completed four-profile loop started each A
 returned HTTP 200 for every request. Follow-up verification passed 459 offline tests
 (with 21 integration tests excluded), project-wide Ruff lint and formatting, and strict
 mypy over 81 source files. Hosted CI passed on code-and-test commit `68218f13e0466ce6d8274b76a688d6024ebad569` in [run 36511846347](https://github.com/avsngh-git/RAGpipeline/actions/runs/36511846347).
+
+## V13 development review and profile check — assistant-reviewed 2026-09-29
+
+The two authorized v13 development families were reviewed from the complete raw
+profile pools. The comparison family had 25 paper cards and 113 evidence cards; the
+unsupported family had 49 paper cards and 149 evidence cards. Missing page or span
+provenance remains explicit in the private cards; no source coordinates were inferred.
+The blinded review and exact rank/source lineage remain private under
+`local-reference/phase2-runs/`.
+
+The primary-source comparison confirms that the two reported values share the MS MARCO
+passage collection and Dev-query MRR@10 measure, but use different retrieval stages.
+COIL-full reports 0.355 for full-corpus retrieval; MORES 2× IB reports 0.3456 after
+reranking BM25's top 1,000 candidates. The values therefore do not compare equivalent
+search setups. See the official [COIL paper](https://aclanthology.org/2021.naacl-main.241/)
+and [MORES paper](https://aclanthology.org/2020.emnlp-main.342/).
+
+The table shows actual returned API results after the production selection rules. Each
+metric is from one positive development family, so these values are diagnostic rather
+than acceptance evidence.
+
+| Profile | Paper nDCG@10 | Evidence nDCG@10 | Evidence direct MRR@10 | Source-anchor Recall@20 |
+| --- | ---: | ---: | ---: | ---: |
+| BM25 lexical | 0.3869 | 0.2346 | 0.3333 | 0.3333 |
+| Dense E5 | 0.6934 | 0.3703 | 0.3333 | 0.6667 |
+| Hybrid E5 | 0.7904 | 0.7654 | 1.0000 | 0.6667 |
+| Reranked MiniLM hybrid | 0.7904 | 0.8855 | 1.0000 | 1.0000 |
+| Fixed-window dense E5 | 0.9197 | 0.2021 | 0.2500 | 0.3333 |
+
+The reranked profile retrieved all required comparison evidence by rank 20 and had full
+group coverage at that cutoff. Its paper nDCG was 0.7904 on this family. A development
+paper-fusion sweep produced nDCG@10 values of 0.8503, 0.8175, 0.8175 and 0.7904 for
+RRF constants 1, 3, 5 and 10; all four retrieved both target papers by rank 20. This
+single family does not outweigh the earlier 19-family comparison, where k=3's paired
+gain over k=10 remained uncertain. Keep the frozen v9 profile and k=10 unchanged.
+
+The missing-topic source screen covered all 100 accepted-snapshot titles and all 44,277
+selected chunks; abstract metadata was available for 10 papers. It found no direct study
+of federated retrieval across independent collections with retrieval-effectiveness
+metrics. M-RAG is a contextual near miss: it selects among partitions of one database
+and evaluates generation tasks ([official paper](https://aclanthology.org/2024.acl-long.108/)).
+The dense profile returned that paper as context, but no profile returned a direct
+source-positive passage. This is an accepted-snapshot finding, not a literature-wide
+absence claim.
+
+No profile or acceptance thresholds changed. The v12 held-out set remains spent, and
+its six quality/source failures remain open; the two v13 development families are too
+small to establish a new acceptance result.

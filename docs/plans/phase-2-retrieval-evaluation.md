@@ -1358,3 +1358,17 @@ The startup regression fix passed hosted CI on commit `68218f1` (run
 No spent held-out data informed these choices. Phase 2 remains open because R8 v12
 failed six quality/source gates. The next acceptance attempt needs further development
 work, a new assistant-reviewed source set, and a fresh freeze; v12 remains sealed.
+
+## V13 development review — assistant-reviewed 2026-09-29
+
+Two authorized development families were added to the actual-profile comparison: one
+supported source-comparison family and one unsupported family. The selected reranked
+profile reached evidence nDCG@10 0.8855, direct MRR@10 1.0 and source-anchor Recall@20
+1.0 on the single positive family. The unsupported case returned contextual near-miss
+material but no direct source-positive passage. These results are diagnostic only. A
+one-family paper-fusion sweep did not justify changing frozen v9 or RRF k=10; the
+previous 19-family paired comparison remains the stronger tuning evidence. No spent
+v12 item-level result informed the review. Phase 2 remains open with six v12
+quality/source gates failed; use broader development evidence before a fresh,
+source-reviewed held-out assessment. Details are in the
+[development report](../research/phase-2-development-report.md).
