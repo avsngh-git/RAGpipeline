@@ -1,0 +1,186 @@
+# Phase 2 R8 v13 freeze manifest (ADR-0014), frozen before held-out scoring.
+# Sanitized: counts, digests and aggregate coverage only.
+schema_version = 1
+freeze_id = "phase2-r8-v13-v1"
+reviewer = "assistant"
+frozen_on = "2026-09-29"
+status = "frozen_before_heldout_scoring"
+benchmark_split = "phase2-benchmark-v13"
+acceptance_id = "phase2-acceptance-v13"
+selected_profile_id = "sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be"
+source_snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+source_selection_id = "sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18"
+scoring_policy_id = "evaluation-scoring-policy-v1"
+source_matching_policy_id = "source-match-policy-v1"
+unsupported_query_cutoff = "disabled"
+ranking_interpretation = "ranking_only"
+raw_results_retention = "private local directory with mode 0700; files mode 0600"
+public_artifacts_exclude = "query wording, judgments, candidate IDs, passages, item-level ranks, and private source excerpts"
+
+[dataset]
+family_count = 30
+minimum_family_count = 24
+positive_family_count = 25
+unsupported_family_count = 5
+positive_anchor_count = 96
+table_anchor_count = 135
+text_anchor_count = 2290
+source_freshness_limit = "Cannot be fully certified against earlier private family identities"
+
+[dataset.categories]
+cross_paper_comparison = 5
+discovery = 10
+filters = 12
+missing_evidence = 5
+specific_evidence = 18
+table_result = 16
+
+[coverage]
+passed = true
+selected_profile = "reranked_minilm_hybrid"
+
+[coverage.pool]
+evidence_cap = 200
+evidence_depth = 50
+max_unique_evidence_per_family = 135
+max_unique_papers_per_family = 71
+paper_cap = 80
+paper_depth = 20
+
+[coverage.profiles]
+
+[coverage.profiles.bm25_lexical]
+evidence_top10_judged = 448
+evidence_top10_unjudged = 1
+evidence_top20_judged = 790
+evidence_top20_unjudged = 3
+paper_top10_judged = 579
+paper_top10_unjudged = 0
+paper_top20_judged = 1051
+paper_top20_unjudged = 0
+
+[coverage.profiles.dense_e5]
+evidence_top10_judged = 440
+evidence_top10_unjudged = 5
+evidence_top20_judged = 721
+evidence_top20_unjudged = 5
+paper_top10_judged = 578
+paper_top10_unjudged = 0
+paper_top20_judged = 961
+paper_top20_unjudged = 0
+
+[coverage.profiles.fixed_window_dense_e5]
+evidence_top10_judged = 303
+evidence_top10_unjudged = 1
+evidence_top20_judged = 333
+evidence_top20_unjudged = 1
+paper_top10_judged = 574
+paper_top10_unjudged = 0
+paper_top20_judged = 952
+paper_top20_unjudged = 0
+
+[coverage.profiles.hybrid_e5]
+evidence_top10_judged = 424
+evidence_top10_unjudged = 0
+evidence_top20_judged = 736
+evidence_top20_unjudged = 4
+paper_top10_judged = 591
+paper_top10_unjudged = 0
+paper_top20_judged = 1090
+paper_top20_unjudged = 0
+
+[coverage.profiles.reranked_minilm_hybrid]
+evidence_top10_judged = 515
+evidence_top10_unjudged = 0
+evidence_top20_judged = 831
+evidence_top20_unjudged = 3
+paper_top10_judged = 591
+paper_top10_unjudged = 0
+paper_top20_judged = 1090
+paper_top20_unjudged = 0
+
+[coverage.requirements]
+minimum_micro_at_10 = 0.95
+minimum_micro_at_20 = 0.9
+minimum_selected_family_at_10 = 0.8
+
+[coverage.selected_family_minimum_top10]
+evidence = 1.0
+paper = 1.0
+
+[difficulty_band]
+bm25_paper_ndcg_at_10 = [0.5, 0.85]
+bm25_evidence_ndcg_at_10 = [0.25, 0.75]
+
+[fixed_window_variant]
+snapshot_id = "c3447473-a9f7-4d8c-93c0-e45ebcab763f"
+parent_snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+status = "draft; searched only through evaluation path"
+text_chunks = 3427
+inherited_non_text_chunks = 5068
+chunk_window_tokens = 480
+overlap_tokens = 64
+
+[timing]
+seed = 20260930
+bootstrap_repetitions = 10000
+result_limit_for_scoring = 50
+result_limit_for_timing = 10
+sessions = 3
+comparison_profile_sessions = 1
+sessions_scope = "three sessions for the selected profile; one for each comparator"
+requests_per_session = 100
+warmups_per_session = 6
+concurrency = 1
+cpu_threads = 4
+model_device = "auto"
+request_deadline_seconds = 30
+zero_match_filter_cases_in_workload = 2
+latency_statistic = "nearest-rank p95 over measured HTTP route samples"
+quality_aggregation = "macro means across families after averaging canonical/paraphrase query scores within each family"
+source_anchor_aggregation = "micro across unique positive source anchors; any held-out query in its family can retrieve an anchor"
+paired_bootstrap = "family-resampled paired percentile interval; 10000 draws; seed 20260930"
+
+[comparison_profiles]
+bm25_lexical = "sha256:f36849d5b7ce411a2ddbc35f5516b9462a5948bf9651728ac84a65005922b5e6"
+dense_e5 = "sha256:1eb792e949142afbd45a34b081149565fd273156fdcf2f21f5c456f845736884"
+hybrid_e5 = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
+reranked_minilm_hybrid = "sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be"
+fixed_window_dense_e5 = "sha256:c2c7429ca329014e1d2b24f3dfd958cb461d93f5315a2977d5e23b9681b7f785"
+
+[sha256]
+heldout_dataset = "b0f86851da70bd73a9d350ef2972e16e00cb153c394af4026cdede2a997071e8"
+source_alignment = "c6ca4bd8b113456a1b697bacdf5e8db7a6e68a330e8f1a93a4d6d4b3b167169d"
+acceptance = "624669f6ae8b9f3d898f99b6ac0b4261d4dd3aa05da8a35762cf9b05ca09b904"
+sampling_plan = "414ee6c7465bafad2db01287f7284231e76b2528affb9bf16bd9079cf6fe8dc5"
+selected_profile = "11c70b0c3dbd92bf35ad473b0085f42dbd752cb2341e3f28f570c5e77614d32e"
+active_profile = "db2617ecdcc598eef8171ec17bceef88da736fade73e0eecb442eb5c5cb6c039"
+bm25_profile = "39f3b8217e57e07540c09447b6f9c5bb5103b8d10deb1f326ac15982e3936fa4"
+hybrid_profile = "76dd7f223e66bcf94c1420bccdef5394ea8a856e71623d6e904bcb70139779a0"
+dense_index_configuration = "a9d79a2f430b643f4ec3bfed79f6f237855095fe9933e1194dcb44422c7fdc0e"
+fixed_profile = "30797cd7897599bb38fb0764847c4375622e90fe2148b983ee52901046ca2fb4"
+fixed_index_configuration = "8cabfaa77488678da5aa71029c86a0ed398cebbc2b62a56171cc46ef3d260b98"
+fixed_variant = "57e8ac335aa85c4fbb80871f72012441ce9a1b476627e774fcd4f4949144ed2d"
+
+[code_sha256]
+"scripts/phase2_acceptance_report.py" = "2c92af88e119fa889df9f7685d5019e35e2658f6a17c7817f3dc2f19b5bf45a0"
+"src/research_platform/evaluation/runner.py" = "68a178e542485178a8ec88a5c872563001062baa7d76c8927abbecfcfde7cff9"
+"src/research_platform/evaluation/scoring.py" = "778c1dee67c444de8fbdfc371be208c53e7d97b4dbb3355110af8961d1609559"
+"src/research_platform/evaluation/matching.py" = "a3428cbd8f7de3105d2c4d78f1a24743c11e05d91fe9fb69d8055e96d98c2bf4"
+"src/research_platform/evaluation/run_records.py" = "578b6b9eb83a8b63aa7439f999111c2cd8a897fc846c237764d3aafc82b6915c"
+"src/research_platform/evaluation/acceptance_report.py" = "2724e3d5878217b9786f9505df8caa5d705df698044d102868d3ba17f915fc7d"
+"src/research_platform/evaluation/calibration.py" = "a0711d78d47c41cd0d1a32856aea72e50fd6b6bdbfd0fa18e67e663320136db0"
+"src/research_platform/evaluation/source_alignment.py" = "568aa40b2e227fd68769dc743db05362c4ecdf8177ff09edff54c497713ec0bd"
+"src/research_platform/search/application.py" = "819d4130cf18ab1f9923d935d5de2063a7cd00415951713c3abbf7c4ae4daee3"
+"src/research_platform/search/dense_search.py" = "a9aece0d2e08b80ef8ecc4b17c394be3e08187d48bcceb48cdd1569aad7ca80c"
+"src/research_platform/search/profile_manifest.py" = "99c778e2a204b073243fdd7d1341a68584c8ac7ce0ce69675ae69bb89ef4df3d"
+"src/research_platform/search/profiles.py" = "f3aadb5ef5bd81c8780eccfc624715ef1310a0caef876656f4cc7e5b38bae1bd"
+"src/research_platform/api/app.py" = "d4e31cb6a90483b56036fec8fb6e39e5f8890b693dc34062103f253bcde02a6b"
+"src/research_platform/api/routes.py" = "9f2be72bb712f465e6d4ff4d34f67ce37617b7965478408be7251f71802e2972"
+"src/research_platform/ingestion/indexing.py" = "74190715aeb9cdbbec4ea582faf287cafc796c86d79f57822ef83e31853ad4c3"
+"src/research_platform/ingestion/evidence_repository.py" = "da513f4ec5aa529431c0dc0bd51c36040538ebf319319168f21daa0095fb5115"
+"src/research_platform/ingestion/embeddings.py" = "935a77393d8519028ee5a9321a4e977f3e543a40730f1373d8db17b9ad8124e8"
+"src/research_platform/search/reranker_models.py" = "5099339ef22804c55710d2bb8bb332f65d459d7afb09941cff5031024e405eab"
+"scripts/phase2_r8_v13_acceptance.py" = "86d6e1779d797736f8ca2c95b09fe3e86082a2b02a5db798c84f5c379a705391"
+"src/research_platform/evaluation/coverage.py" = "1184a1054dcbb0c3ce9eadf9beae7452f8841b07dd6b1b09cb50b2fdb34f6856"
+"src/research_platform/evaluation/acceptance_context.py" = "b0d8be41303687e36b8854ea66773ec321e6d03f0cec7f2e66643ce0f2ec834a"
