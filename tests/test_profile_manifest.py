@@ -154,3 +154,24 @@ def test_active_profile_pointer_rejects_a_changed_manifest_digest(
         resolve_frozen_profile_path(
             benchmark_dir / "active-profile.toml", repository_root=tmp_path
         )
+
+
+def test_ettin_dev_profile_loads_but_is_not_frozen_or_active() -> None:
+    from research_platform.search.profile_manifest import (
+        load_retrieval_profile_manifest,
+    )
+    from research_platform.search.reranker_models import (
+        validate_supported_reranker_identity,
+    )
+
+    path = ROOT / "benchmarks/phase2/dev-profile-ettin150m-v1.toml"
+    profile = load_retrieval_profile_manifest(path)
+
+    assert profile.reranker is not None
+    assert profile.reranker.model == "cross-encoder/ettin-reranker-150m-v1"
+    assert profile.reranker.maximum_input_tokens == 2048
+    validate_supported_reranker_identity(profile.reranker)
+    with pytest.raises(ValueError, match="not frozen"):
+        load_frozen_profile(path)
+    active = (ROOT / "benchmarks/phase2/active-profile.toml").read_text("utf-8")
+    assert "ettin" not in active

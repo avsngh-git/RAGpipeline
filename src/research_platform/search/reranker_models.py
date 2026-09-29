@@ -25,10 +25,16 @@ MINILM_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L6-v2"
 MINILM_RERANKER_REVISION = "233902d25c440f23af6f7d6e94d2946bac0bee0a"
 BGE_RERANKER_MODEL = "BAAI/bge-reranker-base"
 BGE_RERANKER_REVISION = "2cfc18c9415c912f9d8155881c133215df768a70"
+# Development-only candidate (not part of any frozen or active profile). Model
+# card: Apache-2.0, ModernBERT, 7,999-token maximum, raw pair input, no prefix.
+ETTIN_RERANKER_150M_MODEL = "cross-encoder/ettin-reranker-150m-v1"
+ETTIN_RERANKER_150M_REVISION = "025501c4e0f9bbeb4c5b198318e0089ff061cc14"
+ETTIN_RERANKER_MAXIMUM_INPUT_TOKENS = 7999
 RERANKER_MAXIMUM_INPUT_TOKENS = 512
 SUPPORTED_RERANKERS = {
     MINILM_RERANKER_MODEL: MINILM_RERANKER_REVISION,
     BGE_RERANKER_MODEL: BGE_RERANKER_REVISION,
+    ETTIN_RERANKER_150M_MODEL: ETTIN_RERANKER_150M_REVISION,
 }
 RerankerDevice = Literal["auto", "cpu", "cuda"]
 
@@ -187,7 +193,10 @@ def validate_supported_reranker_identity(identity: RerankerIdentity) -> None:
         raise ValueError("reranker model and revision are not in the P2-10 shortlist")
     if identity.preprocessing_revision != RERANKER_PAIR_FORMAT_ID:
         raise ValueError("unsupported reranker pair preprocessing revision")
-    if identity.maximum_input_tokens != RERANKER_MAXIMUM_INPUT_TOKENS:
+    if identity.model == ETTIN_RERANKER_150M_MODEL:
+        if not 0 < identity.maximum_input_tokens <= ETTIN_RERANKER_MAXIMUM_INPUT_TOKENS:
+            raise ValueError("Ettin pair budget must be within 1 and 7999 tokens")
+    elif identity.maximum_input_tokens != RERANKER_MAXIMUM_INPUT_TOKENS:
         raise ValueError("supported rerankers use a 512-token pair budget")
 
 

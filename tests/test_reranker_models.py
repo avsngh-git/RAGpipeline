@@ -223,3 +223,46 @@ def test_non_scalar_model_output_is_a_controlled_invalid_score(
 
     with pytest.raises(RerankerInvalidScoreError):
         scorer.score_pairs((("query", "evidence"),))
+
+
+def _ettin(tokens: int) -> RerankerIdentity:
+    return RerankerIdentity(
+        model="cross-encoder/ettin-reranker-150m-v1",
+        revision="025501c4e0f9bbeb4c5b198318e0089ff061cc14",
+        preprocessing_revision=_identity().preprocessing_revision,
+        maximum_input_tokens=tokens,
+    )
+
+
+def test_ettin_dev_reranker_accepts_configurable_larger_pair_budget() -> None:
+    from research_platform.search.reranker_models import (
+        validate_supported_reranker_identity,
+    )
+
+    for tokens in (512, 2048, 7999):
+        validate_supported_reranker_identity(_ettin(tokens))
+    for tokens in (8000,):
+        with pytest.raises(ValueError, match="Ettin pair budget"):
+            validate_supported_reranker_identity(_ettin(tokens))
+    with pytest.raises(ValueError, match="shortlist"):
+        validate_supported_reranker_identity(
+            RerankerIdentity(
+                model="cross-encoder/ettin-reranker-150m-v1",
+                revision="0" * 40,
+                preprocessing_revision=_identity().preprocessing_revision,
+                maximum_input_tokens=2048,
+            )
+        )
+
+
+def test_minilm_still_requires_the_512_token_budget() -> None:
+    from dataclasses import replace
+
+    from research_platform.search.reranker_models import (
+        validate_supported_reranker_identity,
+    )
+
+    with pytest.raises(ValueError, match="512-token"):
+        validate_supported_reranker_identity(
+            replace(_identity(), maximum_input_tokens=1024)
+        )
