@@ -42,6 +42,10 @@ DEFAULT_ALIGNMENT = PRIVATE_RUN_ROOT / "source-alignment-v13.toml"
 DEFAULT_OUTPUT = PRIVATE_RUN_ROOT / "r8-assessment-v13/assessment-run-v1"
 DEFAULT_INDEX_ROOT = PRIVATE_ROOT / "phase2-indexes"
 FREEZE_PATH = REPOSITORY_ROOT / "benchmarks/phase2/r8-v13-freeze-v1.toml"
+SAMPLING_PLAN_PATH = (
+    REPOSITORY_ROOT / "benchmarks/phase2/benchmark-sampling-plan-v3.toml"
+)
+DEFAULT_COVERAGE_OUTPUT = PRIVATE_RUN_ROOT / "coverage-precheck"
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -117,6 +121,11 @@ def _rank_metrics(metrics: Any) -> dict[str, object]:
 def _load_freeze(
     dataset_path: Path, alignment_path: Path, variant_dir: Path, *, validate_only: bool
 ) -> tuple[dict[str, Any], Any, Any, dict[str, Any]]:
+    from research_platform.evaluation.acceptance_context import (
+        dataset_fact_mismatches,
+        validate_freeze_precheck,
+        validate_freeze_scale,
+    )
     from research_platform.evaluation.calibration import load_heldout_dataset
     from research_platform.evaluation.source_alignment import load_source_alignment
 
@@ -133,6 +142,7 @@ def _load_freeze(
         "heldout_dataset": dataset_path,
         "source_alignment": alignment_path,
         "acceptance": REPOSITORY_ROOT / "benchmarks/phase2/acceptance-v13.toml",
+        "sampling_plan": SAMPLING_PLAN_PATH,
         "selected_profile": REPOSITORY_ROOT
         / "benchmarks/phase2/frozen-profile-v9.toml",
         "active_profile": REPOSITORY_ROOT / "benchmarks/phase2/active-profile.toml",
@@ -190,14 +200,25 @@ def _load_freeze(
             {category for family in dataset.families for category in family.categories}
         )
     }
-    if (
-        family_count != expected.get("family_count")
-        or positive_families != expected.get("positive_family_count")
-        or unsupported_families != expected.get("unsupported_family_count")
-        or len(positive_anchors) != expected.get("positive_anchor_count")
-        or len(alignment.table_alignments) != expected.get("table_anchor_count")
-        or len(alignment.text_alignments) != expected.get("text_anchor_count")
-        or category_counts != expected.get("categories")
+    sampling_plan = tomllib.loads(SAMPLING_PLAN_PATH.read_text(encoding="utf-8"))
+    validate_freeze_scale(
+        raw_freeze,
+        family_count=family_count,
+        dataset_id=dataset.dataset_id,
+        sampling_plan=sampling_plan,
+    )
+    validate_freeze_precheck(raw_freeze)
+    if dataset_fact_mismatches(
+        expected,
+        {
+            "family_count": family_count,
+            "positive_family_count": positive_families,
+            "unsupported_family_count": unsupported_families,
+            "positive_anchor_count": len(positive_anchors),
+            "table_anchor_count": len(alignment.table_alignments),
+            "text_anchor_count": len(alignment.text_alignments),
+            "categories": category_counts,
+        },
     ):
         raise ValueError("held-out dataset no longer matches its frozen sample facts")
     if validate_only:
@@ -759,6 +780,23 @@ def _timing_cases(dataset: Any) -> list[dict[str, Any]]:
     return cases
 
 
+def _measured_request_count(case_count: int, requests_per_session: int) -> int:
+    """Measure at least one request per case so no family drops out of timing."""
+    return max(requests_per_session, case_count)
+
+
+def _timing_case_order(
+    cases: Sequence[dict[str, Any]], *, warmups: int, measured: int, seed: int
+) -> list[dict[str, Any]]:
+    """Warm-ups first, then shuffled measured requests cycling through all cases."""
+    rng = random.Random(seed)
+    warm = [cases[index % len(cases)] for index in range(warmups)]
+    rng.shuffle(warm)
+    timed = [cases[index % len(cases)] for index in range(measured)]
+    rng.shuffle(timed)
+    return warm + timed
+
+
 async def _warm_timing(
     specs: Sequence[_ProfileSpec],
     dataset: Any,
@@ -778,16 +816,16 @@ async def _warm_timing(
 
     results: dict[str, Any] = {}
     cases = _timing_cases(dataset)
+    measured_requests = _measured_request_count(len(cases), requests_per_session)
     for profile_index, spec in enumerate(specs):
         profile_samples: list[dict[str, Any]] = []
         profile_sessions = sessions if spec.name == selected_profile else 1
         for session_index in range(profile_sessions):
-            case_order = [
-                cases[index % len(cases)]
-                for index in range(warmups_per_session + requests_per_session)
-            ]
-            random.Random(seed + profile_index * 1009 + session_index).shuffle(
-                case_order
+            case_order = _timing_case_order(
+                cases,
+                warmups=warmups_per_session,
+                measured=measured_requests,
+                seed=seed + profile_index * 1009 + session_index,
             )
             app = create_app(
                 settings,
@@ -885,6 +923,51 @@ async def _warm_timing(
     return results
 
 
+def _configure_environment() -> Any:
+    for name in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+        os.environ[name] = "4"
+    os.environ["HF_HOME"] = "/tmp/phase1-embedding-hf-cache"
+    os.environ["HF_HUB_CACHE"] = "/tmp/phase1-embedding-hf-cache/hub"
+    import torch
+
+    torch.set_num_threads(4)
+    return torch
+
+
+def _build_settings(settings_type: Any) -> Any:
+    password = os.environ.get("P2_EVAL_POSTGRES_PASSWORD")
+    if not password:
+        password = subprocess.check_output(
+            [
+                "docker",
+                "exec",
+                "p2_eval_20260927-postgres-1",
+                "sh",
+                "-c",
+                'printf "%s" "$POSTGRES_PASSWORD"',
+            ],
+            text=True,
+        ).strip()
+    from urllib.parse import quote
+
+    return settings_type(
+        environment="test",
+        log_level="WARNING",
+        database_url=(
+            "postgresql://research_test:"
+            + quote(password, safe="")
+            + "@127.0.0.1:25432/research_test"
+        ),
+        qdrant_url="http://127.0.0.1:26333",
+        evidence_access_profile="trusted_private_local",
+        lexical_index_root=Path(
+            os.environ.get("P2_EVAL_INDEX_ROOT", str(DEFAULT_INDEX_ROOT))
+        ),
+        model_device="auto",
+        reranker_cache_dir=Path("/tmp/phase2-reranker-hf-cache"),
+    )
+
+
 async def _run_assessment(
     dataset_path: Path,
     alignment_path: Path,
@@ -895,6 +978,11 @@ async def _run_assessment(
 ) -> dict[str, Any]:
     sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
     from research_platform.config import Settings
+    from research_platform.evaluation.acceptance_context import (
+        DifficultyBand,
+        baseline_context,
+        render_baseline_lines,
+    )
     from research_platform.evaluation.acceptance_report import (
         build_acceptance_gate_report,
         load_acceptance_config,
@@ -915,44 +1003,8 @@ async def _run_assessment(
             "aligned_text_anchor_count": len(alignment.text_alignments),
         }
 
-    for name in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
-        os.environ[name] = "4"
-    os.environ["HF_HOME"] = "/tmp/phase1-embedding-hf-cache"
-    os.environ["HF_HUB_CACHE"] = "/tmp/phase1-embedding-hf-cache/hub"
-    import torch
-
-    torch.set_num_threads(4)
-    password = os.environ.get("P2_EVAL_POSTGRES_PASSWORD")
-    if not password:
-        password = subprocess.check_output(
-            [
-                "docker",
-                "exec",
-                "p2_eval_20260927-postgres-1",
-                "sh",
-                "-c",
-                'printf "%s" "$POSTGRES_PASSWORD"',
-            ],
-            text=True,
-        ).strip()
-    from urllib.parse import quote
-
-    settings = Settings(
-        environment="test",
-        log_level="WARNING",
-        database_url=(
-            "postgresql://research_test:"
-            + quote(password, safe="")
-            + "@127.0.0.1:25432/research_test"
-        ),
-        qdrant_url="http://127.0.0.1:26333",
-        evidence_access_profile="trusted_private_local",
-        lexical_index_root=Path(
-            os.environ.get("P2_EVAL_INDEX_ROOT", str(DEFAULT_INDEX_ROOT))
-        ),
-        model_device="auto",
-        reranker_cache_dir=Path("/tmp/phase2-reranker-hf-cache"),
-    )
+    torch = _configure_environment()
+    settings = _build_settings(Settings)
     if torch.cuda.is_available():
         torch.cuda.init()
         torch.cuda.reset_peak_memory_stats("cuda:0")
@@ -1100,6 +1152,15 @@ async def _run_assessment(
                 name: _profile_summary(rows)
                 for name, rows in family_rows_by_profile.items()
             }
+            band = freeze["difficulty_band"]
+            context = baseline_context(
+                profile_summaries,
+                DifficultyBand(
+                    paper_ndcg_at_10=tuple(band["bm25_paper_ndcg_at_10"]),
+                    evidence_ndcg_at_10=tuple(band["bm25_evidence_ndcg_at_10"]),
+                ),
+            )
+            baseline_lines = render_baseline_lines(context)
             seed = int(freeze["timing"]["seed"])
             paired: dict[str, Any] = {}
             paired_metrics = (
@@ -1298,6 +1359,18 @@ async def _run_assessment(
                 },
                 "paired_bootstrap_selected_minus_baseline": paired,
                 "selected_category_summary": category_summary,
+                "baseline_context": {
+                    "set_difficulty_unusual": context.unusual,
+                    "rows": [
+                        {
+                            "profile": row.profile,
+                            "metric": row.metric,
+                            "value": row.value,
+                            "in_band": row.in_band,
+                        }
+                        for row in context.rows
+                    ],
+                },
                 "acceptance_observations": observations,
                 "acceptance_gates": gate_report,
                 "raw_query_runs": [record.to_dict() for record in all_records],
@@ -1306,7 +1379,7 @@ async def _run_assessment(
                 },
                 "unsupported_policy": "ranking_only; cutoff disabled; no rejection accuracy computed",
                 "limitations": [
-                    "Ten purposively selected held-out families support directional evidence, not precise population estimates.",
+                    f"{len(dataset.families)} purposively selected held-out families support directional evidence, not precise population estimates.",
                     "Reviews were assistant-reviewed without independent second annotation.",
                     "Source freshness could not be fully certified against prior private family identities.",
                 ],
@@ -1335,6 +1408,7 @@ async def _run_assessment(
                 "runtime_startup_ms": round(runtime_startup_ms, 1),
                 "hardware": hardware,
                 "category_summary": category_summary,
+                "baseline_lines": baseline_lines,
                 "paired": paired,
                 "dataset_sha256": _sha256_file(dataset_path),
                 "alignment_sha256": _sha256_file(alignment_path),
@@ -1343,8 +1417,184 @@ async def _run_assessment(
             await runtime.close()
 
 
+async def _run_coverage(
+    dataset_path: Path,
+    alignment_path: Path,
+    output_dir: Path,
+    variant_dir: Path,
+) -> dict[str, Any]:
+    """Pool all five profiles and count judged results; no metrics are computed."""
+    sys.path.insert(0, str(REPOSITORY_ROOT / "src"))
+    from research_platform.config import Settings
+    from research_platform.evaluation.calibration import load_heldout_dataset
+    from research_platform.evaluation.coverage import (
+        EVIDENCE_POOL_DEPTH,
+        build_coverage_report,
+        coverage_table,
+        evaluate_coverage,
+        query_coverage,
+        render_coverage_lines,
+    )
+    from research_platform.evaluation.source_alignment import load_source_alignment
+    from research_platform.search.application import create_phase2_runtime
+    from research_platform.search.contracts import SearchOperation, SearchRequest
+
+    dataset = load_heldout_dataset(dataset_path)
+    alignment = load_source_alignment(alignment_path, dataset)
+    acceptance_raw = tomllib.loads(
+        (REPOSITORY_ROOT / "benchmarks/phase2/acceptance-v13.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    if dataset.dataset_kind != "held_out" or dataset.dataset_id != acceptance_raw.get(
+        "benchmark_split"
+    ):
+        raise ValueError("held-out dataset does not match the v13 acceptance split")
+    limit = max(
+        int(acceptance_raw["operations"]["candidate_pool_limit"]),
+        EVIDENCE_POOL_DEPTH,
+    )
+    _configure_environment()
+    settings = _build_settings(Settings)
+    manifest_dir = REPOSITORY_ROOT / "benchmarks/phase2"
+    frozen_path = manifest_dir / "frozen-profile-v9.toml"
+    query_hash_to_id: dict[str, str] = {}
+    for family in dataset.families:
+        for query in family.queries:
+            query_hash = _sha256_bytes(query.text.encode("utf-8"))
+            if query_hash in query_hash_to_id:
+                raise ValueError("held-out query identities are not unique")
+            query_hash_to_id[query_hash] = query.id
+
+    runtime = await create_phase2_runtime(settings, frozen_profile_path=frozen_path)
+    try:
+        specs, fixed_profile = _prepare_profiles(
+            runtime, frozen_path, manifest_dir, variant_dir
+        )
+        queries_by_profile: dict[str, list[Any]] = {}
+        for spec in specs:
+            if spec.variant == "fixed-window":
+                run_dataset = replace(
+                    dataset, snapshot_id=fixed_profile.snapshot.snapshot_id
+                )
+                run_alignment = replace(
+                    alignment, snapshot_id=fixed_profile.snapshot.snapshot_id
+                )
+            else:
+                run_dataset = dataset
+                run_alignment = alignment
+            regions: dict[str, Any] = {}
+            responses: dict[str, dict[str, Any]] = {}
+            proxy = _EvaluationProxy(
+                spec,
+                deadline_seconds=float(
+                    acceptance_raw["operations"]["request_deadline_seconds"]
+                ),
+                regions=regions,
+                responses_by_query=responses,
+                query_id_by_hash=query_hash_to_id,
+            )
+            profile_queries: list[Any] = []
+            for family in run_dataset.families:
+                availability = await spec.executor._eligibility.read(
+                    run_dataset.snapshot_id, filters=family.filters
+                )
+                eligible = set(availability.paper_metadata)
+                for query in family.queries:
+                    for operation in (
+                        SearchOperation.PAPER_SEARCH,
+                        SearchOperation.EVIDENCE_SEARCH,
+                    ):
+                        await proxy.search(
+                            SearchRequest(
+                                query=query.text,
+                                snapshot_id=run_dataset.snapshot_id,
+                                retrieval_profile_id=spec.profile.profile_id,
+                                mode=spec.mode,
+                                operation=operation,
+                                filters=family.filters,
+                                limit=limit,
+                            )
+                        )
+                    by_operation = responses[query.id]
+                    profile_queries.append(
+                        query_coverage(
+                            run_dataset,
+                            family_id=family.id,
+                            query_id=query.id,
+                            paper_hits=by_operation[
+                                SearchOperation.PAPER_SEARCH.value
+                            ].hits,
+                            evidence_hits=by_operation[
+                                SearchOperation.EVIDENCE_SEARCH.value
+                            ].hits,
+                            regions_by_evidence_id=regions,
+                            alignments=run_alignment,
+                            eligible_paper_ids=eligible,
+                        )
+                    )
+            queries_by_profile[spec.name] = profile_queries
+    finally:
+        await runtime.close()
+
+    selected_name = "reranked_minilm_hybrid"
+    if list(queries_by_profile) != [
+        "bm25_lexical",
+        "dense_e5",
+        "hybrid_e5",
+        selected_name,
+        "fixed_window_dense_e5",
+    ]:
+        raise ValueError("comparison profile set or order differs from the freeze")
+    report = build_coverage_report(
+        dataset, queries_by_profile, selected_profile=selected_name
+    )
+    verdict = evaluate_coverage(report)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    output_path = output_dir / f"coverage-precheck-{stamp}.json"
+    digest = _atomic_private_json(
+        output_path,
+        {
+            "schema_version": 1,
+            "dataset_sha256": _sha256_file(dataset_path),
+            "alignment_sha256": _sha256_file(alignment_path),
+            "coverage": coverage_table(report),
+            # Private: unjudged candidate identifiers, unordered and unlabeled by
+            # profile or rank, for blind top-up review.
+            "private_unjudged_candidates": {
+                family_id: {
+                    "papers": sorted(report.unjudged_paper_ids[family_id]),
+                    "evidence_chunks": sorted(report.unjudged_evidence_ids[family_id]),
+                }
+                for family_id in report.family_order
+            },
+            "private_family_order": list(report.family_order),
+        },
+    )
+    return {
+        "coverage_lines": render_coverage_lines(report),
+        "passed": verdict.passed,
+        "output_name": output_path.name,
+        "output_sha256": digest,
+        "dataset_sha256": _sha256_file(dataset_path),
+        "alignment_sha256": _sha256_file(alignment_path),
+    }
+
+
 def _display_number(value: object, digits: int = 4) -> str:
     return f"{value:.{digits}f}" if isinstance(value, (int, float)) else "n/a"
+
+
+def _print_coverage_summary(result: Mapping[str, Any]) -> None:
+    print("R8 v13 coverage-only pre-check (no metrics, labels or question text)")
+    for line in result["coverage_lines"]:
+        print(line)
+    print(
+        f"Private coverage record: {result['output_name']} ({result['output_sha256']})"
+    )
+    print(
+        f"Dataset SHA-256: {result['dataset_sha256']}; alignment SHA-256: {result['alignment_sha256']}"
+    )
 
 
 def _print_summary(result: Mapping[str, Any]) -> None:
@@ -1375,11 +1625,44 @@ def _print_summary(result: Mapping[str, Any]) -> None:
             f"warm p95={_display_number(result['timings'][name]['p95_nearest_rank_ms'], 1)} ms "
             f"({result['timings'][name]['samples']} samples)"
         )
+    for line in result["baseline_lines"]:
+        print(line)
     print("Selected profile gates:")
     for row in gate["gates"]:
         print(
             f"  {'PASS' if row['passed'] else 'FAIL'} {row['metric']}: {row['observed']:.4f} (threshold {row['threshold']:.4f})"
         )
+
+
+def _main_coverage(arguments: argparse.Namespace) -> int:
+    output_dir: Path = arguments.coverage_output_dir
+    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    output_dir.chmod(0o700)
+    log_path = output_dir / "coverage-runner-private.log"
+    if not log_path.exists():
+        log_path.touch(mode=0o600)
+    log_path.chmod(0o600)
+    try:
+        with log_path.open("a", encoding="utf-8") as log_file:
+            with redirect_stdout(log_file), redirect_stderr(log_file):
+                result = asyncio.run(
+                    _run_coverage(
+                        arguments.heldout,
+                        arguments.alignment,
+                        output_dir,
+                        arguments.variant_dir,
+                    )
+                )
+    except Exception as error:
+        with log_path.open("a", encoding="utf-8") as log_file:
+            log_file.write(f"\nCoverage pre-check stopped: {type(error).__name__}\n")
+        print(
+            f"R8 v13 coverage pre-check stopped; private diagnostic log: "
+            f"{log_path.name} ({type(error).__name__})"
+        )
+        return 1
+    _print_coverage_summary(result)
+    return 0 if result["passed"] else 3
 
 
 def main() -> int:
@@ -1393,7 +1676,20 @@ def main() -> int:
         default=PRIVATE_ROOT / "phase2-runs/fixed-window-20260927",
     )
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument(
+        "--coverage-only",
+        action="store_true",
+        help="pool all five profiles and print judged/unjudged counts only; "
+        "runs before the freeze exists and computes no metrics",
+    )
+    parser.add_argument(
+        "--coverage-output-dir", type=Path, default=DEFAULT_COVERAGE_OUTPUT
+    )
     arguments = parser.parse_args()
+    if arguments.coverage_only:
+        if arguments.validate_only:
+            parser.error("--coverage-only and --validate-only are exclusive")
+        return _main_coverage(arguments)
     if not FREEZE_PATH.is_file():
         parser.error("R8 v13 freeze manifest is missing")
     log_path: Path | None = None
