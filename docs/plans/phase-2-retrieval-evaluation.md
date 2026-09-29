@@ -1385,7 +1385,12 @@ companion runner preserves v12 scoring/timing behavior and checks a new freeze m
 the historical v12 runner and freeze remain unchanged. Hosted CI passed on commit
 `557277a` (run [36554779665](https://github.com/avsngh-git/RAGpipeline/actions/runs/36554779665)).
 
-Missing-evidence scan coverage and support adjudication, all ten family reviews,
-dataset/alignment freeze, and the one-time v13 acceptance run are still pending. No v13 held-out scores have been
-produced. Phase 2 remains open until the fresh set is source-reviewed, frozen, and every
-acceptance gate passes.
+Missing-evidence source adjudication, all ten family reviews, dataset/alignment freeze,
+and the one-time v13 acceptance run are still pending. A read-only 38-variant literal
+screen now covers all 100 accepted-snapshot titles and all 44,277 selected chunks, with
+chunk joins verified across all 100 papers; abstract-index metadata exists for 10
+papers. This verifies stored-text coverage, while literal search alone cannot establish
+semantic absence. The v13 development-only unsupported example had contextual near
+matches but no direct supporting passage and does not count toward held-out floors. No
+v13 held-out scores have been produced. Phase 2 remains open until the fresh set is
+source-reviewed, frozen, and every acceptance gate passes.

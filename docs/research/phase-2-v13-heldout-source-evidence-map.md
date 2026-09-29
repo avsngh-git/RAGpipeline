@@ -36,6 +36,20 @@ source-checks the family. [Frozen v2 plan](../../benchmarks/phase2/benchmark-sam
 | 9 | Phrase-level answer retrieval versus passage retrieval — `cross_paper_comparison`, `discovery`, `table_result` | DensePhrases Table 1 compares phrase retrieval with retriever-reader approaches using storage, throughput, and open-domain QA test accuracy; it lists 320 GB storage and NQ/SQuAD accuracy of 40.9/38.0. Table 3 reports test-set exact match across five QA sets; the authors report gains over prior phrase-retrieval systems on most datasets, with SQuAD as an exception. Tables 1 and 3 are physical PDF pp. 2 and 8 (printed pp. 6635 and 6641). [DensePhrases ACL PDF, p. 2](https://aclanthology.org/2021.acl-long.518.pdf#page=2) · [p. 8](https://aclanthology.org/2021.acl-long.518.pdf#page=8). ColBERT-QA provides a passage-retrieval comparator in [Table 2, p. 9](https://aclanthology.org/2021.tacl-1.55.pdf#page=9). | Phrase-answer retrieval and passage ranking are different retrieval units and outcome measures. The reported storage and throughput use a 2018 Wikipedia snapshot and the study's hardware; they are not estimates for this project. |
 | 10 | Year-bounded comparison of retrieval and ranking studies — `filters` (conditional), `cross_paper_comparison`, `discovery` | The screened ACL studies provide dated source anchors from 2020–2021, with distinct tasks including document/passage retrieval, candidate reranking, and pair matching. A metadata-constrained theme could examine a period-bounded subset while comparing study scope, not pooling incompatible scores. Publication years are recorded on the [MORES](https://aclanthology.org/2020.emnlp-main.342/) and [COIL](https://aclanthology.org/2021.naacl-main.241/) official records; exact result conditions are in the source tables linked above. | The v2 plan requires the exact eligible-record count for any filter family. The count and selected-source eligibility must be verified against the accepted snapshot metadata before this possibility can count toward the filter floor. |
 
+## V13 source-first scan coverage — assistant-reviewed 2026-09-29
+
+A read-only, 38-variant literal screen covered titles for all 100 accepted-snapshot
+papers, the 10 papers with abstract-inverted-index metadata, and the selected source
+chunks. An aggregate join audit resolved all 44,277 selected chunk references to
+searchable chunk rows with matching document and extraction identities; all 100
+snapshot papers have searchable chunks.
+
+This confirms coverage of the stored snapshot representation, not semantic
+exhaustiveness. Literal matches are leads for source review, and a no-match result
+alone does not establish absence. In the v13 development-only unsupported example,
+source review found contextual near matches but no directly supporting passage. That
+diagnostic is not a held-out family and does not count toward the fresh-set floors.
+
 ## Floor feasibility and unresolved work
 
 - **Direct prose:** COIL's architecture description, MORES's interpretation of interaction-depth results, and the synthetic-training study's domain-specific discussion provide candidate prose anchors. Later family review must confirm that the selected fact is directly stated at the chosen location.
@@ -43,7 +57,10 @@ source-checks the family. [Frozen v2 plan](../../benchmarks/phase2/benchmark-sam
 - **Negative or mixed findings:** the MORES interaction-depth results, synthetic-training results across domains, IIRC's context-relative “None” case, and DensePhrases' dataset exception offer scoped mixed or limiting findings. These do not license a claim beyond their stated collection, measure, or setup.
 - **Cross-paper comparison:** several candidate comparisons are possible, but their metrics and tasks are not interchangeable. A valid family should compare study conditions or carefully matched outcomes and preserve those distinctions.
 - **Filters:** the accepted snapshot contains 100 papers: publication-year counts are 2020: 12, 2021: 17, 2022: 9, 2023: 22, 2024: 24, 2025: 15, and 2026: 1. Candidate inclusive ranges therefore contain 12 papers for 2020, 17 for 2021, and 29 for 2020–2021; seven of the 13 screened source documents fall in 2020–2021. The implemented search contract supports inclusive `year_from`/`year_to` bounds. This verifies filter eligibility for candidate families; source review must still select and anchor each family before it counts toward coverage.
-- **Missing evidence:** not established. Search the accepted snapshot under a documented source-first procedure; IIRC's provided-context task is not evidence of corpus-wide absence.
+- **Missing evidence:** the v13 development example is not a fresh held-out family.
+  The literal screen has full stored-chunk join coverage, but the required
+  independently source-reviewed held-out families remain unestablished. IIRC's
+  provided-context task is not evidence of absence from the accepted snapshot.
 - **Novelty:** the source screen excludes known public overlap areas, but unavailable spent-family identities prevent certifying complete freshness against prior held-out sets.
 
 The map supports planning source review but does not itself prove category coverage, create ten valid families, or satisfy any split's modality/finding floors. If source-first review or metadata counts cannot support a frozen floor, record and revise the sampling plan before held-out scoring.

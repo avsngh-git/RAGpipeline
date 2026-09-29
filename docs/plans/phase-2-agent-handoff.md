@@ -66,11 +66,17 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
 - V13 acceptance preparation verified inclusive publication-year filter counts against
   the accepted 100-paper snapshot: 29 papers fall in 2020–2021, including seven screened
   source documents. The [source map](../research/phase-2-v13-heldout-source-evidence-map.md)
-  records the supporting metadata counts. A separate v13 gate config and acceptance runner
-  preserve the v10 thresholds and v12 scoring/timing procedure; v12 code and freeze remain
-  unchanged. Hosted CI passed for commit `557277a` (run
+  records the supporting metadata counts. A read-only 38-variant literal screen covered
+  all 100 titles and all 44,277 selected chunks; all 100 snapshot papers have searchable
+  chunks, while abstract-index metadata is available for 10. This is storage coverage,
+  not semantic proof of absence: matched sources still need direct adjudication and
+  literal no-hits are not conclusive. The v13 development-only unsupported example had
+  contextual near matches but no direct source-positive passage; it does not count toward
+  held-out floors. A separate v13 gate config and acceptance runner preserve the v10
+  thresholds and v12 scoring/timing procedure; v12 code and freeze remain unchanged.
+  Hosted CI passed for commit `557277a` (run
   [36554779665](https://github.com/avsngh-git/RAGpipeline/actions/runs/36554779665)). The
-  missing-evidence scan adjudication, ten source-reviewed family records, final freeze, and one-time
+  source adjudication, ten source-reviewed family records, final freeze, and one-time
   v13 acceptance run remain open; no held-out scores have been produced.
 
 ## Guardrails and operating constraints
