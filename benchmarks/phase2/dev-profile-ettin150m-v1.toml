@@ -11,7 +11,7 @@ identity_correction_scope = "dense collection identity only; model, ranking, sel
 snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
 snapshot_selected_chunk_count = 44277
 snapshot_selection_identity = "sha256:cc5b7c30962ce66ad279a5ff95b0e1e6dd8aede68980292717d1a7a23ecd6f18"
-profile_id = "sha256:cc2d86ff0f7e64db92b072fb1a42e9a8f35ba60b288b971d104688df61d3bba1"
+profile_id = "sha256:c7b26fcab5d73aefa1ce09461931b892ce5a14329a3c7faaa1d53d5f9c3a3007"
 base_hybrid_profile_id = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
 default_mode = "reranked"
 unsupported_query_cutoff = "disabled"
@@ -30,7 +30,7 @@ configuration_id = "sha256:4d6a82110a37bd21974bd5fcc0aeae416b2996b79082b6645e6d3
 lexical_top_k = 50
 dense_top_k = 50
 fused_top_k = 50
-rerank_top_k = 50
+rerank_top_k = 16
 
 [selection]
 paper_score_policy = "strongest_passage"
@@ -66,8 +66,9 @@ model = "cross-encoder/ettin-reranker-150m-v1"
 revision = "025501c4e0f9bbeb4c5b198318e0089ff061cc14"
 preprocessing_revision = "query-source-chunk-v1"
 maximum_pair_tokens = 2048
+precision = "fp16"
 input_pool_policy = "configured-prefix-all-or-fallback"
-batch_size = 4
+batch_size = 8
 
 [benchmark_identity]
 calibration_sha256 = "sha256:e7f7983ad2af564b24d86464c76f18432e5985a3a74e44849f8323048180c3b6"
@@ -84,6 +85,6 @@ source_chunk_mapping_sha256 = "sha256:d1430c94ad31c1e2f42675ccbe7e8a28c7bd90b062
 bm25_lexical = "sha256:f36849d5b7ce411a2ddbc35f5516b9462a5948bf9651728ac84a65005922b5e6"
 dense_e5 = "sha256:1eb792e949142afbd45a34b081149565fd273156fdcf2f21f5c456f845736884"
 hybrid_e5 = "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
-reranked_ettin150m_hybrid = "sha256:cc2d86ff0f7e64db92b072fb1a42e9a8f35ba60b288b971d104688df61d3bba1"
+reranked_ettin150m_hybrid = "sha256:c7b26fcab5d73aefa1ce09461931b892ce5a14329a3c7faaa1d53d5f9c3a3007"
 fixed_window_dense_e5 = "sha256:c2c7429ca329014e1d2b24f3dfd958cb461d93f5315a2977d5e23b9681b7f785"
 

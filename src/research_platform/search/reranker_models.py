@@ -164,7 +164,14 @@ class PinnedSentenceTransformersReranker:
                 trust_remote_code=False,
                 device=device,
                 max_length=self.identity.maximum_input_tokens,
-                model_kwargs={"torch_dtype": torch.float32},
+                model_kwargs={
+                    "torch_dtype": getattr(
+                        torch,
+                        {"fp32": "float32", "fp16": "float16", "bf16": "bfloat16"}[
+                            self.identity.precision
+                        ],
+                    )
+                },
             )
         except Exception as error:
             _raise_model_error(error, torch, during_load=True)

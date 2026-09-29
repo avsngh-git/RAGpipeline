@@ -56,6 +56,8 @@ def _profile_from_manifest(raw: dict[str, object]) -> RetrievalProfile:
                 "preprocessing_revision": reranker_section["preprocessing_revision"],
                 "maximum_input_tokens": reranker_section["maximum_pair_tokens"],
             }
+            if "precision" in reranker_section:
+                reranker_data["precision"] = reranker_section["precision"]
         limits_raw = _section(raw, "candidate_limits")
         selection_raw = _section(raw, "selection")
         if limits_raw is None or selection_raw is None:

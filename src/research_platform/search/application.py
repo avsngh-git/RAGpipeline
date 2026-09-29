@@ -806,7 +806,7 @@ async def create_phase2_runtime(
             cast(Any, frozen.reranker),
             token_counter=local_reranker,
             scorer=local_reranker,
-            batch_size=4,
+            batch_size=4 if frozen.reranker.precision == "fp32" else 8,
             maximum_candidates=50,
             timeout_seconds=15,
         )

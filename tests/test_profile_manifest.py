@@ -170,8 +170,17 @@ def test_ettin_dev_profile_loads_but_is_not_frozen_or_active() -> None:
     assert profile.reranker is not None
     assert profile.reranker.model == "cross-encoder/ettin-reranker-150m-v1"
     assert profile.reranker.maximum_input_tokens == 2048
+    assert profile.reranker.precision == "fp16"
+    assert profile.candidate_limits.rerank_top_k == 16
     validate_supported_reranker_identity(profile.reranker)
     with pytest.raises(ValueError, match="not frozen"):
         load_frozen_profile(path)
     active = (ROOT / "benchmarks/phase2/active-profile.toml").read_text("utf-8")
     assert "ettin" not in active
+
+
+def test_fp32_precision_keeps_the_frozen_profile_identity() -> None:
+    profile = load_frozen_profile(ROOT / "benchmarks/phase2/frozen-profile-v9.toml")
+
+    assert profile.reranker is not None and profile.reranker.precision == "fp32"
+    assert "precision" not in profile.to_dict()["reranker"]  # type: ignore[index]
