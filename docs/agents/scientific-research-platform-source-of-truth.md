@@ -1,7 +1,7 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.27\
+**Version:** 1.28\
 **Last updated:** 2026-09-29\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v13 failed 10 of 14 acceptance gates (v13 sealed; development-only diagnosis next); acceptance method fixed by ADR-0014; Phase 3 not started\
@@ -486,7 +486,8 @@ Approved 2026-09-26 after the planning interview. The
 [ADR-0011](../adr/0011-explicit-search-result-semantics.md), the accepted
 [Phase 2 retrieval profile](../adr/0012-phase2-accepted-retrieval-profile.md),
 [ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md),
-[ADR-0014](../adr/0014-phase2-acceptance-method.md), and the
+[ADR-0014](../adr/0014-phase2-acceptance-method.md),
+[ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md), and the
 [benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) elaborate
 these rules.
 
@@ -557,6 +558,8 @@ these rules.
   separately from warm median/p95 latency, and retain CPU operation and GPU-free CI.
   For the fresh R8 acceptance, the owner-approved v10 protocol sets maximum warm
   p95 to 2,000 ms; the separately frozen per-request deadline remains 30 seconds.
+  [ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md) (owner-approved 2026-09-29) raises
+  the limit to 5,000 ms for future acceptance configs only; earlier outcomes keep their limits.
   Earlier assessments retain their original limits and outcomes. Execution is bounded.
   Default failures are explicit; requested fallbacks identify
   the actual ranking used and count separately in evaluation. Scores are not support
