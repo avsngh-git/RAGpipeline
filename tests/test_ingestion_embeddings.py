@@ -16,11 +16,15 @@ from research_platform.ingestion.embeddings import (
     E5_SMALL_V2_MODEL,
     E5_SMALL_V2_PREPROCESSING,
     E5_SMALL_V2_REVISION,
+    GTE_MODERNBERT_BASE_MODEL,
+    GTE_MODERNBERT_BASE_PREPROCESSING,
+    GTE_MODERNBERT_BASE_REVISION,
     BGEBaseEnV15Embedder,
     E5SmallV2Embedder,
     EmbeddingInferenceBusy,
     EmbeddingInferenceTimeout,
     EmbeddingModelError,
+    GTEModernBertBaseEmbedder,
     create_embedder_for_configuration,
 )
 from research_platform.ingestion.evidence import TokenSpan
@@ -232,6 +236,38 @@ def test_bge_embedder_rejects_mismatched_profile_and_overlong_passage() -> None:
     assert model.calls == []
 
 
+def test_gte_modernbert_is_unprefixed_8192_token_dev_profile() -> None:
+    import asyncio
+
+    model = _FakeModel(dimensions=768)
+    embedder = GTEModernBertBaseEmbedder(model=model)
+    config = embedder.index_configuration()
+
+    asyncio.run(embedder.embed(("passage text",), configuration=config))
+    asyncio.run(embedder.embed_query("a query", configuration=config))
+
+    assert config.embedding_model == GTE_MODERNBERT_BASE_MODEL
+    assert config.embedding_revision == GTE_MODERNBERT_BASE_REVISION
+    assert config.preprocessing_revision == GTE_MODERNBERT_BASE_PREPROCESSING
+    assert (config.vector_size, config.maximum_input_tokens) == (768, 8192)
+    assert config.collection_name == "phase2-dev-gte-modernbert-base-v1"
+    assert model.calls[0][0] == ["passage text"]
+    assert model.calls[1][0] == ["a query"]
+    assert isinstance(
+        create_embedder_for_configuration(config), GTEModernBertBaseEmbedder
+    )
+    embedder.close()
+
+
+def test_fp16_embedding_requires_cuda_and_valid_precision() -> None:
+    with pytest.raises(ValueError, match="precision"):
+        GTEModernBertBaseEmbedder(precision="int8")  # type: ignore[arg-type]
+    assert (
+        GTEModernBertBaseEmbedder(model=_FakeModel(768), precision="fp16").precision
+        == "fp16"
+    )
+
+
 def test_configuration_factory_selects_only_a_pinned_local_adapter() -> None:
     bge_config = BGEBaseEnV15Embedder.index_configuration()
     e5_config = E5SmallV2Embedder.index_configuration()
@@ -243,7 +279,7 @@ def test_configuration_factory_selects_only_a_pinned_local_adapter() -> None:
     unsupported = IndexConfiguration.from_dict(
         {**bge_config.to_dict(), "embedding_revision": "unknown"}
     )
-    with pytest.raises(ValueError, match="pinned E5-small-v2 or BGE"):
+    with pytest.raises(ValueError, match="pinned E5-small-v2, BGE"):
         create_embedder_for_configuration(unsupported)
 
 

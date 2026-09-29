@@ -296,6 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
     rebuild_index.add_argument(
         "--device", choices=("auto", "cpu", "cuda"), default="auto"
     )
+    rebuild_index.add_argument("--precision", choices=("fp32", "fp16"), default="fp32")
 
     query_index = index_subcommands.add_parser(
         "query", help="search one snapshot with its configured local embedding model"
@@ -766,7 +767,11 @@ async def _execute_index_operation(
     pool: asyncpg.Pool,
 ) -> None:
     configuration = _load_index_configuration(args.configuration)
-    embedder = create_embedder_for_configuration(configuration, device=args.device)
+    embedder = create_embedder_for_configuration(
+        configuration,
+        device=args.device,
+        precision=getattr(args, "precision", "fp32"),
+    )
     async with httpx.AsyncClient(
         base_url=settings.qdrant_url.rstrip("/"), timeout=30
     ) as http:

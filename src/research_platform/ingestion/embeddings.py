@@ -31,7 +31,16 @@ BGE_BASE_EN_V1_5_QUERY_PREFIX = (
     "Represent this sentence for searching relevant passages: "
 )
 
+GTE_MODERNBERT_BASE_MODEL = "Alibaba-NLP/gte-modernbert-base"
+GTE_MODERNBERT_BASE_REVISION = "e7f32e3c00f91d699e8c43b53106206bcc72bb22"
+GTE_MODERNBERT_BASE_DIMENSIONS = 768
+GTE_MODERNBERT_BASE_MAX_TOKENS = 8192
+GTE_MODERNBERT_BASE_PREPROCESSING = (
+    "gte-modernbert-base:no-prefix:cls-pooling:l2-normalize:v1"
+)
+
 EmbeddingDevice = Literal["auto", "cpu", "cuda"]
+EmbeddingPrecision = Literal["fp32", "fp16"]
 
 
 @dataclass(frozen=True)
@@ -103,7 +112,19 @@ _BGE_PROFILE = _EmbeddingProfile(
     collection_name="phase2-bge-base-en-v1-5",
     batch_size=4,
 )
-_SUPPORTED_PROFILES = (_E5_PROFILE, _BGE_PROFILE)
+_GTE_PROFILE = _EmbeddingProfile(
+    model=GTE_MODERNBERT_BASE_MODEL,
+    revision=GTE_MODERNBERT_BASE_REVISION,
+    preprocessing_revision=GTE_MODERNBERT_BASE_PREPROCESSING,
+    dimensions=GTE_MODERNBERT_BASE_DIMENSIONS,
+    maximum_input_tokens=GTE_MODERNBERT_BASE_MAX_TOKENS,
+    passage_prefix="",
+    query_prefix="",
+    display_name="gte-modernbert-base",
+    collection_name="phase2-dev-gte-modernbert-base-v1",
+    batch_size=8,
+)
+_SUPPORTED_PROFILES = (_E5_PROFILE, _BGE_PROFILE, _GTE_PROFILE)
 
 
 class EmbeddingModelError(RuntimeError):
@@ -137,10 +158,14 @@ class _SentenceTransformerEmbedder:
         device: EmbeddingDevice = "auto",
         model: Any | None = None,
         query_timeout_seconds: float = 10.0,
+        precision: EmbeddingPrecision = "fp32",
     ) -> None:
         if device not in {"auto", "cpu", "cuda"}:
             raise ValueError("device must be auto, cpu or cuda")
+        if precision not in {"fp32", "fp16"}:
+            raise ValueError("precision must be fp32 or fp16")
         self.device = device
+        self.precision = precision
         self._model = model
         self._tokenizer = getattr(model, "tokenizer", None)
         if (
@@ -383,6 +408,10 @@ class _SentenceTransformerEmbedder:
                     local_files_only=True,
                     trust_remote_code=False,
                 )
+                if self.precision == "fp16":
+                    if device != "cuda":
+                        raise EmbeddingModelError("fp16 embedding requires CUDA")
+                    model.half()
                 model.max_seq_length = self._profile.maximum_input_tokens
             except Exception:
                 raise EmbeddingModelError(
@@ -411,14 +440,20 @@ class BGEBaseEnV15Embedder(_SentenceTransformerEmbedder):
     _profile = _BGE_PROFILE
 
 
+class GTEModernBertBaseEmbedder(_SentenceTransformerEmbedder):
+    """Batch-embed passages with the development-only gte-modernbert-base model."""
+
+    _profile = _GTE_PROFILE
+
+
 def validate_supported_embedding_configuration(
     configuration: IndexConfiguration,
 ) -> None:
     """Reject query profiles that do not name one of the pinned local models."""
     if not any(profile.matches(configuration) for profile in _SUPPORTED_PROFILES):
         raise ValueError(
-            "query adapter configuration does not match pinned E5-small-v2 "
-            "or BGE-base-en-v1.5"
+            "query adapter configuration does not match pinned E5-small-v2, "
+            "BGE-base-en-v1.5 or gte-modernbert-base"
         )
 
 
@@ -426,11 +461,14 @@ def create_embedder_for_configuration(
     configuration: IndexConfiguration,
     *,
     device: EmbeddingDevice = "auto",
+    precision: EmbeddingPrecision = "fp32",
 ) -> _SentenceTransformerEmbedder:
     """Choose the pinned local adapter from the vector-index identity."""
     validate_supported_embedding_configuration(configuration)
     if configuration.embedding_model == E5_SMALL_V2_MODEL:
-        return E5SmallV2Embedder(device=device)
+        return E5SmallV2Embedder(device=device, precision=precision)
     if configuration.embedding_model == BGE_BASE_EN_V1_5_MODEL:
-        return BGEBaseEnV15Embedder(device=device)
+        return BGEBaseEnV15Embedder(device=device, precision=precision)
+    if configuration.embedding_model == GTE_MODERNBERT_BASE_MODEL:
+        return GTEModernBertBaseEmbedder(device=device, precision=precision)
     raise ValueError("no local embedding adapter supports this configuration")
