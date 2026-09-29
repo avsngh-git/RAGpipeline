@@ -79,6 +79,60 @@ in the [handoff history archive](phase-2-agent-handoff-history.md).
   source adjudication, ten source-reviewed family records, final freeze, and one-time
   v13 acceptance run remain open; no held-out scores have been produced.
 
+## Current continuation handoff — assistant-reviewed 2026-09-29
+
+### Verified current state
+
+- Worktree: `/tmp/ragpipeline-phase2-ci-safe`, branch `codex/phase2-ci-safe`, clean at
+  commit `1612975` (`docs: record v13 source scan coverage`). Hosted CI passed for this
+  commit in [run 36557977127](https://github.com/avsngh-git/RAGpipeline/actions/runs/36557977127).
+  Publication to the existing draft PR branch is authorized; do not merge.
+- R8 v12 remains the latest held-out acceptance result: 8/14 gates passed. Warm p95
+  was 894.349 ms against 2,000 ms and passed. Six paper/evidence/source-quality gates
+  failed; see the [acceptance report](../reference/phase-2-acceptance-report.md).
+  The v10 value of 1,602.2 ms is historical and was measured against its earlier
+  1,500 ms gate.
+- The two authorized v13 additions are development-only. The positive comparison's
+  sources and retrieval stages were checked; the selected profile returned its
+  required anchors. The unsupported example returned contextual near matches. Do not
+  count either family toward held-out floors or use them as acceptance results.
+- The v13 read-only corpus audit verifies 100/100 snapshot titles, abstract-index
+  metadata for 10/100 papers, and exact searchable-chunk joins for all 44,277 selected
+  chunks across all 100 papers. The 38-variant literal scan found candidate hits across
+  12 papers and 62 chunks (73 variant-paper-chunk matches). Four candidate source
+  records have been checked against primary sources and none directly meets the scoped
+  criterion. The full 12-paper hit set is not yet adjudicated: an earlier pass mapped
+  it to 11 ACL Anthology sources and one external publisher source, but the review was
+  interrupted before that pass finished. Do not declare bounded absence until every
+  hit that could meet the criterion is reviewed.
+- `scripts/phase2_r8_v13_acceptance.py` and
+  `benchmarks/phase2/acceptance-v13.toml` are tracked and passed CI. The public freeze
+  manifest `benchmarks/phase2/r8-v13-freeze-v1.toml` and private
+  `heldout-v13.toml` / `source-alignment-v13.toml` are absent. No validation-only or
+  held-out v13 run has occurred and no v13 held-out score exists. The disposable
+  Phase 2 PostgreSQL and Qdrant containers were running at this handoff.
+
+### Next actions
+
+1. Resume primary-source adjudication for the remaining paper hits in
+   `local-reference/phase2-runs/benchmark-v13/`. Keep question text, candidate IDs,
+   source excerpts, and judgments out of tracked files and ordinary logs; never read
+   `*origins.json` or spent v12 item-level results.
+2. If a direct source-positive is found for the development-only unsupported family,
+   correct its source alignment and development labels, then rescore the development
+   profiles. If no hit is direct, record the bounded scope and source-review limits.
+3. Build the fresh ten-family held-out set only after source screening. Preserve the
+   v2 plan floors: at least three families in each of six categories, two direct-positive
+   prose families, three table-result families including two numeric-table families,
+   and two negative/mixed findings. If evidence cannot satisfy a floor, revise and
+   document the sampling plan before held-out scoring; do not lower floors silently.
+4. Freeze dataset, source alignment, profile/configuration, code, scorer, and timing
+   procedure. Run the v13 runner in validation-only mode first, then score the frozen
+   held-out set once. Do not tune against that result; a failed gate requires a later
+   fresh set.
+5. Update the acceptance report, roadmap, operations guidance, README, and source of
+   truth as required, then commit/push the verified revision and check hosted CI.
+
 ## Guardrails and operating constraints
 
 - The accepted Phase 1 snapshot remains `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` in
