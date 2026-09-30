@@ -797,16 +797,19 @@ async def create_phase2_runtime(
         hybrid = HybridEvidenceSearch(
             lexical_evidence[hybrid_profile.profile_id], dense
         )
+        reranker_identity = frozen.reranker
+        if reranker_identity is None:
+            raise SearchDependencyUnavailable("frozen serving profile has no reranker")
         local_reranker = PinnedSentenceTransformersReranker(
-            cast(Any, frozen.reranker),
+            cast(Any, reranker_identity),
             device=cast(Any, settings.model_device),
             cache_folder=settings.reranker_cache_dir,
         )
         reranker = CrossEncoderReranker(
-            cast(Any, frozen.reranker),
+            cast(Any, reranker_identity),
             token_counter=local_reranker,
             scorer=local_reranker,
-            batch_size=4 if frozen.reranker.precision == "fp32" else 8,
+            batch_size=4 if reranker_identity.precision == "fp32" else 8,
             maximum_candidates=50,
             timeout_seconds=15,
         )
