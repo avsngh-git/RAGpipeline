@@ -18,7 +18,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 from urllib.parse import urlsplit
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -366,6 +366,40 @@ def _git_identity() -> dict[str, object]:
     }
 
 
+def _exception_chain(error: BaseException) -> str:
+    """Class names and messages of an exception and its causes; no request text."""
+    parts: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        parts.append(
+            f"{type(current).__module__}.{type(current).__qualname__}: {current}"
+        )
+        current = current.__cause__ or current.__context__
+    return " <- ".join(parts)
+
+
+def _install_error_log(log_path: Path) -> None:
+    """Append exceptions escaping the search executor to a private 0600 log."""
+    from research_platform.search.application import Phase2SearchExecutor
+
+    original = Phase2SearchExecutor.execute
+
+    async def execute(self: Any, request: Any, *, request_id: str) -> Any:
+        try:
+            return await original(self, request, request_id=request_id)
+        except Exception as error:
+            descriptor = os.open(
+                log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600
+            )
+            with os.fdopen(descriptor, "a", encoding="utf-8") as log:
+                log.write(f"{request.operation.value}: {_exception_chain(error)}\n")
+            raise
+
+    Phase2SearchExecutor.execute = execute  # type: ignore[method-assign]
+
+
 def _cuda_reset_peak() -> bool:
     """Reset the process-wide CUDA peak counter; False when CUDA is unavailable."""
     import torch
@@ -502,6 +536,7 @@ async def _run(
     stages = _StageCollector()
     fallback_events: list[dict[str, object]] = []
     _install_instrumentation(stages, fallback_events)
+    _install_error_log(args.output.with_name(args.output.name + ".errors.log"))
     session_rows: list[dict[str, object]] = []
     cuda_load_peaks: list[int | None] = []
     cuda_session_peaks: list[int | None] = []

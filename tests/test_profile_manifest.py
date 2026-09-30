@@ -257,3 +257,69 @@ def test_profile_env_override_selects_candidate_without_changing_active(
     assert resolve_frozen_profile_path(
         ROOT / "benchmarks/phase2/active-profile.toml"
     ).name == ("frozen-profile-v9.toml")
+
+
+def _fake_loader(calls: list[tuple[str, str]]):
+    from research_platform.search.lexical import (
+        BM25_SCORING_SETTINGS,
+        SCIENTIFIC_BM25_IDENTITY,
+        BuiltLexicalIndex,
+        LexicalIndexManifest,
+    )
+
+    def load(profile, role):
+        calls.append((profile.profile_id, role))
+        manifest = LexicalIndexManifest(
+            role=role,
+            snapshot_status="finalized",
+            snapshot=profile.snapshot,
+            profile_id=profile.profile_id,
+            lexical_index_id=SCIENTIFIC_BM25_IDENTITY.configuration_id,
+            row_count=0,
+            candidate_limit=profile.candidate_limits.lexical_top_k,
+            empty_token_row_count=0,
+            duplicate_content_row_count=0,
+            row_map_sha256="sha256:" + "0" * 64,
+            scoring=BM25_SCORING_SETTINGS,
+        )
+        return BuiltLexicalIndex(profile, manifest, (), None)
+
+    return load
+
+
+def test_v10_lexical_retrievers_are_rebound_to_the_gte_hybrid_profile() -> None:
+    from research_platform.search.application import (
+        _build_lexical_retrievers,
+        _resolve_serving_profiles,
+    )
+
+    serving = _resolve_serving_profiles(
+        ROOT / "benchmarks/phase2/frozen-profile-v10.toml"
+    )
+    calls: list[tuple[str, str]] = []
+    evidence, papers = _build_lexical_retrievers(serving, _fake_loader(calls))
+
+    hybrid = serving.hybrid
+    retriever = evidence[hybrid.profile_id]
+    # HybridEvidenceSearch requires both to equal the requested profile.
+    assert retriever.profile == hybrid
+    assert retriever.manifest.profile_id == hybrid.profile_id
+    assert papers[hybrid.profile_id].profile == hybrid
+    assert papers[serving.frozen.profile_id].manifest.role == "paper"
+    # Artifacts are still loaded under the legacy profile they were built for.
+    assert (serving.lexical_source.profile_id, "evidence") in calls
+    assert evidence[serving.bm25.profile_id].profile == serving.bm25
+
+
+def test_v9_lexical_retrievers_keep_the_built_profile() -> None:
+    from research_platform.search.application import (
+        _build_lexical_retrievers,
+        _resolve_serving_profiles,
+    )
+
+    serving = _resolve_serving_profiles(
+        ROOT / "benchmarks/phase2/frozen-profile-v9.toml"
+    )
+    evidence, _ = _build_lexical_retrievers(serving, _fake_loader([]))
+
+    assert evidence[serving.hybrid.profile_id].profile is serving.hybrid

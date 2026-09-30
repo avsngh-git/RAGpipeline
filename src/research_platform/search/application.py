@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
@@ -805,6 +805,40 @@ def _resolve_serving_profiles(frozen_profile_path: Path | None) -> _ServingProfi
     )
 
 
+def _bind_lexical_to_profile(index: Any, profile: RetrievalProfile) -> Any:
+    """Rebind a dense-independent BM25 artifact to the serving profile identity."""
+    return replace(
+        index,
+        profile=profile,
+        manifest=replace(index.manifest, profile_id=profile.profile_id),
+    )
+
+
+def _build_lexical_retrievers(
+    serving: _ServingProfiles,
+    load: Callable[[RetrievalProfile, Literal["evidence", "paper"]], Any],
+) -> tuple[dict[str, LexicalRetriever], dict[str, LexicalRetriever]]:
+    """Map serving profile ids to retrievers, reusing the legacy BM25 artifacts."""
+    hybrid, frozen, bm25 = serving.hybrid, serving.frozen, serving.bm25
+    evidence = load(serving.lexical_source, "evidence")
+    paper = load(serving.lexical_source, "paper")
+    if hybrid is not serving.lexical_source:
+        # Hybrid checks the retriever profile and manifest id against the request.
+        evidence = _bind_lexical_to_profile(evidence, hybrid)
+        paper = _bind_lexical_to_profile(paper, hybrid)
+    return (
+        {
+            bm25.profile_id: LexicalRetriever(load(bm25, "evidence")),
+            hybrid.profile_id: LexicalRetriever(evidence),
+        },
+        {
+            bm25.profile_id: LexicalRetriever(load(bm25, "paper")),
+            hybrid.profile_id: LexicalRetriever(paper),
+            frozen.profile_id: LexicalRetriever(paper),
+        },
+    )
+
+
 async def create_phase2_runtime(
     settings: Settings, *, frozen_profile_path: Path | None = None
 ) -> Phase2Runtime:
@@ -842,27 +876,12 @@ async def create_phase2_runtime(
             raise SearchDependencyUnavailable("frozen snapshot selection has changed")
 
         root = settings.lexical_index_root
-        bm25_evidence = _load_lexical_artifact(
-            root, bm25_profile, "evidence", mmap=True
+        lexical_evidence, lexical_papers = _build_lexical_retrievers(
+            serving,
+            lambda profile, role: _load_lexical_artifact(
+                root, profile, role, mmap=True
+            ),
         )
-        bm25_paper = _load_lexical_artifact(root, bm25_profile, "paper", mmap=True)
-        # The BM25 artifacts are dense-model independent; they stay bound to the
-        # profile they were built under and are rebound to the serving profile ids.
-        hybrid_evidence = _load_lexical_artifact(
-            root, serving.lexical_source, "evidence", mmap=True
-        )
-        hybrid_paper = _load_lexical_artifact(
-            root, serving.lexical_source, "paper", mmap=True
-        )
-        lexical_evidence = {
-            bm25_profile.profile_id: LexicalRetriever(bm25_evidence),
-            hybrid_profile.profile_id: LexicalRetriever(hybrid_evidence),
-        }
-        lexical_papers = {
-            bm25_profile.profile_id: LexicalRetriever(bm25_paper),
-            hybrid_profile.profile_id: LexicalRetriever(hybrid_paper),
-            frozen.profile_id: LexicalRetriever(hybrid_paper),
-        }
         embedder = create_embedder_for_configuration(
             configuration, device=cast(Any, settings.model_device)
         )
