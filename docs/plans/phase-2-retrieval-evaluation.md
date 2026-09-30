@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; current status assistant-reviewed 2026-09-29. The earlier v3 assessment failed four frozen gates and v11 passed historically. The fresh R8 v12 assessment completed with 8/14 gates passing: warm p95 passed at 894.3 ms against the approved 2,000 ms limit, while six paper/evidence quality and source-coverage gates failed. Phase 2 remains open; the v12 set is sealed. The enlarged R8 v13 assessment ([ADR-0014](../adr/0014-phase2-acceptance-method.md), 30 held-out families) then failed, passing 10 of 14 gates (paper nDCG@10 and three evidence gates failed); v13 is sealed and a development-only diagnosis note is next. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values and next steps.
+Status: approved 2026-09-26; **Phase 2 accepted 2026-09-30**, assistant-reviewed. The one-time R8 v14 assessment (30 held-out families, [ADR-0014](../adr/0014-phase2-acceptance-method.md), [ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md), [ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md); freeze commit `82694aa`, hosted CI run 36740163129) passed all 16 gates with frozen profile v10 ([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). The earlier v3 assessment failed four gates, v11 passed historically, v12 passed 8/14 and v13 passed 10/14 (still failed under its own gates); all are spent. Three quality gates passed by narrow margins inside sampling noise. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values, intervals and caveats. Phase 3 has not started.
 
 ## Start and authority
 
@@ -58,9 +58,11 @@ and review work are delegated; ask only when a material decision exceeds this sc
 The original P2-01–P2-20 implementation is delivered. A fresh source-reviewed v11
 assessment passed historically. The later R8 v12 assessment passed 8/14 gates and
 failed six paper/evidence ranking and source-coverage gates; its warm-p95 gate passed.
-Phase 2 remains open. The v12 and v13 sets are spent and cannot guide tuning. R8 v13
-(30 families, ADR-0014) passed 10/14 gates. Next is a development-only diagnosis note;
-at most one replacement set remains authorized. Current outcome and
+The v12 and v13 sets are spent and cannot guide tuning. R8 v13
+(30 families, ADR-0014) passed 10/14 gates. After a development-only diagnosis and the
+owner-approved gate revision (ADR-0015, ADR-0016), the one-time R8 v14 assessment passed
+all 16 gates on 2026-09-30 and Phase 2 is accepted with frozen profile v10 (ADR-0017);
+v14 is spent and sealed. Current outcome and
 frozen identities are in the [acceptance report](../reference/phase-2-acceptance-report.md),
 and the [agent handoff](phase-2-agent-handoff.md) records guardrails.
 Question text, source excerpts, candidate text, item-level results and origin ledgers
@@ -91,7 +93,7 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
 | P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on frozen R1–R7 code revision `586f83c` ([run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)) |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | R8 v13 completed 2026-09-29: FAIL, 10/14 gates passed (paper nDCG@10; evidence nDCG@10, direct MRR@10, judged Recall@20 failed); v13 sealed; Phase 2 remains open; development-only diagnosis next, at most one replacement set |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | R8 v14 completed 2026-09-30: PASS, 16/16 gates (three quality gates by narrow margins); v14 sealed; **Phase 2 accepted** with frozen profile v10 (ADR-0017). Earlier: v13 failed 10/14 under its own gates |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may

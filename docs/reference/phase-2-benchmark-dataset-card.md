@@ -1,11 +1,64 @@
 # Phase 2 benchmark dataset card
 
-**Current status:** `phase2-benchmark-v13` (30 held-out families, ADR-0014) was frozen
-and scored once on 2026-09-29; it failed 10 of 14 gates and is spent and sealed. The
-v13 section below is current. Everything after it, including the v10 fields and
-sections, is historical and describes a spent set.
+**Current status:** `phase2-benchmark-v14` (30 held-out families, ADR-0014 and ADR-0015)
+was frozen and scored once on 2026-09-30; it passed all 16 gates and Phase 2 is accepted.
+v14 is spent and sealed. The v14 section below is current. Everything after it, including
+the v13 and v10 sections, is historical and describes spent sets.
 
-## v13 (current, spent)
+## v14 (current, spent)
+
+| Field | Value |
+| --- | --- |
+| Dataset | `phase2-benchmark-v14`, dataset SHA-256 `2f36323141f9cce1c539a8d70a6d91adb63491a4d959b412539edfc00eceb176` |
+| Alignment | SHA-256 `208f3e472089094a7348ea36881e7c53b5706668301c55f88209e19856cd15b3` |
+| Freeze | `phase2-r8-v14-v1`, SHA-256 `c42c1113938cb6dcdd2947f1d260c39ad5160eb0497fa3ad5e790af510e8d052` |
+| Status | Frozen, assistant-reviewed, scored once; passed 16 of 16 gates; sealed |
+| Scope | 30 purposive families (26 positive, 4 missing-evidence) on the accepted 100-paper snapshot |
+| Categories (overlapping) | Discovery 6, specific evidence 15, table result 10, filters 5, cross-paper comparison 5, missing evidence 4 |
+| Modalities | Direct-positive prose 8, numeric table 6, negative or mixed finding 5 |
+| Positive anchors | 126: 88 source-first builder anchors across 26 families and 38 pool-found label-2 anchors |
+| Alignment anchors | 165 table and 2,373 prose anchors, mostly derived label-0 anchors for coverage |
+
+**Construction method.** The set was built source-first, without retrieval. Builders
+worked from the paper catalog and the original PDFs, each inside an assigned paper group,
+and recorded every direct anchor with page, locator, quoted sentence or table cell, and
+conditions. A separate verifier re-read the PDFs and checked facts, support, answerability,
+tags, freshness against the development and calibration questions, and schema. Missing-
+evidence families rest on a bounded, snapshot-wide absence screen. Candidates pooled from the
+five frozen profiles (top 20 papers, top 50 evidence items per query) were then judged by
+blind reviewers who never saw profile or rank, on the 0/1/2 rubric. Five builder/reviewer
+disagreements were adjudicated against the PDF pages by a third assistant judge, and one
+further record fixed a requirement-piece mapping. Seven cards were unmatchable.
+
+**Reserves reuse.** Three of the 30 families are reserve families carried over from the
+v13 preparation (IDs outside the 30 scored v13 families); the other 27 were built fresh.
+The two reserve anchor documents were excluded from the new families' anchor papers.
+
+**Paper-reuse policy.** At most two families may draw positive anchors from the same paper
+(ADR-0014). Builders had disjoint paper groups, and a cross-paper family counts once for
+each paper it uses. The observed maximum was two, both for source-first anchors and for
+any label-2 anchor.
+
+**Inclusive context rule.** Label 1 means useful context or incomplete support
+(owner decision of 2026-09-30, ADR-0015). Every reviewer applied it, so no mixed rules
+exist in the set. Direct-evidence gates depend only on label 2; nDCG is sensitive to the rule.
+
+**Coverage.** The pre-check was met with the per-family 80% rule applied to papers and
+evidence. Paper coverage was 1.000 at top 10 and top 20 for every profile. Evidence
+coverage ranged from 0.994 to 1.000 at top 10 and top 20. The selected profile's lowest
+family was 1.000 (papers) and 0.933 (evidence) at top 10. Over all returned results (up to
+50), the selected profile's judged fraction was 0.884 for papers and 0.998 for evidence;
+unjudged results carry zero gain.
+
+**Caveats.** Freshness against spent sets v3–v13 cannot be certified. All judgments are
+assistant-reviewed; no human verification is claimed, and the owner's spot-check covered
+three cards in one development family, not v14. The set is purposive and directional,
+covers one snapshot, and measures ranking only. BM25 fell below both descriptive reference
+bands, so the difficulty flag is set; no gate changed. Three quality gates passed by narrow
+margins (0.002, 0.007, 0.012) inside sampling noise. Bootstrap intervals and category
+results are in the [acceptance report](phase-2-acceptance-report.md).
+
+## v13 (historical, spent)
 
 | Field | Value |
 | --- | --- |
@@ -108,4 +161,4 @@ grant access to those artifacts.
 - Source-anchor recall uses nine reviewed anchors and is not exhaustive corpus recall.
 - Unsupported findings apply only to the screened candidates in this fixed snapshot.
 - The selected profile passed all quality gates but missed the warm p95 limit; Phase 2
-  remains unaccepted.
+  remained unaccepted at that point (accepted later on v14).

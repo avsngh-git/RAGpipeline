@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.29\
-**Last updated:** 2026-09-29\
+**Version:** 1.30\
+**Last updated:** 2026-09-30\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v13 failed 10 of 14 acceptance gates (v13 sealed; development-only diagnosis next); acceptance method fixed by ADR-0014; Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 not started\
 
 ---
 
@@ -424,9 +424,10 @@ records finalization and quality acceptance.
 - **Verification scope:** prepare human-verified text/table samples from every paper in the 10-paper comparison before evaluating approaches. For the 100-paper pilot, run automated integrity checks across all papers and a documented manual quality sample. Report sampling and coverage without implying exhaustive cell-level review.
 
 Chunk-size/token-overlap baselines remain OPEN for future corpus variants and new
-retrieval evaluations. Phase 2 selected E5-small-v2 in the accepted profile after
-development comparison and held-out validation; changing that choice requires a new
-evaluation. The measured ten-paper source-artifact footprint is 11,587,433 bytes, and the 2 GiB hard acquisition cap
+retrieval evaluations. Phase 2 selected gte-modernbert-base in the accepted profile
+([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)) after development comparison and
+held-out validation, replacing the earlier E5-small-v2 choice; changing that choice
+requires a new evaluation. The measured ten-paper source-artifact footprint is 11,587,433 bytes, and the 2 GiB hard acquisition cap
 is retained for the 100-paper pilot with an explicit tenfold-size projection in
 the [pilot report](../reference/phase-1-full-extraction-pilot.md). Disposable
 retention periods remain OPEN. Extraction quality thresholds are in the P1-08
@@ -488,7 +489,8 @@ Approved 2026-09-26 after the planning interview. The
 [ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md),
 [ADR-0014](../adr/0014-phase2-acceptance-method.md),
 [ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md),
-[ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md), and the
+[ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md),
+[ADR-0017](../adr/0017-phase2-accepted-profile-v10.md) (accepted profile v10), and the
 [benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) elaborate
 these rules.
 
@@ -502,8 +504,10 @@ these rules.
   ([ADR-0009](../adr/0009-exact-snapshot-variant-lineage.md)).
 - **Search:** implement lexical BM25, dense, rank fusion and cross-encoder reranking.
   BM25S 0.3.11 with the scientific-en-v1 analyzer is the accepted local lexical
-  implementation. E5-small-v2 and MiniLM-L6-v2 over Hybrid E5 are the selected dense
-  and reranked choices after development comparison and held-out validation; the
+  implementation. gte-modernbert-base and Ettin-150M over the BM25S + gte hybrid
+  (frozen profile v10, [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)) are the
+  selected dense and reranked choices after development comparison and held-out
+  validation; they replace the earlier E5-small-v2 and MiniLM-L6-v2 selection. The
   frozen revisions, preprocessing and input limits are recorded in the profile. Later
   model or ranking changes require a new development and held-out evaluation.
 - **Paper/evidence behavior:** return one result per paper, combining title/abstract
@@ -568,16 +572,20 @@ these rules.
 
 The plan authorized the Phase 2 decisions and delegated implementation, calibration,
 benchmark preparation and source review. The v11 assessment was a historical pass;
-R8 v12 later failed six of 14 acceptance gates, and the enlarged v13 assessment
-(ADR-0014) failed four of 14 (passed 10). Phase 2 remains open. v13 and all previous
-held-out sets are spent and cannot guide tuning. Under ADR-0014 point 9 the next step
-is a development-only diagnosis note (aggregates only); at most one replacement set
-remains authorized, and after a second failure the owner decides via change control.
-[ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md) (owner-approved 2026-09-30) lowers the held-out
-paper nDCG@10, evidence nDCG@10 and evidence judged Recall@20 gates to 0.65, 0.40 and 0.50 in acceptance-v14, and
-adds a relative check against BM25, for the one remaining fresh set only. Earlier assessments keep their own gates. Routine
-Phase 2 decisions remain within these boundaries. Material deviations follow section 1
-change control.
+R8 v12 failed six of 14 acceptance gates and the enlarged v13 assessment (ADR-0014)
+failed four of 14 (passed 10). Owner-approved [ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md)
+(2026-09-30) lowered the held-out paper nDCG@10, evidence nDCG@10 and evidence judged
+Recall@20 gates to 0.65, 0.40 and 0.50 in acceptance-v14 and added a relative check
+against BM25, for the one remaining fresh set only; v13 stays failed under its own gates.
+The one-time R8 v14 assessment (30 families, freeze commit `82694aa`) then passed all 16
+gates on 2026-09-30, accepting Phase 2 with frozen profile v10
+([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). The pass is directional: three
+quality gates passed by narrow margins inside sampling noise, labels are assistant-reviewed,
+and dense gte alone ranked papers better than the selected profile. The
+[acceptance report](../reference/phase-2-acceptance-report.md) records the aggregates and
+caveats. v14 and all earlier held-out sets are spent and cannot guide tuning; later profile
+changes need development evidence and a fresh held-out set. Routine Phase 2 decisions remain
+within these boundaries. Material deviations follow section 1 change control.
 
 ---
 
@@ -1114,7 +1122,7 @@ This status update records evidence; it does not relax the requirements below.
 The Phase 1 indexing pilot uses the reversible `intfloat/e5-small-v2`
 configuration recorded in [ADR-0005](../adr/0005-phase1-embedding-pilot.md).
 At this Phase 0 checkpoint, the hardware-feasibility result left the final embedding
-choice open. Phase 2 later selected E5-small-v2 after retrieval-quality evaluation.
+choice open. Phase 2 later selected E5-small-v2 after retrieval-quality evaluation and replaced it with gte-modernbert-base in ADR-0017.
 
 Deliver:
 
@@ -1227,25 +1235,21 @@ storage costs. Metadata-only and failed records are counted separately.
 
 ### Phase 2 — Retrieval and evaluation
 
-The v3 assessment failed four frozen gates and is preserved in the
-[v3 acceptance report](../reference/phase-2-acceptance-report-v3.md). A later
-source-reviewed v11 assessment passed the unchanged gates on the development-selected
-MiniLM-over-Hybrid-E5 profile; it is historical evidence. R8 v12 then completed with
-8 of 14 gates passing: selected warm p95 was 894.349 ms against the approved 2,000 ms
-limit, while six paper/evidence ranking and source-coverage gates failed. The detailed
-[acceptance report](../reference/phase-2-acceptance-report.md) records the result and
-frozen identities. Hosted CI passed on R8 runner revision
-`506dd34646fea763758eddf1c91b932f08c4ef20` (run
-[36477359301](https://github.com/avsngh-git/RAGpipeline/actions/runs/36477359301)).
-The enlarged R8 v13 assessment (30 families, ADR-0014) then completed on 2026-09-29
-with 10 of 14 gates passing (warm p95 885.7 ms); paper nDCG@10 and evidence nDCG@10,
-direct MRR@10 and judged Recall@20 failed. Phase 2 remains open. v13, v12 and all
-earlier held-out sets are spent and may not guide tuning. Per
-[ADR-0014](../adr/0014-phase2-acceptance-method.md) point 9 the next step is a
-development-only diagnosis note using aggregates only; at most one replacement set
-remains authorized (needing a validated material change or an explicit owner decision),
-and a second failure goes to the owner via change control.
-Phase 3 has not started.
+**Status: accepted 2026-09-30.** The v3 assessment failed four frozen gates and is
+preserved in the [v3 acceptance report](../reference/phase-2-acceptance-report-v3.md). A
+later v11 assessment passed on the MiniLM-over-Hybrid-E5 profile (historical); R8 v12 passed
+8 of 14 gates; the enlarged R8 v13 assessment (30 families, ADR-0014) passed 10 of 14 and
+stays failed under its own gates. After a development-only diagnosis, owner-approved
+[ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md) and
+[ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md) revised the gates for one fresh set.
+The one-time R8 v14 assessment (30 families, freeze commit `82694aa`, hosted CI run
+[36740163129](https://github.com/avsngh-git/RAGpipeline/actions/runs/36740163129)) passed
+all 16 gates on 2026-09-30 with frozen profile v10 (gte-modernbert-base + BM25S hybrid +
+Ettin-150M; [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). Paper nDCG@10 (0.6522),
+evidence nDCG@10 (0.4074) and evidence judged Recall@20 (0.5122) passed by margins of 0.002,
+0.007 and 0.012, inside sampling noise; warm p95 was 1,016 ms. The detailed
+[acceptance report](../reference/phase-2-acceptance-report.md) records the gates, intervals,
+baselines and caveats. Phase 3 has not started; the owner decides when it does.
 
 Deliver:
 
@@ -1259,7 +1263,7 @@ rebuild and failure checks, and the frozen held-out benchmark passes the useful-
 and operational limits selected using development data (30 held-out families under
 ADR-0014, judged on point estimates with intervals reported). Report the limits and their
 aggregate results without exposing private questions, item-level evidence or rankings.
-Phase 3 remains separate and starts after Phase 2 acceptance.
+Phase 3 remains separate; Phase 2 is accepted and Phase 3 starts on an owner decision.
 
 ### Phase 3 — Agent and structured answers
 
@@ -1364,20 +1368,21 @@ Resolve these progressively; do not decide all of them before evidence is availa
 2. Exact supported full-text adapters and per-source permission/access verification under the agreed policy; the bounded direct-source adapter is resolved by [accepted ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md).
 3. Phase 2 lexical choice is frozen as BM25S 0.3.11 with scientific-en-v1; later
    library or analyzer changes require new evidence.
-4. Phase 2 embedding choice is frozen as E5-small-v2 in ADR-0012; later model changes
-   require a new evaluation.
-5. Phase 2 reranker choice/settings are frozen as MiniLM-L6-v2 in ADR-0012; later
-   changes require a new evaluation.
+4. Phase 2 embedding choice is frozen as gte-modernbert-base in ADR-0017 (replacing
+   E5-small-v2 from ADR-0012); later model changes require a new evaluation.
+5. Phase 2 reranker choice/settings are frozen as Ettin-150M (fp16, 2,048-token pairs,
+   top-k 16) in ADR-0017 (replacing MiniLM-L6-v2 from ADR-0012); later changes require a
+   new evaluation.
 6. Tool-capable local generator shortlist, quantization, and serving backend.
 7. Chunk-size/token-overlap baseline after corpus analysis.
 8. Background execution for research runs and later API-controlled ingestion; terminal-driven resumable ingestion is settled for Phase 1.
 9. Authentication and caching implementations.
 10. Production hosting target and cost envelope.
 11. Thin UI choice.
-12. Phase 2 retrieval and runtime thresholds are frozen in the accepted benchmark
-    profile and are unchanged by ADR-0014, which sets the acceptance method (30
-    held-out families, coverage pre-check, at most two runs); thresholds for later answer-generation and end-to-end evaluations remain
-    open.
+12. Phase 2 retrieval and runtime thresholds are frozen in acceptance-v14 (ADR-0015,
+    ADR-0016) and the accepted profile v10 (ADR-0017); the acceptance method is ADR-0014.
+    Earlier sets keep their own gates. Thresholds for later answer-generation and
+    end-to-end evaluations remain open.
 13. Exact remote MCP SDK/transport version at implementation time.
 14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was
     retained after measuring the complete ten-paper source-artifact footprint.

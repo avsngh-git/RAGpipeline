@@ -1,14 +1,16 @@
 # Phase 2 — Agent handoff
 
-Updated: 2026-09-29. **Current status: the one-time R8 v13 assessment (30 families,
-[ADR-0014](../adr/0014-phase2-acceptance-method.md)) failed 10 of 14 gates; v13 is
-spent and sealed and Phase 2 remains unaccepted.** Paper nDCG@10 and three evidence
-gates failed; warm p95 passed at 885.7 ms. **Next action: a development-only diagnosis
-note (aggregates only), with no tuning on v13 item-level data; at most one replacement
-set remains, and a second failure goes to the owner via change control.** The earlier
-v3 assessment failed four gates, v11 passed historically, and v12 failed six of 14;
-all are spent. Older sections below describe the pre-freeze v13 state and are
-historical. Follow the
+Updated: 2026-09-30. **Current status: Phase 2 is accepted. The one-time R8 v14 assessment
+(30 families, acceptance-v14, freeze commit `82694aa`, hosted CI run 36740163129) passed all
+16 gates on 2026-09-30 with frozen profile v10 (gte-modernbert-base + BM25S hybrid +
+Ettin-150M; [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)).** v14 is spent and
+sealed. Three quality gates passed by narrow margins (0.002, 0.007, 0.012) inside sampling
+noise, the gates were lowered after v13 failed ([ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md)),
+and labels are assistant-reviewed. **Next: Phase 3 is not started; the owner decides when to
+begin it.** Do not start Phase 3 work, or tune on v14 or any spent set, without that decision.
+Known improvement target: dense gte alone ranked papers better than the selected profile;
+any profile change needs development evidence and a fresh held-out set. Sections below
+through the v13 period describe earlier states and are historical. Follow the
 [completion plan](phase-2-improvement-plan.md), the authoritative
 [source of truth](../agents/scientific-research-platform-source-of-truth.md), the
 [roadmap](phase-2-retrieval-evaluation.md), and the

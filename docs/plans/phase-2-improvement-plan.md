@@ -1,5 +1,11 @@
 # Phase 2 — Completion review and improvement plan
 
+> **Phase 2 accepted 2026-09-30.** The R8 v14 assessment passed all 16 gates with frozen profile
+> v10 ([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md); see the
+> [acceptance report](../reference/phase-2-acceptance-report.md)). This plan is historical:
+> it records the 2026-09-28 completion review and the steps that led to acceptance. Phase 3 has
+> not started and is an owner decision. The text below is unchanged.
+
 Reviewed 2026-09-28 by the assistant against HEAD `ed56e59` **plus the existing
 uncommitted implementation/configuration changes**. This is a repair plan for the
 approved Phase 2 scope, not Phase 3 approval. The [source of truth](../agents/scientific-research-platform-source-of-truth.md)

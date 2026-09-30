@@ -1,17 +1,255 @@
 # Phase 2 held-out acceptance report
 
-**Current status — Phase 2 remains unaccepted after R8 v13 failed 10 of 14 gates; v13
-is spent and sealed.** The selected profile passed warm p95 (885.7 ms against the
-2,000 ms limit) and the source-coverage, hard-failure, fallback, cold-load and CUDA
-gates, but failed paper nDCG@10 and three evidence gates (nDCG@10, direct MRR@10,
-judged Recall@20). v12 (6 of 14 failed) and all earlier held-out sets are also spent.
-Per [ADR-0014](../adr/0014-phase2-acceptance-method.md) point 9, the next step is a
-development-only diagnosis note; at most one replacement set remains, and a second
-failure goes to the owner via change control. The historical v11 pass predates the
-current implementation. Held-out questions, source excerpts, candidate text, item-level
-judgments, rankings and raw run records remain private. Phase 3 has not started.
+**Current status — Phase 2 accepted. The one-time R8 v14 held-out assessment (30
+families, `phase2-acceptance-v14`) passed all 16 gates on 2026-09-30.** The selected
+profile is `frozen-profile-v10` (gte-modernbert-base + BM25S hybrid + Ettin-150M
+reranker; [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). Three quality gates
+passed by narrow margins well inside sampling noise, and the gates were lowered after v13
+failed (see the caveats in the v14 section). v3–v13 are historical and unchanged: each is
+judged under its own frozen gates, and v13 stays failed under them. Held-out questions,
+source excerpts, candidate text, item-level judgments, rankings and raw run records remain
+private. Phase 3 has not started.
+
+## R8 v14 result — assistant-reviewed 2026-09-30
+
+**Result: PASS, 16 of 16 gates.** The one-time frozen assessment used
+`phase2-benchmark-v14` (30 families) with the selected profile
+`sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449`
+(`frozen-profile-v10`), on the accepted snapshot `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c`.
+The run used the freeze commit `82694aa` on a clean worktree and the RTX 3050 Laptop GPU
+(4 GB). Hosted CI run
+[36740163129](https://github.com/avsngh-git/RAGpipeline/actions/runs/36740163129) passed on
+that commit. **v14 is now spent and sealed from tuning.**
+
+### Method
+
+- **Acceptance method ([ADR-0014](../adr/0014-phase2-acceptance-method.md)).** One fresh,
+  assistant-reviewed held-out set of 30 families, frozen before scoring; a coverage-only
+  pre-check before freeze; a single run; gates judged on point estimates, with paired
+  family-bootstrap 95% intervals reported beside them (10,000 resamples, seed 20260930);
+  descriptive BM25 difficulty band; sealing after the run.
+- **Gate revision ([ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md)).** Owner-approved
+  on 2026-09-30, from development data only and after v13 failed. Paper nDCG@10 0.80 to
+  0.65, evidence nDCG@10 0.45 to 0.40 and evidence judged Recall@20 0.60 to 0.50;
+  evidence direct MRR@10 stays at 0.45. Two relative gates are added: the paired 95% lower
+  bound of the selected profile's gain over BM25 must exceed 0 for paper and for evidence
+  nDCG@10. That makes 16 gates (the original 14 plus the two relative ones). The inclusive
+  context rule (label 1 = useful context or incomplete support) applies to every label.
+- **Warm latency ([ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md)).** Maximum warm
+  p95 is 5,000 ms; the separate 30-second request deadline is unchanged.
+- **Timing.** The selected profile ran three sessions (366 measured requests; median
+  789.9 ms); each comparator ran one session (122 requests). Concurrency 1, four CPU
+  threads, `auto` device, result limit 10.
+
+### Frozen v14 identities
+
+| Field | Value |
+| --- | --- |
+| Freeze commit | `82694aa` (hosted CI run 36740163129, green) |
+| Freeze manifest SHA-256 | `c42c1113938cb6dcdd2947f1d260c39ad5160eb0497fa3ad5e790af510e8d052` ([`r8-v14-freeze-v1.toml`](../../benchmarks/phase2/r8-v14-freeze-v1.toml)) |
+| Acceptance config SHA-256 | `5cef7e1174a83f5474779b3deaf08a797efc2170d7df855a5173a2ef93603482` ([`acceptance-v14.toml`](../../benchmarks/phase2/acceptance-v14.toml)) |
+| Frozen profile | [`frozen-profile-v10.toml`](../../benchmarks/phase2/frozen-profile-v10.toml); profile identity `sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449` |
+| Held-out dataset SHA-256 | `2f36323141f9cce1c539a8d70a6d91adb63491a4d959b412539edfc00eceb176` |
+| Source-alignment SHA-256 | `208f3e472089094a7348ea36881e7c53b5706668301c55f88209e19856cd15b3` |
+| Private raw run record SHA-256 | `c26f096d3aeb6d1f34e0073de1c7e30b02771882304d589091e50675138c5036` |
+| Snapshot | `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c`, 100 papers, 44,277 selected chunks |
+
+The raw record, dataset, alignment and review files stay in the ignored private
+`local-reference/` directory. This report holds sanitized aggregates only: no family IDs,
+question text, candidate IDs, rankings or per-family values.
+
+### Selected-profile gates
+
+Margin is the observed value minus the limit (limit minus value for maxima). The interval
+column is the 95% bootstrap interval of the selected profile's own family-level mean: 10,000
+family resamples, nearest-rank percentiles, seed 20260930 plus the metric's position in
+the runner's list. The raw record stores only paired intervals against baselines, so the
+closeout derived these intervals from it, using the same resampling scheme and publishing
+only the aggregate bounds. They are descriptive; no gate is passed or failed on an interval.
+Source-anchor recall and the positive-family fraction pool anchors that cluster within
+families, so no interval is given for them. The two relative gates are themselves lower
+bounds.
+
+| Gate | Limit | v14 aggregate | Margin | 95% interval | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Paper nDCG@10 | ≥ 0.65 | 0.6522 | +0.0022 | [0.5592, 0.7420] | Pass |
+| Paper direct MRR@10 | ≥ 0.70 | 0.7811 | +0.0811 | [0.6683, 0.8846] | Pass |
+| Paper judged Recall@20 | ≥ 0.90 | 0.9499 | +0.0499 | [0.9082, 0.9850] | Pass |
+| Evidence nDCG@10 | ≥ 0.40 | 0.4074 | +0.0074 | [0.3417, 0.4710] | Pass |
+| Evidence direct MRR@10 | ≥ 0.45 | 0.5887 | +0.1387 | [0.4434, 0.7260] | Pass |
+| Evidence judged Recall@20 | ≥ 0.50 | 0.5122 | +0.0122 | [0.3759, 0.6513] | Pass |
+| Source-anchor Recall@10 | ≥ 0.25 | 0.5714 (72/126) | +0.3214 | — | Pass |
+| Source-anchor Recall@50 | ≥ 0.35 | 0.6508 (82/126) | +0.3008 | — | Pass |
+| Positive source families with a hit at @10 | ≥ 0.50 | 0.8462 (22/26) | +0.3462 | — | Pass |
+| Hard-failure fraction | ≤ 0.01 | 0.0000 | 0.0100 | — | Pass |
+| Reranker-fallback fraction | ≤ 0.35 | 0.0000 | 0.3500 | — | Pass |
+| Warm p95 | ≤ 5,000 ms | 1,016.06 ms | 3,983.94 ms | — | Pass |
+| Combined cold model load | ≤ 15,000 ms | 6,517 ms | 8,483 ms | — | Pass |
+| Summed CUDA allocation | ≤ 1 GiB | 634,404,864 B | 439,336,960 B | — | Pass |
+| Paper nDCG@10 gain over BM25, 95% lower bound | > 0 | 0.1690 (mean +0.2258) | +0.1690 | [0.1690, 0.2853] | Pass |
+| Evidence nDCG@10 gain over BM25, 95% lower bound | > 0 | 0.0961 (mean +0.1592) | +0.0961 | [0.0961, 0.2221] | Pass |
+
+Direct MRR and judged Recall use the 26 positive families; nDCG uses all 30. Cold load
+splits into 5,603.6 ms (gte) and 913.8 ms (Ettin); the measured runtime startup was
+10,424.9 ms and is not a gate.
+
+### Baselines and category results
+
+Baseline rows are descriptive and do not authorize tuning from v14. The selected row is
+repeated for comparison.
+
+| Profile | Paper nDCG@10 | Evidence nDCG@10 | Source Recall@10 / @50 | Warm p95 |
+| --- | ---: | ---: | ---: | ---: |
+| BM25 lexical | 0.4264 | 0.2482 | 0.3095 / 0.3810 | 634.1 ms |
+| Dense gte | 0.7183 | 0.3610 | 0.5476 / 0.5556 | 710.9 ms |
+| Hybrid gte | 0.6523 | 0.3644 | 0.5556 / 0.6587 | 799.3 ms |
+| Selected: reranked gte-ettin hybrid | 0.6522 | 0.4074 | 0.5714 / 0.6508 | 1,016.1 ms |
+| Fixed-window dense E5 | 0.6672 | 0.2380 | 0.3730 / 0.3810 | 423.3 ms |
+
+Selected-profile categories (overlapping; source recall is micro over anchors and is
+omitted for missing evidence, which has none):
+
+| Category | Families | Paper nDCG@10 | Evidence nDCG@10 | Source Recall@10 |
+| --- | ---: | ---: | ---: | ---: |
+| Cross-paper comparison | 5 | 0.5542 | 0.3202 | 0.3600 |
+| Discovery | 6 | 0.7848 | 0.4474 | 0.3750 |
+| Filters | 5 | 0.7449 | 0.3816 | 0.3214 |
+| Missing evidence | 4 | 0.1786 | 0.2057 | — |
+| Specific evidence | 15 | 0.7581 | 0.4743 | 0.7869 |
+| Table result | 10 | 0.7591 | 0.4516 | 0.8095 |
+
+Category cells rest on 4 to 15 families, so they are descriptive. Missing-evidence paper
+nDCG scores a ranking against judged context only; it is not a rejection-accuracy measure
+(the unsupported-query cutoff stays disabled).
+
+### Paired differences and uncertainty
+
+Deltas are selected minus each baseline; intervals are percentile 95% intervals from
+10,000 paired family resamples (seed 20260930). Direct-MRR, Recall@20 and source rows use
+the 26 positive families (source rows use per-family recall); nDCG rows use 30.
+
+| Baseline | Metric | Families | Mean delta [95% interval] |
+| --- | --- | ---: | ---: |
+| BM25 lexical | Paper nDCG@10 | 30 | +0.2258 [+0.1690, +0.2853] |
+| BM25 lexical | Paper direct MRR@10 | 26 | +0.2351 [+0.1614, +0.3122] |
+| BM25 lexical | Paper judged Recall@20 | 26 | +0.2472 [+0.1522, +0.3480] |
+| BM25 lexical | Evidence nDCG@10 | 30 | +0.1592 [+0.0961, +0.2221] |
+| BM25 lexical | Evidence direct MRR@10 | 26 | +0.3605 [+0.2329, +0.4919] |
+| BM25 lexical | Evidence judged Recall@20 | 26 | +0.3075 [+0.1825, +0.4389] |
+| BM25 lexical | Source-anchor Recall@10 | 26 | +0.3250 [+0.1795, +0.4744] |
+| BM25 lexical | Source-anchor Recall@50 | 26 | +0.2996 [+0.1560, +0.4573] |
+| Dense gte | Paper nDCG@10 | 30 | -0.0661 [-0.1205, -0.0148] |
+| Dense gte | Paper direct MRR@10 | 26 | -0.0989 [-0.2037, +0.0080] |
+| Dense gte | Paper judged Recall@20 | 26 | -0.0173 [-0.0493, +0.0109] |
+| Dense gte | Evidence nDCG@10 | 30 | +0.0464 [+0.0191, +0.0728] |
+| Dense gte | Evidence direct MRR@10 | 26 | +0.1530 [+0.0481, +0.2630] |
+| Dense gte | Evidence judged Recall@20 | 26 | +0.0768 [+0.0253, +0.1364] |
+| Dense gte | Source-anchor Recall@10 | 26 | +0.0600 [-0.0122, +0.1436] |
+| Dense gte | Source-anchor Recall@50 | 26 | +0.1013 [+0.0359, +0.1795] |
+| Hybrid gte | Paper nDCG@10 | 30 | -0.0001 [-0.0265, +0.0238] |
+| Hybrid gte | Paper direct MRR@10 | 26 | +0.0359 [-0.0018, +0.0776] |
+| Hybrid gte | Paper judged Recall@20 | 26 | -0.0032 [-0.0096, +0.0000] |
+| Hybrid gte | Evidence nDCG@10 | 30 | +0.0430 [+0.0095, +0.0752] |
+| Hybrid gte | Evidence direct MRR@10 | 26 | +0.2036 [+0.0964, +0.3177] |
+| Hybrid gte | Evidence judged Recall@20 | 26 | +0.0787 [+0.0159, +0.1468] |
+| Hybrid gte | Source-anchor Recall@10 | 26 | +0.0458 [-0.0215, +0.1231] |
+| Hybrid gte | Source-anchor Recall@50 | 26 | +0.0138 [-0.0413, +0.0705] |
+| Fixed-window dense E5 | Paper nDCG@10 | 30 | -0.0150 [-0.0828, +0.0485] |
+| Fixed-window dense E5 | Paper direct MRR@10 | 26 | -0.0827 [-0.2103, +0.0457] |
+| Fixed-window dense E5 | Paper judged Recall@20 | 26 | +0.0393 [+0.0064, +0.0768] |
+| Fixed-window dense E5 | Evidence nDCG@10 | 30 | +0.1694 [+0.1173, +0.2248] |
+| Fixed-window dense E5 | Evidence direct MRR@10 | 26 | +0.2108 [+0.0813, +0.3480] |
+| Fixed-window dense E5 | Evidence judged Recall@20 | 26 | +0.1615 [+0.0628, +0.2660] |
+| Fixed-window dense E5 | Source-anchor Recall@10 | 26 | +0.1856 [+0.0731, +0.3064] |
+| Fixed-window dense E5 | Source-anchor Recall@50 | 26 | +0.2247 [+0.1080, +0.3487] |
+
+Reading: the selected profile beats BM25 on every metric with intervals above zero. It
+beats dense gte and hybrid gte on evidence nDCG@10 and evidence direct MRR@10 (intervals
+above zero), but does not beat dense gte on paper ranking (below).
+
+### Composition, coverage and review
+
+The set has 30 families: 26 positive and 4 missing-evidence. Category membership overlaps:
+discovery 6, specific evidence 15, table result 10, filters 5, cross-paper comparison 5,
+missing evidence 4. Modalities: 8 direct-positive prose, 6 numeric-table, 5 negative or
+mixed findings. There are 126 positive anchors (88 source-first builder anchors across 26
+families and 38 pool-found label-2 anchors). See the [dataset card](phase-2-benchmark-dataset-card.md)
+for construction.
+
+Coverage pre-check (judged fraction of returned results, passed before freeze). Paper
+coverage was 1.000 at top 10 and top 20 for every profile. The selected profile's lowest
+per-family coverage at top 10 was 1.000 for papers and 0.933 for evidence, above the 0.80
+floor.
+
+| Profile | Evidence @10 | Evidence @20 |
+| --- | ---: | ---: |
+| BM25 | 0.998 | 0.998 |
+| Dense gte | 1.000 | 1.000 |
+| Hybrid gte | 0.998 | 0.999 |
+| Selected | 0.998 | 0.999 |
+| Fixed-window | 0.994 | 0.994 |
+
+Judged fraction over all returned results (macro across 30 families; up to 50 results, while
+pooling went to depth 20 for papers and 50 for evidence):
+
+| Profile | Paper | Evidence |
+| --- | ---: | ---: |
+| BM25 | 0.824 | 0.996 |
+| Dense gte | 0.990 | 1.000 |
+| Hybrid gte | 0.884 | 0.997 |
+| Selected | 0.884 | 0.998 |
+| Fixed-window | 0.977 | 0.993 |
+
+Unjudged results carry zero gain under the conservative judged-pool convention. Paper
+ranks 21–50 are the unjudged ones and affect neither nDCG@10 nor Recall@20. Five
+builder/reviewer disagreements were adjudicated against the PDF pages by a third assistant
+judge (the reviewer's label was corrected in each), and one further record fixed a
+requirement-piece mapping. Pooled candidates from the five declared profiles were judged blind to profile and rank.
+
+### Baseline context
+
+BM25 paper nDCG@10 (0.4264) is below the descriptive band 0.50–0.85; evidence nDCG@10
+(0.2482) is below 0.25–0.75. The runner flagged "set difficulty unusual". This is
+descriptive only and changes no gate. A weak BM25 baseline lowers the bar for the two
+relative-to-BM25 gates, so read their margins with that in mind.
+
+### Limitations and caveats
+
+- **Narrow margins.** Paper nDCG@10 passed by 0.002, evidence nDCG@10 by 0.007 and
+  evidence judged Recall@20 by 0.012. Each margin is far inside sampling noise: the 95%
+  intervals are [0.5592, 0.7420], [0.3417, 0.4710] and [0.3759, 0.6513], and each contains
+  its threshold. A rerun on a different fresh set could fall on either side. Judged by the
+  pre-registered point-estimate rule, these gates passed; they do not show that the true
+  quality exceeds the limits.
+- **Gates lowered after a failure.** Paper nDCG@10, evidence nDCG@10 and evidence judged
+  Recall@20 were lowered from 0.80, 0.45 and 0.60 by owner-approved
+  [ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md) after v13 failed 10 of 14
+  gates, using development data only. v13's aggregates were known when the values were
+  chosen, so v13 stays failed under its own gates and the new values apply only to this
+  fresh set. The absolute floors are project-local quality guards, not field standards.
+  Warm p95 moved from 2,000 ms to 5,000 ms (ADR-0016).
+- **Difficulty flag.** The BM25 band was out of range (above), so the set's difficulty is
+  unusual relative to the pre-registered reference band.
+- **Dense gte ranks papers better.** Dense gte alone scored paper nDCG@10 0.7183 against the
+  selected 0.6522 (selected minus dense −0.0661, 95% interval [−0.1205, −0.0148]), and
+  higher paper direct MRR (−0.0989 [−0.2037, +0.0080] for the selected). The selected
+  profile ranks evidence better (+0.0464 [+0.0191, +0.0728]). Improving paper ordering is a
+  known target; the hybrid pipeline stays as locked in section 9.1 of the source of truth.
+- **Labels are assistant-reviewed.** No human verification is claimed. The owner spot-checked
+  three cards in one development family; that check covered no v14 card and is not a
+  measured error rate. The inclusive context rule raises nDCG for every profile alike.
+- **Adjudication.** Five builder/reviewer disagreements were resolved against the PDFs by
+  an assistant judge, not a human.
+- **Freshness and scope.** Freshness against earlier private family identities cannot be
+  fully certified. Three families came from the v13 reserve pool. The set is purposive,
+  covers one snapshot and measures ranking only: no generated-answer quality, rejection
+  accuracy or whole-literature claim. The pass accepts the Phase 2 retrieval service for
+  this private corpus; it is not evidence of general retrieval quality.
+- **Sealing.** Do not inspect item-level v14 data or tune on this result.
 
 ## v11 decision and scope
+
+*Historical: the sections from here to the end of this report describe spent sets (v11 and earlier, v12, v13) under their own gates. They are kept unchanged except for status notes.*
 
 The ten-family v11 set was frozen before scoring and reviewed by the assistant against
 primary source material. Its composition was 10 discovery, 8 specific-evidence, 4
@@ -376,12 +614,13 @@ assessment subsequently missed its warm-latency gate, as recorded above.
 ## Current project status
 
 Historical v11 checkpoint: P2-20 passed with the selected profile and numeric limits
-unchanged. The later R8 v12 assessment passed 8 of 14 gates. The R8 v13 assessment
-(30 families, ADR-0014) is the current acceptance evidence: 10 of 14 gates passed,
-including warm p95 at 885.7 ms; paper nDCG@10 and three evidence gates failed. P2-20
-and Phase 2 remain open. v13 and every earlier held-out set are spent and sealed from
-tuning. Phase 3 has not started. Hosted CI passed on the v13 run commit `5ab0070`
-([run 36598523416](https://github.com/avsngh-git/RAGpipeline/actions/runs/36598523416)).
+unchanged. R8 v12 passed 8 of 14 gates and the R8 v13 assessment (30 families, ADR-0014)
+passed 10 of 14 under their own frozen gates. The R8 v14 assessment (30 families,
+acceptance-v14, hosted CI run 36740163129 green on commit `82694aa`) passed all 16 gates on
+2026-09-30, so Phase 2 is accepted with `frozen-profile-v10`
+([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). The v14 section at the top of this
+report is the current result. v13 and every earlier held-out set remain spent and sealed.
+v13 stays failed under its own gates. Phase 3 has not started.
 
 ## R8 v12 result — assistant-reviewed 2026-09-28
 
@@ -455,8 +694,8 @@ with the unchanged selected profile
 unchanged 14 gate thresholds and the accepted snapshot
 `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c`. It ran on 2026-09-29 at commit `5ab0070`;
 hosted CI run [36598523416](https://github.com/avsngh-git/RAGpipeline/actions/runs/36598523416)
-passed on that commit. **v13 is spent and sealed from tuning. Phase 2 remains
-unaccepted.** Per ADR-0014 point 9, work returns to a development-only diagnosis note
+passed on that commit. **v13 is spent and sealed from tuning. Phase 2 remained
+unaccepted at that point (superseded by the v14 result at the top of this report).** Per ADR-0014 point 9, work returns to a development-only diagnosis note
 (aggregates only); at most one replacement set remains authorized, and a second failure
 goes to the owner through change control.
 
