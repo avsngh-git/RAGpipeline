@@ -68,6 +68,23 @@ Option 2, with reranker-based paper ordering evaluated on development first as a
 - A failure on that set closes the attempt series. The owner then picks option 1 or 4. No further set is built by
   default.
 
+## Label-quality check and the context rule (owner decision, 2026-09-30)
+
+A fresh assistant reviewer re-labelled, blind, the 57 cards of the COIL development question that Codex had audited.
+- It agreed with Codex on every direct-evidence (label 2) call, for all 31 passages and 25 papers.
+- All 26 disagreements were context (1) against irrelevant (0), with Codex giving the 1. Linear weighted kappa was
+  0.45.
+- The owner checked three of these disagreements and judged all three irrelevant.
+
+The rule for all future labelling is therefore: **label 1 only when the passage or paper helps answer this specific
+question**. Same-topic material that does not advance the answer is 0.
+- Direct-evidence gates (evidence MRR, judged recall, source recall) depend only on label 2 and are robust to this
+  choice.
+- nDCG gates are sensitive to it: generous context labels raise nDCG for every profile. So no set may mix reviewers
+  or rounds that apply different context thresholds.
+- This check covers one development question. It is not a measured error rate for the full benchmark.
+- Codex's promotion of three ColBERT context passages from 0 to 1 is reverted under this rule.
+
 ## Consequences
 
 - Phase 2 acceptance tests relative component value and realistic floors instead of the unreached absolute targets.
