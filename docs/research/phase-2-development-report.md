@@ -373,3 +373,33 @@ absence claim.
 No profile or acceptance thresholds changed. The v12 held-out set remains spent, and
 its six quality/source failures remain open; the two v13 development families are too
 small to establish a new acceptance result.
+
+## Frozen profile v10 (gte + BM25 hybrid + Ettin) — assistant-reviewed 2026-09-30
+
+`frozen-profile-v10.toml` (profile ID `sha256:52a152db…`) changes three things from v9.
+- **Dense model:** gte-modernbert-base (revision `e7f32e3c…`, collection `phase2-dev-gte-modernbert-base-v1`) replaces
+  E5-small-v2.
+- **Reranker:** Ettin-150M (revision `025501c4…`, fp16, 2,048-token pairs, top-k 16) replaces MiniLM.
+- **Unchanged:** the BM25S index, RRF k=10 hybrid fusion and all selection rules.
+
+It is the active profile, as the v14 candidate. Its acceptance config is
+[acceptance-v14.toml](../../benchmarks/phase2/acceptance-v14.toml), under ADR-0015 and ADR-0016. The owner chose to keep
+the locked hybrid pipeline and to skip a full development re-measurement. The private development harness was lost
+when `/tmp` was cleared. Before that, the re-judged 21-family development set had scored the gte-hybrid + Ettin
+configuration at paper nDCG@10 0.729 and evidence nDCG@10 0.489, both above the new gates (0.65 and 0.40).
+
+The operations check ran on the q11–q19 development workload: 3 sessions × 100 measured requests, RTX 3050 4 GB,
+code `116fe59`.
+
+| Gate (acceptance-v14) | Limit | v10 |
+| --- | ---: | ---: |
+| Warm p95 per session | 5,000 ms | 785 / 826 / 826 ms (max 884 ms) |
+| Hard failures | 1% | 0 / 300 |
+| Reranker fallbacks | 35% | 0 / 300 |
+| Cold combined model load | 15 s | 9.0 s |
+| Peak CUDA allocated | 1 GiB | 0.74 GB in a fresh process |
+
+Sessions 2 and 3 report 1.26 GB. The benchmark rebuilds the runtime inside one process and does not reset the CUDA
+peak counter, so the first runtime's allocation is carried over. The acceptance run must measure memory in a fresh
+process or reset the counter. The private run records are under
+`local-reference/phase2-runs/gte-ettin-profile-20260930/`.

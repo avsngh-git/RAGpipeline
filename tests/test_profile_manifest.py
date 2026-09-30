@@ -101,16 +101,16 @@ def test_active_profile_pointer_is_shared_by_runtime_cli_and_image() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
-    assert manifest_path.name == "frozen-profile-v9.toml"
+    assert manifest_path.name == "frozen-profile-v10.toml"
     assert cli_profile.profile_id == runtime_profile.profile_id
     assert runtime_profile.profile_id == (
-        "sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be"
+        "sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449"
     )
     assert runtime_profile.candidate_limits.rerank_top_k == 16
-    assert "acceptance-v9.toml" in manifest_path.read_text(encoding="utf-8")
+    assert "acceptance-v14.toml" in manifest_path.read_text(encoding="utf-8")
     assert ACTIVE_PROFILE_POINTER_FILENAME in dockerfile
-    assert "frozen-profile-v9.toml" in dockerfile
-    assert "acceptance-v9.toml" in dockerfile
+    assert "frozen-profile-v10.toml" in dockerfile
+    assert "acceptance-v14.toml" in dockerfile
     assert f"!benchmarks/phase2/{ACTIVE_PROFILE_POINTER_FILENAME}" in dockerignore
 
 
@@ -123,11 +123,11 @@ def test_default_active_profile_resolves_from_runtime_bundle_directory(
 
     benchmark_dir = tmp_path / "benchmarks" / "phase2"
     benchmark_dir.mkdir(parents=True)
-    for name in ("active-profile.toml", "frozen-profile-v9.toml"):
+    for name in ("active-profile.toml", "frozen-profile-v10.toml"):
         shutil.copyfile(ROOT / "benchmarks/phase2" / name, benchmark_dir / name)
     monkeypatch.chdir(tmp_path)
 
-    assert resolve_frozen_profile_path() == benchmark_dir / "frozen-profile-v9.toml"
+    assert resolve_frozen_profile_path() == benchmark_dir / "frozen-profile-v10.toml"
 
 
 def test_active_profile_pointer_rejects_a_changed_manifest_digest(
@@ -140,8 +140,8 @@ def test_active_profile_pointer_rejects_a_changed_manifest_digest(
     benchmark_dir = tmp_path / "benchmarks" / "phase2"
     benchmark_dir.mkdir(parents=True)
     shutil.copyfile(
-        ROOT / "benchmarks/phase2/frozen-profile-v9.toml",
-        benchmark_dir / "frozen-profile-v9.toml",
+        ROOT / "benchmarks/phase2/frozen-profile-v10.toml",
+        benchmark_dir / "frozen-profile-v10.toml",
     )
     pointer = (ROOT / "benchmarks/phase2/active-profile.toml").read_text(
         encoding="utf-8"
@@ -250,13 +250,13 @@ def test_profile_env_override_selects_candidate_without_changing_active(
         resolve_frozen_profile_path,
     )
 
-    candidate = ROOT / "benchmarks/phase2/frozen-profile-v10.toml"
+    candidate = ROOT / "benchmarks/phase2/frozen-profile-v9.toml"
     monkeypatch.setenv(PROFILE_OVERRIDE_ENV, str(candidate))
 
     assert resolve_frozen_profile_path() == candidate
     assert resolve_frozen_profile_path(
         ROOT / "benchmarks/phase2/active-profile.toml"
-    ).name == ("frozen-profile-v9.toml")
+    ).name == ("frozen-profile-v10.toml")
 
 
 def _fake_loader(calls: list[tuple[str, str]]):

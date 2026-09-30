@@ -4,7 +4,7 @@ schema_version = 1
 acceptance_id = "phase2-acceptance-v14"
 reviewer = "assistant"
 benchmark_split = "phase2-benchmark-v14"
-selected_profile = "unset-until-freeze"  # the profile identity is bound at the v14 freeze
+selected_profile = "sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449"  # frozen-profile-v10
 unsupported_query_cutoff = "disabled"
 ranking_interpretation = "ranking_only"
 
@@ -41,7 +41,7 @@ maximum_warm_p95_ms = 5000
 maximum_combined_cold_model_load_ms = 15000
 maximum_summed_cuda_allocated_bytes = 1073741824
 request_deadline_seconds = 30
-reranker_pair_budget_tokens = 512
+reranker_pair_budget_tokens = 2048
 candidate_pool_limit = 50
 default_result_limit = 10
 
