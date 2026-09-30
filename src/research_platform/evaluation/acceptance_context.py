@@ -67,6 +67,8 @@ class BaselineContext:
 def baseline_context(
     profile_summaries: Mapping[str, Mapping[str, Any]],
     band: DifficultyBand = REFERENCE_BAND,
+    *,
+    dense_profile: str = "dense_e5",
 ) -> BaselineContext:
     """Compare baseline macro nDCG@10 with the reference band; purely descriptive."""
     rows: list[BaselineRow] = []
@@ -75,7 +77,7 @@ def baseline_context(
             "bm25_lexical",
             (band.paper_ndcg_at_10, band.evidence_ndcg_at_10),
         ),
-        ("dense_e5", (None, None)),
+        (dense_profile, (None, None)),
     ):
         summary = profile_summaries.get(profile, {})
         for metric, limits in zip(
@@ -175,7 +177,11 @@ def validate_freeze_scale(
         raise FreezeError("sampling plan coverage thresholds differ from ADR 0014")
 
 
-def validate_freeze_precheck(freeze: Mapping[str, Any]) -> None:
+def validate_freeze_precheck(
+    freeze: Mapping[str, Any],
+    *,
+    declared_profiles: Sequence[str] = DECLARED_PROFILES,
+) -> None:
     """Require the recorded coverage table and difficulty band from ADR 0014."""
     coverage = freeze.get("coverage")
     if not isinstance(coverage, Mapping):
@@ -187,7 +193,7 @@ def validate_freeze_precheck(freeze: Mapping[str, Any]) -> None:
     if not verdict.passed:
         raise FreezeError("recorded coverage table does not meet the requirements")
     profiles = coverage.get("profiles")
-    if not isinstance(profiles, Mapping) or set(profiles) != set(DECLARED_PROFILES):
+    if not isinstance(profiles, Mapping) or set(profiles) != set(declared_profiles):
         raise FreezeError("coverage table must cover the five declared profiles")
     band = freeze.get("difficulty_band")
     if not isinstance(band, Mapping) or _normalized(band) != _normalized(
