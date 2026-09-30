@@ -11,15 +11,15 @@ on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
 [audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
 [corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
 
-**Phase 2 implementation and held-out assessment are complete, but Phase 2 is not
-accepted.** P2-19 passed hosted CI on the sanitized implementation. The frozen P2-20
-assessment failed four quality/operations gates; the selected profile remains
-provisional and v3 must not be reused for tuning or as an unseen test. See the
-[held-out acceptance report](docs/reference/phase-2-acceptance-report.md),
-[detailed retrieval/evaluation roadmap](docs/plans/phase-2-retrieval-evaluation.md),
-[agent handoff](docs/plans/phase-2-agent-handoff.md), and
-[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). New source
-judgments are labeled assistant-reviewed.
+**Phase 2 is accepted (2026-09-30).** The one-time R8 v14 held-out assessment (30 families)
+passed all 16 gates with frozen profile v10: gte-modernbert-base + BM25S hybrid + Ettin-150M
+reranker ([ADR-0017](docs/adr/0017-phase2-accepted-profile-v10.md)). Three quality gates passed by
+narrow margins inside sampling noise, the gates were lowered after v13 failed
+([ADR-0015](docs/adr/0015-phase2-acceptance-gate-revision.md)), and labels are
+assistant-reviewed. See the [current acceptance report](docs/reference/phase-2-acceptance-report.md),
+the [handoff](docs/plans/phase-2-agent-handoff.md) and the
+[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not
+started; the owner decides when it begins.
 
 ## Development environment
 
@@ -284,8 +284,9 @@ outcomes and snapshot lifecycle.
 
 The snapshot configuration JSON includes the chosen `index_configuration_id`.
 For the Phase 1 pilot, use the reversible E5-small-v2 configuration recorded in
-[ADR-0005](docs/adr/0005-phase1-embedding-pilot.md). The final model choice remains
-open until Phase 2 retrieval-quality evaluation. Install the optional parser and
+[ADR-0005](docs/adr/0005-phase1-embedding-pilot.md). Phase 2 evaluation later replaced it with gte-modernbert-base for retrieval
+([ADR-0017](docs/adr/0017-phase2-accepted-profile-v10.md)); the frozen profile and acceptance
+results are in the Phase 2 report. Install the optional parser and
 embedding dependencies only in the local ingestion environment; ordinary CI does
 not download their model weights.
 

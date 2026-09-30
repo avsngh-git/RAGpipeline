@@ -7,6 +7,7 @@ import importlib
 import math
 import threading
 from collections.abc import Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal
 
@@ -30,7 +31,16 @@ BGE_BASE_EN_V1_5_QUERY_PREFIX = (
     "Represent this sentence for searching relevant passages: "
 )
 
+GTE_MODERNBERT_BASE_MODEL = "Alibaba-NLP/gte-modernbert-base"
+GTE_MODERNBERT_BASE_REVISION = "e7f32e3c00f91d699e8c43b53106206bcc72bb22"
+GTE_MODERNBERT_BASE_DIMENSIONS = 768
+GTE_MODERNBERT_BASE_MAX_TOKENS = 8192
+GTE_MODERNBERT_BASE_PREPROCESSING = (
+    "gte-modernbert-base:no-prefix:cls-pooling:l2-normalize:v1"
+)
+
 EmbeddingDevice = Literal["auto", "cpu", "cuda"]
+EmbeddingPrecision = Literal["fp32", "fp16"]
 
 
 @dataclass(frozen=True)
@@ -102,11 +112,39 @@ _BGE_PROFILE = _EmbeddingProfile(
     collection_name="phase2-bge-base-en-v1-5",
     batch_size=4,
 )
-_SUPPORTED_PROFILES = (_E5_PROFILE, _BGE_PROFILE)
+_GTE_PROFILE = _EmbeddingProfile(
+    model=GTE_MODERNBERT_BASE_MODEL,
+    revision=GTE_MODERNBERT_BASE_REVISION,
+    preprocessing_revision=GTE_MODERNBERT_BASE_PREPROCESSING,
+    dimensions=GTE_MODERNBERT_BASE_DIMENSIONS,
+    maximum_input_tokens=GTE_MODERNBERT_BASE_MAX_TOKENS,
+    passage_prefix="",
+    query_prefix="",
+    display_name="gte-modernbert-base",
+    collection_name="phase2-dev-gte-modernbert-base-v1",
+    batch_size=8,
+)
+_SUPPORTED_PROFILES = (_E5_PROFILE, _BGE_PROFILE, _GTE_PROFILE)
 
 
 class EmbeddingModelError(RuntimeError):
     """A safe local embedding failure without model or source text details."""
+
+
+class EmbeddingInferenceTimeout(EmbeddingModelError):
+    """Query encoding exceeded its configured wait deadline."""
+
+
+class EmbeddingInferenceBusy(EmbeddingModelError):
+    """A previous query still occupies the adapter's single worker."""
+
+
+def _consume_query_future_exception(
+    future: asyncio.Future[tuple[tuple[float, ...], ...]],
+) -> None:
+    """Retrieve errors from an encoder call that outlives its awaiting request."""
+    if not future.cancelled():
+        future.exception()
 
 
 class _SentenceTransformerEmbedder:
@@ -119,14 +157,33 @@ class _SentenceTransformerEmbedder:
         *,
         device: EmbeddingDevice = "auto",
         model: Any | None = None,
+        query_timeout_seconds: float = 10.0,
+        precision: EmbeddingPrecision = "fp32",
     ) -> None:
         if device not in {"auto", "cpu", "cuda"}:
             raise ValueError("device must be auto, cpu or cuda")
+        if precision not in {"fp32", "fp16"}:
+            raise ValueError("precision must be fp32 or fp16")
         self.device = device
+        self.precision = precision
         self._model = model
         self._tokenizer = getattr(model, "tokenizer", None)
+        if (
+            isinstance(query_timeout_seconds, bool)
+            or not isinstance(query_timeout_seconds, (int, float))
+            or not math.isfinite(query_timeout_seconds)
+            or query_timeout_seconds <= 0
+        ):
+            raise ValueError("query_timeout_seconds must be finite and positive")
+        self.query_timeout_seconds = float(query_timeout_seconds)
         self._model_lock = threading.Lock()
         self._tokenizer_lock = threading.Lock()
+        self._query_submission_lock = threading.Lock()
+        self._query_executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="query-embedding"
+        )
+        self._active_query_future: Future[tuple[tuple[float, ...], ...]] | None = None
+        self._closed = False
 
     @classmethod
     def index_configuration(
@@ -171,15 +228,51 @@ class _SentenceTransformerEmbedder:
         self._validate_configuration(configuration)
         if not isinstance(text, str) or not text.strip():
             raise ValueError("query text must be non-empty")
+        loop = asyncio.get_running_loop()
+        with self._query_submission_lock:
+            if self._closed:
+                raise EmbeddingModelError("local query embedder is closed")
+            if (
+                self._active_query_future is not None
+                and not self._active_query_future.done()
+            ):
+                raise EmbeddingInferenceBusy(
+                    "query embedding worker is completing a previous request"
+                )
+            try:
+                worker_future = self._query_executor.submit(
+                    self._encode_texts,
+                    (text,),
+                    self._profile.query_prefix,
+                    configuration,
+                )
+            except RuntimeError:
+                raise EmbeddingModelError("local query embedder is closed") from None
+            self._active_query_future = worker_future
+        future = asyncio.wrap_future(worker_future, loop=loop)
+        future.add_done_callback(_consume_query_future_exception)
         try:
-            vectors = await asyncio.to_thread(
-                self._encode_texts, (text,), self._profile.query_prefix, configuration
+            vectors = await asyncio.wait_for(
+                asyncio.shield(future), timeout=self.query_timeout_seconds
             )
             return vectors[0]
+        except TimeoutError:
+            raise EmbeddingInferenceTimeout(
+                "local query embedding exceeded its configured timeout"
+            ) from None
+        except asyncio.CancelledError:
+            raise
         except EmbeddingModelError:
             raise
         except Exception:
             raise EmbeddingModelError("local query embedding failed") from None
+
+    def close(self) -> None:
+        """Reject new query work and cancel queued work while the active call finishes."""
+        with self._query_submission_lock:
+            if not self._closed:
+                self._closed = True
+                self._query_executor.shutdown(wait=False, cancel_futures=True)
 
     def token_spans(self, text: str) -> Sequence[TokenSpan]:
         """Return tokenizer offsets for source-aware chunking."""
@@ -315,6 +408,10 @@ class _SentenceTransformerEmbedder:
                     local_files_only=True,
                     trust_remote_code=False,
                 )
+                if self.precision == "fp16":
+                    if device != "cuda":
+                        raise EmbeddingModelError("fp16 embedding requires CUDA")
+                    model.half()
                 model.max_seq_length = self._profile.maximum_input_tokens
             except Exception:
                 raise EmbeddingModelError(
@@ -343,26 +440,56 @@ class BGEBaseEnV15Embedder(_SentenceTransformerEmbedder):
     _profile = _BGE_PROFILE
 
 
+class GTEModernBertBaseEmbedder(_SentenceTransformerEmbedder):
+    """Batch-embed passages with the development-only gte-modernbert-base model."""
+
+    _profile = _GTE_PROFILE
+
+
 def validate_supported_embedding_configuration(
     configuration: IndexConfiguration,
 ) -> None:
     """Reject query profiles that do not name one of the pinned local models."""
     if not any(profile.matches(configuration) for profile in _SUPPORTED_PROFILES):
         raise ValueError(
-            "query adapter configuration does not match pinned E5-small-v2 "
-            "or BGE-base-en-v1.5"
+            "query adapter configuration does not match pinned E5-small-v2, "
+            "BGE-base-en-v1.5 or gte-modernbert-base"
         )
+
+
+def index_configuration_for_model(
+    *,
+    model: str,
+    revision: str,
+    preprocessing_revision: str,
+    dimensions: int,
+    maximum_input_tokens: int,
+) -> IndexConfiguration:
+    """Build the pinned collection configuration for a supported embedding identity."""
+    for profile in _SUPPORTED_PROFILES:
+        if (
+            profile.model == model
+            and profile.revision == revision
+            and profile.preprocessing_revision == preprocessing_revision
+            and profile.dimensions == dimensions
+            and profile.maximum_input_tokens == maximum_input_tokens
+        ):
+            return profile.index_configuration()
+    raise ValueError("embedding identity is not a supported pinned local model")
 
 
 def create_embedder_for_configuration(
     configuration: IndexConfiguration,
     *,
     device: EmbeddingDevice = "auto",
+    precision: EmbeddingPrecision = "fp32",
 ) -> _SentenceTransformerEmbedder:
     """Choose the pinned local adapter from the vector-index identity."""
     validate_supported_embedding_configuration(configuration)
     if configuration.embedding_model == E5_SMALL_V2_MODEL:
-        return E5SmallV2Embedder(device=device)
+        return E5SmallV2Embedder(device=device, precision=precision)
     if configuration.embedding_model == BGE_BASE_EN_V1_5_MODEL:
-        return BGEBaseEnV15Embedder(device=device)
+        return BGEBaseEnV15Embedder(device=device, precision=precision)
+    if configuration.embedding_model == GTE_MODERNBERT_BASE_MODEL:
+        return GTEModernBertBaseEmbedder(device=device, precision=precision)
     raise ValueError("no local embedding adapter supports this configuration")

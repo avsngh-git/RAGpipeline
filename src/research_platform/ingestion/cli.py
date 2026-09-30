@@ -296,6 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
     rebuild_index.add_argument(
         "--device", choices=("auto", "cpu", "cuda"), default="auto"
     )
+    rebuild_index.add_argument("--precision", choices=("fp32", "fp16"), default="fp32")
 
     query_index = index_subcommands.add_parser(
         "query", help="search one snapshot with its configured local embedding model"
@@ -619,7 +620,14 @@ async def _execute_index_inspect(args: argparse.Namespace, settings: Settings) -
 
 def _load_retrieval_profile(path: Path) -> RetrievalProfile:
     if path.suffix.lower() == ".toml":
-        if path.name == "frozen-profile-v1.toml":
+        from research_platform.search.active_profile import (
+            ACTIVE_PROFILE_POINTER_FILENAME,
+            resolve_frozen_profile_path,
+        )
+
+        if path.name == ACTIVE_PROFILE_POINTER_FILENAME:
+            return load_frozen_profile(resolve_frozen_profile_path(path))
+        if path.name.startswith("frozen-profile-"):
             return load_frozen_profile(path)
         return load_retrieval_profile_manifest(path)
     raw = json.loads(path.read_text(encoding="utf-8"))
@@ -759,7 +767,11 @@ async def _execute_index_operation(
     pool: asyncpg.Pool,
 ) -> None:
     configuration = _load_index_configuration(args.configuration)
-    embedder = create_embedder_for_configuration(configuration, device=args.device)
+    embedder = create_embedder_for_configuration(
+        configuration,
+        device=args.device,
+        precision=getattr(args, "precision", "fp32"),
+    )
     async with httpx.AsyncClient(
         base_url=settings.qdrant_url.rstrip("/"), timeout=30
     ) as http:

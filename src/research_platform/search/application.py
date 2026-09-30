@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
@@ -16,7 +16,12 @@ import asyncpg  # type: ignore[import-untyped]
 import httpx
 
 from research_platform.config import Settings
-from research_platform.ingestion.embeddings import E5SmallV2Embedder
+from research_platform.ingestion.embeddings import (
+    E5_SMALL_V2_MODEL,
+    EmbeddingModelError,
+    create_embedder_for_configuration,
+    index_configuration_for_model,
+)
 from research_platform.ingestion.evidence import (
     EvidenceKind,
     EvidenceSourceSpan,
@@ -31,6 +36,7 @@ from research_platform.ingestion.indexing import (
     IndexRepository,
     QdrantIndex,
 )
+from research_platform.search.active_profile import resolve_frozen_profile_path
 from research_platform.search.application_errors import (
     IncompatibleRetrievalProfile,
     RetrievalExecutionFailure,
@@ -321,7 +327,7 @@ class Phase2SearchExecutor:
                 "retrieval_duration_ms": retrieval_ms,
                 "total_duration_ms": round((perf_counter() - started) * 1000, 2),
                 "fallback": effective_mode is not request.mode,
-                "failure_category": "reranker_fallback"
+                "failure_category": stage_counts.get("reranker_failure_category")
                 if effective_mode is not request.mode
                 else None,
             },
@@ -377,12 +383,26 @@ class Phase2SearchExecutor:
 
         if mode is RetrievalMode.DENSE:
             dense_started = perf_counter()
-            dense = await self._dense.search_query(
-                profile,
-                request.query,
-                limit=cast(int, profile.candidate_limits.dense_top_k),
-                filters=request.filters,
-            )
+            try:
+                dense = await self._dense.search_query(
+                    profile,
+                    request.query,
+                    limit=cast(int, profile.candidate_limits.dense_top_k),
+                    filters=request.filters,
+                )
+            except EmbeddingModelError as error:
+                logger.error(
+                    "retrieval_component_failed",
+                    extra={
+                        "snapshot_id": str(request.snapshot_id),
+                        "retrieval_profile_id": profile.profile_id,
+                        "failure_stage": "query_embedding",
+                        "failure_type": type(error).__name__,
+                    },
+                )
+                raise RetrievalExecutionFailure(
+                    "the required dense stage failed"
+                ) from None
             ranked = tuple(
                 (
                     item.evidence.evidence_id,
@@ -417,33 +437,40 @@ class Phase2SearchExecutor:
 
         if mode not in {RetrievalMode.HYBRID, RetrievalMode.RERANKED}:
             raise IncompatibleRetrievalProfile("unsupported retrieval mode")
-        try:
-            hybrid = await self._hybrid.search_query(
-                self._hybrid_profile, request.query, filters=request.filters
-            )
-        except Exception as error:
-            from research_platform.search.hybrid_search import HybridSearchFailure
-
-            if isinstance(error, HybridSearchFailure):
-                logger.error(
-                    "retrieval_component_failed",
-                    extra={
-                        "snapshot_id": str(request.snapshot_id),
-                        "retrieval_profile_id": self._hybrid_profile.profile_id,
-                        "failure_stage": error.details.stage,
-                        "failure_type": error.details.error_type,
-                    },
+        async with self._repository.serving_index(
+            self._hybrid_profile.snapshot, self._configuration
+        ) as ready_index:
+            try:
+                hybrid = await self._hybrid.search_query(
+                    self._hybrid_profile,
+                    request.query,
+                    filters=request.filters,
+                    ready_index=ready_index,
                 )
-                raise RetrievalExecutionFailure(
-                    "a required hybrid stage failed"
-                ) from None
-            raise
-        ranked_fused = tuple(
-            (hit.evidence_id, hit.score, hit.component_scores) for hit in hybrid.hits
-        )
-        candidates, source_units = await self._hydrate(
-            self._hybrid_profile, ranked_fused
-        )
+            except Exception as error:
+                from research_platform.search.hybrid_search import HybridSearchFailure
+
+                if isinstance(error, HybridSearchFailure):
+                    logger.error(
+                        "retrieval_component_failed",
+                        extra={
+                            "snapshot_id": str(request.snapshot_id),
+                            "retrieval_profile_id": self._hybrid_profile.profile_id,
+                            "failure_stage": error.details.stage,
+                            "failure_type": error.details.error_type,
+                        },
+                    )
+                    raise RetrievalExecutionFailure(
+                        "a required hybrid stage failed"
+                    ) from None
+                raise
+            ranked_fused = tuple(
+                (hit.evidence_id, hit.score, hit.component_scores)
+                for hit in hybrid.hits
+            )
+            candidates, source_units = await self._hydrate(
+                self._hybrid_profile, ranked_fused
+            )
         counts: dict[str, int | float | str] = {
             "lexical": hybrid.lexical_pool.available_count,
             "dense": hybrid.dense_pool.available_count,
@@ -480,6 +507,11 @@ class Phase2SearchExecutor:
                         outcome.failure.error_type
                         if outcome.failure is not None
                         else "unknown"
+                    ),
+                    "reranker_failure_category": (
+                        outcome.failure.failure_category
+                        if outcome.failure is not None
+                        else "adapter_failure"
                     ),
                 },
                 self._hybrid_profile.profile_id,
@@ -647,24 +679,84 @@ class Phase2Runtime:
     http: httpx.AsyncClient
     api_services: Any
     reranker: CrossEncoderReranker
+    embedder: Any
 
     async def close(self) -> None:
+        self.embedder.close()
         self.reranker.close()
         await self.http.aclose()
         await self.pool.close()
 
 
-async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
-    """Load frozen local indexes/models without migrating or downloading data."""
-    repo_root = Path(__file__).resolve().parents[3]
-    manifest_dir = repo_root / "benchmarks" / "phase2"
-    frozen = load_frozen_profile(manifest_dir / "frozen-profile-v1.toml")
-    hybrid_profile = load_retrieval_profile_manifest(
+async def _warm_phase2_embedder(
+    embedder: Any, configuration: IndexConfiguration
+) -> None:
+    """Load local model weights before warming the deadline-bound query path."""
+    probe = "local readiness probe"
+    await embedder.embed((probe,), configuration=configuration)
+    await embedder.embed_query(probe, configuration=configuration)
+
+
+@dataclass(frozen=True)
+class _ServingProfiles:
+    """Profiles, dense configuration and lexical source derived from one freeze."""
+
+    frozen: RetrievalProfile
+    bm25: RetrievalProfile
+    hybrid: RetrievalProfile
+    dense: RetrievalProfile
+    lexical_source: RetrievalProfile
+    configuration: IndexConfiguration
+
+
+def _resolve_serving_profiles(frozen_profile_path: Path | None) -> _ServingProfiles:
+    """Build serving profiles and the dense stack from the frozen profile manifest."""
+    frozen_profile_path = resolve_frozen_profile_path(frozen_profile_path)
+    manifest_dir = frozen_profile_path.parent
+    frozen = load_frozen_profile(frozen_profile_path)
+    legacy_hybrid = load_retrieval_profile_manifest(
         manifest_dir / "hybrid-e5-profile-v1.toml"
     )
     bm25_profile = load_retrieval_profile_manifest(
         manifest_dir / "bm25-profile-v1.toml"
     )
+    dense_identity = frozen.dense_index
+    if dense_identity is None or frozen.lexical_index is None:
+        raise SearchDependencyUnavailable("frozen serving profile is not hybrid")
+    is_e5 = dense_identity.model == E5_SMALL_V2_MODEL
+    if is_e5:
+        hybrid_profile = legacy_hybrid
+        configuration = _load_phase2_dense_configuration(manifest_dir)
+        expected_names = ("bm25_lexical", "dense_e5", "hybrid_e5")
+        frozen_name = "reranked_minilm_hybrid"
+    else:
+        if (
+            frozen.lexical_index != legacy_hybrid.lexical_index
+            or frozen.candidate_limits.lexical_top_k
+            != legacy_hybrid.candidate_limits.lexical_top_k
+        ):
+            raise SearchDependencyUnavailable(
+                "frozen lexical index differs from the reusable BM25 artifacts"
+            )
+        hybrid_profile = replace(
+            frozen,
+            reranker=None,
+            candidate_limits=replace(frozen.candidate_limits, rerank_top_k=None),
+        )
+        try:
+            configuration = index_configuration_for_model(
+                model=dense_identity.model,
+                revision=dense_identity.revision,
+                preprocessing_revision=dense_identity.preprocessing_revision,
+                dimensions=dense_identity.dimensions,
+                maximum_input_tokens=dense_identity.maximum_input_tokens,
+            )
+        except ValueError:
+            raise SearchDependencyUnavailable(
+                "frozen dense model has no pinned local adapter"
+            ) from None
+        expected_names = ("bm25_lexical", "dense_gte", "hybrid_gte")
+        frozen_name = "reranked_gte_ettin_hybrid"
     dense_profile = replace(
         hybrid_profile,
         lexical_index=None,
@@ -676,13 +768,19 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
             rerank_top_k=None,
         ),
     )
-    expected_ids = {
-        "bm25_lexical": bm25_profile.profile_id,
-        "dense_e5": dense_profile.profile_id,
-        "hybrid_e5": hybrid_profile.profile_id,
-        "reranked_minilm_hybrid": frozen.profile_id,
-    }
-    comparison_ids = _comparison_profiles(manifest_dir / "frozen-profile-v1.toml")
+    expected_ids = dict(
+        zip(
+            expected_names,
+            (
+                bm25_profile.profile_id,
+                dense_profile.profile_id,
+                hybrid_profile.profile_id,
+            ),
+            strict=True,
+        )
+    )
+    expected_ids[frozen_name] = frozen.profile_id
+    comparison_ids = _comparison_profiles(frozen_profile_path)
     if any(comparison_ids.get(name) != value for name, value in expected_ids.items()):
         raise SearchDependencyUnavailable(
             "frozen retrieval profile identities disagree"
@@ -690,15 +788,67 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
     if (
         frozen.snapshot != hybrid_profile.snapshot
         or frozen.snapshot != bm25_profile.snapshot
+        or frozen.snapshot != legacy_hybrid.snapshot
     ):
         raise SearchDependencyUnavailable("serving profiles target different snapshots")
-    configuration = _load_phase2_dense_configuration(manifest_dir)
-    if frozen.dense_index is None or (
-        configuration.configuration_id != frozen.dense_index.index_configuration_id
-    ):
+    if configuration.configuration_id != dense_identity.index_configuration_id:
         raise SearchDependencyUnavailable(
             "local vector configuration differs from freeze"
         )
+    return _ServingProfiles(
+        frozen,
+        bm25_profile,
+        hybrid_profile,
+        dense_profile,
+        legacy_hybrid,
+        configuration,
+    )
+
+
+def _bind_lexical_to_profile(index: Any, profile: RetrievalProfile) -> Any:
+    """Rebind a dense-independent BM25 artifact to the serving profile identity."""
+    return replace(
+        index,
+        profile=profile,
+        manifest=replace(index.manifest, profile_id=profile.profile_id),
+    )
+
+
+def _build_lexical_retrievers(
+    serving: _ServingProfiles,
+    load: Callable[[RetrievalProfile, Literal["evidence", "paper"]], Any],
+) -> tuple[dict[str, LexicalRetriever], dict[str, LexicalRetriever]]:
+    """Map serving profile ids to retrievers, reusing the legacy BM25 artifacts."""
+    hybrid, frozen, bm25 = serving.hybrid, serving.frozen, serving.bm25
+    evidence = load(serving.lexical_source, "evidence")
+    paper = load(serving.lexical_source, "paper")
+    if hybrid is not serving.lexical_source:
+        # Hybrid checks the retriever profile and manifest id against the request.
+        evidence = _bind_lexical_to_profile(evidence, hybrid)
+        paper = _bind_lexical_to_profile(paper, hybrid)
+    return (
+        {
+            bm25.profile_id: LexicalRetriever(load(bm25, "evidence")),
+            hybrid.profile_id: LexicalRetriever(evidence),
+        },
+        {
+            bm25.profile_id: LexicalRetriever(load(bm25, "paper")),
+            hybrid.profile_id: LexicalRetriever(paper),
+            frozen.profile_id: LexicalRetriever(paper),
+        },
+    )
+
+
+async def create_phase2_runtime(
+    settings: Settings, *, frozen_profile_path: Path | None = None
+) -> Phase2Runtime:
+    """Load frozen local indexes/models without migrating or downloading data."""
+    serving = _resolve_serving_profiles(frozen_profile_path)
+    frozen = serving.frozen
+    hybrid_profile = serving.hybrid
+    bm25_profile = serving.bm25
+    dense_profile = serving.dense
+    configuration = serving.configuration
 
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=10)
     if pool is None:
@@ -706,6 +856,8 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
     http = httpx.AsyncClient(
         base_url=settings.qdrant_url.rstrip("/"), timeout=httpx.Timeout(10.0)
     )
+    embedder: Any | None = None
+    reranker: CrossEncoderReranker | None = None
     try:
         repository = IndexRepository(pool)
         async with pool.acquire() as connection:
@@ -724,24 +876,15 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
             raise SearchDependencyUnavailable("frozen snapshot selection has changed")
 
         root = settings.lexical_index_root
-        bm25_evidence = _load_lexical_artifact(
-            root, bm25_profile, "evidence", mmap=True
+        lexical_evidence, lexical_papers = _build_lexical_retrievers(
+            serving,
+            lambda profile, role: _load_lexical_artifact(
+                root, profile, role, mmap=True
+            ),
         )
-        bm25_paper = _load_lexical_artifact(root, bm25_profile, "paper", mmap=True)
-        hybrid_evidence = _load_lexical_artifact(
-            root, hybrid_profile, "evidence", mmap=True
+        embedder = create_embedder_for_configuration(
+            configuration, device=cast(Any, settings.model_device)
         )
-        hybrid_paper = _load_lexical_artifact(root, hybrid_profile, "paper", mmap=True)
-        lexical_evidence = {
-            bm25_profile.profile_id: LexicalRetriever(bm25_evidence),
-            hybrid_profile.profile_id: LexicalRetriever(hybrid_evidence),
-        }
-        lexical_papers = {
-            bm25_profile.profile_id: LexicalRetriever(bm25_paper),
-            hybrid_profile.profile_id: LexicalRetriever(hybrid_paper),
-            frozen.profile_id: LexicalRetriever(hybrid_paper),
-        }
-        embedder = E5SmallV2Embedder(device=cast(Any, settings.model_device))
         qdrant = QdrantIndex(configuration, http)
         dense = SnapshotDenseSearch(
             repository,
@@ -752,21 +895,24 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
         hybrid = HybridEvidenceSearch(
             lexical_evidence[hybrid_profile.profile_id], dense
         )
+        reranker_identity = frozen.reranker
+        if reranker_identity is None:
+            raise SearchDependencyUnavailable("frozen serving profile has no reranker")
         local_reranker = PinnedSentenceTransformersReranker(
-            cast(Any, frozen.reranker),
+            cast(Any, reranker_identity),
             device=cast(Any, settings.model_device),
             cache_folder=settings.reranker_cache_dir,
         )
         reranker = CrossEncoderReranker(
-            cast(Any, frozen.reranker),
+            cast(Any, reranker_identity),
             token_counter=local_reranker,
             scorer=local_reranker,
-            batch_size=4,
+            batch_size=4 if reranker_identity.precision == "fp32" else 8,
             maximum_candidates=50,
             timeout_seconds=15,
         )
         # Warm the exact pinned local models during startup; their adapters prohibit downloads.
-        await embedder.embed_query("local readiness probe", configuration=configuration)
+        await _warm_phase2_embedder(embedder, configuration)
         await asyncio.to_thread(local_reranker.count_pair, "local readiness", "probe")
         await asyncio.to_thread(
             local_reranker.score_pairs, (("local readiness", "probe"),)
@@ -805,8 +951,12 @@ async def create_phase2_runtime(settings: Settings) -> Phase2Runtime:
             papers=SnapshotPaperReader(pool),
             citations=CitationGraphReader(pool),
         )
-        return Phase2Runtime(pool, http, services, reranker)
+        return Phase2Runtime(pool, http, services, reranker, embedder)
     except BaseException:
+        if reranker is not None:
+            reranker.close()
+        if embedder is not None:
+            embedder.close()
         await http.aclose()
         await pool.close()
         raise

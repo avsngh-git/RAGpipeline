@@ -10,8 +10,9 @@ The P2-10.5 model loader and fallback wrapper are described below.
 
 - The requested `RetrievalProfile.reranker` must equal the adapter’s complete
   `RerankerIdentity` (model, revision, preprocessing revision and pair token cap).
-- The supplied query and candidate sequence are scored as provided. The profile’s
-  `rerank_top_k` and the adapter’s configured maximum both bound candidate count.
+- The service scores the first `rerank_top_k` fused candidates. On success it
+  appends the remaining candidates in unchanged hybrid order. The adapter’s configured
+  maximum also bounds the scored prefix.
 - The profile’s exact model and revision identify the tokenizer counter. Pair
   construction uses `query-source-chunk-v1` and fails the complete request if a pair
   exceeds the identity’s token cap.
@@ -68,11 +69,13 @@ explicitly passes identity activation and disables softmax to keep raw ranking l
 ([CrossEncoder API](https://www.sbert.net/docs/package_reference/cross_encoder/model.html),
 [Sentence Transformers 6.1.0 source](https://github.com/huggingface/sentence-transformers/blob/v6.1.0/sentence_transformers/cross_encoder/model.py)).
 
-`search/reranker_service.py` catches only controlled inference and pair-budget errors.
-On failure it returns the original fused `EvidenceHit` tuple unchanged with effective
-mode `hybrid`. Safe failure metadata identifies the profile, snapshot, model, revision
-and error type without including query text, passage text or exception messages.
-Integrity/provenance errors still fail closed instead of being hidden as fallback.
+`search/reranker_service.py` reranks only the configured leading candidates and
+appends the untouched fused tail after a complete score result. It catches only
+controlled inference and pair-budget errors. On failure it returns the original fused
+`EvidenceHit` tuple unchanged with effective mode `hybrid`. Safe failure metadata
+identifies the profile, snapshot, model, revision and error type without including
+query text, passage text or exception messages. Integrity/provenance errors still fail
+closed instead of being hidden as fallback.
 
 Both pinned models passed a one-pair synthetic local-only WSL CUDA smoke through the
 model loader and the full profile-bound scoring/provenance path. This confirms runtime

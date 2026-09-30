@@ -5,6 +5,13 @@
 **Benchmark scope:** canonical calibration q01–q10 and source-reviewed development q11–q19.
 q20, q21 and held-out q22–q31 were excluded. No held-out labels or rankings informed these decisions.
 
+**Latency threshold note (2026-09-29):** The 1,500 ms figures in this earlier P2-14
+report describe the limits frozen for those historical experiments and assessments.
+The current fresh R8 v12 acceptance run used the owner-approved 2,000 ms warm-p95
+gate in [acceptance-v10.toml](../../benchmarks/phase2/acceptance-v10.toml). The separate
+per-request deadline remains 30 seconds. Historical pass/fail results retain the
+threshold frozen for their own run.
+
 ## Method and replay
 
 The harness was first reconciled on a one-query replay against the saved result IDs and source matches. The full comparison then used the same snapshot selection, candidate cap of 50, eligible filters, query set and five warm repeats for BM25, dense E5, dense BGE, hybrid E5 and hybrid BGE. The 19 query families comprise ten calibration families and nine development families. Four queries applied metadata filters. No retrieval first-run or warm-repeat failures occurred.
@@ -93,3 +100,306 @@ default. The held-out run failed paper nDCG@10, evidence nDCG@10, reranker fallb
 and warm p95 gates. See the [P2-20 acceptance report](../reference/phase-2-acceptance-report.md).
 Do not tune from v3 results; new selection work must use development data and a newly
 frozen held-out question set.
+
+## Reranker prefix cap follow-up — 2026-09-27
+
+After the v3 gate failed, a bounded follow-up varied only the MiniLM reranker prefix
+size over the same 50-candidate Hybrid-E5 pool. Calibration q01–q10 and source-
+reviewed development q11–q19 were used; q20, q21 and every held-out family were
+excluded. A successful run reranks the first *k* fused candidates and keeps the
+remaining candidates in their original hybrid order. Any token-budget or typed
+inference failure returns the complete unchanged 50-candidate hybrid order. The
+pair budget, model revision, query text, filters, source judgments, selection caps
+and quality gates were unchanged.
+
+| Reranked prefix | Fallbacks | Paper nDCG@10 | Paper direct MRR@10 | Evidence nDCG@10 | Evidence direct MRR@10 | Evidence judged Recall@20 | Source anchors @10 / @50 | Positive families hit @10 | Reranker warm p95 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 | 0/19 | 0.9255 | 0.9444 | 0.5018 | 0.5556 | 0.6667 | 7/31 / 12/31 | 7/7 | 75 ms |
+| 20 | 4/19 (21.1%) | 0.9583 | 1.0000 | 0.5124 | 0.5370 | 0.6667 | 9/31 / 13/31 | 7/7 | 134 ms |
+| 50 | 6/19 (31.6%) | 0.9277 | 0.9444 | 0.4957 | 0.5093 | 0.6667 | 9/31 / 13/31 | 7/7 | 315 ms |
+
+The 10-candidate setting missed the development source-anchor recall@10 floor
+(0.226 < 0.25). The 20-candidate setting met the development floors and matched
+the full-pool setting's source-anchor recall while improving calibration ranking
+scores and lowering reranker fallback and latency. Its 90 successful timing samples
+included five warm repeats per family. Adding the previously measured Hybrid-E5
+p95 of 1,037 ms to the reranker p95 gives a conservative stagewise estimate of
+1,171 ms. This is not an observed joint API p95; the integrated API measurement is
+still required. The selected profile is frozen at
+sha256:3a8b4b57638d025405f276ddc22f9e5593f99e2807f40ee2c0e7a3fea8df7692,
+with rerank prefix 20 and hybrid tail preservation. Numeric acceptance thresholds
+are unchanged in acceptance-v2.toml.
+
+Raw rankings and timing samples, together with mode-0600 reproduction scripts, are
+under ignored local-reference/phase2-runs/p2-14-validation/. These results use
+development-only data and do not use or disclose v3 item-level results. The v3
+acceptance failure remains in the historical report; the profile requires a new,
+freshly frozen held-out assessment.
+
+## Development-only prefix re-selection — 2026-09-28
+
+After the v5 held-out assessment failed its paper nDCG gate, the spent holdout was
+sealed from selection. A fresh development-only cap sweep used calibration q01–q10
+and source-reviewed q11–q19; no held-out ranks, scores, or judgments informed this
+choice. All candidates used the same 50-item Hybrid-E5 pool, source labels,
+per-paper selection limits, pair budget, and acceptance floors. Only the MiniLM
+reranker prefix changed.
+
+| Rerank prefix | Fallbacks | Paper nDCG@10 / MRR@10 / Recall@20 | Evidence nDCG@10 / MRR@10 / Recall@20 | Source anchors @10 / @50 | Positive families hit @10 | Reranker p95 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 12 | 0/19 | 0.9438 / 0.9444 / 1.0000 | 0.4938 / 0.5370 / 0.6667 | 8/31 / 12/31 | 7/7 | 86 ms |
+| 14 | 1/19 | 0.9799 / 1.0000 / 1.0000 | 0.4938 / 0.5370 / 0.6667 | 8/31 / 12/31 | 7/7 | 95.89 ms |
+| 16 | 3/19 | 0.9799 / 1.0000 / 1.0000 | 0.5282 / 0.5556 / 0.6667 | 8/31 / 12/31 | 7/7 | 106.83 ms |
+| 18 | 3/19 | 0.9778 / 1.0000 / 1.0000 | 0.5282 / 0.5556 / 0.6667 | 8/31 / 12/31 | 7/7 | 120.81 ms |
+
+At that checkpoint, cap14 was selected using development data only. It ties cap16 on paper
+nDCG@10, MRR@10 and Recall@20; its evidence nDCG@10 remains above the frozen floor,
+while the observed fallback share is lower (1/19 rather than 3/19) and reranker p95
+is 95.89 ms rather than 106.83 ms. Source-anchor counts and positive-family coverage
+are unchanged across these two caps. Cap14's profile identity is
+`sha256:c8a974c9956a408ae8baa50a0d16b49930f68e2dc0062d66007ef5cf61ecd9b4`.
+This interim selection used no held-out outcomes. The cap16 re-selection below
+supersedes it. The v7 assessment is recorded separately; any later
+acceptance attempt must use a newly source-reviewed held-out set and the unchanged
+numerical gates.
+
+
+## Development-only prefix re-selection — 2026-09-28
+
+A further comparison used only calibration q01–q10 and source-reviewed development
+q11–q19. It compared the already measured prefix 14 and 16 configurations; no held-
+out question, score, rank or judgment informed this freeze.
+
+| Prefix | Paper nDCG / MRR / Recall@20 | Evidence nDCG / MRR / Recall@20 | Source anchors @10 / @50 | Fallbacks | Reranker p95 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 14 | 0.9799 / 1.0000 / 1.0000 | 0.4938 / 0.5370 / 0.6667 | 8/31 / 12/31 | 1/19 | 95.89 ms |
+| 16 | 0.9799 / 1.0000 / 1.0000 | 0.5282 / 0.5556 / 0.6667 | 8/31 / 12/31 | 3/19 | 106.83 ms |
+
+Prefix 16 was selected for the v9 freeze because it improved development evidence
+nDCG and direct MRR while tying cap14 on paper metrics, evidence Recall@20 and source
+coverage. Its development fallback share (3/19) and reranker p95 remained below the
+frozen operational limits. This is a development-only selection rationale; v9 later
+missed the paper nDCG gate, and that spent held-out outcome does not change this
+selection or authorize tuning from v9.
+
+## Integrated search-service timing replay — 2026-09-28
+
+A separate warm timing replay exercised the frozen v8 profile on the ten calibration
+families and nine source-reviewed development families only. It made five measured
+repeats for each family and operation after one full warm-up pass (95 paper-search
+and 95 evidence-search samples). This calls the integrated application search
+executor; it does not include HTTP transport or response serialization.
+
+| Operation | Samples | Median | Warm p95 (nearest rank) | Maximum |
+| --- | ---: | ---: | ---: | ---: |
+| Paper search | 95 | 1,179.79 ms | 1,433.45 ms | 1,563.31 ms |
+| Evidence search | 95 | 1,127.83 ms | 1,336.92 ms | 1,412.76 ms |
+
+The replay had zero hard failures and 30 explicit reranker fallbacks across 190
+measured requests (15.8%). It ran on the WSL-exposed RTX 3050 Laptop GPU with profile
+`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`. The
+mode-0600 aggregate and reproduction script are retained under ignored
+`local-reference/phase2-runs/p2-14-validation/`.
+
+Both operation-specific development p95 values are below the frozen 1,500 ms limit.
+At that checkpoint, this development replay did not replace or clear the v10 held-out
+result, whose selected-profile p95 was 1,602.2 ms across 100 warm requests. No threshold
+or profile changed. The later fresh v11 assessment is recorded below and in the
+[acceptance report](../reference/phase-2-acceptance-report.md).
+
+
+
+
+## Typed fallback and warm API diagnostic — 2026-09-28
+
+After the request-scoped selection change, the tracked development runner exercised the
+actual HTTP routes on only allowlisted q11–q19 development families (18 cases across
+paper and evidence search). It used frozen profile v9
+(`sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`), six
+warm-ups and 100 measured requests in each of three sessions, with result limit 10,
+concurrency one, four CPU threads, automatic device selection, and no intentional
+background load. The private input and aggregate output are mode 0600 under `/tmp`;
+the output identifies the code revision, tracked diff, input, and run by digest.
+
+| Session | HTTP median | HTTP p95 (nearest rank) | Hard failures | Whole-pool fallbacks | Selection reconstructions |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 635.18 ms | 851.00 ms | 0 | 23/100 | 100 |
+| 2 | 648.59 ms | 875.56 ms | 0 | 23/100 | 100 |
+| 3 | 670.47 ms | 893.61 ms | 0 | 23/100 | 100 |
+
+All 69 fallbacks were typed `pair_overflow` events (23%); there were no timeout, busy,
+device-exhaustion, or other adapter failures. Every fallback query was in the 0–512
+character bucket, and the length-only candidate breakdown associates the observed
+overflow with long prose inputs (2,049+ characters); table candidates in the rerank
+prefix were in the 513–2,048 bucket. Each request performed one exact selection
+reconstruction. The fallback rate is below the frozen 35% allowance, so this diagnostic
+does not justify changing pair formatting, reranker policy, or profile thresholds.
+The private per-request report retains response fingerprints and stage timings without
+query text, evidence identifiers, or passage text; it remains outside Git.
+
+
+## Offline runtime and retained asset inventory — 2026-09-28
+
+The digest-checked `active-profile.toml` resolves to frozen profile v9 in the source
+checkout, the CLI and the rebuilt Linux AMD64 image. A real FastAPI lifespan loaded
+the pinned E5 and MiniLM revisions with `HF_HUB_OFFLINE=1` and
+`TRANSFORMERS_OFFLINE=1`; the loopback `/ready` returned 200 with PostgreSQL, Qdrant
+and Phase 2 runtime ready. Synthetic requests to `/v1/search` and
+`/v1/evidence/search` both returned 200 with five results and effective mode
+`reranked`. The smoke printed counts and mode only. Both model adapters use
+`local_files_only=True`; no model download was enabled. One initial Uvicorn start logged
+runtime unavailable, but the same settings succeeded through direct runtime and API
+lifespan checks and the subsequent loopback run; no repeatable startup error was found.
+
+Read-only size checks recorded the current local footprint:
+
+| Asset | Measured size | Retention note |
+| --- | ---: | --- |
+| `local-reference/phase2-indexes` lexical artifacts | 111 MB | Keep; configured runtime input for BM25 and Hybrid-E5. |
+| `/tmp/phase1-embedding-hf-cache` E5 cache | 634 MB | Diagnostic cache; copy to a durable configured cache before clearing `/tmp`. |
+| `/tmp/phase2-reranker-hf-cache` MiniLM cache | 1.2 GB | Diagnostic cache; copy to a durable configured cache before clearing `/tmp`. |
+| `ragpipeline_qdrant_data` total | 564 MB | Keep; contains retained Phase 1 and Phase 2 data. Phase 2 collection directory measures 157 MB. |
+| `p2_eval_20260927_qdrant_data` total | 557 MB | Preserve; isolated comparison volume may contain referenced evaluation variants. |
+
+No index, model cache or volume was deleted. The two `ragpipeline-phase2-r3-test-*`
+containers used for integration are disposable and run without named persistent volumes;
+they can be stopped after verification. The locally built `ragpipeline-phase2-r7` image
+is also a verification artifact and can be removed after publication checks.
+
+## Later Phase 2 acceptance — 2026-09-28
+
+This report records development-only choices. The subsequent fresh v11 held-out
+assessment passed every frozen gate with the unchanged selected profile and numeric
+limits; see the [acceptance report](../reference/phase-2-acceptance-report.md) for
+sanitized results. Earlier held-out failures remain historical and spent.
+
+
+## R1–R7 integrated verification and R8 freeze — 2026-09-28
+
+The reconciled implementation is frozen at code revision `586f83ce08580b4a206830e83d7f71cab4722d59`. The active profile resolves to v9 with canonical profile identity `sha256:959e24b6ff6de711bbdfbf5020c5ac82a91cce43f48c8f52ba9d214c3e00e9be`. Configuration file hashes: `active-profile.toml` `db2617ecdcc598eef8171ec17bceef88da736fade73e0eecb442eb5c5cb6c039`, `frozen-profile-v9.toml` `11c70b0c3dbd92bf35ad473b0085f42dbd752cb2341e3f28f570c5e77614d32e`, and `acceptance-v9.toml` `3ef732d9a0645371d63dd57aa205f8e066a6eec48b4936bb6f81c4ccfa3bd572`.
+
+Post-reconciliation local checks passed: Ruff lint, formatting (214 files), strict mypy (81 source files), 451 offline tests, 21 integration tests against fresh disposable PostgreSQL/Qdrant services, `pip check`, Linux AMD64 Docker build, packaged-image `pip check`, and active-profile image smoke. The offline suite command used `PYTHONPATH=src` to make the isolated worktree take precedence over the shared Conda environment's editable install. The image smoke resolved `frozen-profile-v9.toml` and the expected canonical profile identity. Hosted CI passed on the exact frozen code revision in [run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795).
+
+The R8 source screen is preparatory only; it contains no family wording or labels. The missing-evidence scan and freshness review remain before the new held-out set can be frozen and scored. No result from the new set has been observed.
+
+## Post-v12 paper RRF development follow-up — assistant-reviewed 2026-09-29
+
+This completed development-only comparison used calibration q01–q10 plus the nine
+source-reviewed development families q11–q19. It did not read or use R8 v12 outcomes.
+The only variable was the paper metadata/evidence RRF rank constant (1, 3, 5, 10),
+with frozen v9 as the base. Evidence hybrid retrieval, reranker, filters, selection,
+and candidate limits stayed fixed. Each profile received one 19-request HTTP session
+with 50 results per request. All 76 requests returned HTTP 200; each session had zero
+HTTP failures and three reranker fallbacks. Paired family bootstrap used 10,000 draws
+with seed `20260928`. The runtime source SHA-256 was
+`819d4130cf18ab1f9923d935d5de2063a7cd00415951713c3abbf7c4ae4daee3`; the private
+runner SHA-256 was
+`658e68ec5529f33ea837a7a8a5a1af5c762c741f44ddef34552c278264aeddbd`. The private
+aggregate record is
+`local-reference/phase2-runs/p2-14-validation/paper-rrf-lower-20260929T020612Z.json`
+(mode 0600, SHA-256
+`53ad32c54e9c311bf504533c24587901022a060955acb001b608fe75ceeb1f61`); it remains
+outside Git. Two earlier harness attempts were excluded: an incomplete temporary
+manifest failed readiness, and a later launch with private evidence access disabled
+returned 403 for all requests. Neither produced scores used in the decision.
+
+| Paper RRF k | Calibration nDCG@10 (10 families) | Reviewed-development nDCG@10 (9 families) | Paired development delta vs k=10 (95% family bootstrap CI) | Warm request p95 (19 samples) |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.9262 | 0.6901 | +0.0054 [−0.0388, +0.0499] | 1,928.47 ms |
+| 3 | 0.8893 | 0.7008 | +0.0161 [−0.0266, +0.0599] | 1,593.43 ms |
+| 5 | 0.8893 | 0.6918 | +0.0071 [−0.0294, +0.0410] | 1,511.34 ms |
+| 10 (current) | 0.8762 | 0.6847 | 0.0000 [0.0000, 0.0000] | 1,440.66 ms |
+
+The k=3 mean is highest on reviewed development, but its paired interval includes no
+gain and the score remains below the 0.80 development floor. Keep k=10; the sample
+does not justify changing the frozen profile. The 19-sample p95 values are descriptive,
+not an acceptance benchmark. All are below the prospective 2,000 ms gate; the historical
+1,500 ms limit remains only in spent acceptance freezes. This sweep does not address
+the R8 evidence-ranking and source-coverage failures, so a new source-reviewed held-out
+set is still required after development work and a new freeze.
+
+The runner's cold API startup was also repaired without lengthening the live query
+watchdog: startup first loads model weights through the batch embedding path, then warms
+the normal query encoder. A delayed-load regression test failed on the old sequence and
+passed on the corrected sequence. The completed four-profile loop started each API and
+returned HTTP 200 for every request. Follow-up verification passed 459 offline tests
+(with 21 integration tests excluded), project-wide Ruff lint and formatting, and strict
+mypy over 81 source files. Hosted CI passed on code-and-test commit `68218f13e0466ce6d8274b76a688d6024ebad569` in [run 36511846347](https://github.com/avsngh-git/RAGpipeline/actions/runs/36511846347).
+
+## V13 development review and profile check — assistant-reviewed 2026-09-29
+
+The two authorized v13 development families were reviewed from the complete raw
+profile pools. The comparison family had 25 paper cards and 113 evidence cards; the
+unsupported family had 49 paper cards and 149 evidence cards. Missing page or span
+provenance remains explicit in the private cards; no source coordinates were inferred.
+The blinded review and exact rank/source lineage remain private under
+`local-reference/phase2-runs/`.
+
+The primary-source comparison confirms that the two reported values share the MS MARCO
+passage collection and Dev-query MRR@10 measure, but use different retrieval stages.
+COIL-full reports 0.355 for full-corpus retrieval; MORES 2× IB reports 0.3456 after
+reranking BM25's top 1,000 candidates. The values therefore do not compare equivalent
+search setups. See the official [COIL paper](https://aclanthology.org/2021.naacl-main.241/)
+and [MORES paper](https://aclanthology.org/2020.emnlp-main.342/).
+
+The table shows actual returned API results after the production selection rules. Each
+metric is from one positive development family, so these values are diagnostic rather
+than acceptance evidence.
+
+| Profile | Paper nDCG@10 | Evidence nDCG@10 | Evidence direct MRR@10 | Source-anchor Recall@20 |
+| --- | ---: | ---: | ---: | ---: |
+| BM25 lexical | 0.3869 | 0.2346 | 0.3333 | 0.3333 |
+| Dense E5 | 0.6934 | 0.3703 | 0.3333 | 0.6667 |
+| Hybrid E5 | 0.7904 | 0.7654 | 1.0000 | 0.6667 |
+| Reranked MiniLM hybrid | 0.7904 | 0.8855 | 1.0000 | 1.0000 |
+| Fixed-window dense E5 | 0.9197 | 0.2021 | 0.2500 | 0.3333 |
+
+The reranked profile retrieved all required comparison evidence by rank 20 and had full
+group coverage at that cutoff. Its paper nDCG was 0.7904 on this family. A development
+paper-fusion sweep produced nDCG@10 values of 0.8503, 0.8175, 0.8175 and 0.7904 for
+RRF constants 1, 3, 5 and 10; all four retrieved both target papers by rank 20. This
+single family does not outweigh the earlier 19-family comparison, where k=3's paired
+gain over k=10 remained uncertain. Keep the frozen v9 profile and k=10 unchanged.
+
+The missing-topic source screen covered all 100 accepted-snapshot titles and all 44,277
+selected chunks; abstract metadata was available for 10 papers. It found no direct study
+of federated retrieval across independent collections with retrieval-effectiveness
+metrics. M-RAG is a contextual near miss: it selects among partitions of one database
+and evaluates generation tasks ([official paper](https://aclanthology.org/2024.acl-long.108/)).
+The dense profile returned that paper as context, but no profile returned a direct
+source-positive passage. This is an accepted-snapshot finding, not a literature-wide
+absence claim.
+
+No profile or acceptance thresholds changed. The v12 held-out set remains spent, and
+its six quality/source failures remain open; the two v13 development families are too
+small to establish a new acceptance result.
+
+## Frozen profile v10 (gte + BM25 hybrid + Ettin) — assistant-reviewed 2026-09-30
+
+`frozen-profile-v10.toml` (profile ID `sha256:52a152db…`) changes three things from v9.
+- **Dense model:** gte-modernbert-base (revision `e7f32e3c…`, collection `phase2-dev-gte-modernbert-base-v1`) replaces
+  E5-small-v2.
+- **Reranker:** Ettin-150M (revision `025501c4…`, fp16, 2,048-token pairs, top-k 16) replaces MiniLM.
+- **Unchanged:** the BM25S index, RRF k=10 hybrid fusion and all selection rules.
+
+It is the active profile, as the v14 candidate. Its acceptance config is
+[acceptance-v14.toml](../../benchmarks/phase2/acceptance-v14.toml), under ADR-0015 and ADR-0016. The owner chose to keep
+the locked hybrid pipeline and to skip a full development re-measurement. The private development harness was lost
+when `/tmp` was cleared. Before that, the re-judged 21-family development set had scored the gte-hybrid + Ettin
+configuration at paper nDCG@10 0.729 and evidence nDCG@10 0.489, both above the new gates (0.65 and 0.40).
+
+The operations check ran on the q11–q19 development workload: 3 sessions × 100 measured requests, RTX 3050 4 GB,
+code `116fe59`.
+
+| Gate (acceptance-v14) | Limit | v10 |
+| --- | ---: | ---: |
+| Warm p95 per session | 5,000 ms | 785 / 826 / 826 ms (max 884 ms) |
+| Hard failures | 1% | 0 / 300 |
+| Reranker fallbacks | 35% | 0 / 300 |
+| Cold combined model load | 15 s | 9.0 s |
+| Peak CUDA allocated | 1 GiB | 0.74 GB in a fresh process |
+
+Sessions 2 and 3 report 1.26 GB. The benchmark rebuilds the runtime inside one process and does not reset the CUDA
+peak counter, so the first runtime's allocation is carried over. The acceptance run must measure memory in a fresh
+process or reset the counter. The private run records are under
+`local-reference/phase2-runs/gte-ettin-profile-20260930/`.

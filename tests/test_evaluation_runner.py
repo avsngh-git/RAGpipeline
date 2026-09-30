@@ -30,12 +30,14 @@ from research_platform.evaluation.matching import (
 from research_platform.evaluation.run_records import (
     RunRecordError,
     sanitized_run_summary,
+    successful_search_attempt,
     write_run_record,
 )
 from research_platform.evaluation.runner import (
     EvaluationOptions,
     SearchServiceFailure,
     evaluate_calibration,
+    evaluate_heldout,
 )
 from research_platform.evaluation.scoring import (
     EvaluationScoringError,
@@ -632,7 +634,7 @@ def test_run_writer_serializes_privately_without_overwriting(tmp_path: Path) -> 
         serialized = written.read_bytes()
         payload = json.loads(serialized)
         assert payload == record.to_dict()
-        assert payload["schema_version"] == 2
+        assert payload["schema_version"] == 3
         assert payload["attempts"][0]["eligible_count"] == 1
         assert payload["attempts"][0]["result_status"] == "ranked_candidates"
         assert payload["attempts"][0]["ranking_interpretation"] == "ranking_only"
@@ -649,3 +651,126 @@ def test_run_writer_serializes_privately_without_overwriting(tmp_path: Path) -> 
     finally:
         destination.unlink(missing_ok=True)
         destination.parent.rmdir()
+
+
+def test_run_attempt_degrades_for_fallback_and_tracks_warnings_separately() -> None:
+    request = SearchRequest(
+        query="synthetic question",
+        snapshot_id=SNAPSHOT_ID,
+        retrieval_profile_id=PROFILE_ID,
+        mode=RetrievalMode.RERANKED,
+        operation=SearchOperation.EVIDENCE_SEARCH,
+        limit=10,
+    )
+    warning_response = SearchResponse(
+        request_id="warning-request",
+        snapshot_id=SNAPSHOT_ID,
+        retrieval_profile_id=PROFILE_ID,
+        effective_configuration_id=CONFIGURATION_ID,
+        requested_mode=RetrievalMode.RERANKED,
+        effective_mode=RetrievalMode.RERANKED,
+        hits=(),
+        eligible_count=0,
+        warnings=("candidate pool truncated",),
+        truncated=True,
+    )
+    warning_attempt = successful_search_attempt(
+        request,
+        warning_response,
+        attempt_id=uuid4(),
+        latency_ms=1.0,
+        latency_kind="warm",
+    )
+    assert warning_attempt.status == "success"
+    assert warning_attempt.warning_count == 1
+    assert warning_attempt.truncated is True
+
+    fallback_response = replace(
+        warning_response,
+        request_id="fallback-request",
+        effective_mode=RetrievalMode.HYBRID,
+        warnings=("reranking failed; unchanged hybrid order was returned",),
+        truncated=False,
+    )
+    fallback_attempt = successful_search_attempt(
+        request,
+        fallback_response,
+        attempt_id=uuid4(),
+        latency_ms=1.0,
+        latency_kind="warm",
+    )
+    assert fallback_attempt.status == "degraded"
+    assert fallback_attempt.warning_count == 1
+    assert fallback_attempt.truncated is False
+
+
+def test_heldout_runner_records_heldout_lineage_and_rejects_development_data() -> None:
+    calibration, alignment = calibrated_fixture()
+    heldout = replace(
+        calibration,
+        dataset_kind="held_out",
+        families=tuple(
+            replace(family, split="held_out") for family in calibration.families
+        ),
+    )
+
+    def empty_response(request_id: str) -> SearchResponse:
+        return SearchResponse(
+            request_id=request_id,
+            snapshot_id=SNAPSHOT_ID,
+            retrieval_profile_id=PROFILE_ID,
+            effective_configuration_id=CONFIGURATION_ID,
+            requested_mode=RetrievalMode.DENSE,
+            effective_mode=RetrievalMode.DENSE,
+            eligible_count=0,
+            hits=(),
+        )
+
+    service = FakeSearchService(
+        {
+            SearchOperation.PAPER_SEARCH: empty_response("paper"),
+            SearchOperation.EVIDENCE_SEARCH: empty_response("evidence"),
+        }
+    )
+    options = EvaluationOptions(
+        retrieval_profile_id=PROFILE_ID,
+        mode=RetrievalMode.DENSE,
+        calibration_sha256="d" * 64,
+        source_alignment_sha256="e" * 64,
+        code_revision="abcdef0",
+    )
+
+    records = asyncio.run(
+        evaluate_heldout(
+            service,
+            heldout,
+            alignment,
+            options=options,
+            regions_by_evidence_id={},
+        )
+    )
+
+    assert len(records) == 1
+    assert records[0].split == "held_out"
+    assert records[0].score is not None
+    assert records[0].score.split == "held_out"
+    with pytest.raises(ValueError, match="held-out evaluation requires"):
+        asyncio.run(
+            evaluate_heldout(
+                service,
+                calibration,
+                alignment,
+                options=options,
+                regions_by_evidence_id={},
+            )
+        )
+    with pytest.raises(ValueError, match="calibration evaluation requires"):
+        asyncio.run(
+            evaluate_calibration(
+                service,
+                heldout,
+                alignment,
+                options=options,
+                regions_by_evidence_id={},
+            )
+        )

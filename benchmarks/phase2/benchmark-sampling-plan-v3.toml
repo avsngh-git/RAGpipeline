@@ -1,0 +1,127 @@
+schema_version = 3
+plan_id = "phase2-benchmark-sampling-v3"
+adr = "docs/adr/0014-phase2-acceptance-method.md"
+approved_by_owner = "2026-09-29"
+dataset_id = "phase2-benchmark-v13"
+snapshot_id = "4b11fab3-d4a5-4e7a-a58e-8654accf2c6c"
+calibration_dataset_id = "phase2-calibration-v1"
+split_policy_id = "phase2-benchmark-family-split-v13"
+split_unit = "question_family"
+total_family_count = 51
+development_family_count = 21
+heldout_family_count = 30
+heldout_family_floor = 24
+heldout_floor_revision_rule = "record a revised N no lower than 24, naming the failing category, before candidate pooling; below 24 requires a further ADR"
+calibration_development_family_count = 10
+existing_reviewed_development_family_count = 9
+new_development_family_count = 2
+new_heldout_family_count = 30
+calibration_families_are_development_only = true
+family_manifest_assignment = "explicit-versioned-family-list-before-pooling"
+paraphrases_inherit_family_split = true
+
+categories = [
+  "discovery",
+  "specific_evidence",
+  "table_result",
+  "cross_paper_comparison",
+  "filters",
+  "missing_evidence",
+]
+
+[sizing_revision]
+supersedes = "phase2-benchmark-sampling-v2"
+reason = "ADR-0014: ten held-out families leave a set-mean standard error of about 0.08-0.11 nDCG and ranking outcomes that did not converge across ten sets. Thirty held-out families (floor 24) reduce sampling noise by about 42 percent. Development families, the split policy and the dataset ID are unchanged; v13 has no scored or frozen held-out records, so no set is spent."
+prior_compromised_records_reused = false
+heldout_scores_used_for_revision = false
+
+[eligible_development_category_counts]
+discovery = 5
+specific_evidence = 9
+table_result = 8
+cross_paper_comparison = 4
+filters = 4
+missing_evidence = 4
+source = "calibration metadata plus the nine admissible reviewed development-family category records"
+
+[planned_development_category_counts]
+discovery = 5
+specific_evidence = 9
+table_result = 8
+cross_paper_comparison = 5
+filters = 5
+missing_evidence = 5
+count_unit = "distinct_question_families"
+planned_addition_categories = [
+  ["cross_paper_comparison", "filters"],
+  ["missing_evidence"],
+]
+validation = "confirm category membership against source review before candidate pooling; revise this plan before held-out scoring if unsupported"
+
+
+[category_minimums]
+development_families = 5
+heldout_families = 5
+heldout_missing_evidence_families = 4
+count_unit = "distinct_question_families"
+
+[modality_minimums]
+direct_positive_prose_families_development = 2
+table_result_families_development = 3
+numeric_table_families_development = 2
+negative_or_mixed_finding_families_development = 2
+direct_positive_prose_families_heldout = 5
+table_result_families_heldout = 8
+numeric_table_families_heldout = 5
+negative_or_mixed_finding_families_heldout = 5
+
+[heldout_composition]
+minimum_positive_families = 24
+minimum_independently_source_reviewed_direct_anchors = 20
+minimum_positive_families_with_direct_anchors = 15
+max_families_sharing_positive_anchor_paper = 2
+count_unit = "distinct_question_families"
+
+[evidence_pool]
+core_profile_families = ["bm25", "dense", "hybrid", "reranked", "fixed_window"]
+evidence_top_k_per_profile = 50
+include_feasible_alternative_configurations = true
+unique_source_evidence_review_cap_per_family = 200
+caps_raised_if_binding = true
+paper_top_k_per_profile = 20
+unique_paper_review_cap_per_family = 80
+independently_source_found_evidence_is_a_retrieved_result = false
+
+[coverage_precheck]
+paper_top_k_per_profile = 20
+evidence_top_k_per_profile = 50
+minimum_judged_fraction_top10_micro = 0.95
+minimum_judged_fraction_top20_micro = 0.90
+minimum_judged_fraction_top10_per_family_selected_profile = 0.80
+shortfalls_closed_by = "blind source review of missing candidates; never relabel as 0 or drop queries"
+unjudged_results_in_gates = "zero gain under the frozen conservative judged-pool convention"
+
+[review_budget]
+scope = "held-out family construction and review; development families are already reviewed"
+reviewer_hours = 15
+families_in_scope = 30
+average_minutes_per_family = 24
+base_hours_at_target_n = 12.0
+base_hours_at_floor_n = 9.6
+coverage_topup_and_cross_paper_absence_review_fraction = 0.20
+estimated_hours_range = [11.5, 14.4]
+pessimistic_minutes_per_family = 40
+pessimistic_hours_range = [16, 20]
+estimated_judgments_at_target_n = 1870
+review_time_measured_for_v11 = false
+remeasure_after_new_heldout_families = 5
+if_projected_budget_exceeded = "record actual coverage and freeze a revised size plan before heldout scoring"
+revision_must_not_be_based_on_system_scores = true
+
+[interpretation]
+heldout_support = "directional paired conclusions with reported uncertainty; not precise small-effect estimates"
+at_most_acceptance_runs = 2
+gates_judged_on = "point estimates against unchanged thresholds; paired family-bootstrap intervals reported beside them, not gated"
+unsupported_case_means = "no supporting evidence found under the documented review procedure"
+claim_of_absence_from_scientific_literature = false
+full_novelty_against_unavailable_spent_family_identities_certified = false

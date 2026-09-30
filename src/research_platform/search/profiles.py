@@ -65,6 +65,9 @@ def _dataclass_dict(value: object) -> dict[str, object]:
     result = _plain_json(value)
     if not isinstance(result, dict):
         raise TypeError("profile configuration did not serialize to an object")
+    reranker = result.get("reranker")
+    if isinstance(reranker, dict) and reranker.get("precision") == "fp32":
+        del reranker["precision"]
     return cast(dict[str, object], result)
 
 
@@ -85,6 +88,8 @@ def _from_dataclass(
     if not is_dataclass(config_type):
         raise TypeError("configuration type must be a dataclass")
     expected = {field.name for field in fields(cast(Any, config_type))}
+    if config_type is RerankerIdentity and "precision" not in data:
+        data = {**data, "precision": "fp32"}
     _require_fields(data, expected, name)
     try:
         return cast(_ConfigT, cast(Any, config_type)(**dict(data)))
@@ -146,11 +151,15 @@ class RerankerIdentity:
     revision: str
     preprocessing_revision: str
     maximum_input_tokens: int
+    # Omitted from the canonical identity while fp32, so earlier profile ids hold.
+    precision: str = "fp32"
 
     def __post_init__(self) -> None:
         for name in ("model", "revision", "preprocessing_revision"):
             _require_text(getattr(self, name), name)
         _require_positive_integer(self.maximum_input_tokens, "maximum_input_tokens")
+        if self.precision not in {"fp32", "fp16", "bf16"}:
+            raise ValueError("precision must be fp32, fp16 or bf16")
 
 
 @dataclass(frozen=True)

@@ -15,9 +15,16 @@ ENV PATH="${CONDA_ENV}/bin:${PATH}"
 COPY pyproject.toml README.md requirements-bm25s.txt ./
 COPY src ./src
 COPY benchmarks/phase2/acceptance-v1.toml \
+     benchmarks/phase2/acceptance-v8.toml \
+     benchmarks/phase2/acceptance-v9.toml \
+     benchmarks/phase2/acceptance-v14.toml \
+     benchmarks/phase2/active-profile.toml \
      benchmarks/phase2/bm25-profile-v1.toml \
      benchmarks/phase2/e5-small-v2-filtered-index-v1.json \
      benchmarks/phase2/frozen-profile-v1.toml \
+     benchmarks/phase2/frozen-profile-v8.toml \
+     benchmarks/phase2/frozen-profile-v9.toml \
+     benchmarks/phase2/frozen-profile-v10.toml \
      benchmarks/phase2/hybrid-e5-profile-v1.toml \
      ./benchmarks/phase2/
 

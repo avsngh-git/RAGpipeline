@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "synthetic_diagnostic": {
+    "dataset_kind": "synthetic_development_diagnostic",
+    "dataset_id": "phase2-synthetic-development-v1",
+    "input_sha256": "sha256:5c5b81e672e5d46d8543cd2afe6b6620d3eb4809dee01e5cdfff5214732a4b11"
+  },
+  "reviewed_development": {
+    "dataset_kind": "reviewed_development",
+    "split_policy_id": "phase2-benchmark-v3",
+    "question_manifest_sha256": "sha256:6581be118f0f54dfe5ac4b0df50fdcca02aaea2a01b65c94360c8a2e60becab2",
+    "split_manifest_sha256": "sha256:185ec18ad7e9483e2b4f636e0ed3d5e9baa06c063f6ba002dc8886086744d2fd",
+    "allowed_family_ids": [
+      "q11",
+      "q12",
+      "q13",
+      "q14",
+      "q15",
+      "q16",
+      "q17",
+      "q18",
+      "q19"
+    ],
+    "excluded_family_ids": [
+      "q20",
+      "q21"
+    ]
+  }
+}

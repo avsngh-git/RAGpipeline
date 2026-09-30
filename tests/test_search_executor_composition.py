@@ -1,0 +1,359 @@
+"""CPU-only regressions for the composed Phase 2 search executor."""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+from types import SimpleNamespace
+from uuid import UUID
+
+from research_platform.ingestion.embeddings import EmbeddingInferenceBusy
+from research_platform.ingestion.evidence import ExtractedTable, TableCell
+from research_platform.ingestion.indexing import (
+    IndexConfiguration,
+    IndexInput,
+    ReadySnapshotIndex,
+)
+from research_platform.search.application import (
+    Phase2SearchExecutor,
+    RetrievalExecutionFailure,
+    SnapshotEligibility,
+)
+from research_platform.search.contracts import (
+    ComponentScores,
+    RankedComponent,
+    RetrievalMode,
+    SearchFilters,
+    SearchOperation,
+    SearchRequest,
+)
+from research_platform.search.profile_manifest import (
+    load_frozen_profile,
+    load_retrieval_profile_manifest,
+)
+from research_platform.search.reranker import CrossEncoderReranker
+
+ROOT = Path(__file__).resolve().parents[1]
+SNAPSHOT_ID = UUID("4b11fab3-d4a5-4e7a-a58e-8654accf2c6c")
+DOCUMENT_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+EXTRACTION_ID = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+
+
+class _TokenCounter:
+    def count_pair(self, query: str, evidence_text: str) -> int:
+        return 16
+
+
+class _FailingScorer:
+    def __init__(self, repository: _Repository) -> None:
+        self.repository = repository
+
+    def score_pairs(self, pairs: tuple[tuple[str, str], ...]) -> list[float]:
+        assert self.repository.active_scope is None
+        raise RuntimeError("private model failure")
+
+
+class _Repository:
+    def __init__(self, evidence: tuple[IndexInput, ...]) -> None:
+        self.by_id = {item.evidence_id: item for item in evidence}
+        self.active_scope: ReadySnapshotIndex | None = None
+
+    @asynccontextmanager
+    async def serving_index(
+        self, snapshot_selection, configuration
+    ) -> AsyncIterator[ReadySnapshotIndex]:
+        ready = ReadySnapshotIndex(
+            snapshot_status="finalized",
+            snapshot_selection=snapshot_selection,
+            configuration_id=configuration.configuration_id,
+            collection_name=configuration.collection_name,
+            expected_count=len(self.by_id),
+            selected_chunk_ids=frozenset(self.by_id),
+        )
+        self.active_scope = ready
+        try:
+            yield ready
+        finally:
+            self.active_scope = None
+
+    def read_index_scope_is_active(self, ready: ReadySnapshotIndex) -> bool:
+        return self.active_scope is ready
+
+    async def hydrate_snapshot_matches(self, snapshot, configuration, matches):
+        assert self.active_scope is not None
+        return tuple(self.by_id[match.evidence_id] for match in matches)
+
+
+class _Eligibility:
+    async def read(self, snapshot_id: UUID, *, filters: SearchFilters):
+        return SnapshotEligibility(
+            paper_metadata={"W123": ("Synthetic paper", 2025)},
+            evidence_counts_by_paper={"W123": 3},
+        )
+
+
+class _Hybrid:
+    def __init__(self, hits: tuple[object, ...]) -> None:
+        self.hits = hits
+        self.profiles = []
+
+    async def search_query(self, profile, query, *, filters, ready_index=None):
+        self.profiles.append(profile)
+        return SimpleNamespace(
+            hits=self.hits,
+            lexical_pool=SimpleNamespace(available_count=len(self.hits)),
+            dense_pool=SimpleNamespace(available_count=len(self.hits)),
+            fused_pool=SimpleNamespace(available_count=len(self.hits)),
+            truncated=False,
+            lexical_duration_ms=1.0,
+            dense_duration_ms=2.0,
+            fusion_duration_ms=3.0,
+        )
+
+
+class _PaperLexical:
+    def search_with_stats(self, query, *, eligible_ids, limit):
+        assert eligible_ids == {"W123"}
+        return SimpleNamespace(
+            hits=(SimpleNamespace(paper_id="W123", score=1.0),), truncated=False
+        )
+
+
+class _EvidenceRepository:
+    def __init__(self, table: ExtractedTable) -> None:
+        self.table = table
+        self.requested: list[tuple[tuple[UUID, int], ...]] = []
+
+    async def load_tables_for_search(self, requested_tables):
+        key = (EXTRACTION_ID, self.table.ordinal)
+        self.requested.append(tuple(requested_tables))
+        return {key: self.table} if key in requested_tables else {}
+
+
+def _table() -> ExtractedTable:
+    return ExtractedTable(
+        ordinal=0,
+        caption="Synthetic outcomes",
+        units="count",
+        footnotes=(),
+        header_rows=1,
+        cells=(
+            TableCell(0, 0, "Group"),
+            TableCell(0, 1, "Outcome"),
+            TableCell(1, 0, "Treatment"),
+            TableCell(1, 1, "42"),
+        ),
+    )
+
+
+def _evidence_input(index: int, *, table: bool = False) -> IndexInput:
+    evidence_id = f"sha256:{index:064x}"
+    metadata: dict[str, object] = {}
+    kind = "text"
+    text = f"synthetic evidence {index}"
+    if table:
+        kind = "table_row_group"
+        text = "Treatment | 42"
+        metadata = {
+            "table_ordinal": 0,
+            "header_rows_repeated": 1,
+            "row_start_inclusive": 1,
+            "row_end_exclusive": 2,
+        }
+    return IndexInput(
+        evidence_id=evidence_id,
+        text=text,
+        payload={
+            "paper_id": "W123",
+            "document_id": str(DOCUMENT_ID),
+            "extraction_id": str(EXTRACTION_ID),
+            "snapshot_id": str(SNAPSHOT_ID),
+            "source_location": {"page_index_zero_based": 4},
+            "source_spans": [],
+            "evidence_metadata": metadata,
+            "evidence_kind": kind,
+            "document_version": "published-2025",
+            "document_version_kind": "published",
+            "chunking_configuration_id": None,
+            "section_ordinal": 0,
+            "start_offset": 0,
+            "end_offset": len(text),
+        },
+    )
+
+
+def _executor() -> tuple[
+    Phase2SearchExecutor,
+    CrossEncoderReranker,
+    _Hybrid,
+    object,
+    _EvidenceRepository,
+]:
+    manifest_dir = ROOT / "benchmarks/phase2"
+    from research_platform.search.active_profile import resolve_frozen_profile_path
+
+    profile = load_frozen_profile(
+        resolve_frozen_profile_path(manifest_dir / "active-profile.toml")
+    )
+    hybrid_profile = load_retrieval_profile_manifest(
+        manifest_dir / "hybrid-e5-profile-v1.toml"
+    )
+    inputs = (_evidence_input(1, table=True), _evidence_input(2), _evidence_input(3))
+    hybrid_hits = tuple(
+        SimpleNamespace(
+            evidence_id=item.evidence_id,
+            score=1.0 / rank,
+            component_scores=ComponentScores(
+                lexical=RankedComponent(rank=rank, score=1.0 / rank),
+                dense=RankedComponent(rank=rank, score=0.9 / rank),
+                fusion=RankedComponent(rank=rank, score=1.0 / (60 + rank)),
+            ),
+        )
+        for rank, item in enumerate(inputs, start=1)
+    )
+    hybrid = _Hybrid(hybrid_hits)
+    repository = _Repository(inputs)
+    reranker = CrossEncoderReranker(
+        profile.reranker,
+        token_counter=_TokenCounter(),
+        scorer=_FailingScorer(repository),
+        timeout_seconds=1.0,
+    )
+    evidence_repository = _EvidenceRepository(_table())
+    configuration = IndexConfiguration(
+        collection_name="phase2-executor-test",
+        embedding_model=profile.dense_index.model,
+        embedding_revision=profile.dense_index.revision,
+        preprocessing_revision=profile.dense_index.preprocessing_revision,
+        vector_size=profile.dense_index.dimensions,
+        distance="Cosine",
+        batch_size=2,
+        maximum_input_tokens=profile.dense_index.maximum_input_tokens,
+    )
+    executor = Phase2SearchExecutor(
+        pool=object(),
+        index_configuration=configuration,
+        repository=repository,
+        eligibility_reader=_Eligibility(),
+        profiles_by_id={profile.profile_id: profile},
+        modes_by_profile_id={profile.profile_id: RetrievalMode.RERANKED},
+        lexical_evidence={},
+        lexical_papers={profile.profile_id: _PaperLexical()},
+        hybrid_profile=hybrid_profile,
+        hybrid_search=hybrid,
+        dense_search=object(),
+        reranker=reranker,
+        evidence_repository=evidence_repository,
+    )
+    return executor, reranker, hybrid, profile, evidence_repository
+
+
+def _request(profile, operation: SearchOperation, *, mode=RetrievalMode.RERANKED):
+    return SearchRequest(
+        query="synthetic table outcomes",
+        snapshot_id=profile.snapshot.snapshot_id,
+        retrieval_profile_id=profile.profile_id,
+        mode=mode,
+        operation=operation,
+        filters=SearchFilters(),
+        limit=10,
+    )
+
+
+def test_executor_composes_fallback_table_context_and_paper_fusion() -> None:
+    executor, reranker, hybrid, profile, evidence_repository = _executor()
+    try:
+        evidence_response = asyncio.run(
+            executor.execute(
+                _request(profile, SearchOperation.EVIDENCE_SEARCH),
+                request_id="synthetic-evidence",
+            )
+        )
+        paper_response = asyncio.run(
+            executor.execute(
+                _request(profile, SearchOperation.PAPER_SEARCH),
+                request_id="synthetic-paper",
+            )
+        )
+    finally:
+        reranker.close()
+
+    assert [hit.chunk_id for hit in evidence_response.hits] == [
+        f"sha256:{index:064x}" for index in (1, 2)
+    ]
+    assert evidence_response.requested_mode is RetrievalMode.RERANKED
+    assert evidence_response.effective_mode is RetrievalMode.HYBRID
+    assert evidence_response.effective_configuration_id == hybrid.profiles[0].profile_id
+    table_hit = evidence_response.hits[0]
+    assert table_hit.table_context is not None
+    assert table_hit.table_context.caption == "Synthetic outcomes"
+    assert [hit.paper_id for hit in paper_response.hits] == ["W123"]
+    assert paper_response.effective_mode is RetrievalMode.HYBRID
+    assert paper_response.hits[0].component_scores.fusion.score == 2 / 11
+    assert paper_response.hits[0].supporting_evidence[0].table_context is not None
+
+    # Hybrid E5 ranks upstream evidence at k=60; the selected profile's final
+    # paper metadata/evidence fusion uses k=10.
+    assert len(hybrid.profiles) == 2
+    assert hybrid.profiles[0] == hybrid.profiles[1]
+    assert hybrid.profiles[0].fusion.rank_constant == 60
+    assert profile.fusion.rank_constant == 10
+    assert evidence_repository.requested == [
+        ((EXTRACTION_ID, 0),),
+        ((EXTRACTION_ID, 0),),
+    ]
+
+
+def test_executor_rejects_incompatible_profile_mode_before_search() -> None:
+    executor, reranker, hybrid, profile, _evidence_repository = _executor()
+    try:
+        try:
+            asyncio.run(
+                executor.execute(
+                    _request(
+                        profile,
+                        SearchOperation.EVIDENCE_SEARCH,
+                        mode=RetrievalMode.HYBRID,
+                    ),
+                    request_id="synthetic-incompatible",
+                )
+            )
+        except ValueError as error:
+            assert "mode does not match" in str(error)
+        else:
+            raise AssertionError("an incompatible profile mode must fail closed")
+    finally:
+        reranker.close()
+
+    assert hybrid.profiles == []
+
+
+class _BusyDense:
+    async def search_query(self, profile, query, *, limit, filters):
+        raise EmbeddingInferenceBusy("synthetic occupied worker")
+
+
+def test_dense_embedding_saturation_is_a_safe_retrieval_failure() -> None:
+    executor, reranker, _hybrid, profile, _evidence_repository = _executor()
+    executor._modes[profile.profile_id] = RetrievalMode.DENSE
+    executor._dense = _BusyDense()
+    try:
+        try:
+            asyncio.run(
+                executor.execute(
+                    _request(
+                        profile,
+                        SearchOperation.EVIDENCE_SEARCH,
+                        mode=RetrievalMode.DENSE,
+                    ),
+                    request_id="synthetic-dense-busy",
+                )
+            )
+        except RetrievalExecutionFailure as error:
+            assert str(error) == "the required dense stage failed"
+        else:
+            raise AssertionError("embedding saturation must fail closed")
+    finally:
+        reranker.close()

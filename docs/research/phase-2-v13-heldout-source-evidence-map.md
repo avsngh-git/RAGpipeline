@@ -1,0 +1,78 @@
+# Phase 2 v13 held-out source evidence map
+
+**Status:** assistant-reviewed source map; candidate themes only
+**Date:** 2026-09-29
+**Scope:** primary-source anchors for the fresh held-out source review under the frozen v2 sampling plan
+
+## Scope and use
+
+This note maps source-backed themes from the seven works in the approved next-set
+screen. The sources were checked in the official ACL Anthology PDFs and record pages,
+or in the University of Amsterdam's UvA-DARE record and final-published-version PDF.
+PDF page numbers below are 1-based physical PDF pages; printed proceedings pages are
+given separately where present. The UvA PDF includes a cover page before the published
+article.
+
+The frozen plan calls for ten fresh held-out families and sets floors for all six
+categories, direct-positive prose, table results, numeric table values, and negative
+or mixed findings. The entries below are possible information-need themes and
+category matches, not drafted questions, family records, split assignments, or
+judgments. They do not count toward any floor until a later reviewer creates and
+source-checks the family. [Frozen v2 plan](../../benchmarks/phase2/benchmark-sampling-plan-v2.toml) ·
+[sampling-plan rationale](../reference/phase-2-benchmark-sampling-plan.md).
+
+## Candidate information-need themes
+
+| # | Theme and category possibilities | Source evidence, modality, and finding character | Conditions and limits |
+|---|---|---|---|
+| 1 | Contextualized exact-match retrieval — `discovery`, `specific_evidence`, `table_result` | COIL combines contextualized token representations with inverted-list lookup. On the MS MARCO passage collection, its full configuration reports development-retrieval MRR@10 of 0.355, compared with 0.184 for BM25; §5.1 prose attributes the added contribution to its CLS semantic signal. The architecture is described in §1. Table 1 is on physical PDF p. 7 (printed p. 3036). [ACL PDF, §1, p. 1](https://aclanthology.org/2021.naacl-main.241.pdf#page=1) · [§5.1 prose, p. 6](https://aclanthology.org/2021.naacl-main.241.pdf#page=6) · [Table 1, p. 7](https://aclanthology.org/2021.naacl-main.241.pdf#page=7) | The table distinguishes development reranking from development retrieval and also reports TREC DL 2019 retrieval measures. Treat the value as this collection and setup's result, not a general lexical-versus-dense conclusion. |
+| 2 | Representation dimension, retrieval effectiveness, and measured latency — `specific_evidence`, `table_result` | COIL §5.2, Table 3 varies token and CLS dimensions and reports retrieval measures alongside CPU/GPU latency (physical PDF p. 8; printed p. 3037). For example, the 768/32 configuration reports MRR@10 0.355 and 380/41 ms CPU/GPU latency; the 128/32 configuration reports 0.350 and 125/23 ms. [ACL PDF, p. 8](https://aclanthology.org/2021.naacl-main.241.pdf#page=8) | This is a passage-collection measurement; the caption excludes I/O time, and the table reports no confidence intervals or repeated-run dispersion. It is not directly comparable to the project's end-to-end API latency. |
+| 3 | Ranking quality across modular interaction depths — `specific_evidence`, `table_result` | MORES §4.2, Table 2 reports MS MARCO passage results for development queries and TREC 2019 Deep Learning queries. On development MRR, MORES 2× interaction blocks reports 0.3456 versus 0.3527 for the BERT ranker and is marked non-inferior under the paper's 2% margin at p < .05. The paper says three blocks do not improve accuracy and four lower some measures. Prose is on physical PDF p. 5 (printed p. 4184); Table 2 is on p. 6 (printed p. 4185). [ACL PDF, §4.2, p. 5](https://aclanthology.org/2020.emnlp-main.342.pdf#page=5) · [Table 2, p. 6](https://aclanthology.org/2020.emnlp-main.342.pdf#page=6) | These are ranking results on named MS MARCO/TREC sets. The non-inferiority marker is tied to the stated margin and test; it is not an equivalence claim across all outcomes. |
+| 4 | Retrieval versus candidate-reranking setup and resource trade-offs — `cross_paper_comparison`, `specific_evidence`, `table_result` | COIL's passage tables separate full-collection retrieval from reranking. MORES Table 4 measures average time to score 1,000 candidates and stored precomputed representations; its setup uses query length 16 and document lengths 128 or 512. The two studies support a comparison of what was measured and where computation occurs, with direct prose/table anchors in [COIL, p. 7](https://aclanthology.org/2021.naacl-main.241.pdf#page=7), [COIL, p. 8](https://aclanthology.org/2021.naacl-main.241.pdf#page=8), and [MORES, p. 6](https://aclanthology.org/2020.emnlp-main.342.pdf#page=6). | Keep their quality scores separate: retrieval depth, ranking stage, metrics, query sets, and resource measurements differ. MORES timing is an average for 1,000 candidates, not a tail-latency statistic. |
+| 5 | Human-written versus synthetic response training by evaluation domain — `specific_evidence`, `table_result` | Askari et al. compare cross-encoder rankers trained on human or ChatGPT responses. Table 2 uses MAP@1000, NDCG@10, and MRR@10; the in-domain results favor human-trained MiniLM, while synthetic-trained MiniLM leads on TREC DL 2020 and MS MARCO Dev. TREC DL 2019 is mixed by metric. Table 3 shows domain-level variation. Table 2 is physical PDF p. 4 (printed p. 5313); Table 3 is p. 5 (printed p. 5314). [UvA final published PDF, Table 2, p. 4](https://pure.uva.nl/ws/files/169472407/3583780.3615111.pdf#page=4) · [Table 3, p. 5](https://pure.uva.nl/ws/files/169472407/3583780.3615111.pdf#page=5) · [UvA-DARE record](https://dare.uva.nl/search?identifier=a3aac532-b09e-40b0-9074-9ae8be2fb4c5) | Inference ranks human responses; reported significance uses paired t-tests with Bonferroni correction and stated cutoffs. The in-domain human-trained setup may share documents between training and evaluation. Results vary by dataset and metric; do not flatten them into one direction. |
+| 6 | Iterative relevance supervision and retrieval quality by depth — `specific_evidence`, `table_result` | ColBERT-QA §4.4, Table 2 reports test-set Success@k and MRR@100 on Natural Questions, TriviaQA, and SQuAD. QA3's Success@20 gains over QA1 are 2.3, 0.9, and 1.6 points across those sets. The Wilcoxon test with Bonferroni correction is reported for Success@20; it finds QA2/QA3 above QA1, but no significant difference between QA2 and QA3. Table 2 is physical PDF p. 9 (journal p. 937). [ACL PDF, p. 9](https://aclanthology.org/2021.tacl-1.55.pdf#page=9) | Success@k records whether an answer occurs in retrieved passages. Do not substitute the paper's separate reader EM results for retrieval quality. The paper also reports that reranking BM25's top 1,000 reduced development Success@20 relative to its full-corpus result. |
+| 7 | Supplied-context insufficiency versus collection-wide absence — `missing_evidence` (conditional), `specific_evidence` | IIRC Table 1 defines a “None” answer relative to the supplied context and reports it in 30% of a manually analyzed 100-example sample; Table 3 reports a full-model test score of 27.7 EM/31.1 F1 and human results of 85.7/88.4 on a 200-example subset. Tables are on physical PDF pp. 4 and 7 (printed pp. 1140 and 1143). [ACL PDF, p. 4](https://aclanthology.org/2020.emnlp-main.86.pdf#page=4) · [ACL PDF, p. 7](https://aclanthology.org/2020.emnlp-main.86.pdf#page=7) | This source only supports a distinction about a provided context and its own QA task. It cannot establish that support is absent from the accepted project snapshot. A missing-evidence family is admissible only after the separately scoped source-first search across that snapshot. |
+| 8 | Pair-matching distillation versus collection retrieval — `cross_paper_comparison`, `specific_evidence`, `table_result` | DiPair Table 3 reports query-to-passage pair-classification AUC-ROC on Q2P-MAT: DiPairTSF scores 0.932 at a reported 355× speedup over its teacher, while BERT-Tiny scores 0.936 at 44×. The table uses query/passage encoder lengths 32/128 and teacher input length 128. Table 3 is physical PDF p. 8 (printed p. 2932). [DiPair ACL PDF, p. 8](https://aclanthology.org/2020.findings-emnlp.264.pdf#page=8). COIL's comparator is full-collection passage retrieval with MRR@10 and Recall@1K in [Table 1, p. 7](https://aclanthology.org/2021.naacl-main.241.pdf#page=7). | This is pair scoring, not top-k full-corpus retrieval. The speedup is based on CPU model-head timing, not end-to-end retrieval latency. It is a low-priority comparison theme for this benchmark contract. |
+| 9 | Phrase-level answer retrieval versus passage retrieval — `cross_paper_comparison`, `discovery`, `table_result` | DensePhrases Table 1 compares phrase retrieval with retriever-reader approaches using storage, throughput, and open-domain QA test accuracy; it lists 320 GB storage and NQ/SQuAD accuracy of 40.9/38.0. Table 3 reports test-set exact match across five QA sets; the authors report gains over prior phrase-retrieval systems on most datasets, with SQuAD as an exception. Tables 1 and 3 are physical PDF pp. 2 and 8 (printed pp. 6635 and 6641). [DensePhrases ACL PDF, p. 2](https://aclanthology.org/2021.acl-long.518.pdf#page=2) · [p. 8](https://aclanthology.org/2021.acl-long.518.pdf#page=8). ColBERT-QA provides a passage-retrieval comparator in [Table 2, p. 9](https://aclanthology.org/2021.tacl-1.55.pdf#page=9). | Phrase-answer retrieval and passage ranking are different retrieval units and outcome measures. The reported storage and throughput use a 2018 Wikipedia snapshot and the study's hardware; they are not estimates for this project. |
+| 10 | Year-bounded comparison of retrieval and ranking studies — `filters` (conditional), `cross_paper_comparison`, `discovery` | The screened ACL studies provide dated source anchors from 2020–2021, with distinct tasks including document/passage retrieval, candidate reranking, and pair matching. A metadata-constrained theme could examine a period-bounded subset while comparing study scope, not pooling incompatible scores. Publication years are recorded on the [MORES](https://aclanthology.org/2020.emnlp-main.342/) and [COIL](https://aclanthology.org/2021.naacl-main.241/) official records; exact result conditions are in the source tables linked above. | The v2 plan requires the exact eligible-record count for any filter family. The count and selected-source eligibility must be verified against the accepted snapshot metadata before this possibility can count toward the filter floor. |
+
+## V13 source-first scan coverage — assistant-reviewed 2026-09-29
+
+A read-only, 38-variant literal screen covered titles for all 100 accepted-snapshot
+papers, the 10 papers with abstract-inverted-index metadata, and the selected source
+chunks. An aggregate join audit resolved all 44,277 selected chunk references to
+searchable chunk rows with matching document and extraction identities; all 100
+snapshot papers have searchable chunks.
+
+This confirms coverage of the stored snapshot representation, not semantic
+exhaustiveness. Literal matches are leads for source review, and a no-match result
+alone does not establish absence. In the v13 development-only unsupported example,
+source review found contextual near matches but no directly supporting passage. That
+diagnostic is not a held-out family and does not count toward the fresh-set floors.
+
+## Floor feasibility and unresolved work
+
+- **Direct prose:** COIL's architecture description, MORES's interpretation of interaction-depth results, and the synthetic-training study's domain-specific discussion provide candidate prose anchors. Later family review must confirm that the selected fact is directly stated at the chosen location.
+- **Table results and numeric tables:** COIL, MORES, the synthetic-training paper, ColBERT-QA, IIRC, DiPair, and DensePhrases each have explicit table anchors. This is enough source variety to prepare at least three table-result candidates, including numeric-table candidates, subject to family design and source review.
+- **Negative or mixed findings:** the MORES interaction-depth results, synthetic-training results across domains, IIRC's context-relative “None” case, and DensePhrases' dataset exception offer scoped mixed or limiting findings. These do not license a claim beyond their stated collection, measure, or setup.
+- **Cross-paper comparison:** several candidate comparisons are possible, but their metrics and tasks are not interchangeable. A valid family should compare study conditions or carefully matched outcomes and preserve those distinctions.
+- **Filters:** the accepted snapshot contains 100 papers: publication-year counts are 2020: 12, 2021: 17, 2022: 9, 2023: 22, 2024: 24, 2025: 15, and 2026: 1. Candidate inclusive ranges therefore contain 12 papers for 2020, 17 for 2021, and 29 for 2020–2021; seven of the 13 screened source documents fall in 2020–2021. The implemented search contract supports inclusive `year_from`/`year_to` bounds. This verifies filter eligibility for candidate families; source review must still select and anchor each family before it counts toward coverage.
+- **Missing evidence:** the v13 development example is not a fresh held-out family.
+  The literal screen has full stored-chunk join coverage, but the required
+  independently source-reviewed held-out families remain unestablished. IIRC's
+  provided-context task is not evidence of absence from the accepted snapshot.
+- **Novelty:** the source screen excludes known public overlap areas, but unavailable spent-family identities prevent certifying complete freshness against prior held-out sets.
+
+The map supports planning source review but does not itself prove category coverage, create ten valid families, or satisfy any split's modality/finding floors. If source-first review or metadata counts cannot support a frozen floor, record and revise the sampling plan before held-out scoring.
+
+## Primary-source inventory
+
+- COIL, official ACL Anthology [record](https://aclanthology.org/2021.naacl-main.241/) and [PDF](https://aclanthology.org/2021.naacl-main.241.pdf).
+- MORES, official ACL Anthology [record](https://aclanthology.org/2020.emnlp-main.342/) and [PDF](https://aclanthology.org/2020.emnlp-main.342.pdf).
+- Synthetic-document rankers, UvA-DARE [record](https://dare.uva.nl/search?identifier=a3aac532-b09e-40b0-9074-9ae8be2fb4c5) and its [final-published-version PDF](https://pure.uva.nl/ws/files/169472407/3583780.3615111.pdf); DOI [10.1145/3583780.3615111](https://doi.org/10.1145/3583780.3615111).
+- IIRC, official ACL Anthology [record](https://aclanthology.org/2020.emnlp-main.86/) and [PDF](https://aclanthology.org/2020.emnlp-main.86.pdf).
+- ColBERT-QA, official ACL Anthology [record](https://aclanthology.org/2021.tacl-1.55/) and [PDF](https://aclanthology.org/2021.tacl-1.55.pdf).
+- DiPair, official ACL Anthology [record](https://aclanthology.org/2020.findings-emnlp.264/) and [PDF](https://aclanthology.org/2020.findings-emnlp.264.pdf).
+- DensePhrases, official ACL Anthology [record](https://aclanthology.org/2021.acl-long.518/) and [PDF](https://aclanthology.org/2021.acl-long.518.pdf).
+
+No question wording, passages, candidate identifiers, relevance labels, pool/ranking data, or split assignments are included.

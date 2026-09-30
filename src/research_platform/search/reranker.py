@@ -302,9 +302,22 @@ class CrossEncoderReranker:
                 "cross-encoder pair preparation failed"
             ) from None
         scored: list[tuple[EvidenceHit, float, int]] = []
-        pair_inputs = tuple((pair.query, pair.evidence_hit.text) for pair in pairs)
-        for start in range(0, len(pair_inputs), self.batch_size):
-            batch = pair_inputs[start : start + self.batch_size]
+        # Batch by ascending token length to minimise padding. Results are keyed
+        # by their pair, and the final sort below is order-independent, so the
+        # original candidate order never influences the outcome.
+        order = sorted(
+            range(len(pairs)),
+            key=lambda index: (
+                sum(count for _, count in pairs[index].token_counts),
+                index,
+            ),
+        )
+        for start in range(0, len(order), self.batch_size):
+            indexes = order[start : start + self.batch_size]
+            batch = tuple(
+                (pairs[index].query, pairs[index].evidence_hit.text)
+                for index in indexes
+            )
             try:
                 batch_scores = self._scorer.score_pairs(batch)
             except RerankerAdapterError:
@@ -332,7 +345,7 @@ class CrossEncoderReranker:
                     raise RerankerInvalidScoreError(
                         "cross-encoder returned a non-finite or non-numeric score"
                     )
-                pair = pairs[start + offset]
+                pair = pairs[indexes[offset]]
                 scored.append(
                     (pair.evidence_hit, float(raw_score), pair.evidence_hit.rank)
                 )

@@ -7,10 +7,10 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, Protocol, cast
 from urllib.parse import quote
 from uuid import UUID, uuid5
@@ -180,6 +180,11 @@ class IndexBuildReport:
     batch_count: int
 
 
+@dataclass
+class _IndexReadLeaseState:
+    active: bool = True
+
+
 @dataclass(frozen=True)
 class ReadySnapshotIndex:
     snapshot_status: Literal["draft", "finalized"]
@@ -188,6 +193,10 @@ class ReadySnapshotIndex:
     collection_name: str
     expected_count: int
     filter_payload_revision: str | None = None
+    selected_chunk_ids: frozenset[str] = frozenset()
+    _lease_state: _IndexReadLeaseState | None = field(
+        default=None, repr=False, compare=False
+    )
 
 
 class SnapshotIndexNotReady(RuntimeError):
@@ -581,6 +590,9 @@ class IndexRepository:
         self._build_connection: ContextVar[asyncpg.Connection | None] = ContextVar(
             f"index-build-connection-{id(self)}", default=None
         )
+        self._serving_scope: ContextVar[ReadySnapshotIndex | None] = ContextVar(
+            f"index-serving-scope-{id(self)}", default=None
+        )
 
     @asynccontextmanager
     async def _connection(self) -> AsyncIterator[asyncpg.Connection]:
@@ -640,6 +652,15 @@ class IndexRepository:
             snapshot_selection, configuration, allow_draft=False
         ) as ready:
             yield ready
+
+    def read_index_scope_is_active(self, ready: ReadySnapshotIndex) -> bool:
+        """Return true only for this repository's currently held read lease."""
+        return (
+            self._serving_scope.get() is ready
+            and self._build_connection.get() is not None
+            and ready._lease_state is not None
+            and ready._lease_state.active
+        )
 
     @asynccontextmanager
     async def evaluation_index(
@@ -810,7 +831,8 @@ class IndexRepository:
                         raise SnapshotIndexMismatch(
                             "ready index metadata does not match the exact snapshot evidence"
                         )
-                    yield ReadySnapshotIndex(
+                    lease_state = _IndexReadLeaseState()
+                    ready = ReadySnapshotIndex(
                         snapshot_status=snapshot_status,
                         snapshot_selection=resolved_selection,
                         configuration_id=configuration.configuration_id,
@@ -821,7 +843,15 @@ class IndexRepository:
                             if isinstance(details.get("filter_payload_revision"), str)
                             else None
                         ),
+                        selected_chunk_ids=frozenset(selected_chunk_ids),
+                        _lease_state=lease_state,
                     )
+                    scope_token = self._serving_scope.set(ready)
+                    try:
+                        yield ready
+                    finally:
+                        lease_state.active = False
+                        self._serving_scope.reset(scope_token)
             finally:
                 self._build_connection.reset(token)
                 try:
@@ -950,6 +980,7 @@ class IndexRepository:
                 configuration,
                 evidence_ids,
                 allow_draft=allow_draft,
+                serving_scope=self._serving_scope.get(),
             )
         async with self._pool.acquire() as connection:
             async with connection.transaction(
@@ -961,6 +992,7 @@ class IndexRepository:
                     configuration,
                     evidence_ids,
                     allow_draft=allow_draft,
+                    serving_scope=None,
                 )
 
     async def _hydrate_snapshot_matches_on_connection(
@@ -971,26 +1003,45 @@ class IndexRepository:
         evidence_ids: tuple[str, ...],
         *,
         allow_draft: bool,
+        serving_scope: ReadySnapshotIndex | None,
     ) -> tuple[IndexInput, ...]:
-        snapshot_status = await connection.fetchval(
-            "SELECT status FROM snapshots WHERE id = $1",
-            snapshot_selection.snapshot_id,
-        )
-        if snapshot_status is None:
-            raise ValueError("snapshot does not exist")
-        if snapshot_status not in {"draft", "finalized"}:
-            raise SnapshotIndexMismatch("snapshot has an invalid status")
+        if serving_scope is not None:
+            if (
+                not self.read_index_scope_is_active(serving_scope)
+                or serving_scope.snapshot_selection != snapshot_selection
+                or serving_scope.configuration_id != configuration.configuration_id
+            ):
+                raise SnapshotIndexMismatch(
+                    "active serving lease does not match evidence hydration"
+                )
+            snapshot_status = serving_scope.snapshot_status
+        else:
+            snapshot_status = await connection.fetchval(
+                "SELECT status FROM snapshots WHERE id = $1",
+                snapshot_selection.snapshot_id,
+            )
+            if snapshot_status is None:
+                raise ValueError("snapshot does not exist")
+            if snapshot_status not in {"draft", "finalized"}:
+                raise SnapshotIndexMismatch("snapshot has an invalid status")
         if snapshot_status != "finalized" and not allow_draft:
             raise SnapshotAccessDenied(
                 "draft evidence hydration requires explicit evaluation access"
             )
-        resolved_selection, selected_ids = await self._snapshot_selection_on_connection(
-            connection, snapshot_selection.snapshot_id
-        )
-        if resolved_selection != snapshot_selection:
-            raise SnapshotIndexMismatch(
-                "dense profile does not match the exact snapshot selection"
+        selected_ids: Collection[str]
+        if serving_scope is None:
+            (
+                resolved_selection,
+                selected_ids,
+            ) = await self._snapshot_selection_on_connection(
+                connection, snapshot_selection.snapshot_id
             )
+            if resolved_selection != snapshot_selection:
+                raise SnapshotIndexMismatch(
+                    "dense profile does not match the exact snapshot selection"
+                )
+        else:
+            selected_ids = serving_scope.selected_chunk_ids
         if not set(evidence_ids).issubset(selected_ids):
             raise IndexReconciliationRequired(
                 "dense results contain evidence outside the exact snapshot selection"

@@ -63,10 +63,12 @@ def paper_candidate_scan_limit(profile: RetrievalProfile) -> int:
 
     limits = profile.candidate_limits
     metadata_limit = limits.lexical_top_k if profile.lexical_index is not None else 0
-    if profile.reranker is not None:
-        evidence_limit = limits.rerank_top_k
-    elif profile.fusion is not None:
+    # Paper search derives evidence support from the retrieval/fusion pool; it
+    # does not apply the evidence-search reranker prefix.
+    if profile.fusion is not None:
         evidence_limit = limits.fused_top_k
+    elif profile.reranker is not None:
+        evidence_limit = limits.rerank_top_k
     elif profile.dense_index is not None:
         evidence_limit = limits.dense_top_k
     elif profile.lexical_index is not None:

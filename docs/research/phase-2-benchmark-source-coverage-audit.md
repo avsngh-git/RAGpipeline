@@ -1,85 +1,38 @@
 # Phase 2 benchmark source and review coverage audit
 
-| Field | Value |
-| --- | --- |
-| Reviewer | Assistant |
-| Date | 2026-09-27 |
-| Dataset | `phase2-benchmark-v1` |
-| Active split | `phase2-benchmark-family-splits-v3` |
-| Scope | Source mappings, review completeness, split hashes, and coverage floors. No held-out scores or origin ledgers were read. |
+## Active v10 review — assistant-reviewed 2026-09-28
 
-## Split and family checks
+| Check | Result |
+| --- | ---: |
+| Held-out families | 10 |
+| Paper candidates reviewed | 231 / 231 |
+| Evidence candidates reviewed | 328 / 328 |
+| Direct source anchors | 9 |
+| Direct source-anchor candidate links | 10 |
+| Source-positive / unsupported families | 7 / 3 |
+| Paper and evidence judgment coverage | 100% / 100% |
 
-The active split manifest assigns question families and binds both question
-manifests by SHA-256. Recomputed hashes match the tracked manifest:
+All candidates were judged from shuffled cards without rank or profile provenance.
+Source anchors were screened independently and mapped only to returned evidence that
+meets the frozen source-matching policy. Prose matching requires at least 80% span
+coverage. Table matching requires the exact target rows and the frozen header and
+context checks. The three unsupported-family reviews found no direct support for the
+specific scoped request within this bounded snapshot; adjacent material remains
+context, not a positive source match.
 
-| Manifest | SHA-256 | Families |
-| --- | --- | ---: |
-| `benchmark-development-questions-v1.toml` | `6581be118f0f54dfe5ac4b0df50fdcca02aaea2a01b65c94360c8a2e60becab2` | 10 new development |
-| `benchmark-heldout-questions-v3.toml` | `d4b13f0a63b732f9b7b3a35a50e6e509c463dc20cdcc95b42a085170b21f653b` | 10 active held-out |
+The question manifest, split manifest, source review, source judgments and source map
+are SHA-256 bound in the private run artifacts. Aggregate hashes are: questions
+`6606593fa7fb26e2e180d25f0517c41899bd70593c3828c012e2852e257c510f`, split
+`973fc191f2f9f0d4b036edae1aac7e14853736c831a814bfceffaabb297d9379`, source review
+`d37fb4c045ea3f35862e79afbbe641d43487ee1d35da873a803e55bb9289aa78`, source judgments
+`14204316524dd3e35a7f5f1bec6c1b44deacf958c7b697ddb3605c79afe4de49`, and source map
+`6e86954fff8e7eacb571ca1a6d139af58ebe21bba027b69b7a80f95f7a3d8811`.
+Item-level records remain in the ignored private run directory. No query text, paper
+identity, passage, candidate rank, score or per-family result is included here.
 
-The split also binds the ten-family calibration manifest. Together the calibration
-families and new development families produce 20 development families. The active
-held-out families are q22–q31. q21 is explicitly excluded and q31 replaces it.
-Paraphrases inherit their family assignment. All six category floors in the frozen
-sampling plan are met in each split; the exact counts are in the [dataset card](../reference/phase-2-benchmark-dataset-card.md).
-
-## Candidate review completeness
-
-Review-card status and candidate label totals were checked directly from the named
-review pools. `*origins.json` files were excluded from every read and glob.
-
-| Pool | Families | Evidence candidates reviewed | Paper candidates reviewed | Label coverage |
-| --- | ---: | ---: | ---: | --- |
-| New development, q11–q20 | 10 | 1,216 | 341 | Every candidate has label 0, 1, or 2 |
-| Active held-out v3, q22–q31 | 10 | 1,581 | 245 | Every candidate has label 0, 1, or 2 |
-
-The evidence and paper label distributions, including per-split totals, are recorded
-in the dataset card. q25 and q26 each reached the evidence cap of 200. Those pools
-are complete for the declared bounded review, but cap saturation means this does
-not prove corpus-wide candidate recall.
-
-## Source-anchor mappings
-
-The q11–q20 private source-review notes contain 83 anchors. Seventy-seven map to
-candidate IDs in the review cards. Six are documented as source-only or outside the
-question's requested evidence: one each for q12, q13, q14, and q16, and two for
-q18. The q12/q14 table audit and family notes explain why source-found table
-evidence is retained for coverage without being inserted into a system ranking.
-
-The active held-out v3 source-judgment manifest contains 21 anchors. All 21 map to
-review candidates, giving 34 anchor-to-candidate links. These are independent
-source-found review mappings; they do not add the source-found candidate to a
-retrieval result. The existing executable source-alignment manifest is still
-calibration-only. Mapping each gold source span against both chunking variants is a
-P2-13 fairness task and remains open.
-
-## Category and modality floors
-
-The active family manifests meet all six frozen category minima. Held-out modality
-coverage is also explicit in the source audit: q22/q23/q29 are numeric-table cases;
-q24/q28/q31 have direct-positive prose anchors; q22/q25/q26/q27 are negative or
-mixed cases. The source-checked development expansion adds source-supported prose
-and numeric table evidence, while q15 and q19 provide bounded missing-evidence
-cases. Calibration contributes the remaining development category coverage.
-
-This is a family-level coverage audit, not a claim that every pooled card was found
-by an exhaustive corpus search. Missing-evidence findings remain bounded to their
-documented snapshot and search procedure.
-
-## Integrity and limitations
-
-- q20 was partially unblinded during source review. Its labels were assigned without
-  ranks or scores, but its origins and results are excluded from parameter tuning.
-- q21 is excluded after private held-out rank and score exposure. q31 was source
-  checked and frozen before its v3 retrieval pool was built.
-- q22's scope clarification and q31 replacement are recorded by split v3 and were
-  frozen before v3 pooling.
-- All candidate reviews are assistant-only. Source checks and table image checks
-  reduce, but do not remove, interpretation risk or establish human agreement.
-- Source-anchor mapping to reviewer candidates is distinct from source-span
-  matching against a particular chunking configuration. The latter remains open
-  under P2-13.
-
-No held-out score informed model, retrieval, reranker, chunking, or threshold
-selection. Held-out labels remain sealed for the P2-20 evaluation gate.
+The v10 run passed 13 of 14 frozen acceptance gates; only the selected profile's warm
+p95 exceeded its limit. This is a bounded, purposive review over the accepted 100-paper
+snapshot. Complete candidate judgment coverage means all pooled candidates have a
+resolved label; it does not establish corpus-wide recall. See the
+[dataset card](../reference/phase-2-benchmark-dataset-card.md) and
+[acceptance report](../reference/phase-2-acceptance-report.md) for sanitized results.

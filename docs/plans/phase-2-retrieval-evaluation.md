@@ -1,6 +1,6 @@
 # Phase 2 — Retrieval and evaluation
 
-Status: approved 2026-09-26; P2-01–P2-19 complete; P2-20 assessment complete with failed acceptance gate; Phase 2 not accepted.
+Status: approved 2026-09-26; **Phase 2 accepted 2026-09-30**, assistant-reviewed. The one-time R8 v14 assessment (30 held-out families, [ADR-0014](../adr/0014-phase2-acceptance-method.md), [ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md), [ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md); freeze commit `82694aa`, hosted CI run 36740163129) passed all 16 gates with frozen profile v10 ([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). The earlier v3 assessment failed four gates, v11 passed historically, v12 passed 8/14 and v13 passed 10/14 (still failed under its own gates); all are spent. Three quality gates passed by narrow margins inside sampling noise. See the [current acceptance report](../reference/phase-2-acceptance-report.md) for gate values, intervals and caveats. Phase 3 has not started.
 
 ## Start and authority
 
@@ -13,9 +13,8 @@ defines judgments, metrics and experiment discipline.
 
 The user delegated implementation, benchmark preparation, calibration and source
 review to the agent. All new source judgments must identify their reviewer as
-assistant, not human. Planning approval authorized these decisions. This roadmap records both the approved
-work and its implementation evidence; task status below distinguishes completed work
-from the failed Phase 2 acceptance gate.
+assistant, not human. Planning approval authorized these decisions. This roadmap records the approved work and implementation evidence; task status
+below distinguishes completed work from the remaining acceptance gate.
 
 ## Outcome
 
@@ -56,7 +55,20 @@ and review work are delegated; ask only when a material decision exceeds this sc
 
 ## Roadmap and progress
 
-P2-01–P2-19 are complete. Development comparisons and numeric acceptance limits are recorded in the [P2-14 report](../research/phase-2-development-report.md); the MiniLM-over-Hybrid-E5 profile remains the frozen comparison candidate, not a quality-accepted final default. The typed private-local API, failure handling, observability and operating/rebuild runbook are implemented. Local verification passed and hosted P2-19 CI passed on the sanitized implementation branch. The v3 split contains 20 development and 10 held-out families; q20 is excluded from tuning after partial unblinding and q21 after held-out rank/score exposure. P2-20 has now run after CI passed. Four frozen gates failed; see the [acceptance report](../reference/phase-2-acceptance-report.md). Do not tune on v3 or reuse it as an unseen test. Do not read any `*origins.json` file.
+The original P2-01–P2-20 implementation is delivered. A fresh source-reviewed v11
+assessment passed historically. The later R8 v12 assessment passed 8/14 gates and
+failed six paper/evidence ranking and source-coverage gates; its warm-p95 gate passed.
+The v12 and v13 sets are spent and cannot guide tuning. R8 v13
+(30 families, ADR-0014) passed 10/14 gates. After a development-only diagnosis and the
+owner-approved gate revision (ADR-0015, ADR-0016), the one-time R8 v14 assessment passed
+all 16 gates on 2026-09-30 and Phase 2 is accepted with frozen profile v10 (ADR-0017);
+v14 is spent and sealed. Current outcome and
+frozen identities are in the [acceptance report](../reference/phase-2-acceptance-report.md),
+and the [agent handoff](phase-2-agent-handoff.md) records guardrails.
+Question text, source excerpts, candidate text, item-level results and origin ledgers
+remain private; do not tune on any spent held-out set. Never read any `*origins.json`
+file.
+
 The table is the single implementation status checklist.
 Tests and operational controls are added throughout, not postponed until P2-19.
 
@@ -73,15 +85,15 @@ Tests and operational controls are added throughout, not postponed until P2-19.
 | P2-09 | Paper, metadata and one-hop citation services | P2-08 | Complete |
 | P2-10 | Cross-encoder reranking | P2-05, P2-08 | Complete |
 | P2-11 | Evidence deduplication and bounded selection | P2-09, P2-10 | Complete |
-| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Complete |
+| P2-12 | Development and held-out benchmark construction | P2-04, P2-05, P2-11 | Reopened for v13; v3 sampling plan (30 held-out, ADR-0014) adopted, source review pending |
 | P2-13 | Controlled prose-chunking alternative | P2-03, P2-07, P2-12 | Complete |
 | P2-14 | Development experiments and acceptance limits | P2-05 through P2-13 | Complete |
 | P2-15 | Default selection and experiment freeze | P2-14 | Complete |
 | P2-16 | Typed paper/evidence HTTP API | P2-02, P2-09, P2-11, P2-15 | Complete |
 | P2-17 | Failure, fallback and observability checks | P2-16 | Complete |
 | P2-18 | Local runtime and rebuild runbooks | P2-16, P2-17 | Complete |
-| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on sanitized revision |
-| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | Assessment complete; gate failed; Phase 2 not accepted |
+| P2-19 | Full verification and hosted CI | P2-18 | Complete; hosted CI passed on frozen R1–R7 code revision `586f83c` ([run 36445793795](https://github.com/avsngh-git/RAGpipeline/actions/runs/36445793795)) |
+| P2-20 | Held-out evaluation and phase acceptance | P2-12, P2-15, P2-19 | R8 v14 completed 2026-09-30: PASS, 16/16 gates (three quality gates by narrow margins); v14 sealed; **Phase 2 accepted** with frozen profile v10 (ADR-0017). Earlier: v13 failed 10/14 under its own gates |
 
 Work sequence: foundations (01–05), search services (06–11), evaluation and
 selection (12–15), then API/runtime/acceptance (16–20). A thin API smoke route may
@@ -573,7 +585,8 @@ combinations and one-branch failure tests pass with component provenance preserv
    document version and metadata availability, and distinguish unknown IDs from
    records outside the requested snapshot. Use bounded service-layer queries.
 2. **09.2 Group evidence into papers.** Use the strongest eligible evidence hit as
-   the initial paper evidence score. Retain up to three distinct supporting hits;
+   the initial paper evidence score. Retain up to five distinct supporting hits in the
+   accepted profile, as recorded in ADR-0012;
    summing all chunk scores is not the baseline.
 3. **09.3 Combine metadata and evidence candidates.** Keep title/abstract ranking and
    evidence-derived ranking separate, then use a documented rank-based fusion rule
@@ -595,7 +608,7 @@ and out-of-snapshot endpoint tests pass. No live OpenAlex call occurs on search.
 ## P2-10 — Cross-encoder reranking
 
 **Inputs:** fixed pilot candidate lists, initially from the existing E5 hybrid path.
-Final embedding/reranker selection happens in P2-14/15.
+Final embedding/reranker selection happens in P2-13/14.
 
 **10.1 complete; assistant-reviewed 2026-09-27:** the source audit and bounded
 resource pilot are recorded in the [candidate report](../research/phase-2-reranker-candidate-research.md).
@@ -809,6 +822,12 @@ TOML manifest. At the P2-12.1 freeze, continue with P2-12.2.
 
 **Done:** immutable initial benchmark version, split/family checks, review coverage,
 source mappings and sanitized dataset card. No unresolved label is disguised as gold.
+
+**v13 reopening (ADR-0014, 2026-09-29):** the fresh held-out set has a target of 30
+families (floor 24) under the [v3 sampling plan](../reference/phase-2-benchmark-sampling-plan.md),
+with the composition floors, judgment-coverage pre-check and blind gap review defined
+there and in the [evaluation protocol](phase-2-evaluation-protocol.md). Step 12.5 also
+requires that coverage table before freeze.
 
 **12.2 complete; assistant-reviewed 2026-09-27:** the q11–q20 development pools
 combine seven pinned retrieval profiles with an independent source-found channel.
@@ -1151,8 +1170,9 @@ Passing tests are necessary but do not replace the held-out quality gate.
    failures, effective modes and repeated timing measurements. Exclude degraded runs
    from successful execution counts for the requested method; report them separately.
 3. **20.3 Apply the predeclared gates.** Compare quality, coverage, usefulness and
-   runtime against frozen limits. Report paired differences and uncertainty. If a
-   gate fails, mark it failed; test-driven tuning requires a new honest assessment
+   runtime against frozen limits on point estimates. Report paired differences and
+   uncertainty (family-bootstrap 95% intervals beside every gate; ADR-0014); an
+   interval never passes or fails a gate. If a gate fails, mark it failed; test-driven tuning requires a new honest assessment
    with new held-out questions, not reusing this test as an unseen benchmark.
 4. **20.4 Produce the acceptance report.** Include corpus/benchmark/model/index/code
    identities, query/category counts, labeling effort/uncertainty, judgment coverage,
@@ -1206,9 +1226,9 @@ and exact lock. `git diff --check` passes. Hosted CI passed on sanitized revisio
 P2-19 is complete. P2-20 ran against the frozen v3 assessment and failed paper
 nDCG@10, evidence nDCG@10, reranker fallback fraction, and warm p95. The completed
 aggregate report is [phase-2-acceptance-report.md](../reference/phase-2-acceptance-report.md).
-P2-20's Done condition requires the held-out gate to pass, so Phase 2 is not accepted.
-Do not tune on v3 or reuse it as an unseen test. Any renewed selection requires
-development-only changes and a fresh held-out set frozen before assessment.
+At this historical checkpoint, P2-20's Done condition was unmet because the v3
+held-out gate failed. Do not tune on v3 or reuse it as an unseen test. The later v11
+assessment completed P2-20 with a fresh held-out set and unchanged profile/limits.
 
 ## Shared verification commands
 
@@ -1241,7 +1261,7 @@ Do not count skipped integration tests as a live pass.
 | Development/test size and split | P2-04/12 | Select after ten-question review; document coverage/uncertainty |
 | Chunk/window sizes and overlap | P2-13 | Versioned development choices preserving source meaning |
 | Ranking pools, fusion/diversity settings | P2-08/11/14 | Bound and compare on development questions |
-| Quality/latency thresholds and default | P2-14/15 | Freeze before held-out evaluation |
+| Quality/latency thresholds and default | P2-13/14 | Freeze before held-out evaluation |
 | Permanent schema changes | P2-03 or first consumer | ADR and new migration; preserve existing evidence |
 
 Escalate a genuine change to the locked corpus, public-access policy, paid compute,
@@ -1270,11 +1290,136 @@ are retained as source-only/out-of-scope anchors. All 21 active held-out anchors
 to review candidates, with 34 anchor-to-candidate links. The [dataset card](../reference/phase-2-benchmark-dataset-card.md), [coverage audit](../research/phase-2-benchmark-source-coverage-audit.md), and [held-out source audit](../research/phase-2-heldout-question-source-audit.md) record counts, hashes, modality coverage and limits. q20 remains partially unblinded and is excluded from tuning; q21 is excluded after held-out rank/score exposure. No held-out scores have informed configuration choices. All `*origins.json` files remain outside the review path.
 
 
-## P2-20 outcome — 2026-09-27
+## Historical v9 P2-20 outcome — assistant-reviewed 2026-09-28
 
-The v3 held-out assessment and required aggregate report are complete. The frozen gate
-failed four thresholds; therefore P2-20 is not marked complete and Phase 2 is not
-accepted. See the [acceptance report](../reference/phase-2-acceptance-report.md) for
-profile comparisons, paired uncertainty, source-map policy, operations, failures and
-resource measurements. The v3 results are disclosed and must not guide tuning or be
-claimed as an unseen test.
+The v9 result and its gate outcome are retained in the aggregate
+[acceptance report](../reference/phase-2-acceptance-report.md). The v9 set is spent
+and sealed from selection.
+
+## Historical v10 P2-20 outcome — assistant-reviewed 2026-09-28
+
+The v10 held-out assessment completed against the frozen profile and unchanged
+thresholds. It passed 13 of 14 gates; warm p95 was 1,602.2 ms against the 1,500 ms
+maximum. Every quality, source-coverage, hard-failure, fallback, cold-load and CUDA
+allocation gate passed. The sanitized [acceptance report](../reference/phase-2-acceptance-report.md)
+contains the profile aggregates, paired bootstrap intervals, category summaries,
+resource measurements and gate values.
+
+The v10 set is spent and sealed from selection. Do not inspect its item-level outcomes
+or change the profile or limits based on them. Any performance repair must be grounded
+in calibration/development evidence, preserve the locked paper aggregation rule and
+be assessed on a fresh source-reviewed held-out set. P2-20 and Phase 2 remain open
+until every frozen gate passes.
+
+A subsequent development-only search-service timing replay measured paper-search p95
+of 1,433.45 ms and evidence-search p95 of 1,336.92 ms on 95 samples per operation.
+At the time, this did not clear the v10 held-out latency failure; the later v11
+assessment below is the current acceptance evidence. See the
+[development report](../research/phase-2-development-report.md).
+
+
+## Current v11 P2-20 outcome — assistant-reviewed 2026-09-28
+
+A fresh source-reviewed ten-family assessment passed every frozen quality and
+operational gate without changing the selected profile or numeric limits. The selected
+profile's warm p95 was 1,485.8 ms against the 1,500 ms limit; aggregate quality, source
+coverage, failure, fallback, cold-load and CUDA-allocation results are recorded in the
+[acceptance report](../reference/phase-2-acceptance-report.md). The v11 set is spent and
+sealed from tuning. P2-20 and Phase 2 were complete at that historical checkpoint; Phase 2 was later reopened for R1–R8.
+
+## Owner-directed warm-latency gate — assistant-reviewed 2026-09-28
+
+The v10 held-out result remains 1,602.2 ms against its original 1,500 ms gate. The
+owner has said 1.6 seconds is reasonable and approved a new 2,000 ms maximum warm-p95
+criterion for the fresh R8 assessment. The
+[acceptance-v10 configuration](../../benchmarks/phase2/acceptance-v10.toml) binds
+`phase2-benchmark-v12`; its SHA-256 is
+`dd75323a5fa263dc29f91056c646e001756e76192cfa6025ec59148709a50377`. The existing
+30-second request deadline is a separate timeout, and every other acceptance gate is
+unchanged. Preserve historical outcomes and all spent held-out sets. See
+[ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md); the fresh R8 assessment is
+recorded below and in the acceptance report.
+
+
+## Current R8 v12 outcome — assistant-reviewed 2026-09-28
+
+The frozen assessment passed 8 of 14 acceptance gates. The selected profile's warm
+p95 was 894.349 ms across 300 measured HTTP requests, below the 2,000 ms limit. Six
+gates failed: paper nDCG@10; evidence nDCG@10, direct MRR@10 and judged Recall@20;
+source-anchor Recall@50; and the fraction of positive families with a source hit at
+@10. P2-20 and Phase 2 remain open. The v12 set is spent: do not inspect item-level
+results or tune from its aggregate profile comparison. Continue with development data,
+then freeze and assess a newly source-reviewed set. See the
+[acceptance report](../reference/phase-2-acceptance-report.md) for all gate values.
+
+## Development follow-up after R8 v12 — assistant-reviewed 2026-09-29
+
+A calibration plus q11–q19 development-only comparison of paper RRF constants 1, 3,
+5 and 10 did not justify changing the v9 selected profile: k=3 had the highest reviewed
+development nDCG@10 (0.7008), but its paired gain over k=10 was uncertain (95% family
+bootstrap interval −0.0266 to +0.0599). All four 19-request p95 measurements were below
+the prospective 2,000 ms limit; these small samples are diagnostic only. The normal
+10-second query watchdog remains unchanged. Cold API startup now loads model weights
+outside that watchdog before warming the query path. See the
+[development report](../research/phase-2-development-report.md) for exact metrics.
+The startup regression fix passed hosted CI on commit `68218f1` (run
+[36511846347](https://github.com/avsngh-git/RAGpipeline/actions/runs/36511846347)).
+
+No spent held-out data informed these choices. Phase 2 remains open because R8 v12
+failed six quality/source gates. The next acceptance attempt needs further development
+work, a new assistant-reviewed source set, and a fresh freeze; v12 remains sealed.
+
+## V13 development review — assistant-reviewed 2026-09-29
+
+Two authorized development families were added to the actual-profile comparison: one
+supported source-comparison family and one unsupported family. The selected reranked
+profile reached evidence nDCG@10 0.8855, direct MRR@10 1.0 and source-anchor Recall@20
+1.0 on the single positive family. The unsupported case returned contextual near-miss
+material but no direct source-positive passage. These results are diagnostic only. A
+one-family paper-fusion sweep did not justify changing frozen v9 or RRF k=10; the
+previous 19-family paired comparison remains the stronger tuning evidence. No spent
+v12 item-level result informed the review. Phase 2 remains open with six v12
+quality/source gates failed; use broader development evidence before a fresh,
+source-reviewed held-out assessment. Details are in the
+[development report](../research/phase-2-development-report.md).
+
+## V13 acceptance preparation — assistant-reviewed 2026-09-29
+
+The v13 plan's publication-year filter option now has exact accepted-snapshot counts:
+29 of the 100 papers fall in 2020–2021, including seven of the 13 screened source
+documents. The inclusive filter contract and counts are recorded in the
+[v13 source evidence map](../research/phase-2-v13-heldout-source-evidence-map.md).
+A separate [v13 acceptance config](../../benchmarks/phase2/acceptance-v13.toml) keeps
+the v10 held-out and operational thresholds while binding the new dataset ID. Its
+companion runner preserves v12 scoring/timing behavior and checks a new freeze manifest;
+the historical v12 runner and freeze remain unchanged. Hosted CI passed on commit
+`557277a` (run [36554779665](https://github.com/avsngh-git/RAGpipeline/actions/runs/36554779665)).
+
+Missing-evidence source adjudication, all held-out family reviews, dataset/alignment
+freeze and the one-time v13 acceptance run are still pending; ADR-0014 replaces the
+ten-family plan with 30 held-out families (below). A read-only 38-variant literal
+screen now covers all 100 accepted-snapshot titles and all 44,277 selected chunks, with
+chunk joins verified across all 100 papers; abstract-index metadata exists for 10
+papers. This verifies stored-text coverage, while literal search alone cannot establish
+semantic absence. The v13 development-only unsupported example had contextual near
+matches but no direct supporting passage and does not count toward held-out floors. No
+v13 held-out scores have been produced. Phase 2 remains open until the fresh set is
+source-reviewed, frozen, and every acceptance gate passes.
+
+## V13 method change — ADR-0014, owner-approved 2026-09-29
+
+Ten-family sets did not converge (ten sets, failing gate changing each time), and
+sampling noise at N = 10 (about +/-0.16 to +/-0.22 on a nDCG mean) exceeds the margins
+around the gates. v13 has no scored or frozen held-out records, so no set is spent.
+[ADR-0014](../adr/0014-phase2-acceptance-method.md) keeps the 14 thresholds, frozen
+profile and snapshot; enlarges v13 to 30 held-out families (floor 24) under
+[sampling plan v3](../reference/phase-2-benchmark-sampling-plan.md); requires the
+coverage pre-check before freeze (at least 95% judged in each profile's top 10, 90% in
+top 20, no selected-profile family below 80% at top 10, gaps closed by blind source
+review); records a descriptive baseline-difficulty band in the freeze manifest; reports
+bootstrap intervals beside point-estimate gates; and binds the assessed revision. After
+a failure the set is sealed and development-only diagnosis precedes any new set; at most
+two acceptance runs (v13 and one replacement) are authorized, and a second failure goes
+to the owner via change control. About 22 families still need source screening; review
+is estimated at 11.5-14.4 hours. Runner and freeze work (coverage mode, baseline block,
+new freeze counts) is pending.

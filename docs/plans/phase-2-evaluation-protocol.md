@@ -64,6 +64,14 @@ decision must contain total families, development/held-out allocation, per-categ
 coverage, review pool depth, effort budget and rationale. Calibration families are
 part of development only. No arbitrary fixed final size has been approved.
 
+Acceptance sizing follows [ADR-0014](../adr/0014-phase2-acceptance-method.md) and the
+[v3 sampling plan](../reference/phase-2-benchmark-sampling-plan.md): 30 held-out
+families (floor 24, recorded with the failing category before pooling), at least 5
+families in each of five categories and at least 4 missing-evidence families, at least
+24 positive families, at least 20 independently reviewed direct anchors across at
+least 15 positive families, and no more than two families sharing a positive-anchor
+paper. Ten-family sets left set-mean noise larger than the margins around the gates.
+
 Use deterministic, versioned split assignment at the family level. Do not require
 different paper corpora for each split: the agreed benchmark is retrieval over the
 same fixed 100 papers. Split the information needs so paraphrases do not leak.
@@ -74,6 +82,14 @@ source-found evidence. Preserve the pooling method and coverage; hide originatin
 system/rank during judgment where practical. Do not label a candidate relevant
 because a model ranked it highly. Review benchmark source material locally under
 the approved private-use policy; no hosted model is required for labeling.
+
+Before freeze, run a coverage pre-check on the frozen queries. Pool every declared
+profile (BM25, Dense, Hybrid, selected, fixed-window) to the top 20 papers and top 50
+evidence results. Require at least 95% judged in each profile's top 10 and 90% in its
+top 20 (paper and evidence, micro), and no selected-profile family below 80% at top 10.
+Use a coverage-only script that emits judged/unjudged counts without metrics or gold.
+Close gaps only by source review of the missing candidates, blind to profile and rank;
+never relabel them 0 or drop queries. Publish the coverage table.
 
 Held-out judgments can be prepared before freeze, but held-out scores cannot guide
 model/parameter selection. Frozen-run evaluation code must not insert gold positives
@@ -112,7 +128,7 @@ Do not leave these rules as manual interpretation after viewing held-out scores.
 | Direct MRR@10 | Reciprocal rank of first label-2 result in top ten; zero if absent |
 | Judged Recall@20/@50 | Unique retrieved label-2 judgments divided by known label-2 judgments for that query and eligible filter scope |
 | Evidence-group coverage | Fraction of required pieces retrieved; also report fraction of questions with every required piece present |
-| Judgment coverage | Fraction of returned/evaluated candidates with resolved relevance judgments |
+| Judgment coverage | Fraction of returned/evaluated candidates with resolved relevance judgments; per profile at top 10/20 and per family, meeting the pre-check above before freeze |
 | Unsupported-query acceptance | Fraction of reviewed unsupported queries for which a configured relevance-acceptance policy accepts a hit |
 | Failure/degradation rate | Failed or degraded requests divided by all attempted requests for each requested mode |
 | Warm latency | Median and p95, sample counts and configuration for repeated warm requests |
@@ -179,8 +195,11 @@ Include filter, table and zero-match cases. Failed/timeout attempts remain count
 
 Report paired per-question-family quality differences and uncertainty, for example
 paired bootstrap intervals with recorded seed/repetitions. Resample families rather
-than treating near-identical paraphrases as independent observations. Explain when
-a small held-out sample only supports directional conclusions. Latency p95 estimates
+than treating near-identical paraphrases as independent observations. For acceptance,
+report paired family-bootstrap 95% intervals (10,000 resamples, seed 20260930) and
+per-category results beside every gate. Gates are judged on point estimates against
+the frozen thresholds: a gate is not passed on an interval and not failed on one.
+Explain when a held-out sample only supports directional conclusions. Latency p95 estimates
 also need their sample count; three timings are not a credible tail-latency study.
 
 Numerical usefulness, latency and resource gates are set after development baselines,

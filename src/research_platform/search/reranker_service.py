@@ -12,9 +12,20 @@ from research_platform.search.profiles import RerankerIdentity, RetrievalProfile
 from research_platform.search.reranker import (
     CrossEncoderReranker,
     RerankerAdapterError,
+    RerankerDeviceExhausted,
+    RerankerInferenceBusy,
+    RerankerInferenceTimeout,
 )
 from research_platform.search.reranker_pairs import RerankerPairBudgetExceeded
 from research_platform.search.reranker_results import apply_reranker_scores
+
+RerankerFailureCategory = Literal[
+    "pair_overflow",
+    "inference_timeout",
+    "busy_worker",
+    "device_exhaustion",
+    "adapter_failure",
+]
 
 
 @dataclass(frozen=True)
@@ -25,6 +36,7 @@ class RerankerFailureDetails:
     snapshot_id: UUID
     reranker: RerankerIdentity
     error_type: str
+    failure_category: RerankerFailureCategory
     fallback_mode: Literal["hybrid"] = "hybrid"
 
     def __post_init__(self) -> None:
@@ -36,6 +48,14 @@ class RerankerFailureDetails:
             raise ValueError("reranker must be a RerankerIdentity")
         if not isinstance(self.error_type, str) or not self.error_type.strip():
             raise ValueError("error_type must be non-empty")
+        if self.failure_category not in {
+            "pair_overflow",
+            "inference_timeout",
+            "busy_worker",
+            "device_exhaustion",
+            "adapter_failure",
+        }:
+            raise ValueError("reranker failure category is unsupported")
         if self.fallback_mode != "hybrid":
             raise ValueError("reranker fallback must return hybrid mode")
 
@@ -48,6 +68,7 @@ class RerankerFailureDetails:
             "reranker_revision": self.reranker.revision,
             "reranker_preprocessing_revision": self.reranker.preprocessing_revision,
             "error_type": self.error_type,
+            "failure_category": self.failure_category,
             "requested_mode": RetrievalMode.RERANKED.value,
             "effective_mode": self.fallback_mode,
             "message": "reranking failed; unchanged hybrid order was returned",
@@ -79,7 +100,11 @@ async def rerank_with_fallback(
     candidates: Sequence[EvidenceHit],
     reranker: CrossEncoderReranker,
 ) -> RerankerStageOutcome:
-    """Rerank exactly the supplied pool or return the unchanged fused hit sequence."""
+    """Rerank the configured fused prefix and preserve its untouched hybrid tail.
+
+    Any failure while scoring the selected prefix returns the complete original
+    fused sequence, so the caller never receives a partial reranker result.
+    """
     if not isinstance(profile, RetrievalProfile):
         raise ValueError("profile must be a RetrievalProfile")
     if profile.reranker is None:
@@ -91,18 +116,42 @@ async def rerank_with_fallback(
     candidate_tuple = tuple(candidates)
     if any(not isinstance(hit, EvidenceHit) for hit in candidate_tuple):
         raise TypeError("candidates must contain EvidenceHit values")
+    rerank_limit = profile.candidate_limits.rerank_top_k
+    if rerank_limit is None:
+        raise ValueError("profile must configure a rerank candidate limit")
+    rerank_candidates = candidate_tuple[:rerank_limit]
+    hybrid_tail = candidate_tuple[len(rerank_candidates) :]
 
     try:
-        scores = await reranker.rerank(profile, query, candidate_tuple)
-        hits = apply_reranker_scores(profile, query, candidate_tuple, scores)
+        scores = await reranker.rerank(profile, query, rerank_candidates)
+        reranked_prefix = apply_reranker_scores(
+            profile, query, rerank_candidates, scores
+        )
     except (RerankerAdapterError, RerankerPairBudgetExceeded) as error:
         failure = RerankerFailureDetails(
             profile_id=profile.profile_id,
             snapshot_id=profile.snapshot.snapshot_id,
             reranker=profile.reranker,
             error_type=type(error).__name__,
+            failure_category=_failure_category(error),
         )
         return RerankerStageOutcome(
             hits=candidate_tuple, effective_mode="hybrid", failure=failure
         )
-    return RerankerStageOutcome(hits=hits, effective_mode="reranked")
+    return RerankerStageOutcome(
+        hits=(*reranked_prefix, *hybrid_tail), effective_mode="reranked"
+    )
+
+
+def _failure_category(
+    error: RerankerAdapterError | RerankerPairBudgetExceeded,
+) -> RerankerFailureCategory:
+    if isinstance(error, RerankerPairBudgetExceeded):
+        return "pair_overflow"
+    if isinstance(error, RerankerInferenceTimeout):
+        return "inference_timeout"
+    if isinstance(error, RerankerInferenceBusy):
+        return "busy_worker"
+    if isinstance(error, RerankerDeviceExhausted):
+        return "device_exhaustion"
+    return "adapter_failure"

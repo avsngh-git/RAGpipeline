@@ -1,6 +1,6 @@
 # Phase 2 BM25S analyzer v1
 
-**Status:** selected reversible development analyzer for P2-06
+**Status:** accepted Phase 2 lexical analyzer; see [ADR-0010](../adr/0010-phase2-bm25s-lexical-index.md) and [ADR-0012](../adr/0012-phase2-accepted-retrieval-profile.md)
 
 **Reviewer:** Assistant (Codex, under the user's Phase 2 delegation)
 **Measured:** 2026-09-26 on the accepted 100-paper snapshot
@@ -19,7 +19,7 @@ retrieval profile when the lexical index is built.
 | Token-pattern revision | scientific-compound-number-operator-v1 |
 | Stopword removal | None |
 | Stemming | None |
-| BM25S implementation | 0.3.11 accepted for Phase 2; final default remains open |
+| BM25S implementation | 0.3.11 accepted as the Phase 2 lexical baseline; the serving profile is recorded in [ADR-0012](../adr/0012-phase2-accepted-retrieval-profile.md) |
 
 ## Tokenization policy
 

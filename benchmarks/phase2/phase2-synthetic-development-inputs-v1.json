@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "dataset_kind": "synthetic_development_diagnostic",
+  "dataset_id": "phase2-synthetic-development-v1",
+  "split": "development",
+  "purpose": "Synthetic latency diagnosis only; not acceptance evidence.",
+  "cases": [
+    {
+      "query_id": "synthetic-discovery",
+      "family_id": "synthetic-discovery",
+      "category": "discovery",
+      "query": "retrieval augmented generation evaluation",
+      "operation": "paper_search",
+      "filters": {},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-discovery",
+      "family_id": "synthetic-discovery",
+      "category": "discovery",
+      "query": "retrieval augmented generation evaluation",
+      "operation": "evidence_search",
+      "filters": {},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-comparison",
+      "family_id": "synthetic-comparison",
+      "category": "cross-paper-comparison",
+      "query": "comparison of dense and lexical retrieval methods",
+      "operation": "paper_search",
+      "filters": {},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-comparison",
+      "family_id": "synthetic-comparison",
+      "category": "cross-paper-comparison",
+      "query": "comparison of dense and lexical retrieval methods",
+      "operation": "evidence_search",
+      "filters": {},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-table",
+      "family_id": "synthetic-table",
+      "category": "table",
+      "query": "retrieval accuracy benchmark results",
+      "operation": "paper_search",
+      "filters": {"evidence_kinds": ["table_row_group"]},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-table",
+      "family_id": "synthetic-table",
+      "category": "table",
+      "query": "retrieval accuracy benchmark results",
+      "operation": "evidence_search",
+      "filters": {"evidence_kinds": ["table_row_group"]},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-filter",
+      "family_id": "synthetic-filter",
+      "category": "restrictive-filter",
+      "query": "retrieval performance by publication year",
+      "operation": "paper_search",
+      "filters": {"year_from": 2020, "year_to": 2025},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-filter",
+      "family_id": "synthetic-filter",
+      "category": "restrictive-filter",
+      "query": "retrieval performance by publication year",
+      "operation": "evidence_search",
+      "filters": {"document_version_kinds": ["published"]},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-no-eligible",
+      "family_id": "synthetic-no-eligible",
+      "category": "zero-eligibility",
+      "query": "retrieval evidence after the year 2099",
+      "operation": "paper_search",
+      "filters": {"year_from": 2099},
+      "limit": 10
+    },
+    {
+      "query_id": "synthetic-no-eligible",
+      "family_id": "synthetic-no-eligible",
+      "category": "zero-eligibility",
+      "query": "retrieval evidence after the year 2099",
+      "operation": "evidence_search",
+      "filters": {"year_from": 2099},
+      "limit": 10
+    }
+  ]
+}

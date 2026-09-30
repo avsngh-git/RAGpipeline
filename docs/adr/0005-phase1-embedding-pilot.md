@@ -1,6 +1,6 @@
 # ADR-0005: Phase 1 embedding pilot
 
-- Status: Accepted for the Phase 1 pilot; final retrieval-quality choice remains open
+- Status: Accepted for the Phase 1 pilot; final Phase 2 retrieval choice recorded in ADR-0012
 - Date: 2026-09-24
 
 ## Context
@@ -43,9 +43,9 @@ for the measured local footprint, pinned model-file hash, and limitations.
 
 The index configuration and preprocessing are recorded in
 [`configs/phase1-e5-small-v2-index.example.json`](../../configs/phase1-e5-small-v2-index.example.json).
-The pinned model is a reversible Phase 1 pilot choice, not the final production
-embedding decision. Phase 2 must compare retrieval quality on fixed questions
-and evidence before that decision is closed.
+The pinned model remains the Phase 1 indexing-pilot choice. Phase 2 later selected
+this same model for the accepted retrieval profile after development comparison and
+fresh held-out validation; see [ADR-0012](0012-phase2-accepted-retrieval-profile.md).
 
 The model is English-only and truncates inputs beyond 512 tokens. The 480-token
 chunk limit leaves room for the model's passage prefix. Model weights are

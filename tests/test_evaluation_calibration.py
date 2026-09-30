@@ -7,7 +7,9 @@ import pytest
 from research_platform.evaluation.calibration import (
     CalibrationLoadError,
     load_calibration,
+    load_heldout_dataset,
     parse_calibration,
+    parse_heldout_dataset,
 )
 
 _DATASET_PATH = (
@@ -137,3 +139,44 @@ def test_evidence_groups_must_match_requires_evidence() -> None:
         CalibrationLoadError, match="has evidence groups but does not require evidence"
     ):
         parse_calibration(contents)
+
+
+def _heldout_contents() -> str:
+    return (
+        _contents()
+        .replace('dataset_kind = "calibration"', 'dataset_kind = "held_out"')
+        .replace('split = "development"', 'split = "held_out"')
+    )
+
+
+def test_loads_only_heldout_families_from_explicit_heldout_loader(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "heldout.toml"
+    path.write_text(_heldout_contents(), encoding="utf-8")
+
+    dataset = load_heldout_dataset(path)
+
+    assert dataset.dataset_kind == "held_out"
+    assert len(dataset.families) == 10
+    assert {family.split for family in dataset.families} == {"held_out"}
+
+
+def test_heldout_parser_rejects_calibration_kind_and_development_families() -> None:
+    with pytest.raises(CalibrationLoadError, match='dataset_kind must be "held_out"'):
+        parse_heldout_dataset(_contents())
+
+    mixed = _heldout_contents().replace(
+        'id = "q10"\nsplit = "held_out"',
+        'id = "q10"\nsplit = "development"',
+        1,
+    )
+    with pytest.raises(CalibrationLoadError, match="must all use the held_out split"):
+        parse_heldout_dataset(mixed)
+
+
+def test_calibration_parser_rejects_heldout_kind() -> None:
+    with pytest.raises(
+        CalibrationLoadError, match='dataset_kind must be "calibration"'
+    ):
+        parse_calibration(_heldout_contents())
