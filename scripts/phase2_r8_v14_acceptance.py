@@ -46,6 +46,9 @@ DEFAULT_DATASET = PRIVATE_RUN_ROOT / "heldout-v14.toml"
 DEFAULT_ALIGNMENT = PRIVATE_RUN_ROOT / "source-alignment-v14.toml"
 DEFAULT_OUTPUT = PRIVATE_RUN_ROOT / "r8-assessment-v14/assessment-run-v1"
 DEFAULT_INDEX_ROOT = PRIVATE_ROOT / "phase2-indexes"
+# Persistent model caches (git-ignored); /tmp caches do not survive WSL restarts.
+DEFAULT_EMBEDDING_CACHE = PRIVATE_ROOT / "phase2-model-cache"
+DEFAULT_RERANKER_CACHE = PRIVATE_ROOT / "phase2-reranker-cache"
 MANIFEST_DIR = REPOSITORY_ROOT / "benchmarks/phase2"
 FREEZE_PATH = MANIFEST_DIR / "r8-v14-freeze-v1.toml"
 FREEZE_ID = "phase2-r8-v14-v1"
@@ -1024,8 +1027,11 @@ async def _warm_timing(
 def _configure_environment() -> Any:
     for name in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
         os.environ[name] = "4"
-    os.environ["HF_HOME"] = "/tmp/phase1-embedding-hf-cache"
-    os.environ["HF_HUB_CACHE"] = "/tmp/phase1-embedding-hf-cache/hub"
+    embedding_cache = Path(
+        os.environ.get("P2_EVAL_EMBEDDING_CACHE", str(DEFAULT_EMBEDDING_CACHE))
+    )
+    os.environ["HF_HOME"] = str(embedding_cache)
+    os.environ["HF_HUB_CACHE"] = str(embedding_cache / "hub")
     import torch
 
     torch.set_num_threads(4)
@@ -1062,7 +1068,9 @@ def _build_settings(settings_type: Any) -> Any:
             os.environ.get("P2_EVAL_INDEX_ROOT", str(DEFAULT_INDEX_ROOT))
         ),
         model_device="auto",
-        reranker_cache_dir=Path("/tmp/phase2-reranker-hf-cache"),
+        reranker_cache_dir=Path(
+            os.environ.get("P2_EVAL_RERANKER_CACHE", str(DEFAULT_RERANKER_CACHE))
+        ),
     )
 
 
