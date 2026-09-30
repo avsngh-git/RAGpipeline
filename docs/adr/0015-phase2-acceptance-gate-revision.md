@@ -75,17 +75,17 @@ A fresh assistant reviewer re-labelled, blind, the 57 cards of the COIL developm
 - It agreed with Codex on every direct-evidence (label 2) call, for all 31 passages and 25 papers.
 - All 26 disagreements were context (1) against irrelevant (0), with Codex giving the 1. Linear weighted kappa was
   0.45.
-- The owner checked three of these disagreements and judged all three irrelevant.
+- The owner spot-checked three of these disagreements.
 
-The rule for all future labelling is therefore: **label 1 only when the passage or paper helps answer this specific
-question**. Same-topic material that does not advance the answer is 0.
+The owner decided to keep the existing, more inclusive context rule: **label 1 means useful context or incomplete
+support**, as in the evaluation protocol and in the Codex audit. Codex's COIL corrections stand, including the three
+ColBERT passages raised from 0 to 1. A stricter rule was briefly adopted and then withdrawn on 2026-09-30.
 
 - Direct-evidence gates (evidence MRR, judged recall, source recall) depend only on label 2 and are robust to this
   choice.
-- nDCG gates are sensitive to it: generous context labels raise nDCG for every profile. So no set may mix reviewers
-  or rounds that apply different context thresholds.
+- nDCG gates are sensitive to it: more inclusive context labels raise nDCG for every profile. So no set may mix
+  reviewers or rounds that apply different context thresholds, and the reviewer protocol must spell the rule out.
 - This check covers one development question. It is not a measured error rate for the full benchmark.
-- Codex's promotion of three ColBERT context passages from 0 to 1 is reverted under this rule.
 
 ## Consequences
 
