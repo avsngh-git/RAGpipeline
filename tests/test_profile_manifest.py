@@ -184,3 +184,76 @@ def test_fp32_precision_keeps_the_frozen_profile_identity() -> None:
 
     assert profile.reranker is not None and profile.reranker.precision == "fp32"
     assert "precision" not in profile.to_dict()["reranker"]  # type: ignore[index]
+
+
+def test_serving_profiles_for_v9_keep_the_e5_stack() -> None:
+    from research_platform.search.application import _resolve_serving_profiles
+
+    serving = _resolve_serving_profiles(
+        ROOT / "benchmarks/phase2/frozen-profile-v9.toml"
+    )
+
+    assert serving.configuration.collection_name == "phase2-e5-small-v2-filtered"
+    assert serving.hybrid is serving.lexical_source
+    assert serving.hybrid.profile_id == (
+        "sha256:29cc1cc6a9b78758f518d76df391859433b9cd034b9ef1f71f8ede30009cb5fa"
+    )
+    assert serving.dense.lexical_index is None and serving.dense.reranker is None
+
+
+def test_serving_profiles_for_v10_build_gte_stack_and_reuse_bm25() -> None:
+    from research_platform.search.application import _resolve_serving_profiles
+
+    serving = _resolve_serving_profiles(
+        ROOT / "benchmarks/phase2/frozen-profile-v10.toml"
+    )
+
+    assert serving.configuration.collection_name == "phase2-dev-gte-modernbert-base-v1"
+    assert serving.configuration.vector_size == 768
+    assert serving.frozen.reranker is not None
+    assert serving.frozen.reranker.precision == "fp16"
+    assert serving.hybrid.reranker is None
+    assert serving.hybrid.candidate_limits.rerank_top_k is None
+    assert serving.hybrid.profile_id != serving.lexical_source.profile_id
+    assert serving.hybrid.lexical_index == serving.lexical_source.lexical_index
+    assert serving.dense.dense_index == serving.frozen.dense_index
+    assert serving.dense.profile_id != serving.hybrid.profile_id
+
+
+def test_v10_rejects_unpinned_dense_identity(tmp_path: Path) -> None:
+    import shutil
+
+    from research_platform.search.application import (
+        SearchDependencyUnavailable,
+        _resolve_serving_profiles,
+    )
+
+    benchmark_dir = tmp_path / "phase2"
+    shutil.copytree(ROOT / "benchmarks/phase2", benchmark_dir)
+    path = benchmark_dir / "frozen-profile-v10.toml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "gte-modernbert-base:no-prefix", "gte-modernbert-base:other-prefix"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises((SearchDependencyUnavailable, ValueError)):
+        _resolve_serving_profiles(path)
+
+
+def test_profile_env_override_selects_candidate_without_changing_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from research_platform.search.active_profile import (
+        PROFILE_OVERRIDE_ENV,
+        resolve_frozen_profile_path,
+    )
+
+    candidate = ROOT / "benchmarks/phase2/frozen-profile-v10.toml"
+    monkeypatch.setenv(PROFILE_OVERRIDE_ENV, str(candidate))
+
+    assert resolve_frozen_profile_path() == candidate
+    assert resolve_frozen_profile_path(
+        ROOT / "benchmarks/phase2/active-profile.toml"
+    ).name == ("frozen-profile-v9.toml")

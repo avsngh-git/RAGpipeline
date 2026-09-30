@@ -10,6 +10,13 @@ import tomllib
 
 from research_platform.search.profiles import RetrievalProfile
 
+FROZEN_PROFILE_STATUSES = frozenset(
+    {
+        "frozen_for_implementation_and_heldout",
+        "frozen_candidate_for_acceptance_v14",
+    }
+)
+
 
 def _section(raw: dict[str, object], name: str) -> dict[str, object] | None:
     value = raw.get(name)
@@ -119,10 +126,13 @@ def load_frozen_profile(path: Path) -> RetrievalProfile:
         raise ValueError("frozen profile manifest is unreadable") from None
     profile = _profile_from_manifest(raw)
     try:
-        if raw["status"] != "frozen_for_implementation_and_heldout":
+        if raw["status"] not in FROZEN_PROFILE_STATUSES:
             raise ValueError("profile manifest is not frozen")
         comparisons = cast(dict[str, str], raw["comparison_profiles"])
-        if comparisons.get("reranked_minilm_hybrid") != profile.profile_id:
+        if profile.profile_id not in (
+            comparisons.get("reranked_minilm_hybrid"),
+            comparisons.get("reranked_gte_ettin_hybrid"),
+        ):
             raise ValueError("selected comparison does not match the frozen profile")
         acceptance_path = manifest_path.parent / Path(raw["acceptance_config"]).name
         expected_acceptance = raw["acceptance_config_sha256"]

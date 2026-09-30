@@ -457,6 +457,27 @@ def validate_supported_embedding_configuration(
         )
 
 
+def index_configuration_for_model(
+    *,
+    model: str,
+    revision: str,
+    preprocessing_revision: str,
+    dimensions: int,
+    maximum_input_tokens: int,
+) -> IndexConfiguration:
+    """Build the pinned collection configuration for a supported embedding identity."""
+    for profile in _SUPPORTED_PROFILES:
+        if (
+            profile.model == model
+            and profile.revision == revision
+            and profile.preprocessing_revision == preprocessing_revision
+            and profile.dimensions == dimensions
+            and profile.maximum_input_tokens == maximum_input_tokens
+        ):
+            return profile.index_configuration()
+    raise ValueError("embedding identity is not a supported pinned local model")
+
+
 def create_embedder_for_configuration(
     configuration: IndexConfiguration,
     *,

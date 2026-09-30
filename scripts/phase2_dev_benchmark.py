@@ -366,6 +366,25 @@ def _git_identity() -> dict[str, object]:
     }
 
 
+def _cuda_reset_peak() -> bool:
+    """Reset the process-wide CUDA peak counter; False when CUDA is unavailable."""
+    import torch
+
+    if not torch.cuda.is_available():
+        return False
+    torch.cuda.synchronize()
+    torch.cuda.reset_peak_memory_stats()
+    return True
+
+
+def _cuda_peak_allocated() -> int:
+    """Peak bytes allocated by all models in this process since the last reset."""
+    import torch
+
+    torch.cuda.synchronize()
+    return int(torch.cuda.max_memory_allocated())
+
+
 def _percentile95(values: list[float]) -> float | None:
     if not values:
         return None
@@ -484,6 +503,8 @@ async def _run(
     fallback_events: list[dict[str, object]] = []
     _install_instrumentation(stages, fallback_events)
     session_rows: list[dict[str, object]] = []
+    cuda_load_peaks: list[int | None] = []
+    cuda_session_peaks: list[int | None] = []
     args._runtime_start_ms = []
     mode_counts: defaultdict[str, int] = defaultdict(int)
     failure_count = 0
@@ -491,12 +512,14 @@ async def _run(
     warmup_count = args.warmups
 
     for session_index in range(args.sessions):
+        cuda_ready = _cuda_reset_peak()
         runtime_started = time.perf_counter()
         runtime = await create_phase2_runtime(
             settings, frozen_profile_path=args.profile
         )
         runtime_start_ms = (time.perf_counter() - runtime_started) * 1000
         args._runtime_start_ms.append(runtime_start_ms)
+        cuda_load_peaks.append(_cuda_peak_allocated() if cuda_ready else None)
         app = create_app(
             settings, dependency_checker=_Ready(), api_services=runtime.api_services
         )
@@ -588,6 +611,7 @@ async def _run(
                         }
                         session_rows.append(sample)
         finally:
+            cuda_session_peaks.append(_cuda_peak_allocated() if cuda_ready else None)
             await runtime.close()
 
     by_session: list[list[dict[str, object]]] = [
@@ -646,6 +670,10 @@ async def _run(
             "order_seed": args.seed,
             "result_limits": sorted({int(case["limit"]) for case in cases}),
             "case_count": len(cases),
+        },
+        "cuda_peak_allocated_bytes": {
+            "after_load_by_session": cuda_load_peaks,
+            "after_requests_by_session": cuda_session_peaks,
         },
         "runtime_start_ms_by_session": [
             round(value, 3) for value in args._runtime_start_ms

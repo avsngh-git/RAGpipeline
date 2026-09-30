@@ -17,8 +17,10 @@ import httpx
 
 from research_platform.config import Settings
 from research_platform.ingestion.embeddings import (
-    E5SmallV2Embedder,
+    E5_SMALL_V2_MODEL,
     EmbeddingModelError,
+    create_embedder_for_configuration,
+    index_configuration_for_model,
 )
 from research_platform.ingestion.evidence import (
     EvidenceKind,
@@ -677,7 +679,7 @@ class Phase2Runtime:
     http: httpx.AsyncClient
     api_services: Any
     reranker: CrossEncoderReranker
-    embedder: E5SmallV2Embedder
+    embedder: Any
 
     async def close(self) -> None:
         self.embedder.close()
@@ -687,7 +689,7 @@ class Phase2Runtime:
 
 
 async def _warm_phase2_embedder(
-    embedder: E5SmallV2Embedder, configuration: IndexConfiguration
+    embedder: Any, configuration: IndexConfiguration
 ) -> None:
     """Load local model weights before warming the deadline-bound query path."""
     probe = "local readiness probe"
@@ -695,19 +697,66 @@ async def _warm_phase2_embedder(
     await embedder.embed_query(probe, configuration=configuration)
 
 
-async def create_phase2_runtime(
-    settings: Settings, *, frozen_profile_path: Path | None = None
-) -> Phase2Runtime:
-    """Load frozen local indexes/models without migrating or downloading data."""
+@dataclass(frozen=True)
+class _ServingProfiles:
+    """Profiles, dense configuration and lexical source derived from one freeze."""
+
+    frozen: RetrievalProfile
+    bm25: RetrievalProfile
+    hybrid: RetrievalProfile
+    dense: RetrievalProfile
+    lexical_source: RetrievalProfile
+    configuration: IndexConfiguration
+
+
+def _resolve_serving_profiles(frozen_profile_path: Path | None) -> _ServingProfiles:
+    """Build serving profiles and the dense stack from the frozen profile manifest."""
     frozen_profile_path = resolve_frozen_profile_path(frozen_profile_path)
     manifest_dir = frozen_profile_path.parent
     frozen = load_frozen_profile(frozen_profile_path)
-    hybrid_profile = load_retrieval_profile_manifest(
+    legacy_hybrid = load_retrieval_profile_manifest(
         manifest_dir / "hybrid-e5-profile-v1.toml"
     )
     bm25_profile = load_retrieval_profile_manifest(
         manifest_dir / "bm25-profile-v1.toml"
     )
+    dense_identity = frozen.dense_index
+    if dense_identity is None or frozen.lexical_index is None:
+        raise SearchDependencyUnavailable("frozen serving profile is not hybrid")
+    is_e5 = dense_identity.model == E5_SMALL_V2_MODEL
+    if is_e5:
+        hybrid_profile = legacy_hybrid
+        configuration = _load_phase2_dense_configuration(manifest_dir)
+        expected_names = ("bm25_lexical", "dense_e5", "hybrid_e5")
+        frozen_name = "reranked_minilm_hybrid"
+    else:
+        if (
+            frozen.lexical_index != legacy_hybrid.lexical_index
+            or frozen.candidate_limits.lexical_top_k
+            != legacy_hybrid.candidate_limits.lexical_top_k
+        ):
+            raise SearchDependencyUnavailable(
+                "frozen lexical index differs from the reusable BM25 artifacts"
+            )
+        hybrid_profile = replace(
+            frozen,
+            reranker=None,
+            candidate_limits=replace(frozen.candidate_limits, rerank_top_k=None),
+        )
+        try:
+            configuration = index_configuration_for_model(
+                model=dense_identity.model,
+                revision=dense_identity.revision,
+                preprocessing_revision=dense_identity.preprocessing_revision,
+                dimensions=dense_identity.dimensions,
+                maximum_input_tokens=dense_identity.maximum_input_tokens,
+            )
+        except ValueError:
+            raise SearchDependencyUnavailable(
+                "frozen dense model has no pinned local adapter"
+            ) from None
+        expected_names = ("bm25_lexical", "dense_gte", "hybrid_gte")
+        frozen_name = "reranked_gte_ettin_hybrid"
     dense_profile = replace(
         hybrid_profile,
         lexical_index=None,
@@ -719,12 +768,18 @@ async def create_phase2_runtime(
             rerank_top_k=None,
         ),
     )
-    expected_ids = {
-        "bm25_lexical": bm25_profile.profile_id,
-        "dense_e5": dense_profile.profile_id,
-        "hybrid_e5": hybrid_profile.profile_id,
-        "reranked_minilm_hybrid": frozen.profile_id,
-    }
+    expected_ids = dict(
+        zip(
+            expected_names,
+            (
+                bm25_profile.profile_id,
+                dense_profile.profile_id,
+                hybrid_profile.profile_id,
+            ),
+            strict=True,
+        )
+    )
+    expected_ids[frozen_name] = frozen.profile_id
     comparison_ids = _comparison_profiles(frozen_profile_path)
     if any(comparison_ids.get(name) != value for name, value in expected_ids.items()):
         raise SearchDependencyUnavailable(
@@ -733,15 +788,33 @@ async def create_phase2_runtime(
     if (
         frozen.snapshot != hybrid_profile.snapshot
         or frozen.snapshot != bm25_profile.snapshot
+        or frozen.snapshot != legacy_hybrid.snapshot
     ):
         raise SearchDependencyUnavailable("serving profiles target different snapshots")
-    configuration = _load_phase2_dense_configuration(manifest_dir)
-    if frozen.dense_index is None or (
-        configuration.configuration_id != frozen.dense_index.index_configuration_id
-    ):
+    if configuration.configuration_id != dense_identity.index_configuration_id:
         raise SearchDependencyUnavailable(
             "local vector configuration differs from freeze"
         )
+    return _ServingProfiles(
+        frozen,
+        bm25_profile,
+        hybrid_profile,
+        dense_profile,
+        legacy_hybrid,
+        configuration,
+    )
+
+
+async def create_phase2_runtime(
+    settings: Settings, *, frozen_profile_path: Path | None = None
+) -> Phase2Runtime:
+    """Load frozen local indexes/models without migrating or downloading data."""
+    serving = _resolve_serving_profiles(frozen_profile_path)
+    frozen = serving.frozen
+    hybrid_profile = serving.hybrid
+    bm25_profile = serving.bm25
+    dense_profile = serving.dense
+    configuration = serving.configuration
 
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=10)
     if pool is None:
@@ -749,7 +822,7 @@ async def create_phase2_runtime(
     http = httpx.AsyncClient(
         base_url=settings.qdrant_url.rstrip("/"), timeout=httpx.Timeout(10.0)
     )
-    embedder: E5SmallV2Embedder | None = None
+    embedder: Any | None = None
     reranker: CrossEncoderReranker | None = None
     try:
         repository = IndexRepository(pool)
@@ -773,10 +846,14 @@ async def create_phase2_runtime(
             root, bm25_profile, "evidence", mmap=True
         )
         bm25_paper = _load_lexical_artifact(root, bm25_profile, "paper", mmap=True)
+        # The BM25 artifacts are dense-model independent; they stay bound to the
+        # profile they were built under and are rebound to the serving profile ids.
         hybrid_evidence = _load_lexical_artifact(
-            root, hybrid_profile, "evidence", mmap=True
+            root, serving.lexical_source, "evidence", mmap=True
         )
-        hybrid_paper = _load_lexical_artifact(root, hybrid_profile, "paper", mmap=True)
+        hybrid_paper = _load_lexical_artifact(
+            root, serving.lexical_source, "paper", mmap=True
+        )
         lexical_evidence = {
             bm25_profile.profile_id: LexicalRetriever(bm25_evidence),
             hybrid_profile.profile_id: LexicalRetriever(hybrid_evidence),
@@ -786,7 +863,9 @@ async def create_phase2_runtime(
             hybrid_profile.profile_id: LexicalRetriever(hybrid_paper),
             frozen.profile_id: LexicalRetriever(hybrid_paper),
         }
-        embedder = E5SmallV2Embedder(device=cast(Any, settings.model_device))
+        embedder = create_embedder_for_configuration(
+            configuration, device=cast(Any, settings.model_device)
+        )
         qdrant = QdrantIndex(configuration, http)
         dense = SnapshotDenseSearch(
             repository,

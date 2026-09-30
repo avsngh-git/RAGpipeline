@@ -3,17 +3,26 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import tomllib
 
 ACTIVE_PROFILE_POINTER_FILENAME = "active-profile.toml"
+PROFILE_OVERRIDE_ENV = "RESEARCH_PLATFORM_PHASE2_PROFILE"
 
 
 def resolve_frozen_profile_path(
     path: Path | None = None, *, repository_root: Path | None = None
 ) -> Path:
-    """Resolve an active pointer or return an explicitly selected frozen manifest."""
+    """Resolve an active pointer or return an explicitly selected frozen manifest.
+
+    With no explicit path, RESEARCH_PLATFORM_PHASE2_PROFILE may name a manifest (for
+    measuring a candidate profile); otherwise the tracked active pointer is used.
+    """
+    override = os.environ.get(PROFILE_OVERRIDE_ENV)
+    if path is None and override:
+        path = Path(override)
     selected = (
         Path(path) if path is not None else _default_active_pointer(repository_root)
     )
