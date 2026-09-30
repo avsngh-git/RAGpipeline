@@ -1,12 +1,12 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-29
 ---
 
 # Revise how Phase 2 is accepted after two failed acceptance attempts
 
-This ADR is proposed and awaits owner decision. All judgments in it are assistant-reviewed; none are
-human-verified. It changes nothing until the owner accepts it.
+Accepted by the project owner on 2026-09-30 with the thresholds below. All judgments in it are assistant-reviewed;
+none are human-verified.
 
 ## Context
 
@@ -57,16 +57,35 @@ human-verified. It changes nothing until the owner accepts it.
    report and defer absolute quality to Phase 6 documentation. This weakens the pre-registered test more than
    option 2.
 
-## Proposed decision (for owner choice)
+## Decision (owner-approved 2026-09-30)
 
-Option 2, with reranker-based paper ordering evaluated on development first as an optional profile change:
+The four failing quality thresholds are lowered for the one remaining fresh held-out set. The values are recorded in
+`benchmarks/phase2/acceptance-v14.toml`:
 
-- A frozen profile change needs its own development validation and hosted CI.
-- The remaining replacement set is built only after the revised gates are frozen.
-- ADR-0014's other rules stay: the coverage pre-check, composition floors, single run, point-estimate judgment with
-  intervals reported, and sealing after the run.
-- A failure on that set closes the attempt series. The owner then picks option 1 or 4. No further set is built by
-  default.
+| Held-out gate | acceptance-v13 | acceptance-v14 | Development basis (21 re-judged families) |
+| --- | ---: | ---: | --- |
+| Paper nDCG@10 | 0.80 | 0.65 | BM25 0.557; selected 0.717 (q11–q19 0.685); gte dense 0.757 |
+| Evidence nDCG@10 | 0.45 | 0.40 | Dense E5 0.364; selected 0.517 (q11–q19 0.414) |
+| Evidence direct MRR@10 | 0.45 | 0.45 | selected 0.653 |
+| Evidence judged Recall@20 | 0.60 | 0.50 | selected 0.607 |
+| Warm p95 | 2,000 ms | 5,000 ms | [ADR-0016](0016-phase2-warm-latency-5000ms.md) |
+
+All other gates are unchanged. The owner also approved a relative check: the selected profile must beat BM25 on paper
+and evidence nDCG@10, with the paired family-bootstrap 95% lower bound above 0.
+
+- **Basis.** The thresholds come from development data only. They sit about BM25 + 0.1 and about one sampling width
+  (0.05–0.06 at N = 30) below the selected profile's development score.
+- **Contamination.** The v13 aggregates were known when these values were chosen. v13 therefore stays failed under
+  its own gates, and these values apply only to a set frozen after this decision.
+- **Literature.** The literature review found no published absolute threshold for nDCG@10 or MRR@10. Retrieval
+  evaluation normally judges systems against baselines on the same collection, with paired significance tests (see
+  [threshold literature](../research/phase-2-threshold-literature.md)). The absolute floors here are project-local
+  quality guards, not field standards; the relative check follows common IR practice.
+- **Other rules.** ADR-0014's other rules stay: the coverage pre-check, composition floors, single run,
+  point-estimate judgment with intervals reported, and sealing after the run. A frozen profile change needs its own
+  development validation and hosted CI.
+- **Failure.** A failure on that set closes the attempt series. The owner then picks option 1 or 4. No further set is
+  built by default.
 
 ## Label-quality check and the context rule (owner decision, 2026-09-30)
 

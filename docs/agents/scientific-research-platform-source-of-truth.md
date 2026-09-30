@@ -1,7 +1,7 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.28\
+**Version:** 1.29\
 **Last updated:** 2026-09-29\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 remains open after R8 v13 failed 10 of 14 acceptance gates (v13 sealed; development-only diagnosis next); acceptance method fixed by ADR-0014; Phase 3 not started\
@@ -487,6 +487,7 @@ Approved 2026-09-26 after the planning interview. The
 [Phase 2 retrieval profile](../adr/0012-phase2-accepted-retrieval-profile.md),
 [ADR-0013](../adr/0013-phase2-warm-latency-acceptance.md),
 [ADR-0014](../adr/0014-phase2-acceptance-method.md),
+[ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md),
 [ADR-0016](../adr/0016-phase2-warm-latency-5000ms.md), and the
 [benchmark sampling plan](../reference/phase-2-benchmark-sampling-plan.md) elaborate
 these rules.
@@ -572,7 +573,9 @@ R8 v12 later failed six of 14 acceptance gates, and the enlarged v13 assessment
 held-out sets are spent and cannot guide tuning. Under ADR-0014 point 9 the next step
 is a development-only diagnosis note (aggregates only); at most one replacement set
 remains authorized, and after a second failure the owner decides via change control.
-The 14 gate thresholds, frozen profile and snapshot are unchanged. Routine
+[ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md) (owner-approved 2026-09-30) lowers the held-out
+paper nDCG@10, evidence nDCG@10 and evidence judged Recall@20 gates to 0.65, 0.40 and 0.50 in acceptance-v14, and
+adds a relative check against BM25, for the one remaining fresh set only. Earlier assessments keep their own gates. Routine
 Phase 2 decisions remain within these boundaries. Material deviations follow section 1
 change control.
 
