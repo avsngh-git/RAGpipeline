@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import UUID
 
 import pytest
@@ -26,6 +27,7 @@ from research_platform.search.contracts import (
     SearchFilters,
     SearchOperation,
     SearchRequest,
+    SearchResultStatus,
 )
 from research_platform.search.paper_reads import PaperIdentityConflict, SnapshotNotFound
 from research_platform.tools.fakes import (
@@ -406,3 +408,25 @@ async def test_fake_search_is_deterministic_and_filters_years() -> None:
     second = await search.execute(request, request_id="fake:1")
     assert [hit.chunk_id for hit in first.hits] == [hit.chunk_id for hit in second.hits]
     assert [hit.chunk_id for hit in first.hits] == ["chunk-b1"]
+    assert first.eligible_count == 2
+
+    no_match_request = SearchRequest(
+        query="zzzznotpresent",
+        snapshot_id=SNAPSHOT_ID,
+        retrieval_profile_id=PROFILE_ID,
+        mode=RetrievalMode.RERANKED,
+        operation=SearchOperation.EVIDENCE_SEARCH,
+        filters=SearchFilters(year_from=2022, year_to=2024),
+        limit=10,
+    )
+    no_match = await search.execute(no_match_request, request_id="fake:2")
+    assert no_match.result_status is SearchResultStatus.NO_CANDIDATES_RETURNED
+
+    failing_search, _, _, _ = fake_services(
+        replace(_corpus(), failing_queries=frozenset({"fail"}))
+    )
+    with pytest.raises(SearchDependencyUnavailable):
+        await failing_search.execute(
+            replace(no_match_request, query="fail"),
+            request_id="fake:3",
+        )

@@ -92,6 +92,20 @@ class FakeServices:
         if query in self.corpus.failing_queries:
             raise SearchDependencyUnavailable("configured fake search failure")
         allowed_ids = set(request.filters.paper_ids or ())
+        eligible_papers = tuple(
+            paper
+            for paper in self.corpus.papers
+            if (
+                request.filters.year_from is None
+                or paper.publication_year >= request.filters.year_from
+            )
+            and (
+                request.filters.year_to is None
+                or paper.publication_year <= request.filters.year_to
+            )
+            and (not allowed_ids or paper.paper_id in allowed_ids)
+        )
+        eligible_passage_count = 0
         matching: list[tuple[int, FakePassage]] = []
         for passage in self.corpus.passages:
             paper = self._papers.get(passage.paper_id)
@@ -111,6 +125,7 @@ class FakeServices:
                 passage.kind not in request.filters.evidence_kinds
             ):
                 continue
+            eligible_passage_count += 1
             score = sum(word in passage.text.lower() for word in query.split())
             if score:
                 matching.append((score, passage))
@@ -130,7 +145,7 @@ class FakeServices:
                 requested_mode=RetrievalMode.RERANKED,
                 effective_mode=RetrievalMode.RERANKED,
                 hits=hits,
-                eligible_count=len(matching),
+                eligible_count=eligible_passage_count,
             )
 
         grouped: dict[str, list[tuple[int, FakePassage]]] = {}
@@ -174,7 +189,7 @@ class FakeServices:
             requested_mode=RetrievalMode.RERANKED,
             effective_mode=RetrievalMode.RERANKED,
             hits=tuple(paper_hits),
-            eligible_count=len(ranked_papers),
+            eligible_count=len(eligible_papers),
         )
 
     async def read_paper(self, snapshot_id: UUID, paper_id: str) -> SnapshotPaperRead:
