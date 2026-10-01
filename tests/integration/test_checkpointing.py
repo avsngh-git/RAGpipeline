@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Iterator
 from typing import TypedDict
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -29,6 +30,25 @@ pytestmark = [
         reason="requires the dedicated disposable PostgreSQL service",
     ),
 ]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def remove_checkpoint_test_schema() -> Iterator[None]:
+    """Restore the disposable database for integration modules that follow."""
+    yield
+    if not TEST_DATABASE_URL:
+        return
+
+    async def cleanup() -> None:
+        connection = await asyncpg.connect(TEST_DATABASE_URL)
+        try:
+            await connection.execute("DROP SCHEMA IF EXISTS langgraph CASCADE")
+            await connection.execute("DROP SCHEMA IF EXISTS public CASCADE")
+            await connection.execute("CREATE SCHEMA public")
+        finally:
+            await connection.close()
+
+    asyncio.run(cleanup())
 
 
 class _GraphState(TypedDict, total=False):
