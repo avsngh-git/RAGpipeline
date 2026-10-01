@@ -12,7 +12,7 @@ RUN conda create --yes --prefix "${CONDA_ENV}" --file /tmp/environment-linux-64.
 
 ENV PATH="${CONDA_ENV}/bin:${PATH}"
 
-COPY pyproject.toml README.md requirements-bm25s.txt ./
+COPY pyproject.toml README.md requirements-bm25s.txt requirements-langgraph.txt ./
 COPY src ./src
 COPY benchmarks/phase2/acceptance-v1.toml \
      benchmarks/phase2/acceptance-v8.toml \
@@ -29,6 +29,7 @@ COPY benchmarks/phase2/acceptance-v1.toml \
      ./benchmarks/phase2/
 
 RUN python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt \
+    && python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt \
     && python -m pip install --no-build-isolation --no-deps .
 
 EXPOSE 8000

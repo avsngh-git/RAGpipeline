@@ -47,6 +47,8 @@ jobs:
 
       - name: Install pinned BM25S wheel
         run: conda run --name sci_research_agent python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
+      - name: Install pinned LangGraph checkpoint wheel
+        run: conda run --name sci_research_agent python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt
       - name: Install the package
         run: conda run --name sci_research_agent python -m pip install --no-build-isolation --no-deps -e .
 

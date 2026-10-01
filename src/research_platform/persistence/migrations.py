@@ -6,6 +6,7 @@ from pathlib import Path
 import asyncpg  # type: ignore[import-untyped]
 
 from research_platform.config import Settings
+from research_platform.runs.checkpointing import setup_checkpoints
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "migrations"
 _MIGRATION_ADVISORY_LOCK_ID = 726194021
@@ -46,6 +47,7 @@ async def apply_migrations(
                     "INSERT INTO schema_migrations (version) VALUES ($1)",
                     version,
                 )
+        await setup_checkpoints(database_url)
     finally:
         if lock_acquired:
             await connection.execute(
