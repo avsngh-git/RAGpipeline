@@ -6,8 +6,8 @@ Updated: 2026-09-30. **Current status: Phase 2 is accepted. The one-time R8 v14 
 Ettin-150M; [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)).** v14 is spent and
 sealed. Three quality gates passed by narrow margins (0.002, 0.007, 0.012) inside sampling
 noise, the gates were lowered after v13 failed ([ADR-0015](../adr/0015-phase2-acceptance-gate-revision.md)),
-and labels are assistant-reviewed. **Next: Phase 3 is not started; the owner decides when to
-begin it.** Do not start Phase 3 work, or tune on v14 or any spent set, without that decision.
+and labels are assistant-reviewed. **Phase 3 was planned on 2026-10-01; its work is tracked in
+the [Phase 3 handoff](phase-3-agent-handoff.md).** Do not tune on v14 or any spent set.
 Known improvement target: dense gte alone ranked papers better than the selected profile;
 any profile change needs development evidence and a fresh held-out set. Sections below
 through the v13 period describe earlier states and are historical. Follow the

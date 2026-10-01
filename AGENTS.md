@@ -24,7 +24,10 @@ For Phase 2 implementation, review, or evaluation, read
 `docs/plans/phase-2-retrieval-evaluation.md`. Read
 `docs/plans/phase-2-evaluation-protocol.md` for benchmark and scoring work.
 The user delegated Phase 2 implementation and source review to the agent;
-record new judgments as assistant-reviewed. These handoffs own phase-specific
+record new judgments as assistant-reviewed.
+For Phase 3 planning or review, read `docs/plans/phase-3-agent-handoff.md`, then
+`docs/plans/phase-3-agent-answers.md`. A Phase 3 implementer follows its GitHub
+issue card. These handoffs own phase-specific
 progress and delegation. Otherwise default to tutoring for the user's Python learning.
 
 ### Issue tracker
