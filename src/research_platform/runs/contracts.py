@@ -1,0 +1,225 @@
+"""Typed request, result, and budget contracts for research runs."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from collections.abc import Mapping
+from datetime import datetime
+from enum import StrEnum
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from research_platform.llm.types import CallKind, ModelIdentity
+
+_CONFIGURATION_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+_EVIDENCE_HANDLE_PATTERN = r"^E[1-9][0-9]*$"
+_CLAIM_ID_PATTERN = r"^claim-[1-9][0-9]*$"
+
+
+class _ContractModel(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+
+class ResearchMode(StrEnum):
+    """Research workflow requested for a run."""
+
+    QUICK = "quick"
+    DEEP_RESEARCH = "deep_research"
+
+
+class RunStatus(StrEnum):
+    """Lifecycle state of a research run."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class AnswerOutcome(StrEnum):
+    """Evidence outcome assigned to a completed answer."""
+
+    ANSWERED = "answered"
+    PARTIALLY_SUPPORTED = "partially_supported"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
+class FailureCategory(StrEnum):
+    """Stable category for a terminal run failure."""
+
+    MODEL_UNAVAILABLE = "model_unavailable"
+    INVALID_MODEL_OUTPUT = "invalid_model_output"
+    BUDGET_EXHAUSTED = "budget_exhausted"
+    TIMEOUT = "timeout"
+    RETRIEVAL_ERROR = "retrieval_error"
+    RESUME_EXHAUSTED = "resume_exhausted"
+    CONFIGURATION_CHANGED = "configuration_changed"
+    INTERNAL = "internal"
+
+
+class SupportLabel(StrEnum):
+    """Judge label for a claim's evidence support."""
+
+    SUPPORTED = "supported"
+    PARTIAL = "partial"
+    UNSUPPORTED = "unsupported"
+
+
+class RunBudgets(_ContractModel):
+    """Hard limits applied to one research run."""
+
+    max_plan_rounds: int = Field(3, ge=1, le=10)
+    max_actions_per_plan: int = Field(4, ge=1, le=10)
+    max_tool_calls: int = Field(12, ge=1, le=50)
+    max_citation_depth: int = Field(2, ge=0, le=3)
+    max_evidence_passages: int = Field(40, ge=1, le=100)
+    max_synthesis_tokens: int = Field(8000, ge=500, le=32000)
+    max_model_retries: int = Field(2, ge=0, le=5)
+    max_active_seconds: float = Field(300.0, gt=0, le=3600)
+    max_resumes: int = Field(2, ge=0, le=5)
+
+
+class ResearchFilters(_ContractModel):
+    """Optional publication-year filter range."""
+
+    year_from: int | None = Field(None, ge=1900, le=2100)
+    year_to: int | None = Field(None, ge=1900, le=2100)
+
+    @model_validator(mode="after")
+    def validate_year_range(self) -> ResearchFilters:
+        if (
+            self.year_from is not None
+            and self.year_to is not None
+            and self.year_from > self.year_to
+        ):
+            raise ValueError("year_from must be less than or equal to year_to")
+        return self
+
+
+class ResearchRequest(_ContractModel):
+    """Validated request to start a research run."""
+
+    question: str
+    mode: ResearchMode
+    snapshot_id: UUID | None = None
+    filters: ResearchFilters = Field(
+        default_factory=lambda: ResearchFilters.model_construct()
+    )
+
+    @field_validator("question")
+    @classmethod
+    def validate_question(cls, value: str) -> str:
+        question = value.strip()
+        if not 3 <= len(question) <= 2000:
+            raise ValueError("question must contain 3 to 2000 characters")
+        return question
+
+
+class EvidenceCitation(_ContractModel):
+    """A run-local evidence handle and its durable identifiers."""
+
+    handle: str = Field(pattern=_EVIDENCE_HANDLE_PATTERN)
+    chunk_id: str
+    paper_id: str
+
+
+class ClaimResult(_ContractModel):
+    """One answer claim and the evidence handles cited for it."""
+
+    claim_id: str = Field(pattern=_CLAIM_ID_PATTERN)
+    text: str = Field(min_length=1, max_length=1000)
+    evidence: tuple[EvidenceCitation, ...] = Field(min_length=1)
+    support: SupportLabel
+
+
+class PaperSummary(_ContractModel):
+    """Compact paper metadata included in a run result."""
+
+    paper_id: str
+    title: str | None = None
+    publication_year: int | None = None
+
+
+class RunProvenance(_ContractModel):
+    """Effective configuration and model information for a run."""
+
+    snapshot_id: UUID
+    retrieval_profile_id: str
+    configuration_id: str
+    code_revision: str
+    model: ModelIdentity
+    thinking: dict[CallKind, bool]
+    prompt_versions: dict[str, str]
+    budgets: RunBudgets
+    trace_id: str
+
+    @field_validator("configuration_id")
+    @classmethod
+    def validate_configuration_id(cls, value: str) -> str:
+        if not _CONFIGURATION_ID_PATTERN.fullmatch(value):
+            raise ValueError("configuration_id must be a sha256 identifier")
+        return value
+
+
+class RunUsage(_ContractModel):
+    """Measured budget use and dropped-claim counts for a run."""
+
+    plan_rounds: int = Field(0, ge=0)
+    tool_calls: int = Field(0, ge=0)
+    model_calls: int = Field(0, ge=0)
+    active_seconds: float = Field(0.0, ge=0)
+    resumes: int = Field(0, ge=0)
+    rejected_claims: int = Field(0, ge=0)
+    unsupported_claims: int = Field(0, ge=0)
+
+
+class ResearchRunView(_ContractModel):
+    """Public view of the status and result of a research run."""
+
+    run_id: UUID
+    status: RunStatus
+    mode: ResearchMode
+    question: str
+    answer: str | None = None
+    answer_outcome: AnswerOutcome | None = None
+    claims: tuple[ClaimResult, ...] = ()
+    papers: tuple[PaperSummary, ...] = ()
+    failure_category: FailureCategory | None = None
+    error_message: str | None = None
+    provenance: RunProvenance | None = None
+    usage: RunUsage = Field(default_factory=lambda: RunUsage.model_construct())
+    created_at: datetime
+    completed_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_status_fields(self) -> ResearchRunView:
+        if self.status is RunStatus.COMPLETED:
+            if self.answer_outcome is None or self.failure_category is not None:
+                raise ValueError(
+                    "completed runs require an answer outcome and no failure category"
+                )
+        elif self.status is RunStatus.FAILED:
+            if self.failure_category is None or self.answer_outcome is not None:
+                raise ValueError(
+                    "failed runs require a failure category and no answer outcome"
+                )
+        elif (
+            self.answer_outcome is not None
+            or self.failure_category is not None
+            or self.claims
+        ):
+            raise ValueError(
+                "queued and running runs cannot have outcomes, failures, or claims"
+            )
+        return self
+
+
+def configuration_id(payload: Mapping[str, object]) -> str:
+    """Return a stable SHA-256 identifier for a JSON-compatible payload."""
+    serialized = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), default=str
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(serialized).hexdigest()}"
