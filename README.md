@@ -65,6 +65,9 @@ conda run -n sci_research_agent_linux \
   python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
 
 conda run -n sci_research_agent_linux \
+  python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt
+
+conda run -n sci_research_agent_linux \
   python -m pip install --no-build-isolation --no-deps -e .
 ```
 
