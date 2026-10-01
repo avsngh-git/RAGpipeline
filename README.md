@@ -65,14 +65,17 @@ conda run -n sci_research_agent_linux \
   python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
 
 conda run -n sci_research_agent_linux \
+  python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt
+
+conda run -n sci_research_agent_linux \
   python -m pip install --no-build-isolation --no-deps -e .
 ```
 
 The lock file contains exact Conda packages, not PyPI distributions. The
-BM25S runtime wheel is separately version- and hash-pinned in
-`requirements-bm25s.txt`; install it before the local package as shown above. The
-Conda specification and Linux lock include NumPy 2.5.3, which BM25S imports at
-runtime.
+BM25S and LangGraph PostgreSQL checkpoint runtime wheels are separately
+version- and hash-pinned in `requirements-bm25s.txt` and
+`requirements-langgraph.txt`; install both before the local package. Conda
+provides their runtime dependencies, including NumPy 2.5.3 for BM25S.
 
 ## Application configuration
 
