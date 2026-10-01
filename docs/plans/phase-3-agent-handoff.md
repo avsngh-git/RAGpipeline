@@ -9,8 +9,8 @@ Updated: 2026-10-01. **Status: planned, not started.** The owner approved the
 ## How work is picked up
 
 - Each module is a GitHub issue labelled `wayfinder:task` under the map issue
-  [#2](https://github.com/avsngh-git/RAGpipeline/issues/2). Cards P3-01 to P3-17 are issues
-  #3 to #18 in order, except P3-06, which is #19.
+  [#2](https://github.com/avsngh-git/RAGpipeline/issues/2). P3-01 to P3-05 are #3 to #7,
+  P3-06 is #19, and P3-07 to P3-17 are #8 to #18.
 - Pick the first open card in map order whose "Blocked by" cards are closed. Cards
   labelled `ready-for-human` are written by the owner with a tutor (P3-03), or paired step
   by step with the planning agent (P3-12, P3-14).
