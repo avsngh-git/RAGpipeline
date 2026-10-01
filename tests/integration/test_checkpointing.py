@@ -12,6 +12,7 @@ from uuid import uuid4
 import asyncpg
 import pytest
 from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel
 
 from research_platform.api.schemas.search import SearchFiltersModel
 from research_platform.persistence.migrations import apply_migrations
@@ -20,6 +21,15 @@ from research_platform.runs.checkpointing import (
     open_checkpointer,
     thread_config,
 )
+
+try:
+    from research_platform.runs.contracts import RunBudgets as _CheckpointModel
+except ModuleNotFoundError as error:
+    if error.name != "research_platform.runs.contracts":
+        raise
+    _CHECKPOINT_MODEL: BaseModel = SearchFiltersModel(year_from=2022)
+else:
+    _CHECKPOINT_MODEL = _CheckpointModel(max_tool_calls=3)
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
 
@@ -52,7 +62,7 @@ def remove_checkpoint_test_schema() -> Iterator[None]:
 
 
 class _GraphState(TypedDict, total=False):
-    filters: SearchFiltersModel
+    model: BaseModel
     finished: bool
 
 
@@ -109,7 +119,7 @@ def test_tiny_graph_checkpoints_and_resumes() -> None:
     async def first_node(_state: _GraphState) -> _GraphState:
         nonlocal first_calls
         first_calls += 1
-        return {"filters": SearchFiltersModel(year_from=2022)}
+        return {"model": _CHECKPOINT_MODEL}
 
     async def second_node(_state: _GraphState) -> _GraphState:
         nonlocal second_calls
@@ -136,7 +146,7 @@ def test_tiny_graph_checkpoints_and_resumes() -> None:
             result = await graph.ainvoke(None, config)
 
             assert result["finished"] is True
-            assert result["filters"] == SearchFiltersModel(year_from=2022)
+            assert result["model"] == _CHECKPOINT_MODEL
             assert first_calls == 1
             assert second_calls == 2
 
@@ -149,7 +159,7 @@ def test_strict_msgpack_round_trip_of_project_model() -> None:
     async def exercise() -> None:
         await apply_migrations(TEST_DATABASE_URL)
         async with open_checkpointer(TEST_DATABASE_URL) as saver:
-            model = SearchFiltersModel(year_from=2022)
+            model = _CHECKPOINT_MODEL
             type_name, payload = saver.serde.dumps_typed(model)
 
             assert saver.serde.loads_typed((type_name, payload)) == model
