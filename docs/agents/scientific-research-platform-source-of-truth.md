@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.30\
-**Last updated:** 2026-09-30\
+**Version:** 1.31\
+**Last updated:** 2026-10-01\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 planned on 2026-10-01 (ADR-0018, ADR-0019, ADR-0020), not started\
 
 ---
 
@@ -215,9 +215,9 @@ These choices MUST be evaluated or recorded in ADRs before being treated as perm
 - lexical retrieval engine/library;
 - exact embedding model;
 - exact cross-encoder reranker;
-- exact local tool-capable generator and quantization;
-- local LLM serving implementation between supported adapters;
-- background execution mechanism for long research runs and later API-controlled ingestion (Phase 1 uses resumable terminal commands);
+- exact local tool-capable generator and quantization (Phase 3: Qwen3.5-4B text-only Q4_K_M, [ADR-0018](../adr/0018-phase3-local-generator-and-serving.md));
+- local LLM serving implementation between supported adapters (Phase 3: Ollama, ADR-0018);
+- background execution mechanism for long research runs (Phase 3: in-process worker with LangGraph checkpoints, [ADR-0019](../adr/0019-phase3-research-run-execution.md)) and later API-controlled ingestion (Phase 1 uses resumable terminal commands);
 - production/demo hosting provider;
 - authentication mechanism for the deployed demo;
 - caching implementation;
@@ -1267,6 +1267,17 @@ Phase 3 remains separate; Phase 2 is accepted and Phase 3 starts on an owner dec
 
 ### Phase 3 — Agent and structured answers
 
+**Status: planned 2026-10-01, not started.** The owner approved the
+[Phase 3 plan](../plans/phase-3-agent-answers.md) and its decisions:
+[ADR-0018](../adr/0018-phase3-local-generator-and-serving.md) (Qwen3.5-4B text-only
+Q4_K_M on Ollama, schema-constrained JSON output),
+[ADR-0019](../adr/0019-phase3-research-run-execution.md) (`quick` and `deep_research`
+LangGraph modes, in-process execution, resumable PostgreSQL checkpoints, evidence handles)
+and [ADR-0020](../adr/0020-phase3-evaluation-gates.md) (operational gates on development
+tasks; quality reported, not gated). Progress is in the
+[Phase 3 handoff](../plans/phase-3-agent-handoff.md). Langfuse, authentication and MCP stay
+in later phases.
+
 Deliver:
 
 - self-hosted model adapter;
@@ -1373,16 +1384,20 @@ Resolve these progressively; do not decide all of them before evidence is availa
 5. Phase 2 reranker choice/settings are frozen as Ettin-150M (fp16, 2,048-token pairs,
    top-k 16) in ADR-0017 (replacing MiniLM-L6-v2 from ADR-0012); later changes require a
    new evaluation.
-6. Tool-capable local generator shortlist, quantization, and serving backend.
+6. Tool-capable local generator, quantization and serving backend: Qwen3.5-4B text-only
+   Q4_K_M on Ollama for Phase 3 (ADR-0018), pending the P3-04 fitness check and its
+   recorded fallbacks.
 7. Chunk-size/token-overlap baseline after corpus analysis.
-8. Background execution for research runs and later API-controlled ingestion; terminal-driven resumable ingestion is settled for Phase 1.
+8. Background execution: research runs use an in-process worker with resumable LangGraph
+   checkpoints (ADR-0019); API-controlled ingestion remains open; terminal-driven resumable
+   ingestion is settled for Phase 1.
 9. Authentication and caching implementations.
 10. Production hosting target and cost envelope.
 11. Thin UI choice.
 12. Phase 2 retrieval and runtime thresholds are frozen in acceptance-v14 (ADR-0015,
     ADR-0016) and the accepted profile v10 (ADR-0017); the acceptance method is ADR-0014.
-    Earlier sets keep their own gates. Thresholds for later answer-generation and
-    end-to-end evaluations remain open.
+    Earlier sets keep their own gates. Phase 3 answer and end-to-end gates are operational
+    (ADR-0020); answer-quality thresholds for later phases remain open.
 13. Exact remote MCP SDK/transport version at implementation time.
 14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was
     retained after measuring the complete ten-paper source-artifact footprint.

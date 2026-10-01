@@ -86,3 +86,24 @@ One research information need and its paraphrases or closely related variants.
 
 **Variant lineage**:
 The relationship between an experimental variant and the finalized snapshot selection from which it was derived. It identifies the source snapshot and evidence selection inherited before the variant changes its representation.
+
+**Research run**:
+One persisted execution of a research question in a research mode, with its status, answer, claims, tool calls, budgets and provenance.
+
+**Research mode**:
+How a research run gathers evidence: `quick` follows a fixed search sequence; `deep_research` lets the model plan action batches and decide when evidence is sufficient.
+
+**Action batch**:
+A validated list of typed tool calls proposed by the model in one planning or evaluation step and executed by code.
+
+**Evidence handle**:
+A short run-scoped label (`E1` to `E40`) shown to the model in place of a chunk ID and mapped back to the chunk by code.
+
+**Answer outcome**:
+How well a completed research run's answer is supported: answered, partially supported, or insufficient evidence.
+
+**Failure category**:
+The fixed classification recorded when a research run fails, such as an invalid model output or an exhausted budget.
+
+**Support label**:
+The judge's assessment of one claim against its cited passages: supported, partial or unsupported.
