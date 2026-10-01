@@ -14,43 +14,26 @@ from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from research_platform.llm.types import CallKind, ModelIdentity
-from research_platform.runs.contracts import (
-    AnswerOutcome,
-    ClaimResult,
-    EvidenceCitation,
-    FailureCategory,
-    PaperSummary,
-    ResearchFilters,
-    ResearchMode,
-    ResearchRequest,
-    ResearchRunView,
-    RunBudgets,
-    RunProvenance,
-    RunStatus,
-    RunUsage,
-    SupportLabel,
-)
-
 CHECKPOINT_SCHEMA: Final = "langgraph"
 
 _CHECKPOINT_TYPES: Final = (
-    AnswerOutcome,
-    ClaimResult,
-    EvidenceCitation,
-    FailureCategory,
-    PaperSummary,
-    ResearchFilters,
-    ResearchMode,
-    ResearchRequest,
-    ResearchRunView,
-    RunBudgets,
-    RunProvenance,
-    RunStatus,
-    RunUsage,
-    SupportLabel,
-    CallKind,
-    ModelIdentity,
+    ("research_platform.api.schemas.search", "SearchFiltersModel"),
+    ("research_platform.llm.types", "CallKind"),
+    ("research_platform.llm.types", "ModelIdentity"),
+    ("research_platform.runs.contracts", "AnswerOutcome"),
+    ("research_platform.runs.contracts", "ClaimResult"),
+    ("research_platform.runs.contracts", "EvidenceCitation"),
+    ("research_platform.runs.contracts", "FailureCategory"),
+    ("research_platform.runs.contracts", "PaperSummary"),
+    ("research_platform.runs.contracts", "ResearchFilters"),
+    ("research_platform.runs.contracts", "ResearchMode"),
+    ("research_platform.runs.contracts", "ResearchRequest"),
+    ("research_platform.runs.contracts", "ResearchRunView"),
+    ("research_platform.runs.contracts", "RunBudgets"),
+    ("research_platform.runs.contracts", "RunProvenance"),
+    ("research_platform.runs.contracts", "RunStatus"),
+    ("research_platform.runs.contracts", "RunUsage"),
+    ("research_platform.runs.contracts", "SupportLabel"),
 )
 
 
