@@ -12,13 +12,13 @@ import asyncpg
 import pytest
 from langgraph.graph import END, START, StateGraph
 
+from research_platform.api.schemas.search import SearchFiltersModel
 from research_platform.persistence.migrations import apply_migrations
 from research_platform.runs.checkpointing import (
     delete_run_checkpoints,
     open_checkpointer,
     thread_config,
 )
-from research_platform.runs.contracts import RunBudgets
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
 
@@ -32,7 +32,7 @@ pytestmark = [
 
 
 class _GraphState(TypedDict, total=False):
-    budgets: RunBudgets
+    filters: SearchFiltersModel
     finished: bool
 
 
@@ -89,7 +89,7 @@ def test_tiny_graph_checkpoints_and_resumes() -> None:
     async def first_node(_state: _GraphState) -> _GraphState:
         nonlocal first_calls
         first_calls += 1
-        return {"budgets": RunBudgets(max_tool_calls=3)}
+        return {"filters": SearchFiltersModel(year_from=2022)}
 
     async def second_node(_state: _GraphState) -> _GraphState:
         nonlocal second_calls
@@ -116,7 +116,7 @@ def test_tiny_graph_checkpoints_and_resumes() -> None:
             result = await graph.ainvoke(None, config)
 
             assert result["finished"] is True
-            assert result["budgets"] == RunBudgets(max_tool_calls=3)
+            assert result["filters"] == SearchFiltersModel(year_from=2022)
             assert first_calls == 1
             assert second_calls == 2
 
@@ -129,7 +129,7 @@ def test_strict_msgpack_round_trip_of_project_model() -> None:
     async def exercise() -> None:
         await apply_migrations(TEST_DATABASE_URL)
         async with open_checkpointer(TEST_DATABASE_URL) as saver:
-            model = RunBudgets(max_tool_calls=3)
+            model = SearchFiltersModel(year_from=2022)
             type_name, payload = saver.serde.dumps_typed(model)
 
             assert saver.serde.loads_typed((type_name, payload)) == model
