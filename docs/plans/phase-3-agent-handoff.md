@@ -1,6 +1,6 @@
 # Phase 3 — Agent handoff
 
-Updated: 2026-10-01. **Status: planned, not started.** The owner approved the
+Updated: 2026-10-02. **Status: in progress (8 of 17 cards done).** The owner approved the
 [Phase 3 plan](phase-3-agent-answers.md) and ADRs
 [0018](../adr/0018-phase3-local-generator-and-serving.md),
 [0019](../adr/0019-phase3-research-run-execution.md) and
@@ -21,7 +21,16 @@ Updated: 2026-10-01. **Status: planned, not started.** The owner approved the
 
 | Card | State | Pull request | Notes |
 | --- | --- | --- | --- |
-| P3-01 (#3) | in review | phase3/p3-01-plan | plan, ADRs, source-of-truth 1.31 |
+| P3-01 (#3) | done | #20 | plan, ADRs, source-of-truth 1.31 |
+| P3-02 (#4) | done | #22 | Ollama 0.35.0; text-only GGUF loads with thinking, no vision; 2,251 MiB loaded |
+| P3-03 (#5) | done | #26 | adapter passed a live Ollama probe |
+| P3-05 (#7) | done | #23 | shared contracts |
+| P3-06 (#19) | done | none (377604b on main) | pushed without a PR; its missing migration-list update was fixed in #27 |
+| P3-07 (#8) | done | #21 | LangGraph 1.2.9, checkpointer 3.1.2; host env still needs the packages (`p3-lock` has them) |
+| P3-08 (#9) | done | #24 | related papers |
+| P3-09 (#10) | done | #25 | typed tools and fakes |
+
+Next unblocked: P3-04 (#6) fitness check and P3-10 (#11) prompts. P3-11 (#12) follows P3-10.
 
 ## Environment facts
 
