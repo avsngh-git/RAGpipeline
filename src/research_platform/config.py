@@ -7,10 +7,17 @@ from pathlib import Path
 from typing import Final
 from urllib.parse import urlparse
 
+from research_platform.llm.types import CallKind
+
 DEFAULT_DATABASE_URL: Final = "postgresql://research:research@localhost:5432/research"
 DEFAULT_QDRANT_URL: Final = "http://localhost:6333"
 DEFAULT_DEPENDENCY_TIMEOUT_SECONDS: Final = 2.0
 DEFAULT_EVIDENCE_ACCESS_PROFILE: Final = "disabled"
+DEFAULT_LLM_BASE_URL: Final = "http://localhost:11434"
+DEFAULT_LLM_MODEL: Final = "qwen3.5-4b-text:q4_k_m"
+DEFAULT_LLM_TIMEOUT_SECONDS: Final = 180.0
+DEFAULT_LLM_CONTEXT_TOKENS: Final = 16384
+DEFAULT_LLM_SEED: Final = 20261001
 _ALLOWED_EVIDENCE_ACCESS_PROFILES: Final = frozenset(
     {"disabled", "trusted_private_local"}
 )
@@ -75,6 +82,42 @@ def _dependency_timeout_default() -> float:
     )
 
 
+def _llm_base_url_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_LLM_BASE_URL", DEFAULT_LLM_BASE_URL)
+
+
+def _llm_model_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_LLM_MODEL", DEFAULT_LLM_MODEL)
+
+
+def _llm_timeout_default() -> float:
+    return float(
+        os.environ.get(
+            "RESEARCH_PLATFORM_LLM_TIMEOUT_SECONDS",
+            str(DEFAULT_LLM_TIMEOUT_SECONDS),
+        )
+    )
+
+
+def _llm_context_tokens_default() -> int:
+    return int(
+        os.environ.get(
+            "RESEARCH_PLATFORM_LLM_CONTEXT_TOKENS",
+            str(DEFAULT_LLM_CONTEXT_TOKENS),
+        )
+    )
+
+
+def _llm_thinking_default() -> frozenset[CallKind]:
+    raw_values = os.environ.get("RESEARCH_PLATFORM_LLM_THINKING", "")
+    values = (value.strip() for value in raw_values.split(","))
+    return frozenset(CallKind(value) for value in values if value)
+
+
+def _llm_seed_default() -> int:
+    return int(os.environ.get("RESEARCH_PLATFORM_LLM_SEED", str(DEFAULT_LLM_SEED)))
+
+
 def _validate_url(name: str, value: str, schemes: frozenset[str]) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty URL")
@@ -111,6 +154,12 @@ class Settings:
     lexical_index_root: Path = field(default_factory=_lexical_index_root_default)
     model_device: str = field(default_factory=_model_device_default)
     reranker_cache_dir: Path | None = field(default_factory=_reranker_cache_dir_default)
+    llm_base_url: str = field(default_factory=_llm_base_url_default)
+    llm_model: str = field(default_factory=_llm_model_default)
+    llm_timeout_seconds: float = field(default_factory=_llm_timeout_default)
+    llm_context_tokens: int = field(default_factory=_llm_context_tokens_default)
+    llm_thinking: frozenset[CallKind] = field(default_factory=_llm_thinking_default)
+    llm_seed: int = field(default_factory=_llm_seed_default)
 
     def __post_init__(self) -> None:
         environment = self.environment.strip().lower()
@@ -127,6 +176,26 @@ class Settings:
 
         _validate_url("database_url", self.database_url, frozenset({"postgresql"}))
         _validate_url("qdrant_url", self.qdrant_url, frozenset({"http", "https"}))
+        _validate_url("llm_base_url", self.llm_base_url, frozenset({"http", "https"}))
+
+        llm_model = self.llm_model.strip()
+        if not llm_model:
+            raise ValueError("llm_model must be a non-empty model name")
+        object.__setattr__(self, "llm_model", llm_model)
+
+        if (
+            not isfinite(self.llm_timeout_seconds)
+            or not 0 < self.llm_timeout_seconds <= 600
+        ):
+            raise ValueError(
+                "llm_timeout_seconds must be greater than 0 and at most 600"
+            )
+
+        if not 2048 <= self.llm_context_tokens <= 262144:
+            raise ValueError("llm_context_tokens must be between 2048 and 262144")
+
+        if self.llm_seed < 0:
+            raise ValueError("llm_seed must be at least 0")
 
         if self.openalex_api_key is not None:
             if (
