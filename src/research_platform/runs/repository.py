@@ -364,7 +364,7 @@ class RunRepository:
         message: str,
         usage: RunUsage,
     ) -> None:
-        """Set a running run to failed with a bounded error message."""
+        """Fail a queued or running run with a bounded error message."""
         async with self._pool.acquire() as connection:
             row = await connection.fetchrow(
                 """
@@ -372,7 +372,7 @@ class RunRepository:
                 SET status = 'failed', error_message = $2, failure_category = $3,
                     answer_outcome = NULL, usage = $4::jsonb,
                     completed_at = now(), updated_at = now()
-                WHERE id = $1 AND status = 'running'
+                WHERE id = $1 AND status IN ('queued', 'running')
                 RETURNING id
                 """,
                 run_id,
