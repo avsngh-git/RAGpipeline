@@ -2,7 +2,7 @@
 # To build a new Modelfile based on this, replace FROM with:
 # FROM qwen3.5:4b-q4_K_M
 
-FROM /models-import/Qwen3.5-4B-Q4_K_M.gguf
+FROM /models-import/Qwen3.5-2B-Q4_K_M.gguf
 TEMPLATE {{ .Prompt }}
 RENDERER qwen3.5
 PARSER qwen3.5

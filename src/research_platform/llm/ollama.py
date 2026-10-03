@@ -184,10 +184,13 @@ class OllamaClient:
         models_value = tags.get("models")
         digest: str | None = None
         if isinstance(models_value, list):
+            wanted_names = {self._model}
+            if ":" not in self._model:
+                wanted_names.add(f"{self._model}:latest")
             for model in models_value:
                 if not isinstance(model, dict):
                     continue
-                if self._model in {model.get("name"), model.get("model")}:
+                if wanted_names.intersection({model.get("name"), model.get("model")}):
                     digest_value = model.get("digest")
                     digest = digest_value if isinstance(digest_value, str) else None
                     break

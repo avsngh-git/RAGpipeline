@@ -215,7 +215,7 @@ These choices MUST be evaluated or recorded in ADRs before being treated as perm
 - lexical retrieval engine/library;
 - exact embedding model;
 - exact cross-encoder reranker;
-- exact local tool-capable generator and quantization (Phase 3: Qwen3.5-4B text-only Q4_K_M, [ADR-0018](../adr/0018-phase3-local-generator-and-serving.md));
+- exact local tool-capable generator and quantization (Phase 3: text-only Qwen3.5-2B `Q4_K_M` on Ollama, all layers on the GPU beside retrieval, [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md));
 - local LLM serving implementation between supported adapters (Phase 3: Ollama, ADR-0018);
 - background execution mechanism for long research runs (Phase 3: in-process worker with LangGraph checkpoints, [ADR-0019](../adr/0019-phase3-research-run-execution.md)) and later API-controlled ingestion (Phase 1 uses resumable terminal commands);
 - production/demo hosting provider;
@@ -1267,10 +1267,11 @@ Phase 3 remains separate; Phase 2 is accepted and Phase 3 starts on an owner dec
 
 ### Phase 3 — Agent and structured answers
 
-**Status: planned 2026-10-01, not started.** The owner approved the
+**Status: in progress as of 2026-10-03.** The owner approved the
 [Phase 3 plan](../plans/phase-3-agent-answers.md) and its decisions:
-[ADR-0018](../adr/0018-phase3-local-generator-and-serving.md) (Qwen3.5-4B text-only
-Q4_K_M on Ollama, schema-constrained JSON output),
+[ADR-0018](../adr/0018-phase3-local-generator-and-serving.md) (Ollama serving and
+schema-constrained JSON output), [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md)
+(text-only Qwen3.5-2B `Q4_K_M` sharing the GPU with retrieval; native tool calls for planning),
 [ADR-0019](../adr/0019-phase3-research-run-execution.md) (`quick` and `deep_research`
 LangGraph modes, in-process execution, resumable PostgreSQL checkpoints, evidence handles)
 and [ADR-0020](../adr/0020-phase3-evaluation-gates.md) (operational gates on development
@@ -1384,9 +1385,9 @@ Resolve these progressively; do not decide all of them before evidence is availa
 5. Phase 2 reranker choice/settings are frozen as Ettin-150M (fp16, 2,048-token pairs,
    top-k 16) in ADR-0017 (replacing MiniLM-L6-v2 from ADR-0012); later changes require a
    new evaluation.
-6. Tool-capable local generator, quantization and serving backend: Qwen3.5-4B text-only
-   Q4_K_M on Ollama for Phase 3 (ADR-0018), pending the P3-04 fitness check and its
-   recorded fallbacks.
+6. Tool-capable local generator and serving backend: text-only Qwen3.5-2B `Q4_K_M` on
+   Ollama with all layers on the GPU beside Phase 2 retrieval for Phase 3 (ADR-0021),
+   after P3-04 showed the 4B does not fit beside retrieval and CPU retrieval is too slow.
 7. Chunk-size/token-overlap baseline after corpus analysis.
 8. Background execution: research runs use an in-process worker with resumable LangGraph
    checkpoints (ADR-0019); API-controlled ingestion remains open; terminal-driven resumable

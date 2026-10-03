@@ -28,7 +28,7 @@ ADR. Any other change needs one.
 
 ## Decision
 
-1. **Model.** Qwen3.5-4B (Apache-2.0), text-only `Q4_K_M` GGUF from
+1. **Model** (replaced for Phase 3 by [ADR-0021](0021-phase3-qwen35-2b-gpu.md)). Qwen3.5-4B (Apache-2.0), text-only `Q4_K_M` GGUF from
    `unsloth/Qwen3.5-4B-GGUF`, pinned by file SHA-256, imported into Ollama with a Modelfile
    under the local name `qwen3.5-4b-text:q4_k_m`. The vision projector is never loaded.
 2. **Serving.** Ollama runs as a Compose service in the `llm` profile with the GPU and a
@@ -72,4 +72,17 @@ ADR. Any other change needs one.
 
 ## Fitness results (P3-04)
 
-Not yet measured.
+Measured 2026-10-02 to 2026-10-03; the full tables are in
+[ADR-0021](0021-phase3-qwen35-2b-gpu.md).
+
+- Ollama's automatic layer fit left part of the 4B on the CPU (about 1 token/second);
+  `num_gpu 99` fixes this (43.6 tokens/second for the 4B).
+- Fallback step 1 (generator and retrieval together on the GPU) fails for the 4B: it needs
+  3,343 MiB, and retrieval peaks at 1,361 MiB. Step 2 (retrieval on CPU) also fails: a
+  16-pair rerank takes 183–216 s on CPU against 1.2 s on the GPU.
+- Under the owner's direction, ADR-0021 replaces decision 1 with the text-only Qwen3.5-2B
+  `Q4_K_M`, which shares the GPU with retrieval (2,934 MiB peak) and passes every fit rule.
+- Decision 3: native tool calls with thinking on plan best (100% valid, 83% correct against
+  33% for the best JSON setting), so the planner uses them; other call kinds stay on JSON.
+- Decision 4: thinking is on for planning only. Thinking with JSON output ran 53–69 s per
+  call and was valid in at most 33% of calls.
