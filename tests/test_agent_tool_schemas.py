@@ -65,3 +65,36 @@ def test_max_actions_truncates() -> None:
 
     assert len(actions) == 1
     assert actions[0].paper_id == "W1"
+
+
+@pytest.mark.anyio
+async def test_fitness_native_plan_rejects_overlong_batches() -> None:
+    import httpx
+
+    from research_platform.config import Settings
+    from research_platform.llm.types import CallKind
+    from scripts.phase3_generator_fitness import FitnessCase, _native_plan
+
+    calls = [_call("get_paper", {"paper_id": f"W{index}"}) for index in range(5)]
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json={"message": {"tool_calls": calls}})
+    )
+    case = FitnessCase(
+        "overlong-plan",
+        CallKind.PLAN,
+        ({"role": "user", "content": "Find papers."},),
+        {"tools": ["get_paper"]},
+    )
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://ollama.test"
+    ) as http:
+        result = await _native_plan(http, Settings(), case, think=True)
+
+    assert result[0] is None
+    assert result[4] == "ValidationError"
+
+
+def test_fitness_uses_shared_tool_descriptions() -> None:
+    from scripts import phase3_generator_fitness
+
+    assert phase3_generator_fitness.TOOL_DESCRIPTIONS is TOOL_DESCRIPTIONS

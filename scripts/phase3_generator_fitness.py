@@ -55,23 +55,6 @@ OUTPUT_TOKEN_LIMITS = {
 # Ollama counts thinking tokens against num_predict, so thinking calls get extra room
 # for reasoning before the answer instead of being truncated inside the thinking.
 THINKING_TOKEN_ALLOWANCE = 2048
-# Same tool text as the P3-10 planning prompt, so JSON and native plans see the
-# same tool list.
-TOOL_DESCRIPTIONS = {
-    "search_papers": (
-        "find papers relevant to a query; returns ranked papers with supporting "
-        "passages."
-    ),
-    "search_evidence": (
-        "find specific passages for a query, optionally limited to given paper_ids."
-    ),
-    "get_paper": "read one paper's title, year and availability by paper_id.",
-    "get_citations": "list stored papers that cite the given paper_id.",
-    "get_references": "list stored papers that the given paper_id cites.",
-    "find_related_papers": (
-        "list papers that share references or are cited together with paper_id."
-    ),
-}
 MAX_PLAN_ACTIONS = 4
 
 
@@ -360,7 +343,7 @@ async def _native_plan(
             raise ValueError("Ollama reply did not contain tool_calls")
         actions = actions_from_tool_calls(
             calls,
-            max_actions=MAX_PLAN_ACTIONS,
+            max_actions=max(1, len(calls)),
         )
         return (
             ActionBatch(rationale="native tool calls", actions=actions),
