@@ -169,6 +169,7 @@ async def _build_research_services(
     settings: Settings, runtime: Any, stack: AsyncExitStack
 ) -> ResearchAPIServices:
     """Compose and start the lifespan-owned research run runtime."""
+    from research_platform.agents.graph_deep import build_deep_graph
     from research_platform.agents.graph_quick import build_quick_graph
     from research_platform.ingestion.provenance import code_revision
     from research_platform.llm.ollama import OllamaClient
@@ -222,7 +223,10 @@ async def _build_research_services(
             serving=serving,
             thinking=settings.llm_thinking,
             code_revision=code_revision(),
-            graphs={ResearchMode.QUICK: build_quick_graph},
+            graphs={
+                ResearchMode.QUICK: build_quick_graph,
+                ResearchMode.DEEP_RESEARCH: build_deep_graph,
+            },
         )
     )
     executor = RunExecutor(runner, store)
