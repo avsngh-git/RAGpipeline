@@ -5,11 +5,13 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 
+from research_platform.agents.tool_schemas import research_tool_definitions
 from research_platform.llm.contracts import (
     ChatMessage,
     LLMInvalidOutput,
     LLMUnavailable,
     StructuredCall,
+    ToolCallRequest,
 )
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind
@@ -95,3 +97,41 @@ def test_default_identity_and_reply_exclusivity() -> None:
         ScriptedReply(kind=CallKind.PLAN)
     with pytest.raises(ValueError, match="exactly one"):
         ScriptedReply(kind=CallKind.PLAN, content="{}", error=LLMUnavailable())
+
+
+def test_scripted_tool_calls() -> None:
+    call = ToolCallRequest(
+        messages=(ChatMessage(role="user", content="Search."),),
+        tools=tuple(research_tool_definitions()),
+        think=True,
+    )
+    tool_calls = (
+        {"function": {"name": "search_papers", "arguments": {"query": "RAG"}}},
+    )
+    client = ScriptedLLM([ScriptedReply(kind=CallKind.PLAN, tool_calls=tool_calls)])
+
+    result = asyncio.run(client.call_tools(call))
+
+    assert result.calls == tool_calls
+    assert result.thinking is None
+    assert result.attempts == 1
+    assert client.tool_requests == [call]
+
+
+def test_tool_call_kind_mismatch_raises() -> None:
+    call = ToolCallRequest(
+        messages=(ChatMessage(role="user", content="Search."),),
+        tools=tuple(research_tool_definitions()),
+        think=True,
+    )
+    client = ScriptedLLM(
+        [
+            ScriptedReply(
+                kind=CallKind.EVALUATE,
+                tool_calls=({"function": {"name": "get_paper"}},),
+            )
+        ]
+    )
+
+    with pytest.raises(AssertionError, match="expected plan, actual evaluate"):
+        asyncio.run(client.call_tools(call))

@@ -1,5 +1,6 @@
 """Typed contracts for structured language model calls."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar, Generic, Literal, Protocol, TypeVar
 
@@ -51,6 +52,39 @@ class StructuredResult(Generic[T]):
     attempts: int
 
 
+@dataclass(frozen=True)
+class ToolCallRequest:
+    """A request for one or more native model tool calls."""
+
+    messages: tuple[ChatMessage, ...]
+    tools: tuple[Mapping[str, object], ...]
+    think: bool
+    max_output_tokens: int = 2432
+    max_repair_attempts: int = 2
+
+    def __post_init__(self) -> None:
+        if not self.messages:
+            raise ValueError("messages must contain at least one message")
+        if not self.tools:
+            raise ValueError("tools must contain at least one definition")
+        if not 1 <= self.max_output_tokens <= 32768:
+            raise ValueError("max_output_tokens must be between 1 and 32768")
+        if not 0 <= self.max_repair_attempts <= 5:
+            raise ValueError("max_repair_attempts must be between 0 and 5")
+
+
+@dataclass(frozen=True)
+class ToolCallResult:
+    """Native tool calls and usage details returned by one model request."""
+
+    calls: tuple[Mapping[str, object], ...]
+    thinking: str | None
+    prompt_tokens: int | None
+    output_tokens: int | None
+    duration_ms: float
+    attempts: int
+
+
 class LLMError(Exception):
     """Base class for model adapter failures."""
 
@@ -86,5 +120,7 @@ class LLMClient(Protocol):
     """Interface implemented by live and scripted model clients."""
 
     async def generate(self, call: StructuredCall[T]) -> StructuredResult[T]: ...
+
+    async def call_tools(self, request: ToolCallRequest) -> ToolCallResult: ...
 
     async def identity(self) -> ModelIdentity: ...

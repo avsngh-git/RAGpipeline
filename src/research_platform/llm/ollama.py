@@ -17,6 +17,8 @@ from research_platform.llm.contracts import (
     LLMUnavailable,
     StructuredCall,
     StructuredResult,
+    ToolCallRequest,
+    ToolCallResult,
 )
 from research_platform.llm.types import ModelIdentity
 
@@ -158,6 +160,107 @@ class OllamaClient:
                     "prompt_tokens": prompt_tokens,
                     "output_tokens": output_tokens,
                     "think": call.think,
+                },
+            )
+
+    async def call_tools(self, request: ToolCallRequest) -> ToolCallResult:
+        """Request native tool calls and repair replies that omit all calls."""
+        started_at = time.perf_counter()
+        attempts = 0
+        prompt_tokens: int | None = None
+        output_tokens: int | None = None
+        messages = [
+            {"role": message.role, "content": message.content}
+            for message in request.messages
+        ]
+
+        try:
+            while True:
+                attempts += 1
+                payload = await self._request_json(
+                    "POST",
+                    "/api/chat",
+                    body={
+                        "model": self._model,
+                        "messages": messages,
+                        "stream": False,
+                        "think": request.think,
+                        "tools": [dict(tool) for tool in request.tools],
+                        "options": {
+                            "num_ctx": self._context_tokens,
+                            "num_predict": request.max_output_tokens,
+                            "seed": self._seed,
+                        },
+                    },
+                )
+                message_value = payload.get("message")
+                message = message_value if isinstance(message_value, dict) else {}
+                calls_value = message.get("tool_calls")
+                prompt_tokens = self._accumulate_count(
+                    prompt_tokens, payload.get("prompt_eval_count")
+                )
+                output_tokens = self._accumulate_count(
+                    output_tokens, payload.get("eval_count")
+                )
+
+                if isinstance(calls_value, list) and calls_value:
+                    calls = tuple(
+                        dict(call) for call in calls_value if isinstance(call, dict)
+                    )
+                    if len(calls) == len(calls_value):
+                        thinking_value = message.get("thinking")
+                        return ToolCallResult(
+                            calls=calls,
+                            thinking=(
+                                thinking_value
+                                if isinstance(thinking_value, str)
+                                else None
+                            ),
+                            prompt_tokens=prompt_tokens,
+                            output_tokens=output_tokens,
+                            duration_ms=(time.perf_counter() - started_at) * 1000,
+                            attempts=attempts,
+                        )
+
+                content_value = message.get("content")
+                content = content_value if isinstance(content_value, str) else ""
+                if attempts > request.max_repair_attempts:
+                    raise LLMInvalidOutput(
+                        "Ollama reply did not contain tool_calls",
+                        attempts=attempts,
+                        content_preview=content,
+                    )
+                assistant_message: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": content,
+                }
+                thinking_value = message.get("thinking")
+                if isinstance(thinking_value, str):
+                    assistant_message["thinking"] = thinking_value
+                messages.extend(
+                    [
+                        assistant_message,
+                        {
+                            "role": "user",
+                            "content": (
+                                "Call one or more of the provided tools; reply with "
+                                "tool calls only."
+                            ),
+                        },
+                    ]
+                )
+        finally:
+            logger.info(
+                "llm_call",
+                extra={
+                    "event": "llm_call",
+                    "kind": "plan",
+                    "format": "tools",
+                    "attempts": attempts,
+                    "duration_ms": (time.perf_counter() - started_at) * 1000,
+                    "prompt_tokens": prompt_tokens,
+                    "output_tokens": output_tokens,
+                    "think": request.think,
                 },
             )
 

@@ -16,18 +16,16 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Mapping, Sequence, cast
 
 import httpx
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from research_platform.agents.actions import (
-    Action,
     ActionBatch,
-    FindRelatedPapersAction,
-    GetCitationsAction,
-    GetPaperAction,
-    GetReferencesAction,
-    SearchEvidenceAction,
-    SearchPapersAction,
     SufficiencyDecision,
+)
+from research_platform.agents.tool_schemas import (
+    TOOL_DESCRIPTIONS,
+    actions_from_tool_calls,
+    research_tool_definitions,
 )
 from research_platform.config import Settings
 from research_platform.llm.contracts import (
@@ -46,23 +44,7 @@ DEFAULT_CASES_PATH = (
     REPOSITORY_ROOT / "benchmarks/phase3/generator-fitness-cases-v1.json"
 )
 GPU_MODEL_LAYER_LIMIT = 99
-ACTION_MODELS: tuple[type[BaseModel], ...] = (
-    SearchPapersAction,
-    SearchEvidenceAction,
-    GetPaperAction,
-    GetCitationsAction,
-    GetReferencesAction,
-    FindRelatedPapersAction,
-)
-ACTION_TOOL_NAMES = (
-    "search_papers",
-    "search_evidence",
-    "get_paper",
-    "get_citations",
-    "get_references",
-    "find_related_papers",
-)
-ACTION_ADAPTER: TypeAdapter[Action] = TypeAdapter(Action)
+ACTION_TOOL_NAMES = tuple(TOOL_DESCRIPTIONS)
 HARNESS_VERSION = 4
 OUTPUT_TOKEN_LIMITS = {
     CallKind.PLAN: 384,
@@ -340,54 +322,6 @@ def summarize(records: Sequence[FitnessRecord]) -> list[dict[str, object]]:
     return summary
 
 
-def _native_tools() -> list[dict[str, object]]:
-    tools: list[dict[str, object]] = []
-    for tool_name, model in zip(ACTION_TOOL_NAMES, ACTION_MODELS, strict=True):
-        schema = model.model_json_schema()
-        properties = schema.get("properties", {})
-        required = schema.get("required", [])
-        if not isinstance(properties, dict):
-            raise ValueError("action schema properties must be an object")
-        arguments_schema = dict(schema)
-        arguments_schema["properties"] = {
-            key: value for key, value in properties.items() if key != "tool"
-        }
-        if isinstance(required, list):
-            arguments_schema["required"] = [key for key in required if key != "tool"]
-        tools.append(
-            {
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "description": TOOL_DESCRIPTIONS[tool_name],
-                    "parameters": arguments_schema,
-                },
-            }
-        )
-    return tools
-
-
-def _native_batch(payload: object) -> ActionBatch:
-    if not isinstance(payload, dict):
-        raise ValueError("Ollama reply must be an object")
-    message = payload.get("message")
-    calls = message.get("tool_calls") if isinstance(message, dict) else None
-    if not isinstance(calls, list) or not calls:
-        raise ValueError("Ollama reply did not contain tool_calls")
-    actions: list[Action] = []
-    for call in calls:
-        function = call.get("function") if isinstance(call, dict) else None
-        if not isinstance(function, dict):
-            raise ValueError("Ollama returned an invalid tool call")
-        name, arguments = function.get("name"), function.get("arguments")
-        if isinstance(arguments, str):
-            arguments = json.loads(arguments)
-        if not isinstance(name, str) or not isinstance(arguments, dict):
-            raise ValueError("Ollama returned invalid tool arguments")
-        actions.append(ACTION_ADAPTER.validate_python({**arguments, "tool": name}))
-    return ActionBatch(rationale="native tool calls", actions=tuple(actions))
-
-
 async def _native_plan(
     http: httpx.AsyncClient,
     settings: Settings,
@@ -420,8 +354,16 @@ async def _native_plan(
             raise ValueError("Ollama reply must be an object")
         prompt_tokens = _token_count(payload.get("prompt_eval_count"))
         output_tokens = _token_count(payload.get("eval_count"))
+        message = payload.get("message")
+        calls = message.get("tool_calls") if isinstance(message, dict) else None
+        if not isinstance(calls, list):
+            raise ValueError("Ollama reply did not contain tool_calls")
+        actions = actions_from_tool_calls(
+            calls,
+            max_actions=MAX_PLAN_ACTIONS,
+        )
         return (
-            _native_batch(payload),
+            ActionBatch(rationale="native tool calls", actions=actions),
             (time.perf_counter() - started) * 1000,
             prompt_tokens,
             output_tokens,
@@ -435,6 +377,11 @@ async def _native_plan(
             None,
             type(exc).__name__,
         )
+
+
+def _native_tools() -> list[dict[str, object]]:
+    """Compatibility wrapper for the shared action-schema definitions."""
+    return research_tool_definitions()
 
 
 def _token_count(value: object) -> int | None:

@@ -8,6 +8,7 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
+from research_platform.agents.tool_schemas import research_tool_definitions
 from research_platform.llm.contracts import (
     ChatMessage,
     LLMInvalidOutput,
@@ -15,6 +16,7 @@ from research_platform.llm.contracts import (
     LLMTimeout,
     LLMUnavailable,
     StructuredCall,
+    ToolCallRequest,
 )
 from research_platform.llm.ollama import OllamaClient
 from research_platform.llm.types import CallKind
@@ -47,6 +49,15 @@ def _adapter(http: httpx.AsyncClient) -> OllamaClient:
         context_tokens=8192,
         timeout_seconds=12.5,
         seed=17,
+    )
+
+
+def _tool_request(*, max_repair_attempts: int = 2) -> ToolCallRequest:
+    return ToolCallRequest(
+        messages=(ChatMessage(role="user", content="Find papers."),),
+        tools=tuple(research_tool_definitions()),
+        think=True,
+        max_repair_attempts=max_repair_attempts,
     )
 
 
@@ -154,6 +165,95 @@ def test_invalid_reply_exhausts_repairs_and_raises_invalid_output() -> None:
     assert request_count == 3
     assert raised.value.attempts == 3
     assert raised.value.content_preview == "invalid"
+
+
+def test_call_tools_sends_tools_without_format() -> None:
+    captured: list[dict[str, object]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(json.loads(request.read()))
+        return httpx.Response(
+            200,
+            json={
+                "message": {
+                    "thinking": "planning",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "search_papers",
+                                "arguments": {"query": "dense retrieval"},
+                            }
+                        }
+                    ],
+                },
+                "prompt_eval_count": 22,
+                "eval_count": 8,
+            },
+        )
+
+    async def exercise():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            return await _adapter(http).call_tools(_tool_request())
+
+    result = asyncio.run(exercise())
+    payload = captured[0]
+
+    assert "format" not in payload
+    assert payload["tools"] == research_tool_definitions()
+    assert payload["think"] is True
+    assert result.calls[0]["function"]["name"] == "search_papers"
+    assert result.thinking == "planning"
+    assert result.prompt_tokens == 22
+    assert result.output_tokens == 8
+    assert result.attempts == 1
+
+
+def test_missing_tool_calls_are_repaired_then_raise() -> None:
+    requests: list[dict[str, object]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.read()))
+        return httpx.Response(200, json={"message": {"content": "plain text"}})
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            await _adapter(http).call_tools(_tool_request(max_repair_attempts=1))
+
+    with pytest.raises(LLMInvalidOutput) as raised:
+        asyncio.run(exercise())
+
+    assert raised.value.attempts == 2
+    assert len(requests) == 2
+    assert requests[1]["messages"][-2] == {
+        "role": "assistant",
+        "content": "plain text",
+    }
+    assert requests[1]["messages"][-1] == {
+        "role": "user",
+        "content": "Call one or more of the provided tools; reply with tool calls only.",
+    }
+
+
+def test_call_tools_error_mapping() -> None:
+    def timeout(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow response", request=request)
+
+    def unavailable(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, text="temporarily unavailable")
+
+    def rejected(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, text="bad request")
+
+    async def exercise(handler) -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            await _adapter(http).call_tools(_tool_request())
+
+    with pytest.raises(LLMTimeout):
+        asyncio.run(exercise(timeout))
+    with pytest.raises(LLMUnavailable, match="HTTP 503"):
+        asyncio.run(exercise(unavailable))
+    with pytest.raises(LLMRequestRejected, match="HTTP 400"):
+        asyncio.run(exercise(rejected))
 
 
 def test_timeout_maps_to_llm_timeout() -> None:
