@@ -125,3 +125,8 @@ is nondeterministic. GPU peaks are system memory observations sampled every
 0.5 seconds; the original sweep lacks quick-mode samples because those in-memory
 measurements were lost when its evaluator process stopped. The fully sampled
 sweep supplies the reported complete per-mode peaks.
+
+The [answer-quality diagnosis](../research/phase-3-answer-quality-diagnosis.md)
+(2026-10-04) traces the low `answered` count to the generator's synthesis and support
+judging rather than retrieval or JSON output, and records that `deep_research` called only
+`search_papers`.
