@@ -1,6 +1,7 @@
 """Deterministic model client for offline workflows and tests."""
 
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Sequence, TypeVar
 
@@ -11,6 +12,8 @@ from research_platform.llm.contracts import (
     LLMInvalidOutput,
     StructuredCall,
     StructuredResult,
+    ToolCallRequest,
+    ToolCallResult,
 )
 from research_platform.llm.types import CallKind, ModelIdentity
 
@@ -23,11 +26,15 @@ class ScriptedReply:
 
     kind: CallKind
     content: str | None = None
+    tool_calls: tuple[Mapping[str, object], ...] | None = None
     error: LLMError | None = None
 
     def __post_init__(self) -> None:
-        if (self.content is None) == (self.error is None):
-            raise ValueError("exactly one of content or error must be provided")
+        present = sum(
+            value is not None for value in (self.content, self.tool_calls, self.error)
+        )
+        if present != 1:
+            raise ValueError("exactly one of content, tool_calls or error is required")
 
 
 class ScriptedLLM:
@@ -46,6 +53,7 @@ class ScriptedLLM:
             context_tokens=16384,
         )
         self.calls: list[StructuredCall[Any]] = []
+        self.tool_requests: list[ToolCallRequest] = []
 
     @property
     def remaining(self) -> int:
@@ -85,6 +93,31 @@ class ScriptedLLM:
         return StructuredResult(
             value=value,
             raw_content=content,
+            thinking=None,
+            prompt_tokens=None,
+            output_tokens=None,
+            duration_ms=0.0,
+            attempts=1,
+        )
+
+    async def call_tools(self, request: ToolCallRequest) -> ToolCallResult:
+        """Return the next scripted native tool-call reply."""
+        self.tool_requests.append(request)
+        if not self._replies:
+            raise AssertionError("script exhausted; expected plan, actual <none>")
+
+        reply = self._replies.popleft()
+        if reply.kind is not CallKind.PLAN:
+            raise AssertionError(
+                f"script kind mismatch; expected plan, actual {reply.kind.value}"
+            )
+        if reply.error is not None:
+            raise reply.error
+        if reply.tool_calls is None:
+            raise AssertionError("script reply did not contain tool_calls")
+
+        return ToolCallResult(
+            calls=reply.tool_calls,
             thinking=None,
             prompt_tokens=None,
             output_tokens=None,
