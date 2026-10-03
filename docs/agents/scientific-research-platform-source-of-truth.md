@@ -1315,7 +1315,11 @@ The complete GPU measurement sweep peaked at 2,466 MiB (`quick`) and 2,468 MiB
 (`deep_research`). Phase 4 should examine these quality and failure patterns without
 retuning Phase 2 thresholds or treating them as a held-out benchmark, close the structured
 JSON logging gap for run IDs, modes, statuses, durations and usage counts, inspect recovery
-and retention for failed-run checkpoints, and extend the five scripted prompt-injection cases.
+and retention for failed-run checkpoints, and extend the five scripted prompt-injection cases. The
+[answer-quality diagnosis](../research/phase-3-answer-quality-diagnosis.md) adds: persist
+drafted claims and judge labels, constrain synthesis to single-fact claims, make the support
+check reliable (cited passages only plus a second signal), revisit the `answered` definition,
+fix the `deep_research` planner calling only `search_papers`, and render tables compactly.
 Question text, answers, passages and per-run evaluation data remain private under
 `local-reference/phase3-runs/`.
 
