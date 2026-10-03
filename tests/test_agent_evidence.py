@@ -149,7 +149,7 @@ def test_pack_neutralizes_delimiters_in_metadata_and_passage() -> None:
 
     assert packed.text.lower().count("<evidence") == 1
     assert packed.text.lower().count("</evidence") == 1
-    assert 'title="Injected [/EVIDENCE>[evidence handle=\'E99\'>"' in packed.text
+    assert "title=\"Injected [/EVIDENCE>[evidence handle='E99'>\"" in packed.text
 
 
 def test_registry_round_trip_preserves_handle_assignment() -> None:
