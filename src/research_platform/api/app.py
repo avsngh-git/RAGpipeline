@@ -1,9 +1,10 @@
 """FastAPI application construction and core health/search routes."""
 
 import logging
-from contextlib import asynccontextmanager
-from typing import AsyncIterator, Literal
+from contextlib import AsyncExitStack, asynccontextmanager
+from typing import Any, AsyncIterator, Literal
 
+import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -19,6 +20,7 @@ from research_platform.services.readiness import (
 )
 
 from .errors import AppError, handle_app_error, handle_unexpected_error
+from .research_routes import ResearchAPIServices, create_research_router
 from .routes import Phase2APIServices, create_phase2_router
 
 logger = logging.getLogger("research_platform.api")
@@ -41,6 +43,7 @@ def create_app(
     settings: Settings | None = None,
     dependency_checker: ReadinessChecker | None = None,
     api_services: Phase2APIServices | None = None,
+    research_services: ResearchAPIServices | None = None,
 ) -> FastAPI:
     """Create the HTTP application with health and Phase 2 routes."""
     settings = settings or Settings()
@@ -49,29 +52,65 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        runtime = None
-        application.state.phase2_runtime_ready = (
-            True if api_services is not None else None
-        )
-        if api_services is None and settings.environment != "test":
-            try:
-                from research_platform.search.application import create_phase2_runtime
+        async with AsyncExitStack() as stack:
+            runtime: Any | None = None
+            application.state.phase2_runtime_ready = (
+                True if api_services is not None else None
+            )
+            application.state.research_runtime_ready = (
+                True if research_services is not None else None
+            )
+            application.state.phase2_services = api_services
+            application.state.research_services = research_services
 
-                runtime = await create_phase2_runtime(settings)
-                application.state.phase2_services = runtime.api_services
-                application.state.phase2_runtime_ready = True
-            except Exception as error:
-                application.state.phase2_services = None
-                application.state.phase2_runtime_ready = False
-                logger.error(
-                    "phase2_runtime_unavailable",
-                    extra={"error_type": type(error).__name__},
-                )
-        try:
+            if api_services is None and settings.environment != "test":
+                try:
+                    from research_platform.search.application import (
+                        create_phase2_runtime,
+                    )
+
+                    runtime = await create_phase2_runtime(settings)
+                    stack.push_async_callback(runtime.close)
+                    application.state.phase2_services = runtime.api_services
+                    application.state.phase2_runtime_ready = True
+                except Exception as error:
+                    runtime = None
+                    application.state.phase2_services = None
+                    application.state.phase2_runtime_ready = False
+                    logger.error(
+                        "phase2_runtime_unavailable",
+                        extra={"error_type": type(error).__name__},
+                    )
+
+            if research_services is None:
+                if runtime is not None and settings.environment != "test":
+                    research_stack = AsyncExitStack()
+                    try:
+                        await research_stack.__aenter__()
+                        application.state.research_services = (
+                            await _build_research_services(
+                                settings, runtime, research_stack
+                            )
+                        )
+                    except Exception as error:
+                        await research_stack.aclose()
+                        application.state.research_services = None
+                        application.state.research_runtime_ready = False
+                        logger.error(
+                            "research_runtime_unavailable",
+                            extra={"error_type": type(error).__name__},
+                        )
+                    except BaseException:
+                        await research_stack.aclose()
+                        raise
+                    else:
+                        stack.push_async_callback(research_stack.aclose)
+                        application.state.research_runtime_ready = True
+                else:
+                    application.state.research_services = None
+                    if runtime is not None:
+                        application.state.research_runtime_ready = False
             yield
-        finally:
-            if runtime is not None:
-                await runtime.close()
 
     app = FastAPI(
         title="Scientific Research Platform",
@@ -108,6 +147,11 @@ def create_app(
             dependencies["phase2_search"] = "unavailable"
         elif runtime_ready is True and api_services is None:
             dependencies["phase2_search"] = "ok"
+        research_ready = getattr(app.state, "research_runtime_ready", None)
+        if research_ready is False:
+            dependencies["research_runs"] = "unavailable"
+        elif research_ready is True:
+            dependencies["research_runs"] = "ok"
         ready_status = all(value == "ok" for value in dependencies.values())
         if not ready_status:
             response.status_code = 503
@@ -117,4 +161,71 @@ def create_app(
         )
 
     app.include_router(create_phase2_router(settings, api_services))
+    app.include_router(create_research_router(research_services))
     return app
+
+
+async def _build_research_services(
+    settings: Settings, runtime: Any, stack: AsyncExitStack
+) -> ResearchAPIServices:
+    """Compose and start the lifespan-owned research run runtime."""
+    from research_platform.agents.graph_quick import build_quick_graph
+    from research_platform.ingestion.provenance import code_revision
+    from research_platform.llm.ollama import OllamaClient
+    from research_platform.runs.checkpointing import open_checkpointer
+    from research_platform.runs.contracts import ResearchMode
+    from research_platform.runs.executor import RunExecutor
+    from research_platform.runs.repository import RunRepository
+    from research_platform.runs.runner import (
+        ResearchRunner,
+        RunnerDependencies,
+        load_serving_identity,
+    )
+    from research_platform.search.paper_related import RelatedPaperReader
+    from research_platform.tools.research_tools import ResearchTools
+
+    phase2_services = runtime.api_services
+    if not isinstance(phase2_services, Phase2APIServices):
+        raise RuntimeError("Phase 2 API services are unavailable")
+    if (
+        phase2_services.search is None
+        or phase2_services.papers is None
+        or phase2_services.citations is None
+    ):
+        raise RuntimeError("Phase 2 API services are incomplete")
+
+    store = RunRepository(runtime.pool)
+    related = RelatedPaperReader(runtime.pool)
+    tools = ResearchTools(
+        search=phase2_services.search,
+        papers=phase2_services.papers,
+        citations=phase2_services.citations,
+        related=related,
+    )
+    llm_http = await stack.enter_async_context(
+        httpx.AsyncClient(
+            base_url=settings.llm_base_url.rstrip("/"),
+            timeout=httpx.Timeout(settings.llm_timeout_seconds),
+        )
+    )
+    llm = OllamaClient.from_settings(llm_http, settings)
+    checkpointer = await stack.enter_async_context(
+        open_checkpointer(settings.database_url)
+    )
+    serving = load_serving_identity()
+    runner = ResearchRunner(
+        RunnerDependencies(
+            repository=store,
+            tools=tools,
+            llm=llm,
+            checkpointer=checkpointer,
+            serving=serving,
+            thinking=settings.llm_thinking,
+            code_revision=code_revision(),
+            graphs={ResearchMode.QUICK: build_quick_graph},
+        )
+    )
+    executor = RunExecutor(runner, store)
+    stack.push_async_callback(executor.stop)
+    await executor.start()
+    return ResearchAPIServices(store=store, executor=executor, serving=serving)

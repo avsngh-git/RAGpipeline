@@ -128,6 +128,48 @@ per-call validity, score, latency and token counts. It omits prompt and response
 `complete: false` marks a partial run. Keep outputs under ignored `local-reference/phase3-runs/`
 and record only aggregates in ADR-0021.
 
+## Running research
+
+The API and Phase 2 retrieval models run in the host `sci_research_agent` environment.
+Point the service at the reviewed serving database and the local frozen artifacts before
+starting it:
+
+```bash
+export RESEARCH_PLATFORM_DATABASE_URL='postgresql://research:research@localhost:5432/research_phase1_review'
+export RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE=trusted_private_local
+export RESEARCH_PLATFORM_LEXICAL_INDEX_ROOT="$PWD/local-reference/phase2-indexes"
+export RESEARCH_PLATFORM_RERANKER_CACHE_DIR="$PWD/local-reference/phase2-reranker-cache"
+export RESEARCH_PLATFORM_MODEL_DEVICE=auto
+export HF_HOME="$PWD/local-reference/phase2-model-cache"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+
+conda run -n sci_research_agent python -m uvicorn \
+  research_platform.api.app:create_app --factory \
+  --host 127.0.0.1 --port 8001
+```
+
+Submit a research request and use its returned `run_id` to inspect progress. Requests and
+answers are private local research data; keep saved request/view/tool-call records under
+the ignored `local-reference/phase3-runs/` directory. The API response includes claims and
+evidence handles with paper metadata, not passage text.
+
+```bash
+curl --fail-with-body http://127.0.0.1:8001/v1/research \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Which retrieval methods improve evidence ranking?","mode":"quick"}'
+
+curl --fail-with-body http://127.0.0.1:8001/v1/research/RUN_ID
+research-runs show RUN_ID
+research-runs prune --older-than-days 30
+```
+
+One worker executes one run at a time. Runs left queued or running by a process restart
+are resumed at startup from their PostgreSQL records and LangGraph checkpoints. A changed
+effective configuration or exhausted resume budget fails the run with a recorded category.
+The process can remain live when Ollama is unavailable; affected runs finish with a
+`model_unavailable` failure.
+
 ## Connect the host API and stop the service
 
 The host Uvicorn API uses `http://127.0.0.1:11434` for the Ollama base URL. Keep the API
