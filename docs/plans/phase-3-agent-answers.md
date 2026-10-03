@@ -1,6 +1,10 @@
 # Phase 3 — Agent and structured answers
 
-Status: approved by the owner on 2026-10-01; in progress. ADR-0021 (2026-10-03) changed the generator and planning format after P3-04.
+Status: implementation and operational gates complete; owner acceptance pending as of
+2026-10-03. All implementation and evaluation cards are closed; only issue #18 closeout and
+owner acceptance remain. Supplemental issues #30 and #31 are also closed. P3-16 merged in
+PR #40; its report records the passing gates and diagnostic limits. ADR-0021 (2026-10-03)
+changed the generator and planning format after P3-04.
 Phase 2 is accepted ([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)) and its
 retrieval profile v10 is frozen. This plan scopes Phase 3 of the
 [source of truth](../agents/scientific-research-platform-source-of-truth.md) (section 21)
@@ -19,8 +23,13 @@ evaluation.
 3. every failed run carries a failure category;
 4. all scripted tool-routing, budget, injection and resume cases pass in CI.
 
-Answer-quality numbers (support rate, claims per answer, latency) are reported and do not
-block. No held-out set is built in Phase 3.
+All operational gates passed. The recovered sweep completed 41/42 runs (quick 21/21,
+deep 20/21; its one timeout had a failure category); the fully sampled measurement sweep
+completed 42/42. Both had zero unknown live handles and no completed-run budget violations.
+The exact gate evidence, reported answer-quality measurements, GPU use and limitations are
+in the [Phase 3 evaluation report](../reference/phase-3-evaluation-report.md).
+Answer-quality results remain diagnostic and do not block. No held-out set was built in
+Phase 3. **Owner acceptance is pending; this plan does not mark the phase accepted.**
 
 ## Decisions
 
@@ -93,7 +102,7 @@ Each card is one GitHub issue under the map issue, sized for one session (about 
 | P3-14 | `deep_research` graph | P3-12, P3-13, P3-19 | ready-for-human (pair, step by step) |
 | P3-15 | CI regression suite on the scripted LLM | P3-13, P3-14, P3-19 | ready-for-agent |
 | P3-16 | Live development evaluation and report | P3-04, P3-14 | ready-for-agent |
-| P3-17 | Phase 3 closeout | P3-15, P3-16 | done by planner |
+| P3-17 | Phase 3 closeout | P3-15, P3-16 | documentation ready; owner acceptance pending |
 | P3-18 | Copy the gte dense index into the main stack so profile v10 serves | none | ready-for-agent |
 | P3-19 | Native tool-call planning in the LLM adapter | P3-04 | ready-for-agent |
 

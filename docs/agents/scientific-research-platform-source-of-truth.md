@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.31\
-**Last updated:** 2026-10-01\
+**Version:** 1.32\
+**Last updated:** 2026-10-03\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 planned on 2026-10-01 (ADR-0018, ADR-0019, ADR-0020), not started\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 implementation and operational gates complete on 2026-10-03; owner acceptance pending (P3-17, issue #18)\
 
 ---
 
@@ -1249,7 +1249,8 @@ Ettin-150M; [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). Paper nDCG@
 evidence nDCG@10 (0.4074) and evidence judged Recall@20 (0.5122) passed by margins of 0.002,
 0.007 and 0.012, inside sampling noise; warm p95 was 1,016 ms. The detailed
 [acceptance report](../reference/phase-2-acceptance-report.md) records the gates, intervals,
-baselines and caveats. Phase 3 has not started; the owner decides when it does.
+baselines and caveats. Phase 3 implementation and operational gates are complete, with
+owner acceptance pending.
 
 Deliver:
 
@@ -1263,11 +1264,13 @@ rebuild and failure checks, and the frozen held-out benchmark passes the useful-
 and operational limits selected using development data (30 held-out families under
 ADR-0014, judged on point estimates with intervals reported). Report the limits and their
 aggregate results without exposing private questions, item-level evidence or rankings.
-Phase 3 remains separate; Phase 2 is accepted and Phase 3 starts on an owner decision.
+Phase 3 remains separate from Phase 2; Phase 2 is accepted and Phase 3 is in closeout,
+pending owner acceptance.
 
 ### Phase 3 — Agent and structured answers
 
-**Status: in progress as of 2026-10-03.** The owner approved the
+**Status: implementation and operational gates complete; owner acceptance pending**
+as of 2026-10-03 (P3-17, issue #18). The owner approved the
 [Phase 3 plan](../plans/phase-3-agent-answers.md) and its decisions:
 [ADR-0018](../adr/0018-phase3-local-generator-and-serving.md) (Ollama serving and
 schema-constrained JSON output), [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md)
@@ -1275,9 +1278,15 @@ schema-constrained JSON output), [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md)
 [ADR-0019](../adr/0019-phase3-research-run-execution.md) (`quick` and `deep_research`
 LangGraph modes, in-process execution, resumable PostgreSQL checkpoints, evidence handles)
 and [ADR-0020](../adr/0020-phase3-evaluation-gates.md) (operational gates on development
-tasks; quality reported, not gated). Progress is in the
-[Phase 3 handoff](../plans/phase-3-agent-handoff.md). Langfuse, authentication and MCP stay
-in later phases.
+tasks; answer quality reported, not gated). The [Phase 3 evaluation report](../reference/phase-3-evaluation-report.md)
+records two passing live sweeps over 21 development families and the scripted regression CI.
+P3-16 exact-head CI 37143367662 passed on revision
+`e6dc3dcd2ae1417ba524be0316060810b17d19c5`; main CI 37143652344 passed on merged main
+revision `fd16a97d21aec4dfb974bbc9ad437c86947af788`. Issue #18 is the record for the
+P3-17 docs-only CI evidence and the owner's acceptance decision.
+The [Phase 3 handoff](../plans/phase-3-agent-handoff.md) records all card progress. Phase 3
+is not accepted until the owner accepts it. Langfuse, authentication and MCP stay in later
+phases.
 
 Deliver:
 
@@ -1288,7 +1297,29 @@ Deliver:
 - citation verification;
 - tool-routing and end-to-end evaluation.
 
-Gate: representative tasks complete within budgets, invalid evidence IDs are rejected, and failures are classifiable.
+Gate ([ADR-0020](../adr/0020-phase3-evaluation-gates.md)): fabricated or unknown handles are
+rejected in scripted cases; at least 90% of live runs finish within budget; failed runs have
+a failure category; and scripted routing, budget, injection and resume cases pass in CI.
+All operational gates passed. The recovered sweep completed 41/42 runs (quick 21/21, deep
+20/21, with the timeout categorized); the fully sampled measurement sweep completed 42/42.
+Both had zero unknown live evidence handles and no completed-run budget violations. These
+are development-only results; answer quality does not gate Phase 3. See the
+[evaluation report](../reference/phase-3-evaluation-report.md) for metrics, methodology and
+limitations. Owner acceptance remains pending.
+
+**Phase 4 inputs from the Phase 3 closeout:** the small development set showed limited
+answer coverage and inconsistent unsupported-task handling: the fully sampled sweep had
+one answered, nine partially supported and eleven insufficient-evidence `quick` outcomes;
+`deep_research` had nine partially supported and twelve insufficient-evidence outcomes.
+One of two unsupported deep tasks was partially supported in both sweeps. The initial sweep
+also had one categorized timeout; the cause of its status-poll interruption is unconfirmed.
+The complete GPU measurement sweep peaked at 2,466 MiB (`quick`) and 2,468 MiB
+(`deep_research`). Phase 4 should examine these quality and failure patterns without
+retuning Phase 2 thresholds or treating them as a held-out benchmark, close the structured
+JSON logging gap for run IDs, modes, statuses, durations and usage counts, inspect recovery
+and retention for failed-run checkpoints, and extend the five scripted prompt-injection cases.
+Question text, answers, passages and per-run evaluation data remain private under
+`local-reference/phase3-runs/`.
 
 ### Phase 4 — Observability, LLMOps, and security
 
@@ -1385,20 +1416,21 @@ Resolve these progressively; do not decide all of them before evidence is availa
 5. Phase 2 reranker choice/settings are frozen as Ettin-150M (fp16, 2,048-token pairs,
    top-k 16) in ADR-0017 (replacing MiniLM-L6-v2 from ADR-0012); later changes require a
    new evaluation.
-6. Tool-capable local generator and serving backend: text-only Qwen3.5-2B `Q4_K_M` on
-   Ollama with all layers on the GPU beside Phase 2 retrieval for Phase 3 (ADR-0021),
-   after P3-04 showed the 4B does not fit beside retrieval and CPU retrieval is too slow.
+6. **Resolved for Phase 3 (ADR-0021):** text-only Qwen3.5-2B `Q4_K_M` on Ollama with
+   all layers on the GPU beside Phase 2 retrieval. P3-04 showed the 4B does not fit beside
+   retrieval and CPU retrieval is too slow. Future model changes require a new decision.
 7. Chunk-size/token-overlap baseline after corpus analysis.
-8. Background execution: research runs use an in-process worker with resumable LangGraph
-   checkpoints (ADR-0019); API-controlled ingestion remains open; terminal-driven resumable
+8. **Resolved for research runs (ADR-0019):** an in-process worker with resumable LangGraph
+   checkpoints; API-controlled ingestion remains open, while terminal-driven resumable
    ingestion is settled for Phase 1.
 9. Authentication and caching implementations.
 10. Production hosting target and cost envelope.
 11. Thin UI choice.
 12. Phase 2 retrieval and runtime thresholds are frozen in acceptance-v14 (ADR-0015,
-    ADR-0016) and the accepted profile v10 (ADR-0017); the acceptance method is ADR-0014.
-    Earlier sets keep their own gates. Phase 3 answer and end-to-end gates are operational
-    (ADR-0020); answer-quality thresholds for later phases remain open.
+    ADR-0016) and accepted profile v10 (ADR-0017); the acceptance method is ADR-0014.
+    Earlier sets keep their own gates. Phase 3 operational gates are defined by ADR-0020 and
+    passed on the reported development sweeps; answer-quality thresholds remain open and
+    the observed quality is diagnostic only.
 13. Exact remote MCP SDK/transport version at implementation time.
 14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was
     retained after measuring the complete ten-paper source-artifact footprint.

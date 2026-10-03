@@ -159,9 +159,12 @@ curl --fail-with-body http://127.0.0.1:8001/v1/research \
   -H 'Content-Type: application/json' \
   -d '{"question":"Which retrieval methods improve evidence ranking?","mode":"quick"}'
 
+curl --fail-with-body http://127.0.0.1:8001/v1/research \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Which retrieval methods improve evidence ranking?","mode":"deep_research"}'
+
 curl --fail-with-body http://127.0.0.1:8001/v1/research/RUN_ID
 research-runs show RUN_ID
-research-runs prune --older-than-days 30
 ```
 
 One worker executes one run at a time. Runs left queued or running by a process restart
@@ -169,6 +172,27 @@ are resumed at startup from their PostgreSQL records and LangGraph checkpoints. 
 effective configuration or exhausted resume budget fails the run with a recorded category.
 The process can remain live when Ollama is unavailable; affected runs finish with a
 `model_unavailable` failure.
+
+The pruning command permanently removes completed or failed runs older than the selected
+age, including their stored run data and LangGraph checkpoints. Review and retain any run
+needed for recovery or analysis before pruning. A project-wide disposable-run retention
+period remains open; choose the age for the private local database deliberately. For example,
+this removes terminal runs older than 30 days:
+
+```bash
+research-runs prune --older-than-days 30
+```
+
+## Phase 4 follow-up
+
+The [Phase 3 evaluation report](../reference/phase-3-evaluation-report.md) records the
+operational gate results and development-only answer measurements. Follow-up work should
+review the original categorized timeout and checkpoint recovery, improve run-event logging
+(the current JSON formatter omits run ID, mode, status, durations and usage fields), extend
+the five scripted prompt-injection cases, and decide disposable run/checkpoint retention.
+The evaluation showed limited answer coverage and one partially supported outcome on an
+unsupported deep task in each sweep. These are diagnostic findings; Phase 3 gates passed,
+and answer-quality thresholds remain open.
 
 ## Connect the host API and stop the service
 
