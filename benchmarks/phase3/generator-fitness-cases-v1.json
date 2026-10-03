@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "plan-01",
+      "kind": "plan",
+      "messages": [
+        {"role": "system", "content": "Choose the research tool needed for each synthetic request. Return only the requested structured result."},
+        {"role": "user", "content": "Find scholarly papers about a fictional topic called amber indexing."}
+      ],
+      "expect": {"tools": ["search_papers"]}
+    },
+    {
+      "case_id": "plan-02",
+      "kind": "plan",
+      "messages": [
+        {"role": "system", "content": "Choose the research tool needed for each synthetic request. Return only the requested structured result."},
+        {"role": "user", "content": "Find passages that compare fictional method Luma with fictional method Nori."}
+      ],
+      "expect": {"tools": ["search_evidence"]}
+    },
+    {
+      "case_id": "plan-03",
+      "kind": "plan",
+      "messages": [
+        {"role": "system", "content": "Choose the research tool needed for each synthetic request. Return only the requested structured result."},
+        {"role": "user", "content": "Retrieve the metadata for the fictional paper W123."}
+      ],
+      "expect": {"tools": ["get_paper"]}
+    },
+    {
+      "case_id": "plan-04",
+      "kind": "plan",
+      "messages": [
+        {"role": "system", "content": "Choose the research tool needed for each synthetic request. Return only the requested structured result."},
+        {"role": "user", "content": "List fictional papers that cite the paper W124."}
+      ],
+      "expect": {"tools": ["get_citations"]}
+    },
+    {
+      "case_id": "plan-05",
+      "kind": "plan",
+      "messages": [
+        {"role": "system", "content": "Choose the research tool needed for each synthetic request. Return only the requested structured result."},
+        {"role": "user", "content": "List the references recorded for fictional paper W125."}
+      ],
+      "expect": {"tools": ["get_references"]}
+    },
+    {
+      "case_id": "plan-06",
+      "kind": "plan",
+      "messages": [
+        {"role": "system", "content": "Choose the research tool needed for each synthetic request. Return only the requested structured result."},
+        {"role": "user", "content": "Find papers related to fictional paper W126 through shared citations."}
+      ],
+      "expect": {"tools": ["find_related_papers"]}
+    },
+    {
+      "case_id": "evaluate-01",
+      "kind": "evaluate",
+      "messages": [
+        {"role": "system", "content": "Decide whether the fictional evidence answers the question. Return only the requested structured result."},
+        {"role": "user", "content": "Question: Does fictional method Luma reduce synthetic retrieval errors? Evidence E1 reports a reduction on the synthetic set and E2 reports the same direction on a second synthetic set. The question asks only whether it reduces errors."}
+      ],
+      "expect": {"sufficient": true}
+    },
+    {
+      "case_id": "evaluate-02",
+      "kind": "evaluate",
+      "messages": [
+        {"role": "system", "content": "Decide whether the fictional evidence answers the question. Return only the requested structured result."},
+        {"role": "user", "content": "Question: How does fictional method Nori compare with Luma on synthetic retrieval errors? The only evidence describes Nori and contains no comparison or Luma result."}
+      ],
+      "expect": {"sufficient": false}
+    },
+    {
+      "case_id": "evaluate-03",
+      "kind": "evaluate",
+      "messages": [
+        {"role": "system", "content": "Decide whether the fictional evidence answers the question. Return only the requested structured result."},
+        {"role": "user", "content": "Question: What were the exact synthetic scores for methods Luma and Nori? Evidence says only that Luma was described as promising."}
+      ],
+      "expect": {"sufficient": false}
+    },
+    {
+      "case_id": "synthesize-01",
+      "kind": "synthesize",
+      "messages": [
+        {"role": "system", "content": "Answer from the fictional evidence only. Cite only handles listed in the evidence. Return the requested structured result."},
+        {"role": "user", "content": "Question: Did fictional method Luma improve retrieval? Evidence E1: The synthetic evaluation reports fewer retrieval errors with Luma than with the baseline."}
+      ],
+      "expect": {"handles": ["E1"]}
+    },
+    {
+      "case_id": "synthesize-02",
+      "kind": "synthesize",
+      "messages": [
+        {"role": "system", "content": "Answer from the fictional evidence only. Cite only handles listed in the evidence. Return the requested structured result."},
+        {"role": "user", "content": "Question: Was the outcome consistent across synthetic settings? Evidence E2: Luma reduced errors in setting A. Evidence E3: Nori did not improve over the baseline in setting B."}
+      ],
+      "expect": {"handles": ["E2", "E3"]}
+    },
+    {
+      "case_id": "synthesize-03",
+      "kind": "synthesize",
+      "messages": [
+        {"role": "system", "content": "Answer from the fictional evidence only. Cite only handles listed in the evidence. Return the requested structured result."},
+        {"role": "user", "content": "Question: Which fictional method had the lower synthetic latency? Evidence E4: Luma had a median latency of 20 ms. Evidence E5: Nori had a median latency of 27 ms."}
+      ],
+      "expect": {"handles": ["E4", "E5"]}
+    },
+    {
+      "case_id": "judge-01",
+      "kind": "judge",
+      "messages": [
+        {"role": "system", "content": "Judge whether each claim is supported by its fictional evidence. Return labels in claim order."},
+        {"role": "user", "content": "Claim 1: Luma reduced synthetic retrieval errors. Evidence: The synthetic evaluation reports fewer errors with Luma. Claim 2: Luma was tested on a real clinical system. Evidence: The synthetic evaluation describes only an artificial dataset."}
+      ],
+      "expect": {"labels": ["supported", "unsupported"]}
+    },
+    {
+      "case_id": "judge-02",
+      "kind": "judge",
+      "messages": [
+        {"role": "system", "content": "Judge whether each claim is supported by its fictional evidence. Return labels in claim order."},
+        {"role": "user", "content": "Claim 1: Nori may improve retrieval in some settings. Evidence: One of three synthetic settings shows a small improvement; the other two are unchanged."}
+      ],
+      "expect": {"labels": ["partial"]}
+    },
+    {
+      "case_id": "judge-03",
+      "kind": "judge",
+      "messages": [
+        {"role": "system", "content": "Judge whether each claim is supported by its fictional evidence. Return labels in claim order."},
+        {"role": "user", "content": "Claim 1: Luma is faster than Nori. Evidence: The fictional report gives an accuracy result and no latency measurements."}
+      ],
+      "expect": {"labels": ["unsupported"]}
+    }
+  ]
+}

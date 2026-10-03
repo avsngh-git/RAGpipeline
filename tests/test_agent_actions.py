@@ -52,11 +52,19 @@ def test_action_batch_bounds(actions: list[dict[str, str]]) -> None:
         ActionBatch.model_validate({"rationale": "Bound test", "actions": actions})
 
 
-def test_sufficiency_sufficient_forbids_next_actions() -> None:
+def test_sufficient_decision_ignores_next_actions() -> None:
     action = SearchPapersAction(tool="search_papers", query="retrieval")
-    assert SufficiencyDecision(sufficient=True)
-    with pytest.raises(ValidationError):
-        SufficiencyDecision(sufficient=True, next_actions=(action,))
+    assert SufficiencyDecision(sufficient=True).next_actions == ()
+    assert (
+        SufficiencyDecision(sufficient=True, next_actions=(action,)).next_actions == ()
+    )
+    parsed = SufficiencyDecision.model_validate_json(
+        '{"sufficient": true, "next_actions": [{"tool": "get_paper", "paper_id": "W1"}]}'
+    )
+    assert parsed.next_actions == ()
+    assert SufficiencyDecision(
+        sufficient=False, next_actions=(action,)
+    ).next_actions == (action,)
 
 
 def test_action_key_normalizes_query_and_paper_ids() -> None:

@@ -1,6 +1,6 @@
 # Phase 3 — Agent and structured answers
 
-Status: approved by the owner on 2026-10-01 after a planning interview; not started.
+Status: approved by the owner on 2026-10-01; in progress. ADR-0021 (2026-10-03) changed the generator and planning format after P3-04.
 Phase 2 is accepted ([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)) and its
 retrieval profile v10 is frozen. This plan scopes Phase 3 of the
 [source of truth](../agents/scientific-research-platform-source-of-truth.md) (section 21)
@@ -26,11 +26,11 @@ block. No held-out set is built in Phase 3.
 
 | Topic | Decision | Record |
 | --- | --- | --- |
-| Generator | Qwen3.5-4B, text-only unsloth `Q4_K_M` GGUF (no vision projector), imported into Ollama | [ADR-0018](../adr/0018-phase3-local-generator-and-serving.md) |
+| Generator | Text-only Qwen3.5-2B `Q4_K_M` GGUF as `qwen3.5-2b-text:q4_k_m`, all layers on the GPU (`num_gpu 99`) | [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md) |
 | Serving | Ollama as a Compose service (profile `llm`, GPU); our own `httpx` adapter; no Qwen-Agent | ADR-0018 |
-| Memory fallbacks | Tried in order: generator + retrieval on GPU (context about 16K); retrieval on CPU; llama.cpp server for the same GGUF; `qwen3.5:2b` | ADR-0018 |
-| Model output | Schema-constrained JSON for every call. Native tool calling is measured in P3-04 and is adopted only if it routes at least 10 points better at equal validity | ADR-0018 |
-| Thinking | Measured on and off per call kind in P3-04; the result sets the defaults | ADR-0018 |
+| GPU sharing | Generator and Phase 2 retrieval share the GPU (2,934 MiB peak). The 4B does not fit beside retrieval; CPU reranking takes minutes per search | ADR-0021 |
+| Model output | Native tool calls with thinking on for planning (P3-19); schema-constrained JSON for evaluate, synthesize and judge. Handles in schemas carry the pattern `^E[1-9][0-9]*$` | ADR-0018, ADR-0021 |
+| Thinking | On for planning only (`RESEARCH_PLATFORM_LLM_THINKING=plan`); thinking with JSON output is slow and mostly invalid | ADR-0021 |
 | Orchestration | LangGraph, one agent. `quick` is a fixed graph built first; `deep_research` plans, executes, then judges sufficiency and re-plans | [ADR-0019](../adr/0019-phase3-research-run-execution.md) |
 | Run execution | `POST /v1/research` queues; one in-process asyncio worker runs one run at a time | ADR-0019 |
 | Durability | LangGraph `AsyncPostgresSaver` in the Postgres schema `langgraph`, sync durability, strict msgpack; automatic resume on startup with at most 2 resumes, refused after a configuration change | ADR-0019 |
@@ -89,11 +89,13 @@ Each card is one GitHub issue under the map issue, sized for one session (about 
 | P3-10 | Evidence registry, packing and versioned prompts | P3-03, P3-05, P3-09 | ready-for-agent |
 | P3-11 | Answer synthesis and citation verification | P3-03, P3-10 | ready-for-agent |
 | P3-12 | `quick` graph and run lifecycle | P3-06, P3-07, P3-09, P3-11 | ready-for-human (pair, step by step) |
-| P3-13 | Research API, run executor and startup resume | P3-12 | ready-for-agent |
-| P3-14 | `deep_research` graph | P3-12, P3-13 | ready-for-human (pair, step by step) |
-| P3-15 | CI regression suite on the scripted LLM | P3-13, P3-14 | ready-for-agent |
+| P3-13 | Research API, run executor and startup resume | P3-12, P3-18 | ready-for-agent |
+| P3-14 | `deep_research` graph | P3-12, P3-13, P3-19 | ready-for-human (pair, step by step) |
+| P3-15 | CI regression suite on the scripted LLM | P3-13, P3-14, P3-19 | ready-for-agent |
 | P3-16 | Live development evaluation and report | P3-04, P3-14 | ready-for-agent |
 | P3-17 | Phase 3 closeout | P3-15, P3-16 | done by planner |
+| P3-18 | Copy the gte dense index into the main stack so profile v10 serves | none | ready-for-agent |
+| P3-19 | Native tool-call planning in the LLM adapter | P3-04 | ready-for-agent |
 
 Parallel start: P3-02, P3-05, P3-07 and P3-08 have no open blockers once this change set
 is merged; P3-03 follows P3-05.
@@ -136,10 +138,10 @@ Every card points here. These rules apply to every implementer.
 
 | Risk | Detection | Response |
 | --- | --- | --- |
-| The text-only GGUF does not load in Ollama | P3-02 import script fails | P3-04 tries the llama.cpp server; the adapter keeps one protocol |
-| Generator and retrieval exceed 4 GB of GPU memory | P3-04 memory probe | Retrieval on CPU during runs (`RESEARCH_PLATFORM_MODEL_DEVICE=cpu`), then `qwen3.5:2b` |
-| Constrained JSON output under 90% valid | P3-04 cases | Measure native tool calls; switch the adapter only if rule 3 of ADR-0018 is met |
-| Runs exceed 300 seconds with thinking on | P3-04 throughput, P3-16 | Thinking off for that call kind, or a recorded budget change |
+| Generator and retrieval exceed GPU memory | Ollama load fails with `num_gpu 99`; P3-04 memory probe | Measured headroom: 2,934 MiB peak of about 3.2 GiB free. Lower `OLLAMA_CONTEXT_LENGTH`; any model change needs an ADR (ADR-0021) |
+| The 2B answers poorly | P3-16 reported quality numbers | Reported, not gated (ADR-0020); the 4B stays importable for a larger GPU |
+| Native tool calls fail on a plan | `call_tools` raises `LLMInvalidOutput` | P3-14 falls back to the default `quick` actions |
+| Live searches fail on the main stack | `SnapshotIndexNotReady` | P3-18 copies the gte index from the eval stack |
 | Few stored in-corpus citation edges | P3-08 returns empty pages | An empty result is a valid observation; the agent continues |
 | A resumed run differs from an uninterrupted one | P3-15 resume case | Accepted: model calls are nondeterministic; provenance records each resume |
 

@@ -49,7 +49,7 @@ def test_settings_use_safe_development_defaults(monkeypatch) -> None:
     assert settings.llm_model == DEFAULT_LLM_MODEL
     assert settings.llm_timeout_seconds == DEFAULT_LLM_TIMEOUT_SECONDS
     assert settings.llm_context_tokens == DEFAULT_LLM_CONTEXT_TOKENS
-    assert settings.llm_thinking == frozenset()
+    assert settings.llm_thinking == frozenset({CallKind.PLAN})
     assert settings.llm_seed == DEFAULT_LLM_SEED
     assert DEFAULT_DATABASE_URL not in repr(settings)
 

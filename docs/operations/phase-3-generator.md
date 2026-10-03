@@ -1,9 +1,10 @@
 # Phase 3 local generator
 
-This guide prepares the text-only Qwen3.5-4B Q4_K_M model for the Phase 3
-research agent. Ollama runs in the optional Compose `llm` profile. The API
-continues to run in the host Conda environment and reaches Ollama at
-`http://127.0.0.1:11434`.
+This guide prepares the Phase 3 generator: the text-only Qwen3.5-2B `Q4_K_M` GGUF
+([ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md)), imported into Ollama with every layer
+on the GPU. Ollama runs in the optional Compose `llm` profile. The API runs in the host
+Conda environment, keeps the Phase 2 retrieval models (gte + Ettin) on the same GPU, and
+reaches Ollama at `http://127.0.0.1:11434`.
 
 ## Prerequisites
 
@@ -12,7 +13,7 @@ continues to run in the host Conda environment and reaches Ollama at
   nvidia/cuda:12.9.0-base-ubuntu22.04 nvidia-smi`.
 - An NVIDIA GPU and driver compatible with the installed container runtime.
 - WSL memory set to 12 GB (`%UserProfile%\\.wslconfig` on Windows).
-- About 3 GB free for the GGUF, plus Docker image and Ollama model storage.
+- About 1.5 GB free for the model file, plus Docker image and Ollama model storage.
 
 The Compose service pins `ollama/ollama:0.35.0` to multi-platform index digest
 `sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01`.
@@ -21,126 +22,129 @@ The Linux AMD64 manifest is
 The index and manifest were checked on 2026-10-01 against the
 [Ollama Docker Hub tag](https://hub.docker.com/layers/ollama/ollama/0.35.0/images/sha256-9c1dc45ea758396139ec0adfa52947714c61f8d1e4537a6e2daef8138e7a64a9).
 
-The import source is
-[`unsloth/Qwen3.5-4B-GGUF`](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF)
-at revision `35edb278feb3f797d270a605d9745cab09538c12`. The file
-`Qwen3.5-4B-Q4_K_M.gguf` is pinned to SHA-256
-`00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4`.
-The file is 2.74 GB and the script never requests an `mmproj` file. These
-values were checked against the
-[Hugging Face file record](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/blob/35edb278feb3f797d270a605d9745cab09538c12/Qwen3.5-4B-Q4_K_M.gguf).
+## Fetch and import
 
-## Fetch and start Ollama
+`scripts/phase3_fetch_generator.sh` downloads the pinned text-only GGUF into the ignored
+`local-reference/phase3-models/` directory and checks its SHA-256. It never downloads a
+vision projector (`mmproj-*`) file.
 
-From the repository root, fetch and verify the pinned GGUF. A valid existing
-file is reused; a missing or invalid file is downloaded to a temporary file and
-verified before it replaces the destination.
+| Argument | File | Hugging Face revision | SHA-256 |
+| --- | --- | --- | --- |
+| `2b` (default, active) | `unsloth/Qwen3.5-2B-GGUF` `Qwen3.5-2B-Q4_K_M.gguf` (1,280,835,840 bytes) | `f6d5376be1edb4d416d56da11e5397a961aca8ae` | `aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223` |
+| `4b` (comparison only) | `unsloth/Qwen3.5-4B-GGUF` `Qwen3.5-4B-Q4_K_M.gguf` | `35edb278feb3f797d270a605d9745cab09538c12` | `00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4` |
 
 ```bash
-bash scripts/phase3_fetch_generator.sh
+scripts/phase3_fetch_generator.sh 2b
 docker compose --profile llm up -d ollama
+docker compose --profile llm exec -T ollama ollama create qwen3.5-2b-text:q4_k_m \
+  -f /dev/stdin < configs/ollama/qwen3.5-2b-text.Modelfile
 ```
 
-Compose keeps the existing default services unchanged. Without the `llm`
-profile, `docker compose up` starts only PostgreSQL, Qdrant and the API. The
-model directory is mounted read-only inside Ollama at `/models-import`; model
-state is retained in the `ollama_models` named volume.
+`configs/ollama/qwen3.5-2b-text.Modelfile` uses the `qwen3.5` renderer and parser and
+sets `PARAMETER num_gpu 99`. Ollama's automatic layer fit otherwise leaves layers on the
+CPU even when GPU memory is free, which cut the 4B model to about 1 token/second.
+`configs/ollama/qwen3.5-4b-text.Modelfile` imports the 4B the same way for comparisons.
 
-## Prepare the Modelfile and import
-
-Pull the Ollama library model once as a reference, then capture its generated
-Modelfile:
-
-```bash
-docker compose exec ollama ollama pull qwen3.5:4b-q4_K_M
-docker compose exec ollama ollama show --modelfile qwen3.5:4b-q4_K_M
-```
-
-In `configs/ollama/qwen3.5-4b-text.Modelfile`, keep the local source line
-`FROM /models-import/Qwen3.5-4B-Q4_K_M.gguf` and copy the `TEMPLATE`,
-`RENDERER`, `PARSER`, `PARAMETER` and `LICENSE` directives from that output.
-Then remove the larger library model and import the local text-only file:
-
-```bash
-docker compose exec ollama ollama rm qwen3.5:4b-q4_K_M
-docker compose exec -T ollama ollama create qwen3.5-4b-text:q4_k_m -f /dev/stdin \
-  < configs/ollama/qwen3.5-4b-text.Modelfile
-```
-
-The checked-in Modelfile was generated from `ollama show --modelfile` for the
-reference model, retaining its `TEMPLATE`, `RENDERER`, `PARSER`, `PARAMETER`
-and `LICENSE` directives and replacing only `FROM` with the mounted text-only
-GGUF path.
+Without the `llm` profile, `docker compose up` starts only PostgreSQL, Qdrant and the API.
+Imported models are kept in the `ollama_models` named volume.
 
 ## Smoke checks
 
-Inspect the imported capabilities. The summary must include `thinking` and omit
-`vision`:
-
 ```bash
-docker compose exec ollama ollama show qwen3.5-4b-text:q4_k_m
+docker compose --profile llm exec ollama ollama show qwen3.5-2b-text:q4_k_m
 ```
 
-Check thinking output:
+The capabilities must include `completion`, `tools` and `thinking`, and must not include
+`vision`. After a request loads the model, check its placement:
+
+```bash
+docker compose --profile llm exec ollama ollama ps
+```
+
+The `PROCESSOR` column must say `100% GPU`. With `num_gpu 99` an out-of-memory load fails
+instead of silently splitting layers onto the CPU.
+
+Check thinking output and schema-constrained JSON with thinking off:
 
 ```bash
 curl --fail-with-body http://127.0.0.1:11434/api/chat \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.5-4b-text:q4_k_m","messages":[{"role":"user","content":"Think briefly, then answer: what is 2 + 2?"}],"think":true,"stream":false}'
+  -d '{"model":"qwen3.5-2b-text:q4_k_m","messages":[{"role":"user","content":"Think briefly, then answer: what is 2 + 2?"}],"think":true,"stream":false}'
+
+curl --fail-with-body http://127.0.0.1:11434/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen3.5-2b-text:q4_k_m","messages":[{"role":"user","content":"Return an answer to the question: what is 2 + 2?"}],"think":false,"stream":false,"format":{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}}'
 ```
 
-Check schema-constrained JSON with thinking off and on:
+The first reply must have a non-empty `message.thinking`; the second must have
+`message.content` that parses as JSON with an `answer` string.
+
+## GPU sharing with retrieval
+
+Measured on 2026-10-03 on the RTX 3050 Laptop GPU (4,096 MiB; Ollama sees about
+3.2 GiB free) with Ollama 0.35.0 and a 16,384-token context:
+
+| Loaded on the GPU | GPU memory |
+| --- | ---: |
+| Retrieval models (gte + Ettin), idle | 713 MiB |
+| Retrieval while reranking 16 long pairs | 1,361 MiB |
+| Retrieval idle + Qwen3.5-2B text `Q4_K_M` | 2,286 MiB |
+| Peak while reranking and generating at the same time | 2,934 MiB |
+
+Generation ran at 81.7 tokens/second alone and 63.5 tokens/second while reranking;
+reranking 16 pairs took 1.2 s either way. On CPU the same rerank took 183–216 s, so
+research runs keep retrieval on the GPU (`RESEARCH_PLATFORM_MODEL_DEVICE=auto` or `cuda`).
+The 4B text-only model needs 3,343 MiB by itself and does not fit beside retrieval.
+
+## Fitness check
+
+The P3-04 fitness set contains 15 synthetic prompts and invented results; it does not
+read private Phase 2 questions or corpus passages. Run it from the repository root in the
+`sci_research_agent` environment with the review database, Qdrant, and the model imported:
 
 ```bash
-curl --fail-with-body http://127.0.0.1:11434/api/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.5-4b-text:q4_k_m","messages":[{"role":"user","content":"Return an answer to the question: what is 2 + 2?"}],"think":false,"stream":false,"format":{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}}'
-
-curl --fail-with-body http://127.0.0.1:11434/api/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.5-4b-text:q4_k_m","messages":[{"role":"user","content":"Think briefly and return an answer to the question: what is 2 + 2?"}],"think":true,"stream":false,"format":{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}}'
+export RESEARCH_PLATFORM_DATABASE_URL='postgresql://research:research@localhost:5432/research_phase1_review'
+export RESEARCH_PLATFORM_RERANKER_CACHE_DIR="$PWD/local-reference/phase2-reranker-cache"
+export RESEARCH_PLATFORM_LEXICAL_INDEX_ROOT="$PWD/local-reference/phase2-indexes"
+export HF_HOME="$PWD/local-reference/phase2-model-cache" HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+RESEARCH_PLATFORM_LLM_MODEL=qwen3.5-2b-text:q4_k_m \
+python scripts/phase3_generator_fitness.py \
+  --arrangement gpu-shared --repetitions 3 \
+  --think-repetitions 1 --think-repair-attempts 0 \
+  --output local-reference/phase3-runs/fitness/qwen3.5-2b-text-v3-gpu-shared.json
 ```
 
-For both JSON calls, verify `message.content` parses as JSON with an `answer`
-string. For the thinking call, also verify `message.thinking` is non-empty.
+`gpu-shared` loads the Phase 2 runtime on CUDA before calling Ollama; `retrieval-cpu`
+loads it on CPU. The script checks for `100% GPU` placement, samples GPU memory every
+0.5 seconds, and measures schema-constrained JSON for every call kind and native tool calls
+for the six plan cases, each with thinking off and on. Plan prompts list the six tools
+with the same descriptions as the P3-10 prompt. Thinking calls get 2,048 output tokens on
+top of each call's cap (384 plan, 192 evaluate and judge, 768 synthesize), because
+Ollama counts thinking tokens against `num_predict`. Thinking-on calls can take minutes,
+so the shortened protocol above runs them once with no repair attempts.
 
-### Validation record
-
-Validated on 2026-10-01 with Ollama 0.35.0 on an NVIDIA GeForce RTX 3050 Laptop
-GPU (4096 MiB):
-
-- Compose configuration validated with and without `--profile llm`; default
-  mode contains only `postgres`, `qdrant` and `api`. The profiled Ollama service
-  started successfully.
-- `ollama show qwen3.5-4b-text:q4_k_m` reported `completion`, `tools` and
-  `thinking` capabilities; it reported no `vision` capability.
-- `/api/chat` with `think=true` returned a non-empty `message.thinking`.
-- The schema-constrained JSON request parsed with an `answer` string for both
-  `think=false` and `think=true`; the latter also returned non-empty thinking.
-- GPU memory use was 0 MiB at idle and 2251 MiB with the model loaded and no
-  other GPU workload. Ollama reported 35% CPU / 65% GPU processor placement.
-- The pinned GGUF SHA-256 verified after download. A second fetch-script run
-  verified the existing file and skipped downloading it.
+The output records model identity, placement, peak memory, the protocol settings and
+per-call validity, score, latency and token counts. It omits prompt and response text.
+`complete: false` marks a partial run. Keep outputs under ignored `local-reference/phase3-runs/`
+and record only aggregates in ADR-0021.
 
 ## Connect the host API and stop the service
 
-The host Uvicorn API uses `http://127.0.0.1:11434` for the Ollama base URL. Keep
-the API on the host Conda path described in the
-[Phase 2 search operations guide](phase-2-search.md); the Compose API image does
-not contain PyTorch or the retrieval models.
+The host Uvicorn API uses `http://127.0.0.1:11434` for the Ollama base URL. Keep the API
+on the host Conda path described in the [Phase 2 search operations guide](phase-2-search.md);
+the Compose API image does not contain PyTorch or the retrieval models.
 
-Stop Ollama while retaining the imported model:
+Stop Ollama while retaining the imported models:
 
 ```bash
 docker compose --profile llm stop ollama
 ```
 
-Remove the imported text model when it is no longer needed:
+Remove a model that is no longer needed, for example the 4B comparison model:
 
 ```bash
 docker compose --profile llm exec ollama ollama rm qwen3.5-4b-text:q4_k_m
 ```
 
-The source GGUF stays under ignored `local-reference/phase3-models/`. To remove
-Ollama's stored model layers as well, remove the `ollama_models` volume only
-after stopping the service and confirming that no other models need it.
+Remove the `ollama_models` volume only after stopping the service and confirming no other
+models need it.

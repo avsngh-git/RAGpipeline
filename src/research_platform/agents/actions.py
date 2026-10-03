@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -87,11 +87,16 @@ class SufficiencyDecision(_ActionModel):
     missing: str = Field("", max_length=300)
     next_actions: tuple[Action, ...] = Field((), max_length=4)
 
-    @model_validator(mode="after")
-    def validate_next_actions(self) -> SufficiencyDecision:
-        if self.sufficient and self.next_actions:
-            raise ValueError("sufficient decisions cannot include next_actions")
-        return self
+    @model_validator(mode="before")
+    @classmethod
+    def drop_actions_when_sufficient(cls, data: Any) -> Any:
+        """A sufficient decision ends planning, so proposed next actions are ignored.
+
+        Small models often return both; a JSON schema cannot forbid the combination.
+        """
+        if isinstance(data, dict) and data.get("sufficient") is True:
+            return {**data, "next_actions": ()}
+        return data
 
 
 def action_key(action: Action) -> str:

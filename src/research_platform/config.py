@@ -14,7 +14,7 @@ DEFAULT_QDRANT_URL: Final = "http://localhost:6333"
 DEFAULT_DEPENDENCY_TIMEOUT_SECONDS: Final = 2.0
 DEFAULT_EVIDENCE_ACCESS_PROFILE: Final = "disabled"
 DEFAULT_LLM_BASE_URL: Final = "http://localhost:11434"
-DEFAULT_LLM_MODEL: Final = "qwen3.5-4b-text:q4_k_m"
+DEFAULT_LLM_MODEL: Final = "qwen3.5-2b-text:q4_k_m"
 DEFAULT_LLM_TIMEOUT_SECONDS: Final = 180.0
 DEFAULT_LLM_CONTEXT_TOKENS: Final = 16384
 DEFAULT_LLM_SEED: Final = 20261001
@@ -109,7 +109,7 @@ def _llm_context_tokens_default() -> int:
 
 
 def _llm_thinking_default() -> frozenset[CallKind]:
-    raw_values = os.environ.get("RESEARCH_PLATFORM_LLM_THINKING", "")
+    raw_values = os.environ.get("RESEARCH_PLATFORM_LLM_THINKING", "plan")
     values = (value.strip() for value in raw_values.split(","))
     return frozenset(CallKind(value) for value in values if value)
 
