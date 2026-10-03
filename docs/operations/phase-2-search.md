@@ -95,6 +95,84 @@ migrations. The `research-ingest index rebuild` command currently runs the migra
 runner before rebuilding; use it only with the explicit review database above or a
 separate disposable database.
 
+## Copy the gte index into the main stack
+
+The accepted profile v10 uses the `phase2-dev-gte-modernbert-base-v1` collection. The
+index was built in the isolated `p2_eval_20260927` stack for the one-time assessment;
+copy it into the main stack before serving profile v10. The evaluation PostgreSQL
+database is named `research_test` and remains disposable. Do not point the main API at
+it. The copy script checks that both databases select the same exact snapshot chunks,
+that the source index is ready, and that the target collection is absent. It transfers
+a Qdrant collection snapshot through ignored `local-reference/` storage, removes the
+temporary source snapshot, copies the index registration in one database transaction,
+and verifies the target point count and serving readiness.
+
+Start the existing evaluation services and the main database/vector services:
+
+```bash
+docker compose -p p2_eval_20260927 start postgres qdrant
+docker compose -p p2_eval_20260927 ps
+docker compose up -d postgres qdrant
+```
+
+The evaluation services bind to `127.0.0.1:25432` (PostgreSQL) and
+`127.0.0.1:26333` (Qdrant). Main services bind to `127.0.0.1:5432` and
+`127.0.0.1:6333`. Supply the database passwords already configured for each local
+container through shell environment variables; do not commit them or paste them into
+logs. URL-encode any reserved characters in a password before putting it in a URL. Set
+the URLs explicitly so the copy cannot target the disposable test database:
+
+```bash
+export SOURCE_DATABASE_URL="postgresql://research_test:${P2_EVAL_POSTGRES_PASSWORD}@127.0.0.1:25432/research_test"
+export SOURCE_QDRANT_URL="http://127.0.0.1:26333"
+export TARGET_DATABASE_URL="postgresql://research:${POSTGRES_PASSWORD:-research}@127.0.0.1:5432/research_phase1_review"
+export TARGET_QDRANT_URL="http://127.0.0.1:6333"
+```
+
+Preview and then perform the copy:
+
+```bash
+conda run -n sci_research_agent python scripts/phase2_copy_dense_index.py \
+  --source-database-url "$SOURCE_DATABASE_URL" \
+  --source-qdrant-url "$SOURCE_QDRANT_URL" \
+  --target-database-url "$TARGET_DATABASE_URL" \
+  --target-qdrant-url "$TARGET_QDRANT_URL" \
+  --collection phase2-dev-gte-modernbert-base-v1 \
+  --snapshot-id 4b11fab3-d4a5-4e7a-a58e-8654accf2c6c --dry-run
+
+conda run -n sci_research_agent python scripts/phase2_copy_dense_index.py \
+  --source-database-url "$SOURCE_DATABASE_URL" \
+  --source-qdrant-url "$SOURCE_QDRANT_URL" \
+  --target-database-url "$TARGET_DATABASE_URL" \
+  --target-qdrant-url "$TARGET_QDRANT_URL" \
+  --collection phase2-dev-gte-modernbert-base-v1 \
+  --snapshot-id 4b11fab3-d4a5-4e7a-a58e-8654accf2c6c
+```
+
+If the target collection already exists, the script stops without overwriting it. Do
+not delete or rebuild a target collection as an automatic retry; inspect its registration
+and point count first. The source evaluation collection is read-only apart from the
+temporary snapshot that the script deletes after transfer.
+
+The Qdrant restore and PostgreSQL transaction cannot commit atomically. If the
+registration fails after restore, the target collection remains and a retry refuses
+to overwrite it. Before recovery, confirm the source still passes readiness and has
+44,277 points, then inspect the target's `index_configurations` and
+`snapshot_index_states` for this collection and configuration. Remove only a target
+collection confirmed to be an orphan from this failed copy, with no registered
+snapshot using it; then repeat the dry-run and copy. If registration committed but
+final verification failed, keep the target collection and registration, diagnose the
+count or readiness mismatch, and verify both search routes before serving it.
+
+Start the host API in the main-stack configuration using the environment in
+[Run the real-model API on WSL](#run-the-real-model-api-on-wsl), with the main review
+database URL and Qdrant URL above. Use a free loopback port if another API already owns
+8000. Send one synthetic request to each search route; inspect only the status, result
+status, hit count, and whether reranker scores are present. Do not print or save hit
+content, titles, paper IDs, or evidence IDs. Both routes should return HTTP 200,
+`ranked_candidates`, `reranked`, and at least one reranker score. The frozen profile v10
+ID is `sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449`.
+
 ## Prepare optional local models
 
 The base Conda environment pins NumPy 2.5.3 for BM25S; the exact Linux lock
