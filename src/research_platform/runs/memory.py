@@ -1,0 +1,290 @@
+"""In-memory implementation of the research run store contract."""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Sequence
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
+
+from research_platform.runs.contracts import (
+    AnswerOutcome,
+    ClaimResult,
+    FailureCategory,
+    PaperSummary,
+    ResearchRequest,
+    ResearchRunView,
+    RunProvenance,
+    RunStatus,
+    RunUsage,
+)
+from research_platform.runs.repository import (
+    EvidenceRecord,
+    InvalidRunTransition,
+    RunNotFound,
+    StoredRun,
+    ToolCallRecord,
+)
+
+
+class InMemoryRunStore:
+    """Dictionary-backed run store with PostgreSQL-equivalent transitions."""
+
+    def __init__(self) -> None:
+        self._runs: dict[UUID, StoredRun] = {}
+        self._provenance: dict[UUID, RunProvenance] = {}
+        self._answers: dict[UUID, tuple[str, AnswerOutcome, RunUsage]] = {}
+        self._failures: dict[UUID, tuple[FailureCategory, str, RunUsage]] = {}
+        self._claims: dict[UUID, tuple[ClaimResult, ...]] = {}
+        self._tool_calls: dict[UUID, dict[int, ToolCallRecord]] = {}
+        self._evidence: dict[UUID, dict[str, EvidenceRecord]] = {}
+
+    async def create_run(self, request: ResearchRequest) -> UUID:
+        run_id = uuid4()
+        self._runs[run_id] = StoredRun(
+            run_id=run_id,
+            status=RunStatus.QUEUED,
+            mode=request.mode,
+            request=request,
+            snapshot_id=request.snapshot_id,
+            configuration_id=None,
+            resume_count=0,
+            active_seconds=0.0,
+            created_at=datetime.now(UTC),
+            started_at=None,
+            completed_at=None,
+        )
+        return run_id
+
+    async def get_run(self, run_id: UUID) -> StoredRun:
+        return self._get_run(run_id)
+
+    async def list_runs(
+        self, statuses: Sequence[RunStatus], *, limit: int = 100
+    ) -> tuple[StoredRun, ...]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        if any(not isinstance(status, RunStatus) for status in statuses):
+            raise ValueError("statuses must contain RunStatus values")
+        selected = set(statuses)
+        runs = sorted(
+            (run for run in self._runs.values() if run.status in selected),
+            key=lambda run: (run.created_at, run.run_id),
+            reverse=True,
+        )
+        return tuple(runs[:limit])
+
+    async def mark_running(self, run_id: UUID, *, provenance: RunProvenance) -> None:
+        run = self._get_run(run_id)
+        if run.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
+            raise InvalidRunTransition(
+                f"cannot mark running run {run_id} from status {run.status.value}"
+            )
+        self._runs[run_id] = replace(
+            run,
+            status=RunStatus.RUNNING,
+            snapshot_id=provenance.snapshot_id,
+            configuration_id=provenance.configuration_id,
+            started_at=run.started_at or datetime.now(UTC),
+        )
+        self._provenance[run_id] = provenance
+
+    async def record_resume(self, run_id: UUID) -> int:
+        run = self._running(run_id, "record resume")
+        updated = run.resume_count + 1
+        self._runs[run_id] = replace(run, resume_count=updated)
+        return updated
+
+    async def add_active_seconds(self, run_id: UUID, seconds: float) -> float:
+        if not math.isfinite(seconds) or seconds < 0:
+            raise ValueError("seconds must be finite and non-negative")
+        run = self._running(run_id, "add active time")
+        total = run.active_seconds + seconds
+        self._runs[run_id] = replace(run, active_seconds=total)
+        return total
+
+    async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None:
+        if record.ordinal < 0:
+            raise ValueError("ordinal must be non-negative")
+        if not record.tool_name.strip():
+            raise ValueError("tool_name must be non-empty")
+        _nonnegative_finite(record.duration_ms, "duration_ms")
+        self._get_run(run_id)
+        calls = self._tool_calls.setdefault(run_id, {})
+        calls.setdefault(record.ordinal, record)
+
+    async def save_evidence(
+        self, run_id: UUID, records: Sequence[EvidenceRecord]
+    ) -> None:
+        if not records:
+            return
+        self._get_run(run_id)
+        evidence = self._evidence.setdefault(run_id, {})
+        chunks = {record.chunk_id for record in evidence.values()}
+        for record in records:
+            if record.handle in evidence or record.chunk_id in chunks:
+                continue
+            evidence[record.handle] = record
+            chunks.add(record.chunk_id)
+
+    async def load_evidence(
+        self, run_id: UUID, handles: Sequence[str] | None = None
+    ) -> dict[str, EvidenceRecord]:
+        evidence = self._evidence.get(run_id, {})
+        if handles is None:
+            return dict(evidence)
+        requested = set(handles)
+        return {
+            handle: record for handle, record in evidence.items() if handle in requested
+        }
+
+    async def complete_run(
+        self,
+        run_id: UUID,
+        *,
+        answer: str,
+        outcome: AnswerOutcome,
+        claims: Sequence[ClaimResult],
+        usage: RunUsage,
+    ) -> None:
+        run = self._running(run_id, "complete")
+        _validate_claim_evidence(self._evidence.get(run_id, {}), claims)
+        self._claims[run_id] = tuple(claims)
+        self._answers[run_id] = (answer, outcome, usage)
+        self._failures.pop(run_id, None)
+        self._runs[run_id] = replace(
+            run, status=RunStatus.COMPLETED, completed_at=datetime.now(UTC)
+        )
+
+    async def fail_run(
+        self,
+        run_id: UUID,
+        *,
+        category: FailureCategory,
+        message: str,
+        usage: RunUsage,
+    ) -> None:
+        run = self._get_run(run_id)
+        if run.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
+            raise InvalidRunTransition(
+                f"cannot fail run {run_id} from status {run.status.value}"
+            )
+        self._failures[run_id] = (category, message[:500], usage)
+        self._answers.pop(run_id, None)
+        self._runs[run_id] = replace(
+            run, status=RunStatus.FAILED, completed_at=datetime.now(UTC)
+        )
+
+    async def get_run_view(self, run_id: UUID) -> ResearchRunView:
+        run = self._get_run(run_id)
+        answer = self._answers.get(run_id)
+        failure = self._failures.get(run_id)
+        claims = self._claims.get(run_id, ())
+        papers: dict[str, PaperSummary] = {}
+        evidence = self._evidence.get(run_id, {})
+        for claim in claims:
+            for citation in claim.evidence:
+                record = evidence.get(citation.handle)
+                if record is None:
+                    continue
+                papers.setdefault(
+                    record.paper_id,
+                    PaperSummary(
+                        paper_id=record.paper_id,
+                        title=_optional_string(record.metadata.get("title")),
+                        publication_year=_optional_int(
+                            record.metadata.get("publication_year")
+                        ),
+                    ),
+                )
+        return ResearchRunView(
+            run_id=run_id,
+            status=run.status,
+            mode=run.mode,
+            question=run.request.question,
+            answer=answer[0] if answer else None,
+            answer_outcome=answer[1] if answer else None,
+            claims=claims,
+            papers=tuple(papers.values()),
+            failure_category=failure[0] if failure else None,
+            error_message=failure[1] if failure else None,
+            provenance=self._provenance.get(run_id),
+            usage=(
+                answer[2]
+                if answer
+                else failure[2]
+                if failure
+                else RunUsage.model_construct()
+            ),
+            created_at=run.created_at,
+            completed_at=run.completed_at,
+        )
+
+    async def prune(self, *, older_than: timedelta) -> tuple[UUID, ...]:
+        if older_than <= timedelta(0):
+            raise ValueError("older_than must be positive")
+        cutoff = datetime.now(UTC) - older_than
+        removed = tuple(
+            run_id
+            for run_id, run in self._runs.items()
+            if run.status in (RunStatus.COMPLETED, RunStatus.FAILED)
+            and run.completed_at is not None
+            and run.completed_at < cutoff
+        )
+        for run_id in removed:
+            self._runs.pop(run_id, None)
+            self._provenance.pop(run_id, None)
+            self._answers.pop(run_id, None)
+            self._failures.pop(run_id, None)
+            self._claims.pop(run_id, None)
+            self._tool_calls.pop(run_id, None)
+            self._evidence.pop(run_id, None)
+        return removed
+
+    def _get_run(self, run_id: UUID) -> StoredRun:
+        try:
+            return self._runs[run_id]
+        except KeyError:
+            raise RunNotFound(f"run {run_id} was not found") from None
+
+    def _running(self, run_id: UUID, operation: str) -> StoredRun:
+        run = self._get_run(run_id)
+        if run.status is not RunStatus.RUNNING:
+            raise InvalidRunTransition(
+                f"cannot {operation} run {run_id} from status {run.status.value}"
+            )
+        return run
+
+
+def _validate_claim_evidence(
+    evidence: dict[str, EvidenceRecord], claims: Sequence[ClaimResult]
+) -> None:
+    requested: dict[str, tuple[str, str]] = {}
+    for claim in claims:
+        for citation in claim.evidence:
+            identity = (citation.chunk_id, citation.paper_id)
+            previous = requested.setdefault(citation.handle, identity)
+            if previous != identity:
+                raise ValueError(
+                    "one evidence handle cannot identify multiple passages"
+                )
+    if any(
+        handle not in evidence
+        or (evidence[handle].chunk_id, evidence[handle].paper_id) != identity
+        for handle, identity in requested.items()
+    ):
+        raise ValueError("claim evidence must match evidence stored for this run")
+
+
+def _nonnegative_finite(value: float, name: str) -> None:
+    if not math.isfinite(value) or value < 0:
+        raise ValueError(f"{name} must be finite and non-negative")
+
+
+def _optional_string(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _optional_int(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None

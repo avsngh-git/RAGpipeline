@@ -281,6 +281,38 @@ def test_fail_run_truncates_message_and_view_has_category() -> None:
     _with_database(exercise)
 
 
+def test_fail_run_accepts_queued_but_rejects_terminal_run() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool,
+        repo: RunRepository,
+        snapshot_id: UUID,
+        _paper_id: str,
+        _chunk_id: str,
+    ) -> None:
+        run_id = await repo.create_run(_request(snapshot_id))
+        await repo.fail_run(
+            run_id,
+            category=FailureCategory.MODEL_UNAVAILABLE,
+            message="identity unavailable",
+            usage=RunUsage(),
+        )
+        view = await repo.get_run_view(run_id)
+
+        assert view.status is RunStatus.FAILED
+        assert view.failure_category is FailureCategory.MODEL_UNAVAILABLE
+        assert view.error_message == "identity unavailable"
+        assert view.completed_at is not None
+        with pytest.raises(InvalidRunTransition):
+            await repo.fail_run(
+                run_id,
+                category=FailureCategory.INTERNAL,
+                message="duplicate failure",
+                usage=RunUsage(),
+            )
+
+    _with_database(exercise)
+
+
 def test_prune_removes_only_old_terminal_runs() -> None:
     async def exercise(
         _pool: asyncpg.Pool,

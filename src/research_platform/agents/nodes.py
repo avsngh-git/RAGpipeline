@@ -1,0 +1,136 @@
+"""Shared node helpers for the bounded research graphs."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
+from research_platform.agents.actions import Action
+from research_platform.agents.answering import answer_question
+from research_platform.agents.evidence import EvidenceRegistry
+from research_platform.agents.prompts import format_observation
+from research_platform.agents.state import ResearchState
+from research_platform.llm.contracts import LLMClient
+from research_platform.llm.types import CallKind
+from research_platform.runs.repository import EvidenceRecord, ToolCallRecord
+from research_platform.runs.store import RunStore
+from research_platform.tools.research_tools import (
+    ResearchTools,
+    ToolContext,
+    ToolObservation,
+)
+
+
+@dataclass(frozen=True)
+class NodeDependencies:
+    """Services and run-specific settings used by graph nodes."""
+
+    run_id: UUID
+    tools: ResearchTools
+    llm: LLMClient
+    repository: RunStore
+    context: ToolContext
+    thinking: frozenset[CallKind]
+
+
+class ToolStepFailed(RuntimeError):
+    """A required search step failed with a known tool error category."""
+
+    def __init__(self, error_category: str) -> None:
+        super().__init__(error_category)
+        self.error_category = error_category
+
+
+def to_tool_call_record(observation: ToolObservation) -> ToolCallRecord:
+    """Map one tool observation to its text-free persisted record."""
+    return ToolCallRecord(
+        ordinal=observation.ordinal,
+        tool_name=observation.tool,
+        arguments=observation.arguments,
+        status=observation.status,
+        result_summary=observation.summary,
+        duration_ms=observation.duration_ms,
+        error_category=observation.error_category,
+    )
+
+
+async def _run_action(
+    deps: NodeDependencies, state: ResearchState, action: Action
+) -> tuple[dict[str, Any], ToolObservation]:
+    observation, ledger = await deps.tools.execute(
+        action, context=deps.context, ledger=state["ledger"]
+    )
+    registry, new_refs = state["registry"].register(
+        observation.evidence,
+        max_passages=deps.context.budgets.max_evidence_passages,
+    )
+
+    await deps.repository.append_tool_call(
+        deps.run_id, to_tool_call_record(observation)
+    )
+    evidence_by_chunk = {item.chunk_id: item for item in observation.evidence}
+    records: list[EvidenceRecord] = []
+    for ref in new_refs:
+        item = evidence_by_chunk[ref.chunk_id]
+        records.append(
+            EvidenceRecord(
+                handle=ref.handle,
+                chunk_id=ref.chunk_id,
+                paper_id=ref.paper_id,
+                text=item.text,
+                metadata={
+                    "title": item.title,
+                    "publication_year": item.publication_year,
+                    "kind": item.kind,
+                    "source_location": item.source_location,
+                },
+            )
+        )
+    await deps.repository.save_evidence(deps.run_id, records)
+
+    line = format_observation(observation, new_refs)
+    return (
+        {
+            "ledger": ledger,
+            "registry": registry,
+            "observations": [*state["observations"], line][-20:],
+        },
+        observation,
+    )
+
+
+async def run_action(
+    deps: NodeDependencies, state: ResearchState, action: Action
+) -> dict[str, Any]:
+    """Run and persist one action, adding only bounded model-facing history."""
+    update, _ = await _run_action(deps, state, action)
+    return update
+
+
+async def answer_node(deps: NodeDependencies, state: ResearchState) -> dict[str, Any]:
+    """Load run-owned text and return the verified answer for this state."""
+    refs = state["registry"].refs
+    stored = await deps.repository.load_evidence(
+        deps.run_id, [ref.handle for ref in refs]
+    )
+    valid_refs = tuple(
+        ref
+        for ref in refs
+        if (record := stored.get(ref.handle)) is not None
+        and record.chunk_id == ref.chunk_id
+        and record.text.strip()
+    )
+    texts = {ref.chunk_id: stored[ref.handle].text for ref in valid_refs}
+    answer_registry = EvidenceRegistry(
+        refs=valid_refs, dropped=state["registry"].dropped
+    )
+    answer = await answer_question(
+        deps.llm,
+        question=state["question"],
+        registry=answer_registry,
+        texts=texts,
+        budgets=deps.context.budgets,
+        thinking=deps.thinking,
+    )
+    return {"answer": answer, "model_calls": state["model_calls"] + answer.model_calls}

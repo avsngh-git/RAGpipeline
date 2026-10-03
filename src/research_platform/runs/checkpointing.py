@@ -17,6 +17,8 @@ from psycopg_pool import AsyncConnectionPool
 CHECKPOINT_SCHEMA: Final = "langgraph"
 
 _CHECKPOINT_TYPES: Final = (
+    ("research_platform.agents.answering", "VerifiedAnswer"),
+    ("research_platform.agents.evidence", "EvidenceRegistry"),
     ("research_platform.api.schemas.search", "SearchFiltersModel"),
     ("research_platform.llm.types", "CallKind"),
     ("research_platform.llm.types", "ModelIdentity"),
@@ -34,6 +36,7 @@ _CHECKPOINT_TYPES: Final = (
     ("research_platform.runs.contracts", "RunStatus"),
     ("research_platform.runs.contracts", "RunUsage"),
     ("research_platform.runs.contracts", "SupportLabel"),
+    ("research_platform.tools.research_tools", "ToolLedger"),
 )
 
 
