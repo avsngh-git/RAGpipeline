@@ -47,10 +47,10 @@ class EvidenceRegistry(BaseModel):
         for item in items:
             if item.chunk_id in seen_chunks:
                 continue
-            seen_chunks.add(item.chunk_id)
             if len(refs) >= max_passages:
                 dropped += 1
                 continue
+            seen_chunks.add(item.chunk_id)
 
             ref = EvidenceRef(
                 handle=f"E{len(refs) + 1}",

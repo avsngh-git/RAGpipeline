@@ -45,6 +45,16 @@ def test_register_caps_and_counts_dropped() -> None:
     assert registry.dropped == 1
 
 
+def test_register_counts_each_refusal_without_registering_the_chunk() -> None:
+    registry, added = EvidenceRegistry().register(
+        (_item("chunk-1"), _item("chunk-1")), max_passages=0
+    )
+
+    assert added == ()
+    assert registry.refs == ()
+    assert registry.dropped == 2
+
+
 def test_register_returns_new_registry_and_leaves_old_unchanged() -> None:
     original = EvidenceRegistry()
 
