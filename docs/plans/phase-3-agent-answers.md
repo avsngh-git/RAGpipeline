@@ -1,10 +1,10 @@
 # Phase 3 — Agent and structured answers
 
-Status: implementation and operational gates complete; owner acceptance pending as of
-2026-10-03. All implementation and evaluation cards are closed; only issue #18 closeout and
-owner acceptance remain. Supplemental issues #30 and #31 are also closed. P3-16 merged in
-PR #40; its report records the passing gates and diagnostic limits. ADR-0021 (2026-10-03)
-changed the generator and planning format after P3-04.
+Status: accepted by the owner on 2026-10-03. All implementation and evaluation cards are
+closed, including supplemental issues #30 and #31. P3-16 merged in PR #40 and its report
+records the passing gates and diagnostic limits. P3-17 merged in PR #41; exact main CI
+37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`. The [owner acceptance record](https://github.com/avsngh-git/RAGpipeline/issues/18#issuecomment-5972350487) records the owner's decision. ADR-0021 (2026-10-03) changed the generator and planning format after
+P3-04.
 Phase 2 is accepted ([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)) and its
 retrieval profile v10 is frozen. This plan scopes Phase 3 of the
 [source of truth](../agents/scientific-research-platform-source-of-truth.md) (section 21)
@@ -29,7 +29,7 @@ completed 42/42. Both had zero unknown live handles and no completed-run budget 
 The exact gate evidence, reported answer-quality measurements, GPU use and limitations are
 in the [Phase 3 evaluation report](../reference/phase-3-evaluation-report.md).
 Answer-quality results remain diagnostic and do not block. No held-out set was built in
-Phase 3. **Owner acceptance is pending; this plan does not mark the phase accepted.**
+Phase 3. **The owner accepted Phase 3 on 2026-10-03** ([owner acceptance record](https://github.com/avsngh-git/RAGpipeline/issues/18#issuecomment-5972350487)).
 
 ## Decisions
 
@@ -102,7 +102,7 @@ Each card is one GitHub issue under the map issue, sized for one session (about 
 | P3-14 | `deep_research` graph | P3-12, P3-13, P3-19 | ready-for-human (pair, step by step) |
 | P3-15 | CI regression suite on the scripted LLM | P3-13, P3-14, P3-19 | ready-for-agent |
 | P3-16 | Live development evaluation and report | P3-04, P3-14 | ready-for-agent |
-| P3-17 | Phase 3 closeout | P3-15, P3-16 | documentation ready; owner acceptance pending |
+| P3-17 | Phase 3 closeout | P3-15, P3-16 | done; owner accepted Phase 3 on 2026-10-03 ([owner acceptance record](https://github.com/avsngh-git/RAGpipeline/issues/18#issuecomment-5972350487)) |
 | P3-18 | Copy the gte dense index into the main stack so profile v10 serves | none | ready-for-agent |
 | P3-19 | Native tool-call planning in the LLM adapter | P3-04 | ready-for-agent |
 
