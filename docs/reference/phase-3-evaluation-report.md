@@ -16,8 +16,8 @@ only.
 |---|---|
 | Evaluation date | 2026-10-03 |
 | Task count by source | 10 `calibration-v1`, 9 allowlisted `benchmark-development-questions-v1`, 2 `calibration-v13-development` |
-| Evaluator revision | `fc9806ad0a8e46d85900a945ef2193be6f01e4d4` |
-| Serving revision | `22ebd4368158be3be4d44720e3b3b364bb56f9ba` |
+| Evaluator revisions | Original initial segment (21 quick + 8 deep completions; 30th run submitted): `22ebd4368158be3be4d44720e3b3b364bb56f9ba`; original recovery and fully sampled sweep: `fc9806ad0a8e46d85900a945ef2193be6f01e4d4` |
+| Serving revision throughout | `22ebd4368158be3be4d44720e3b3b364bb56f9ba` |
 | Snapshot | `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` |
 | Retrieval profile | `sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449` |
 | Effective run configurations | 8 unique IDs per sweep (4 per mode); exact IDs are retained in each private run's provenance |
