@@ -18,8 +18,30 @@ narrow margins inside sampling noise, the gates were lowered after v13 failed
 ([ADR-0015](docs/adr/0015-phase2-acceptance-gate-revision.md)), and labels are
 assistant-reviewed. See the [current acceptance report](docs/reference/phase-2-acceptance-report.md),
 the [handoff](docs/plans/phase-2-agent-handoff.md) and the
-[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md). Phase 3 has not
-started; the owner decides when it begins.
+[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md).
+
+**Phase 3 implementation and operational gates are complete; owner acceptance is pending.**
+The live development report covers `quick` and `deep_research`, and the local run guide
+shows how to submit and inspect either mode: [evaluation report](docs/reference/phase-3-evaluation-report.md),
+[Phase 3 run operations](docs/operations/phase-3-generator.md).
+
+## Research runs
+
+The API starts asynchronous research runs with `POST /v1/research` and returns a `run_id`.
+Set `mode` to `quick` or `deep_research`; poll `GET /v1/research/{run_id}` or use
+`research-runs show RUN_ID` to inspect status and the structured answer. Follow the
+[Phase 3 operations guide](docs/operations/phase-3-generator.md) to start the local API,
+retrieval services and generator.
+
+```json
+{
+  "question": "Which retrieval methods improve evidence ranking?",
+  "mode": "deep_research"
+}
+```
+
+The response includes claims, evidence handles and paper metadata. Passage text and live
+evaluation inputs remain private local data.
 
 ## Development environment
 
