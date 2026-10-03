@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.32\
+**Version:** 1.33\
 **Last updated:** 2026-10-03\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 implementation and operational gates complete on 2026-10-03; owner acceptance pending (P3-17, issue #18)\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`)\
 
 ---
 
@@ -1249,8 +1249,8 @@ Ettin-150M; [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)). Paper nDCG@
 evidence nDCG@10 (0.4074) and evidence judged Recall@20 (0.5122) passed by margins of 0.002,
 0.007 and 0.012, inside sampling noise; warm p95 was 1,016 ms. The detailed
 [acceptance report](../reference/phase-2-acceptance-report.md) records the gates, intervals,
-baselines and caveats. Phase 3 implementation and operational gates are complete, with
-owner acceptance pending.
+baselines and caveats. Phase 3 was accepted by the owner on 2026-10-03 after its
+operational gates passed (P3-17, PR #41; main CI 37144867835).
 
 Deliver:
 
@@ -1264,13 +1264,12 @@ rebuild and failure checks, and the frozen held-out benchmark passes the useful-
 and operational limits selected using development data (30 held-out families under
 ADR-0014, judged on point estimates with intervals reported). Report the limits and their
 aggregate results without exposing private questions, item-level evidence or rankings.
-Phase 3 remains separate from Phase 2; Phase 2 is accepted and Phase 3 is in closeout,
-pending owner acceptance.
+Phase 3 remains separate from Phase 2; Phase 2 is accepted and Phase 3 was accepted by the
+owner on 2026-10-03.
 
 ### Phase 3 — Agent and structured answers
 
-**Status: implementation and operational gates complete; owner acceptance pending**
-as of 2026-10-03 (P3-17, issue #18). The owner approved the
+**Status: accepted by the owner on 2026-10-03** (P3-17, issue #18). The owner approved the
 [Phase 3 plan](../plans/phase-3-agent-answers.md) and its decisions:
 [ADR-0018](../adr/0018-phase3-local-generator-and-serving.md) (Ollama serving and
 schema-constrained JSON output), [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md)
@@ -1282,11 +1281,10 @@ tasks; answer quality reported, not gated). The [Phase 3 evaluation report](../r
 records two passing live sweeps over 21 development families and the scripted regression CI.
 P3-16 exact-head CI 37143367662 passed on revision
 `e6dc3dcd2ae1417ba524be0316060810b17d19c5`; main CI 37143652344 passed on merged main
-revision `fd16a97d21aec4dfb974bbc9ad437c86947af788`. Issue #18 is the record for the
-P3-17 docs-only CI evidence and the owner's acceptance decision.
-The [Phase 3 handoff](../plans/phase-3-agent-handoff.md) records all card progress. Phase 3
-is not accepted until the owner accepts it. Langfuse, authentication and MCP stay in later
-phases.
+revision `fd16a97d21aec4dfb974bbc9ad437c86947af788`. P3-17 merged as PR #41, and exact
+main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`. The [Phase 3
+handoff](../plans/phase-3-agent-handoff.md) records all card progress. The owner accepted
+Phase 3 on 2026-10-03 ([owner acceptance record](https://github.com/avsngh-git/RAGpipeline/issues/18#issuecomment-5972350487)); Langfuse, authentication and MCP stay in later phases.
 
 Deliver:
 
@@ -1305,7 +1303,7 @@ All operational gates passed. The recovered sweep completed 41/42 runs (quick 21
 Both had zero unknown live evidence handles and no completed-run budget violations. These
 are development-only results; answer quality does not gate Phase 3. See the
 [evaluation report](../reference/phase-3-evaluation-report.md) for metrics, methodology and
-limitations. Owner acceptance remains pending.
+limitations. These findings do not change the passing gates or the owner's acceptance.
 
 **Phase 4 inputs from the Phase 3 closeout:** the small development set showed limited
 answer coverage and inconsistent unsupported-task handling: the fully sampled sweep had

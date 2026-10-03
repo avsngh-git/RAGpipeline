@@ -20,9 +20,11 @@ assistant-reviewed. See the [current acceptance report](docs/reference/phase-2-a
 the [handoff](docs/plans/phase-2-agent-handoff.md) and the
 [evaluation protocol](docs/plans/phase-2-evaluation-protocol.md).
 
-**Phase 3 implementation and operational gates are complete; owner acceptance is pending.**
-The live development report covers `quick` and `deep_research`, and the local run guide
-shows how to submit and inspect either mode: [evaluation report](docs/reference/phase-3-evaluation-report.md),
+**Phase 3 was accepted by the owner on 2026-10-03** ([owner acceptance record](https://github.com/avsngh-git/RAGpipeline/issues/18#issuecomment-5972350487)). P3-17 merged as
+PR #41; exact main CI run [37144867835](https://github.com/avsngh-git/RAGpipeline/actions/runs/37144867835)
+passed on revision `f2cd0954a940d04c418d2607a98c79fc009b96be`. The live development report
+covers `quick` and `deep_research`, and the local run guide shows how to submit and inspect
+either mode: [evaluation report](docs/reference/phase-3-evaluation-report.md),
 [Phase 3 run operations](docs/operations/phase-3-generator.md).
 
 ## Research runs

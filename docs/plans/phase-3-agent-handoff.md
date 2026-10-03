@@ -1,7 +1,7 @@
 # Phase 3 — Agent handoff
 
 Updated: 2026-10-03. **Status: all implementation and evaluation cards are complete;
-Phase 3 owner acceptance is pending.** The owner approved the
+Phase 3 was accepted by the owner on 2026-10-03.** The owner approved the
 [Phase 3 plan](phase-3-agent-answers.md) and ADRs
 [0018](../adr/0018-phase3-local-generator-and-serving.md),
 [0019](../adr/0019-phase3-research-run-execution.md) and
@@ -40,16 +40,17 @@ Phase 3 owner acceptance is pending.** The owner approved the
 | P3-14 (#15) | done | #38 | deep research graph |
 | P3-15 (#16) | done | #39 | scripted regression CI; exact-head run 37139685657 passed |
 | P3-16 (#17) | done | #40 | live development report; both sweeps passed operational gates |
-| P3-17 (#18) | documentation ready | — | owner acceptance pending |
+| P3-17 (#18) | done | #41 | owner accepted Phase 3 on 2026-10-03; exact main CI 37144867835 passed |
 | P3-18 (#30) | done | #32 | dense index copy into the main serving stack |
 | P3-19 (#31) | done | #33 | native tool-call planning |
 
-The two supplemental issues (#30 and #31) are closed. P3-16 exact-head CI 37143367662 passed on revision
-`e6dc3dcd2ae1417ba524be0316060810b17d19c5`; main CI 37143652344 passed on merged main
-revision `fd16a97d21aec4dfb974bbc9ad437c86947af788`. Issue #18 records the P3-17 docs-only
-CI evidence and the owner's acceptance decision. The [evaluation report](../reference/phase-3-evaluation-report.md)
-contains aggregate gate results and limitations. Phase 3 acceptance remains pending the
-owner's decision on issue #18.
+The two supplemental issues (#30 and #31) are closed. P3-16 exact-head CI 37143367662
+passed on revision `e6dc3dcd2ae1417ba524be0316060810b17d19c5`; main CI 37143652344 passed
+on merged main revision `fd16a97d21aec4dfb974bbc9ad437c86947af788`. P3-17 merged as PR #41,
+and exact main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`.
+The owner accepted Phase 3 on 2026-10-03; see the [owner acceptance record](https://github.com/avsngh-git/RAGpipeline/issues/18#issuecomment-5972350487). The
+[evaluation report](../reference/phase-3-evaluation-report.md) contains aggregate gate results
+and limitations.
 
 ## Environment facts
 
