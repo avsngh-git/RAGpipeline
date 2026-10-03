@@ -154,6 +154,16 @@ not delete or rebuild a target collection as an automatic retry; inspect its reg
 and point count first. The source evaluation collection is read-only apart from the
 temporary snapshot that the script deletes after transfer.
 
+The Qdrant restore and PostgreSQL transaction cannot commit atomically. If the
+registration fails after restore, the target collection remains and a retry refuses
+to overwrite it. Before recovery, confirm the source still passes readiness and has
+44,277 points, then inspect the target's `index_configurations` and
+`snapshot_index_states` for this collection and configuration. Remove only a target
+collection confirmed to be an orphan from this failed copy, with no registered
+snapshot using it; then repeat the dry-run and copy. If registration committed but
+final verification failed, keep the target collection and registration, diagnose the
+count or readiness mismatch, and verify both search routes before serving it.
+
 Start the host API in the main-stack configuration using the environment in
 [Run the real-model API on WSL](#run-the-real-model-api-on-wsl), with the main review
 database URL and Qdrant URL above. Use a free loopback port if another API already owns
