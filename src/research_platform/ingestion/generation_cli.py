@@ -28,6 +28,7 @@ from research_platform.ingestion.generation_publication import (
     purge_retired,
     verify_generation,
 )
+from research_platform.ingestion.generation_rebuild import rebuild_generations
 from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.ingestion.indexing import IndexConfiguration
 from research_platform.ingestion.paper_index import PaperIndexRepository, sync_papers
@@ -70,6 +71,14 @@ def add_generation_commands(commands: Any) -> None:
         command.add_argument("--collection-name", required=True)
         command.add_argument("--configuration", type=Path, required=True)
         command.add_argument("--generation", type=int, required=True)
+    rebuild = subcommands.add_parser(
+        "rebuild",
+        help="replay every published generation into empty collections and inspect",
+    )
+    rebuild.add_argument("--collection-name", required=True)
+    rebuild.add_argument("--configuration", type=Path, required=True)
+    rebuild.add_argument("--reuse-dense-configuration", type=Path)
+    rebuild.add_argument("--reuse-dense-snapshot-id", type=UUID)
     purge = subcommands.add_parser(
         "purge", help="delete retired passages no readable generation can see"
     )
@@ -78,7 +87,7 @@ def add_generation_commands(commands: Any) -> None:
     purge.add_argument(
         "--apply", action="store_true", help="delete; without it only count"
     )
-    for command in (build, sync):
+    for command in (build, sync, rebuild):
         command.add_argument(
             "--device", choices=("auto", "cpu", "cuda"), default="auto"
         )
@@ -151,6 +160,53 @@ async def execute_generation_command(
                 registry, collection_id, configuration.configuration_id, args.generation
             )
             print(json.dumps({"published_generation": args.generation}))
+        elif args.generation_command == "rebuild":
+            source = None
+            if args.reuse_dense_configuration is not None:
+                if args.reuse_dense_snapshot_id is None:
+                    raise ValueError("--reuse-dense-snapshot-id is required for reuse")
+                source = QdrantDenseVectorSource(
+                    http,
+                    stored=IndexConfiguration.from_dict(
+                        json.loads(args.reuse_dense_configuration.read_text("utf-8"))
+                    ),
+                    expected=configuration.dense_configuration(),
+                    snapshot_id=args.reuse_dense_snapshot_id,
+                )
+            embedder = create_embedder_for_configuration(
+                configuration.dense_configuration(),
+                device=args.device,
+                precision=args.precision,
+            )
+            try:
+                rebuilt = await rebuild_generations(
+                    registry=registry,
+                    inputs=GenerationInputRepository(pool),
+                    papers_repository=PaperIndexRepository(pool),
+                    passages=GenerationQdrantCollection(
+                        configuration, "passages", http
+                    ),
+                    papers=GenerationQdrantCollection(configuration, "papers", http),
+                    embedder=embedder,
+                    configuration=configuration,
+                    collection_id=collection_id,
+                    vector_source=source,
+                )
+            finally:
+                embedder.close()
+            print(
+                json.dumps(
+                    {
+                        "passed": rebuilt.passed,
+                        "builds": [asdict(build) for build in rebuilt.builds],
+                        "inspections": [asdict(i) for i in rebuilt.inspections],
+                    },
+                    indent=2,
+                    default=str,
+                )
+            )
+            if not rebuilt.passed:
+                raise RuntimeError("rebuilt generations failed inspection")
         elif args.generation_command == "purge":
             purged = await purge_retired(
                 pool=pool,

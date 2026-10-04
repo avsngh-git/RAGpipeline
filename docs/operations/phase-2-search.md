@@ -93,6 +93,38 @@ Import checks each collection's exact count, a payload digest, every vector with
 Compose service back at it together with the old image. The export holds private
 evidence text and stays under `local-reference/`.
 
+## Index generations (Phase 3.5)
+
+Generations put a collection's finalized snapshots into Qdrant collections that serve
+both search and evidence content ([ADR-0022](../adr/0022-phase35-qdrant-search-and-content.md),
+[ADR-0023](../adr/0023-phase35-index-generations.md)). With the database and Qdrant URLs
+exported as below:
+
+```bash
+CONFIG=configs/phase35-generation-index.example.json
+research-ingest generations build --collection-name research-corpus \
+  --snapshot-id <finalized snapshot> --configuration $CONFIG \
+  [--reuse-dense-configuration configs/phase2-gte-modernbert-base-index.example.json]
+research-ingest generations sync-papers --collection-name research-corpus \
+  --configuration $CONFIG --generation <N>
+research-ingest generations verify --collection-name research-corpus \
+  --configuration $CONFIG --generation <N>
+research-ingest generations publish --collection-name research-corpus \
+  --configuration $CONFIG --generation <N>
+research-ingest generations purge --collection-name research-corpus \
+  --configuration $CONFIG            # add --apply to delete
+research-ingest generations rebuild --collection-name research-corpus \
+  --configuration $CONFIG            # into empty collections, from PostgreSQL
+```
+
+`verify` compares exact evidence IDs, text hashes, payload fields, indexed papers and
+self-retrieval probes with the snapshot. `publish` only moves the pointer from the
+previous generation. Set `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant` (with
+`RESEARCH_PLATFORM_GENERATION_COLLECTION` and `RESEARCH_PLATFORM_GENERATION_CONFIGURATION`
+if they differ from the defaults) to serve dense search and evidence content from the
+published generation; research runs then record the generation they read. Generation dense
+search is exact rather than approximate.
+
 ## Start local dependencies
 
 Start PostgreSQL and Qdrant from Compose without its API container:
@@ -288,6 +320,8 @@ export RESEARCH_PLATFORM_RERANKER_CACHE_DIR="$PWD/local-reference/phase2-reranke
 export HF_HOME="$PWD/local-reference/phase2-model-cache"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
+# Phase 3.5 Gate A: serve dense search and evidence content from the published generation.
+export RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant
 
 conda run -n sci_research_agent python -m uvicorn \
   research_platform.api.app:create_app --factory \

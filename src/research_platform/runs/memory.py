@@ -39,8 +39,11 @@ class InMemoryRunStore:
         self._claims: dict[UUID, tuple[ClaimResult, ...]] = {}
         self._tool_calls: dict[UUID, dict[int, ToolCallRecord]] = {}
         self._evidence: dict[UUID, dict[str, EvidenceRecord]] = {}
+        self.generations: dict[UUID, int | None] = {}
 
-    async def create_run(self, request: ResearchRequest) -> UUID:
+    async def create_run(
+        self, request: ResearchRequest, *, generation: int | None = None
+    ) -> UUID:
         run_id = uuid4()
         self._runs[run_id] = StoredRun(
             run_id=run_id,
@@ -55,6 +58,7 @@ class InMemoryRunStore:
             started_at=None,
             completed_at=None,
         )
+        self.generations[run_id] = generation
         return run_id
 
     async def get_run(self, run_id: UUID) -> StoredRun:

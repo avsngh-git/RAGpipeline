@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, fields, is_dataclass
+from dataclasses import asdict, dataclass, fields, is_dataclass, replace
 from typing import Any, Literal, TypeVar, cast
 from uuid import UUID
 
@@ -349,6 +349,17 @@ class RetrievalProfile:
     def profile_id(self) -> str:
         """Stable identity for compatibility; excludes code revision provenance."""
         return _canonical_identity(self.to_dict())
+
+    @property
+    def settings_id(self) -> str:
+        """Identity of the retrieval choices alone, the same for every snapshot."""
+        settings = self.to_dict()
+        del settings["snapshot"]
+        return _canonical_identity(settings)
+
+    def with_snapshot(self, snapshot: SnapshotSelection) -> RetrievalProfile:
+        """The same retrieval choices bound to another snapshot (a later generation)."""
+        return replace(self, snapshot=snapshot)
 
 
 @dataclass(frozen=True)

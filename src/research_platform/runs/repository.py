@@ -83,19 +83,23 @@ class RunRepository:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
-    async def create_run(self, request: ResearchRequest) -> UUID:
-        """Store a queued run and return its generated ID."""
+    async def create_run(
+        self, request: ResearchRequest, *, generation: int | None = None
+    ) -> UUID:
+        """Store a queued run, pinned to ``generation`` when one is served."""
         async with self._pool.acquire() as connection:
             run_id = await connection.fetchval(
                 """
-                INSERT INTO research_runs (question, status, mode, request, snapshot_id)
-                VALUES ($1, 'queued', $2, $3::jsonb, $4)
+                INSERT INTO research_runs
+                    (question, status, mode, request, snapshot_id, generation)
+                VALUES ($1, 'queued', $2, $3::jsonb, $4, $5)
                 RETURNING id
                 """,
                 request.question,
                 request.mode.value,
                 _request_json(request),
                 request.snapshot_id,
+                generation,
             )
         return cast(UUID, run_id)
 

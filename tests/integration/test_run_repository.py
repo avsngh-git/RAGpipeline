@@ -472,3 +472,26 @@ def _provenance(snapshot_id: UUID) -> RunProvenance:
         budgets=RunBudgets(),
         trace_id="trace-1",
     )
+
+
+def test_create_run_stores_generation() -> None:
+    async def exercise(
+        pool: asyncpg.Pool,
+        repo: RunRepository,
+        snapshot_id: UUID,
+        _paper_id: str,
+        _chunk_id: str,
+    ) -> None:
+        pinned = await repo.create_run(_request(snapshot_id), generation=4)
+        unpinned = await repo.create_run(_request(snapshot_id))
+        async with pool.acquire() as connection:
+            stored = {
+                row["id"]: row["generation"]
+                for row in await connection.fetch(
+                    "SELECT id, generation FROM research_runs WHERE id = ANY($1)",
+                    [pinned, unpinned],
+                )
+            }
+        assert stored == {pinned: 4, unpinned: None}
+
+    _with_database(exercise)

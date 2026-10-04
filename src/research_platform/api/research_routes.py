@@ -76,7 +76,9 @@ def create_research_router(
                 status_code=409,
             )
 
-        run_id = await active.store.create_run(body)
+        run_id = await active.store.create_run(
+            body, generation=active.serving.generation
+        )
         queued_view = await active.store.get_run_view(run_id)
         try:
             await active.executor.submit(run_id)

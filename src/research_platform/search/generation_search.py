@@ -200,6 +200,14 @@ class GenerationDenseSearch:
             raise SnapshotIndexNotReady("snapshot has no published generation")
         return record.generation
 
+    async def is_published(self, snapshot_id: UUID) -> bool:
+        """Whether a snapshot is a published generation of this configuration."""
+        try:
+            await self.generation_for(snapshot_id)
+        except SnapshotIndexNotReady:
+            return False
+        return True
+
     async def read_evidence(
         self, snapshot_id: UUID, evidence_ids: Sequence[str]
     ) -> tuple[IndexInput, ...]:

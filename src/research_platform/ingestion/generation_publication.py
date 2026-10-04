@@ -112,23 +112,19 @@ class SnapshotMembers(Protocol):
     async def snapshot_member_ids(self, snapshot_id: UUID) -> frozenset[str]: ...
 
 
-async def verify_generation(
+async def inspect_generation(
     *,
-    registry: VerificationRegistry,
+    record: GenerationRecord,
     inputs: PassageInputSource,
     papers_repository: SnapshotMembers,
     passages: GenerationQdrantCollection,
     papers: GenerationQdrantCollection,
-    collection_id: UUID,
-    configuration_id: str,
-    generation: int,
     probe_count: int = 3,
     seed: int = 35,
 ) -> VerificationReport:
-    """Compare a built generation with its snapshot; mark it verified or failed."""
-    record = await registry.get(collection_id, configuration_id, generation)
-    if record.state != "building":
-        raise PublicationConflict(f"generation {generation} is {record.state}")
+    """Compare a generation's points with its snapshot without changing its state."""
+    configuration_id = record.configuration_id
+    generation = record.generation
     expected = {
         item.evidence_id: item.text_sha256
         for item in await inputs.load_passage_inputs(record.snapshot_id)
@@ -173,7 +169,17 @@ async def verify_generation(
         probe_count=probe_count,
         seed=seed,
     )
-    report = VerificationReport(
+    unindexed = len(members - indexed)
+    passed = (
+        observed_count == len(expected) == len(observed)
+        and not missing
+        and not unexpected
+        and hash_mismatches == 0
+        and missing_fields == 0
+        and unindexed == 0
+        and probe_failures == 0
+    )
+    return VerificationReport(
         generation=generation,
         expected_count=len(expected),
         observed_count=observed_count,
@@ -181,26 +187,44 @@ async def verify_generation(
         unexpected_count=len(unexpected),
         hash_mismatch_count=hash_mismatches,
         missing_payload_field_count=missing_fields,
-        unindexed_member_paper_count=len(members - indexed),
+        unindexed_member_paper_count=unindexed,
         probe_failures=probe_failures,
-        passed=False,
+        passed=passed,
     )
-    passed = (
-        observed_count == len(expected) == len(observed)
-        and not missing
-        and not unexpected
-        and hash_mismatches == 0
-        and missing_fields == 0
-        and report.unindexed_member_paper_count == 0
-        and probe_failures == 0
+
+
+async def verify_generation(
+    *,
+    registry: VerificationRegistry,
+    inputs: PassageInputSource,
+    papers_repository: SnapshotMembers,
+    passages: GenerationQdrantCollection,
+    papers: GenerationQdrantCollection,
+    collection_id: UUID,
+    configuration_id: str,
+    generation: int,
+    probe_count: int = 3,
+    seed: int = 35,
+) -> VerificationReport:
+    """Compare a built generation with its snapshot; mark it verified or failed."""
+    record = await registry.get(collection_id, configuration_id, generation)
+    if record.state != "building":
+        raise PublicationConflict(f"generation {generation} is {record.state}")
+    report = await inspect_generation(
+        record=record,
+        inputs=inputs,
+        papers_repository=papers_repository,
+        passages=passages,
+        papers=papers,
+        probe_count=probe_count,
+        seed=seed,
     )
-    report = VerificationReport(**{**asdict(report), "passed": passed})
-    if passed:
+    if report.passed:
         await registry.mark_verified(
             collection_id,
             configuration_id,
             generation,
-            point_count=observed_count,
+            point_count=report.observed_count,
             details=asdict(report),
         )
     else:
@@ -287,7 +311,7 @@ async def _probe(
         [passage_point_id(evidence_id, configuration_id) for evidence_id in chosen],
         with_dense=True,
     )
-    failures = probe_count - len(points)
+    failures = len(chosen) - len(points)
     for point in points:
         payload = observed[cast(str, point.payload["evidence_id"])]
         if point.dense is None:

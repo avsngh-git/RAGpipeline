@@ -180,7 +180,7 @@ async def _build_research_services(
     from research_platform.runs.runner import (
         ResearchRunner,
         RunnerDependencies,
-        load_serving_identity,
+        resolve_serving_identity,
     )
     from research_platform.search.paper_related import RelatedPaperReader
     from research_platform.tools.research_tools import ResearchTools
@@ -213,7 +213,7 @@ async def _build_research_services(
     checkpointer = await stack.enter_async_context(
         open_checkpointer(settings.database_url)
     )
-    serving = load_serving_identity()
+    serving = await resolve_serving_identity(settings, runtime.pool)
     runner = ResearchRunner(
         RunnerDependencies(
             repository=store,

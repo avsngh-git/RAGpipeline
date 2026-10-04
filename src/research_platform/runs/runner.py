@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Callable, Mapping
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
+import asyncpg  # type: ignore[import-untyped]
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.errors import GraphRecursionError
@@ -19,6 +21,9 @@ from langgraph.graph import StateGraph
 from research_platform.agents.nodes import NodeDependencies, ToolStepFailed
 from research_platform.agents.prompts import PROMPT_VERSIONS
 from research_platform.agents.state import ResearchState, initial_state
+from research_platform.config import Settings
+from research_platform.ingestion.generation_index import GenerationIndexConfiguration
+from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.llm.contracts import (
     LLMClient,
     LLMInvalidOutput,
@@ -58,6 +63,8 @@ class ServingIdentity:
 
     snapshot_id: UUID
     retrieval_profile_id: str
+    generation: int | None = None
+    retrieval_settings_id: str | None = None
 
 
 def load_serving_identity(path: Path | None = None) -> ServingIdentity:
@@ -67,6 +74,31 @@ def load_serving_identity(path: Path | None = None) -> ServingIdentity:
     return ServingIdentity(
         snapshot_id=profile.snapshot.snapshot_id,
         retrieval_profile_id=profile.profile_id,
+    )
+
+
+async def resolve_serving_identity(
+    settings: Settings, pool: asyncpg.Pool, path: Path | None = None
+) -> ServingIdentity:
+    """The serving identity; with Qdrant content, the published generation's snapshot."""
+    profile = load_frozen_profile(resolve_frozen_profile_path(path))
+    if settings.content_source != "qdrant":
+        return ServingIdentity(
+            snapshot_id=profile.snapshot.snapshot_id,
+            retrieval_profile_id=profile.profile_id,
+        )
+    raw = json.loads(settings.generation_configuration.read_text(encoding="utf-8"))
+    configuration = GenerationIndexConfiguration.from_dict(raw)
+    registry = GenerationRegistry(pool)
+    collection_id = await registry.ensure_collection(settings.generation_collection)
+    published = await registry.published(collection_id, configuration.configuration_id)
+    if published is None:
+        raise RuntimeError("the generation collection has no published generation")
+    return ServingIdentity(
+        snapshot_id=published.snapshot_id,
+        retrieval_profile_id=profile.profile_id,
+        generation=published.generation,
+        retrieval_settings_id=profile.settings_id,
     )
 
 
@@ -84,7 +116,7 @@ def build_provenance(
     snapshot_id = request.snapshot_id or serving.snapshot_id
     thinking_map = {kind: kind in thinking for kind in _PROVENANCE_CALL_KINDS}
     prompt_versions = dict(PROMPT_VERSIONS)
-    effective_configuration = {
+    effective_configuration: dict[str, object] = {
         "mode": request.mode.value,
         "filters": request.filters.model_dump(mode="json"),
         "snapshot_id": str(snapshot_id),
@@ -95,6 +127,9 @@ def build_provenance(
         "prompt_versions": prompt_versions,
         "code_revision": code_revision,
     }
+    if serving.generation is not None:
+        effective_configuration["generation"] = serving.generation
+        effective_configuration["retrieval_settings_id"] = serving.retrieval_settings_id
     return RunProvenance(
         snapshot_id=snapshot_id,
         retrieval_profile_id=serving.retrieval_profile_id,
@@ -105,6 +140,8 @@ def build_provenance(
         prompt_versions=prompt_versions,
         budgets=budgets,
         trace_id=str(run_id),
+        generation=serving.generation,
+        retrieval_settings_id=serving.retrieval_settings_id,
     )
 
 

@@ -447,3 +447,29 @@ async def test_repository_failure_before_mark_running_is_persisted() -> None:
     view = await store.get_run_view(run_id)
     assert view.failure_category is FailureCategory.MODEL_UNAVAILABLE
     assert (await store.get_run(run_id)).status is RunStatus.FAILED
+
+
+def test_provenance_records_generation_and_settings_id() -> None:
+    values = {
+        "run_id": UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+        "request": _request(),
+        "model": _IDENTITY,
+        "thinking": frozenset({CallKind.PLAN}),
+        "budgets": RunBudgets(),
+        "code_revision": "test-revision",
+    }
+    plain = build_provenance(serving=ServingIdentity(_SNAPSHOT, _PROFILE), **values)
+    pinned = build_provenance(
+        serving=ServingIdentity(
+            _SNAPSHOT,
+            _PROFILE,
+            generation=2,
+            retrieval_settings_id="sha256:" + "f" * 64,
+        ),
+        **values,
+    )
+
+    assert (plain.generation, plain.retrieval_settings_id) == (None, None)
+    assert pinned.generation == 2
+    assert pinned.retrieval_settings_id == "sha256:" + "f" * 64
+    assert pinned.configuration_id != plain.configuration_id

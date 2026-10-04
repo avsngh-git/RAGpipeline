@@ -164,6 +164,8 @@ class RunProvenance(_ContractModel):
     prompt_versions: dict[str, str]
     budgets: RunBudgets
     trace_id: str
+    generation: int | None = Field(None, ge=1)
+    retrieval_settings_id: str | None = None
 
     @field_validator("configuration_id")
     @classmethod

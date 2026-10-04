@@ -215,16 +215,7 @@ class Phase2SearchExecutor:
                 "mode does not match the retrieval profile"
             )
         if request.snapshot_id != profile.snapshot.snapshot_id:
-            async with self._pool.acquire() as connection:
-                exists = await connection.fetchval(
-                    "SELECT EXISTS (SELECT 1 FROM snapshots WHERE id = $1)",
-                    request.snapshot_id,
-                )
-            if not exists:
-                raise SnapshotNotFound("snapshot does not exist")
-            raise IncompatibleRetrievalProfile(
-                "retrieval profile is bound to a different snapshot"
-            )
+            profile = await self._profile_for_generation(profile, request)
 
         eligible = await self._eligibility.read(
             request.snapshot_id, filters=request.filters
@@ -348,6 +339,31 @@ class Phase2SearchExecutor:
             },
         )
         return response
+
+    async def _profile_for_generation(
+        self, profile: RetrievalProfile, request: SearchRequest
+    ) -> RetrievalProfile:
+        """Bind the profile to another published generation's snapshot, if allowed."""
+        async with self._pool.acquire() as connection:
+            exists = await connection.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM snapshots WHERE id = $1)",
+                request.snapshot_id,
+            )
+        if not exists:
+            raise SnapshotNotFound("snapshot does not exist")
+        if self._generation_search is None or not (
+            await self._generation_search.is_published(request.snapshot_id)
+        ):
+            raise IncompatibleRetrievalProfile(
+                "retrieval profile is bound to a different snapshot"
+            )
+        if request.mode is not RetrievalMode.DENSE:
+            raise SearchDependencyUnavailable(
+                "lexical index is not available for this generation"
+            )
+        return profile.with_snapshot(
+            await self._repository.snapshot_selection_for(request.snapshot_id)
+        )
 
     async def _evidence_candidates(
         self, profile: RetrievalProfile, request: SearchRequest

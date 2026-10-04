@@ -378,3 +378,13 @@ def test_lifespan_stops_executor_and_closes_research_before_phase2(monkeypatch) 
 
 async def _append_async(events: list[str], label: str) -> None:
     events.append(label)
+
+
+def test_post_pins_the_served_generation() -> None:
+    app, store, _executor = _app(
+        serving=ServingIdentity(_SNAPSHOT, "profile-v1", generation=3)
+    )
+    response = asyncio.run(_request(app, "POST", "/v1/research", body=_body()))
+
+    assert response.status_code == 202
+    assert list(store.generations.values()) == [3]

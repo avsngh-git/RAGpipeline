@@ -23,7 +23,9 @@ from research_platform.runs.repository import EvidenceRecord, StoredRun, ToolCal
 class RunStore(Protocol):
     """Async interface shared by the PostgreSQL and in-memory run stores."""
 
-    async def create_run(self, request: ResearchRequest) -> UUID: ...
+    async def create_run(
+        self, request: ResearchRequest, *, generation: int | None = None
+    ) -> UUID: ...
 
     async def get_run(self, run_id: UUID) -> StoredRun: ...
 

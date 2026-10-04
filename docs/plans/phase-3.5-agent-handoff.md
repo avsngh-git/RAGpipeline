@@ -31,7 +31,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-06 (#50) | done | b045d7e | Generation 1 of `research-corpus` built: 44,277 points, all vectors reused, 0 embedded, 80 s; state `building` until P35-08 |
 | P35-07 (#51) | done | 8b002b6 | `papers` collection synced: 157 papers, 100 indexed in generation 1; dense text is title plus decoded abstract |
 | P35-08 (#52) | done | e3c7b93 | Generation 1 verified (44,277 of 44,277; 0 missing, unexpected, hash or field failures; probes passed) and published; purge dry run 0 |
-| P35-09 (#53) | done | this change | `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant` serves all four modes from generation content; generation dense search is exact (see findings) |
+| P35-09 (#53) | done | 8bc79e0 | `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant` serves all four modes from generation content; generation dense search is exact (see findings) |
+| P35-10 (#54) | done | this change | **Gate A passed** (see below); runs pin the published generation; `generations rebuild` added |
 
 ## Environment facts
 
@@ -72,3 +73,18 @@ cards to be implemented one at a time, with one commit per card.
     two items. Generation dense search now uses exact search, so parity is checked as
     exact search over the old collection against exact search over the generation, and
     the report records how far v10's approximate results were from exact.
+
+- **Gate A (2026-10-04), P35-10:**
+  - Content parity (`scripts/phase35_content_parity.py`): 44,277 of 44,277 evidence units
+    give identical search hits from PostgreSQL hydration and from Qdrant payloads.
+  - Dense ranking: exact search over the Phase 2 collection equals exact search over the
+    generation for 20 of 20 development queries. Phase 2's approximate search matched
+    exact search in the top 10 for all 20 (mean overlap at 50: 49.9 of 50).
+  - Rebuild from PostgreSQL alone (`generations rebuild`, no vector reuse): 44,277
+    passages re-embedded in 15 min 25 s; inspection found no differences.
+  - Correct counts with wrong IDs fail verification (unit test).
+- Re-embedding is not bit-identical to the stored Phase 2 vectors: scores differ by up to
+  5.6e-4 and the top-10 order changed for 3 of 20 development queries. The served
+  generation therefore keeps the original vectors (rebuilt with
+  `--reuse-dense-configuration`; parity 20 of 20 again). Keep the vector export
+  (`local-reference/phase35/qdrant-export/`) as the recovery source for exact vectors.

@@ -297,7 +297,7 @@ async def build_generation_passages(
             manifest_sha256=passage_manifest_sha256(loaded),
         )
         try:
-            return await _fill(
+            return await write_generation_points(
                 record,
                 loaded,
                 passages=passages,
@@ -316,7 +316,7 @@ async def build_generation_passages(
             raise
 
 
-async def _fill(
+async def write_generation_points(
     record: GenerationRecord,
     loaded: tuple[PassageInput, ...],
     *,
@@ -326,6 +326,7 @@ async def _fill(
     vector_source: DenseVectorSource | None,
     sparse_encoder: SparsePassageEncoder | None,
 ) -> GenerationBuildReport:
+    """Add a generation's new points and retire removed ones; registry untouched."""
     generation = record.generation
     await passages.ensure_collection()
     await passages.ensure_payload_indexes()
