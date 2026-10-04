@@ -28,6 +28,7 @@ from research_platform.ingestion.generation_publication import (
 from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.ingestion.indexing import VectorEmbedder
 from research_platform.ingestion.paper_index import PaperIndexRepository, sync_papers
+from research_platform.ingestion.sparse_build import SparseEncoder
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,7 @@ async def rebuild_generations(
     configuration: GenerationIndexConfiguration,
     collection_id: UUID,
     vector_source: DenseVectorSource | None = None,
+    sparse_encoder: SparseEncoder | None = None,
 ) -> RebuildReport:
     """Replay generations 1..published into empty collections and inspect each."""
     configuration_id = configuration.configuration_id
@@ -81,7 +83,7 @@ async def rebuild_generations(
                     embedder=embedder,
                     configuration=configuration,
                     vector_source=vector_source,
-                    sparse_encoder=None,
+                    sparse_encoder=sparse_encoder,
                 )
             )
             await sync_papers(
@@ -91,6 +93,7 @@ async def rebuild_generations(
                 configuration=configuration,
                 generation=generation,
                 snapshot_id=record.snapshot_id,
+                sparse_encoder=sparse_encoder,
             )
             records.append(record)
     inspections = [

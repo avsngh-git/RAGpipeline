@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal, Protocol, cast
 from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
@@ -19,12 +19,29 @@ from research_platform.ingestion.generation_index import (
     GenerationIndexConfiguration,
     GenerationPoint,
     GenerationQdrantCollection,
+    SparseVector,
     paper_point_id,
 )
 from research_platform.ingestion.indexing import VectorEmbedder
 from research_platform.ingestion.openalex import abstract_from_openalex_metadata
 
 CatalogStatus = Literal["ingested", "metadata_only"]
+
+
+class SparsePaperEncoder(Protocol):
+    async def encode_papers(
+        self, texts: Sequence[str]
+    ) -> tuple[tuple[SparseVector, tuple[str, ...]], ...]: ...
+
+
+def paper_lexical_text(title: str | None) -> str:
+    """The text the Phase 2 BM25S paper index scored: the stripped title only.
+
+    That index never decoded the metadata JSON, so abstracts were not used (P35-07
+    finding); lexical parity with profile v10 requires the same text.
+    """
+    return title.strip() if title is not None else ""
+
 
 _KNOWN_PAPERS_SQL = """
 SELECT paper.id AS paper_id, paper.title, paper.publication_year, paper.metadata,
@@ -122,10 +139,13 @@ async def sync_papers(
     configuration: GenerationIndexConfiguration,
     generation: int,
     snapshot_id: UUID,
+    sparse_encoder: SparsePaperEncoder | None = None,
 ) -> PaperSyncReport:
     """Upsert new or changed papers and mark the snapshot's members as indexed."""
-    if configuration.lexical is not None:
-        raise ValueError("paper sparse vectors are not supported by this sync")
+    if (configuration.lexical is None) != (sparse_encoder is None):
+        raise ValueError(
+            "a sparse encoder is required exactly when lexical settings are configured"
+        )
     await papers.ensure_collection()
     await papers.ensure_payload_indexes()
     known = await repository.load_known_papers()
@@ -156,28 +176,38 @@ async def sync_papers(
         )
         if len(vectors) != len(batch):
             raise ValueError("embedding adapter returned a different item count")
+        sparse = (
+            await sparse_encoder.encode_papers(
+                [paper_lexical_text(paper.title) for paper in batch]
+            )
+            if sparse_encoder is not None
+            else None
+        )
         points = []
-        for paper, vector in zip(batch, vectors, strict=True):
+        for index, (paper, vector) in enumerate(zip(batch, vectors, strict=True)):
             previous = existing.get(paper.paper_id, {})
             indexed = previous.get("indexed_generation")
+            payload = paper_payload(
+                paper,
+                configuration,
+                catalog_status=cast(
+                    CatalogStatus,
+                    previous.get("catalog_status", "metadata_only"),
+                ),
+                indexed_generation=None if indexed is None else int(cast(int, indexed)),
+            )
+            sparse_vector = None
+            if sparse is not None:
+                sparse_vector, terms = sparse[index]
+                payload["lexical_terms"] = list(terms)
             points.append(
                 GenerationPoint(
                     point_id=paper_point_id(
                         paper.paper_id, configuration.configuration_id
                     ),
                     dense=vector,
-                    sparse=None,
-                    payload=paper_payload(
-                        paper,
-                        configuration,
-                        catalog_status=cast(
-                            CatalogStatus,
-                            previous.get("catalog_status", "metadata_only"),
-                        ),
-                        indexed_generation=None
-                        if indexed is None
-                        else int(cast(int, indexed)),
-                    ),
+                    sparse=sparse_vector,
+                    payload=payload,
                 )
             )
         await papers.upsert(points)

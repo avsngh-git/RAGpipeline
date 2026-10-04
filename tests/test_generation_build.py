@@ -310,3 +310,54 @@ def test_lexical_configuration_requires_encoder() -> None:
                 snapshot_id=uuid4(),
             )
         )
+
+
+class _SparseEncoder:
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    async def encode_passages(self, texts):
+        from research_platform.ingestion.generation_index import SparseVector
+
+        self.texts.extend(texts)
+        return tuple(
+            (SparseVector((index,), (0.5,)), (f"term{index}",))
+            for index, _ in enumerate(texts)
+        )
+
+
+class _LexicalCollection(_Collection):
+    pass
+
+
+def test_sparse_vectors_and_terms_written() -> None:
+    lexical = GenerationIndexConfiguration(
+        **{
+            **CONFIGURATION.__dict__,
+            "lexical": SparseLexicalSettings(
+                "scientific-en", "v1", "vocab", 1.5, 0.75, 3.0, 3.0
+            ),
+        }
+    )
+    collection, encoder = _LexicalCollection(), _SparseEncoder()
+    asyncio.run(
+        build_generation_passages(
+            registry=_Registry(),
+            inputs=_Inputs((_input("e1"), _input("e2"))),
+            passages=cast(GenerationQdrantCollection, collection),
+            embedder=_FlexibleEmbedder(),
+            configuration=lexical,
+            collection_id=uuid4(),
+            snapshot_id=uuid4(),
+            sparse_encoder=encoder,
+        )
+    )
+    point = collection.points[passage_point_id("e2", lexical.configuration_id)]
+    assert point.sparse is not None and point.sparse.indices == (1,)
+    assert point.payload["lexical_terms"] == ["term1"]
+    assert encoder.texts == ["text of e1", "text of e2"]
+
+
+class _FlexibleEmbedder:
+    async def embed(self, texts, *, configuration):
+        return [(1.0, 0.0) for _ in texts]

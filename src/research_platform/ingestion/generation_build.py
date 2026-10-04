@@ -248,6 +248,52 @@ class QdrantDenseVectorSource:
         return vectors
 
 
+class GenerationDenseVectorSource:
+    """Read dense vectors from another generation configuration's passages."""
+
+    def __init__(
+        self,
+        source: GenerationQdrantCollection,
+        *,
+        expected: IndexConfiguration,
+    ) -> None:
+        stored = source.configuration.dense_configuration()
+        if (
+            stored.embedding_model,
+            stored.embedding_revision,
+            stored.preprocessing_revision,
+            stored.vector_size,
+            stored.distance,
+            stored.maximum_input_tokens,
+        ) != (
+            expected.embedding_model,
+            expected.embedding_revision,
+            expected.preprocessing_revision,
+            expected.vector_size,
+            expected.distance,
+            expected.maximum_input_tokens,
+        ):
+            raise ValueError("stored vectors use a different dense configuration")
+        self._source = source
+
+    async def vectors_for(
+        self, evidence_ids: Sequence[str]
+    ) -> Mapping[str, Sequence[float]]:
+        configuration_id = self._source.configuration.configuration_id
+        matches = await self._source.retrieve(
+            [
+                passage_point_id(evidence_id, configuration_id)
+                for evidence_id in evidence_ids
+            ],
+            with_dense=True,
+        )
+        return {
+            str(match.payload["evidence_id"]): match.dense
+            for match in matches
+            if match.dense is not None
+        }
+
+
 def passage_manifest_sha256(inputs: Sequence[PassageInput]) -> str:
     """Order-independent digest of evidence identities and their text hashes."""
     lines = sorted(f"{item.evidence_id}:{item.text_sha256}" for item in inputs)

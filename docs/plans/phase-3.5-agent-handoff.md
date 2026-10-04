@@ -33,7 +33,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-08 (#52) | done | e3c7b93 | Generation 1 verified (44,277 of 44,277; 0 missing, unexpected, hash or field failures; probes passed) and published; purge dry run 0 |
 | P35-09 (#53) | done | 8bc79e0 | `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant` serves all four modes from generation content; generation dense search is exact (see findings) |
 | P35-10 (#54) | done | 7da9f27 | **Gate A passed** (see below); runs pin the published generation; `generations rebuild` added |
-| P35-11 (#55) | done | this change | Migration 019 vocabulary; sparse weights reproduce BM25S Lucene scores on a scientific corpus (oracle test) |
+| P35-11 (#55) | done | b9666f9 | Migration 019 vocabulary; sparse weights reproduce BM25S Lucene scores on a scientific corpus (oracle test) |
+| P35-12 (#56) | done | this change | Lexical configuration `sha256:3130e408…` (`configs/phase35-generation-index-lexical.example.json`): generation 1 built with copied dense vectors and `scientific_bm25` vectors, verified and published; evidence average 43.297 tokens over 44,277 chunks, paper average 11.69 over 100 titles |
 
 ## Environment facts
 

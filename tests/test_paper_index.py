@@ -182,3 +182,55 @@ def test_json_text_metadata_is_decoded_for_the_abstract() -> None:
     paper = _paper_input(row)
     assert paper.abstract == "Hello world"
     assert paper.index_text == "Title\n\nHello world"
+
+
+class _PaperSparse:
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    async def encode_papers(self, texts):
+        from research_platform.ingestion.generation_index import SparseVector
+
+        self.texts.extend(texts)
+        return tuple((SparseVector((7,), (0.25,)), ("title",)) for _ in texts)
+
+
+def test_paper_sparse_vectors_use_title_only() -> None:
+    from research_platform.ingestion.generation_index import SparseLexicalSettings
+
+    lexical = GenerationIndexConfiguration(
+        **{
+            **CONFIGURATION.__dict__,
+            "lexical": SparseLexicalSettings(
+                "scientific-en", "v1", "vocab", 1.5, 0.75, 3.0, 3.0
+            ),
+        }
+    )
+    collection, encoder = _Collection(), _PaperSparse()
+    asyncio.run(
+        sync_papers(
+            repository=cast(
+                Any, _Repository([_paper("W1", " Title ", "Abstract")], {"W1"})
+            ),
+            papers=cast(GenerationQdrantCollection, collection),
+            embedder=_Embedder(),
+            configuration=lexical,
+            generation=1,
+            snapshot_id=uuid4(),
+            sparse_encoder=encoder,
+        )
+    )
+    assert encoder.texts == ["Title"]
+    payload = collection.payloads[paper_point_id("W1", lexical.configuration_id)]
+    assert payload["lexical_terms"] == ["title"]
+    with pytest.raises(ValueError, match="sparse encoder is required"):
+        asyncio.run(
+            sync_papers(
+                repository=cast(Any, _Repository([], set())),
+                papers=cast(GenerationQdrantCollection, _Collection()),
+                embedder=_Embedder(),
+                configuration=lexical,
+                generation=1,
+                snapshot_id=uuid4(),
+            )
+        )
