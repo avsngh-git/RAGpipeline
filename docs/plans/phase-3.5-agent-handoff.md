@@ -24,7 +24,8 @@ cards to be implemented one at a time, with one commit per card.
 | Card | State | Commit | Notes |
 | --- | --- | --- | --- |
 | P35-01 (#45) | done | daba634 | ADRs accepted; source of truth 1.35; glossary terms; plan and handoff |
-| P35-02 (#46) | done | this change | Qdrant v1.19.1 pinned; parity possible (IDF corpus filter required); export/import upgrade; Docling not installed locally |
+| P35-02 (#46) | done | 256cd10 | Qdrant v1.19.1 pinned; parity possible (IDF corpus filter required); export/import upgrade; Docling not installed locally |
+| P35-03 (#47) | done | this change | Compose and CI on v1.19.1; four collections exported and imported to volume `qdrant_data_v1_19`, all checks passed; old volume kept; 43 integration tests passed |
 
 ## Environment facts
 
@@ -35,7 +36,8 @@ cards to be implemented one at a time, with one commit per card.
 - The accepted snapshot `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` (generation 1) lives in the
   database `research_phase1_review`; research runs use the same database.
 - The Phase 2 serving dense collection is `phase2-dev-gte-modernbert-base-v1` (44,277 points).
-- Compose and CI pin Qdrant v1.14.1 until P35-03.
+- Compose and CI pin Qdrant v1.19.1 (volume `qdrant_data_v1_19`); the v1.14.1 volume
+  `ragpipeline_qdrant_data` is kept for rollback.
 - Private Phase 3.5 data goes under `local-reference/phase35/`; `/tmp` is not persistent.
 - ADR-0025 (answer quality) changed synthesis prompts, budgets and verification after Phase 3;
   agent-layer cards must read the current `main` versions of the agent modules.

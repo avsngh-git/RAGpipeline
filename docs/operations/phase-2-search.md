@@ -58,7 +58,7 @@ docker run -d --rm --name ragpipeline-phase2-test-postgres \
   -p 127.0.0.1:35432:5432 postgres:16-alpine
 
 docker run -d --rm --name ragpipeline-phase2-test-qdrant \
-  -p 127.0.0.1:36333:6333 qdrant/qdrant:v1.14.1
+  -p 127.0.0.1:36333:6333 qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
 
 export RESEARCH_PLATFORM_TEST_DATABASE_URL='postgresql://research_test:research_test@127.0.0.1:35432/research_test'
 export RESEARCH_PLATFORM_TEST_QDRANT_URL='http://127.0.0.1:36333'
@@ -72,6 +72,26 @@ docker stop ragpipeline-phase2-test-qdrant
 Never point integration tests at `research_phase1_review`, `research`, or the serving
 Qdrant service. The tests create schemas and temporary collections in their dedicated
 targets.
+
+## Qdrant version
+
+Compose and CI pin Qdrant v1.19.1 (Phase 3.5, P35-03). Qdrant only guarantees storage
+compatibility across one minor version, so the 2026-10-04 move from v1.14.1 used export
+and import instead of an in-place upgrade:
+
+```bash
+python scripts/phase35_qdrant_migrate.py export --url http://127.0.0.1:6333 \
+  --directory local-reference/phase35/qdrant-export
+docker compose up -d qdrant   # new image and new volume qdrant_data_v1_19
+python scripts/phase35_qdrant_migrate.py import --url http://127.0.0.1:6333 \
+  --directory local-reference/phase35/qdrant-export
+```
+
+Import checks each collection's exact count, a payload digest, every vector within
+1e-6, and exact-search probes. All four local collections passed. The previous volume
+`ragpipeline_qdrant_data` (v1.14.1 storage) is kept unmodified for rollback: point the
+Compose service back at it together with the old image. The export holds private
+evidence text and stays under `local-reference/`.
 
 ## Start local dependencies
 
