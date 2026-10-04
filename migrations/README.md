@@ -37,3 +37,6 @@ membership and records the finalized parent selection inherited by experimental 
 claims with support labels, and LangGraph checkpoints.
 017_claim_quotes.sql stores the passage quote each claim was verified against
 (ADR-0025); claims from earlier runs keep a NULL quote.
+018_index_generations.sql registers index generations of a collection with their build
+state and one published pointer per index configuration, and records the generation a
+research run reads.

@@ -153,3 +153,16 @@ def test_snapshot_variant_migration_freezes_exact_chunk_selection() -> None:
     assert "INSERT INTO snapshot_item_chunks" in migration
     assert "prevent_finalized_snapshot_chunk_selection_change" in migration
     assert "ON DELETE RESTRICT" in migration
+
+
+def test_generation_migration_contains_registry_and_run_generation() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "018_index_generations.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE index_generations" in migration
+    assert "CREATE TABLE index_generation_pointers" in migration
+    assert "'building', 'verified', 'published', 'failed'" in migration
+    assert "parent_generation = generation - 1" in migration
+    assert "ALTER TABLE research_runs" in migration
+    assert "ADD COLUMN generation INTEGER" in migration

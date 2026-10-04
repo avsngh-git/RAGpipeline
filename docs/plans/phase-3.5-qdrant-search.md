@@ -93,26 +93,26 @@ holds the interface, files, tests and done list.
 | P35-01 | — | Accept ADRs 0022–0024; source-of-truth and `CONTEXT.md` updates; handoff | owner approval |
 | P35-02 | A | Qdrant compatibility spike and report | P35-01 |
 | P35-03 | A | Upgrade Qdrant in Compose and CI; restore the Phase 2 serving index | P35-02 |
-| P35-04 | A | Migration 017: generation registry, published pointer, run generation | P35-01 |
+| P35-04 | A | Migration 018: generation registry, published pointer, run generation | P35-01 |
 | P35-05 | A | Generation index configuration and Qdrant adapter | P35-02 |
 | P35-06 | A | Build generation 1 passages with content payloads | P35-03, P35-04, P35-05 |
 | P35-07 | A | `papers` collection for every known paper | P35-06 |
 | P35-08 | A | Generation verification, publication and purge | P35-06 |
 | P35-09 | A | Search content served from Qdrant | P35-07, P35-08 |
 | P35-10 | A | Generation-aware profiles, run pinning and content parity; **Gate A** | P35-09 |
-| P35-11 | B | Migration 018, vocabulary repository and scientific sparse encoder | P35-10 |
+| P35-11 | B | Migration 019, vocabulary repository and scientific sparse encoder | P35-10 |
 | P35-12 | B | Sparse configuration: copy dense vectors, write `scientific_bm25` vectors | P35-11 |
 | P35-13 | B | Async lexical protocol and Qdrant lexical branches | P35-12 |
 | P35-14 | B | Profile `v10-qdrant` and lexical-engine switch | P35-13 |
 | P35-15 | B | Parity evaluation and built-in BM25 comparison report | P35-14 |
 | P35-16 | B | Contingency only if parity fails: full re-evaluation | P35-15 |
 | P35-17 | B | Cutover to `v10-qdrant`; **Gate B** | P35-15 (or P35-16) |
-| P35-18 | C | Migration 019 and catalog upsert for single OpenAlex works | P35-17 |
+| P35-18 | C | Migration 020 and catalog upsert for single OpenAlex works | P35-17 |
 | P35-19 | C | Online discovery service with budgets and daily cap | P35-18 |
 | P35-20 | C | `discover_papers` tool and abstract evidence | P35-19 |
 | P35-21 | C | Semantic related papers and the `quick` known-not-ingested note | P35-19 |
 | P35-22 | C | Leave-out corpus and discovery report; **Gate C** | P35-20, P35-21 |
-| P35-23 | D | Migration 020, ingestion outbox, GPU lock and `research-worker` | P35-22 |
+| P35-23 | D | Migration 021, ingestion outbox, GPU lock and `research-worker` | P35-22 |
 | P35-24 | D | Online ingestion of one paper: acquire, extract, chunk | P35-23 |
 | P35-25 | D | Child snapshot, automatic finalization and generation publication | P35-24 |
 | P35-26 | D | `request_ingestion` tool and membership policy | P35-25 |
