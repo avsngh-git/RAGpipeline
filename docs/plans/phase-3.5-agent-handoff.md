@@ -27,7 +27,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-02 (#46) | done | 256cd10 | Qdrant v1.19.1 pinned; parity possible (IDF corpus filter required); export/import upgrade; Docling not installed locally |
 | P35-03 (#47) | done | 9d5f630 | Compose and CI on v1.19.1; four collections exported and imported to volume `qdrant_data_v1_19`, all checks passed; old volume kept; 43 integration tests passed |
 | P35-04 (#48) | done | 55040fe | Migration renumbered to 018 (017 is ADR-0025's claim quotes); later card migrations shift to 019–021 |
-| P35-05 (#49) | done | this change | `generation_index.py`; retrieved dense vectors are in `GenerationMatch.dense` (not a payload key); every point needs a dense vector |
+| P35-05 (#49) | done | 5bfca4e | `generation_index.py`; retrieved dense vectors are in `GenerationMatch.dense` (not a payload key); every point needs a dense vector |
+| P35-06 (#50) | done | this change | Generation 1 of `research-corpus` built: 44,277 points, all vectors reused, 0 embedded, 80 s; state `building` until P35-08 |
 
 ## Environment facts
 
@@ -47,3 +48,8 @@ cards to be implemented one at a time, with one commit per card.
   schema left by `test_checkpointing.py`. New integration modules must sort after
   `test_live_services.py`: name them `test_phase35_*.py`. Add each new migration to that
   test's expected migration list.
+- Generation collection `research-corpus` is `61cefddc-9fcb-4f75-8280-eae9bce3adf7`; the
+  dense generation configuration (`configs/phase35-generation-index.example.json`) is
+  `sha256:4cad3111d787948278dd448819a14ee7daa8ec4b7403bc0139cbdd60fd01a2b5`.
+- `research-ingest` applies pending migrations to `RESEARCH_PLATFORM_DATABASE_URL`;
+  `research_phase1_review` has migrations through 018.

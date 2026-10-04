@@ -1,0 +1,104 @@
+"""Terminal commands for index generations (``research-ingest generations ...``)."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
+import asyncpg  # type: ignore[import-untyped]
+import httpx
+
+from research_platform.config import Settings
+from research_platform.ingestion.embeddings import create_embedder_for_configuration
+from research_platform.ingestion.generation_build import (
+    GenerationInputRepository,
+    QdrantDenseVectorSource,
+    build_generation_passages,
+)
+from research_platform.ingestion.generation_index import (
+    GenerationIndexConfiguration,
+    GenerationQdrantCollection,
+)
+from research_platform.ingestion.generation_registry import GenerationRegistry
+from research_platform.ingestion.indexing import IndexConfiguration
+
+
+def add_generation_commands(commands: Any) -> None:
+    """Register the ``generations`` command group on the ingestion parser."""
+    generations = commands.add_parser(
+        "generations", help="build, verify and publish index generations"
+    )
+    subcommands = generations.add_subparsers(dest="generation_command", required=True)
+    build = subcommands.add_parser(
+        "build", help="build the next generation's passages from a finalized snapshot"
+    )
+    build.add_argument("--collection-name", required=True)
+    build.add_argument("--snapshot-id", type=UUID, required=True)
+    build.add_argument("--configuration", type=Path, required=True)
+    build.add_argument(
+        "--reuse-dense-configuration",
+        type=Path,
+        help="per-snapshot index configuration whose stored vectors are reused",
+    )
+    build.add_argument(
+        "--reuse-dense-snapshot-id",
+        type=UUID,
+        help="snapshot whose per-snapshot points hold the vectors (default: --snapshot-id)",
+    )
+    build.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    build.add_argument("--precision", choices=("fp32", "fp16"), default="fp32")
+
+
+def load_generation_configuration(path: Path) -> GenerationIndexConfiguration:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("generation configuration must be a JSON object")
+    return GenerationIndexConfiguration.from_dict(raw)
+
+
+async def execute_generation_command(
+    args: argparse.Namespace, settings: Settings, pool: asyncpg.Pool
+) -> None:
+    configuration = load_generation_configuration(args.configuration)
+    registry = GenerationRegistry(pool)
+    collection_id = await registry.ensure_collection(args.collection_name)
+    async with httpx.AsyncClient(
+        base_url=settings.qdrant_url.rstrip("/"), timeout=60
+    ) as http:
+        if args.generation_command == "build":
+            vector_source = None
+            if args.reuse_dense_configuration is not None:
+                stored = IndexConfiguration.from_dict(
+                    json.loads(args.reuse_dense_configuration.read_text("utf-8"))
+                )
+                vector_source = QdrantDenseVectorSource(
+                    http,
+                    stored=stored,
+                    expected=configuration.dense_configuration(),
+                    snapshot_id=args.reuse_dense_snapshot_id or args.snapshot_id,
+                )
+            embedder = create_embedder_for_configuration(
+                configuration.dense_configuration(),
+                device=args.device,
+                precision=args.precision,
+            )
+            try:
+                report = await build_generation_passages(
+                    registry=registry,
+                    inputs=GenerationInputRepository(pool),
+                    passages=GenerationQdrantCollection(
+                        configuration, "passages", http
+                    ),
+                    embedder=embedder,
+                    configuration=configuration,
+                    collection_id=collection_id,
+                    snapshot_id=args.snapshot_id,
+                    vector_source=vector_source,
+                )
+            finally:
+                embedder.close()
+            print(json.dumps(asdict(report), indent=2, default=str))

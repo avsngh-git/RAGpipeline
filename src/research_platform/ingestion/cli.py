@@ -55,6 +55,10 @@ from research_platform.ingestion.embeddings import (
 )
 from research_platform.ingestion.evidence import ChunkingConfig, EvidenceKind
 from research_platform.ingestion.evidence_repository import EvidenceRepository
+from research_platform.ingestion.generation_cli import (
+    add_generation_commands,
+    execute_generation_command,
+)
 from research_platform.ingestion.identity import DocumentVersionKind
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
@@ -441,6 +445,8 @@ def build_parser() -> argparse.ArgumentParser:
     enrich.add_argument("--config", type=Path, required=True)
     enrich.add_argument("--limit", type=int)
 
+    add_generation_commands(commands)
+
     return parser
 
 
@@ -577,6 +583,8 @@ async def _execute(args: argparse.Namespace) -> None:
             await _execute_jobs(args, settings, pool)
         elif args.command == "index":
             await _execute_index_operation(args, settings, pool)
+        elif args.command == "generations":
+            await execute_generation_command(args, settings, pool)
         elif args.command == "storage" and args.storage_command == "cleanup":
             await _execute_storage_cleanup(args, ArtifactRepository(pool))
         elif args.command == "storage":

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Literal, cast
 from uuid import UUID
@@ -69,6 +70,52 @@ class GenerationRegistry:
                     "SELECT id FROM collections WHERE name = $1", name.strip()
                 )
         return cast(UUID, collection_id)
+
+    async def register_configuration(
+        self, configuration_id: str, configuration: Mapping[str, object]
+    ) -> None:
+        """Store a configuration once; a stored ID must keep identical content."""
+        async with self._pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO index_configurations (configuration_id, configuration)
+                VALUES ($1, $2::jsonb)
+                ON CONFLICT (configuration_id) DO NOTHING
+                """,
+                configuration_id,
+                json.dumps(dict(configuration), sort_keys=True),
+            )
+            stored = await connection.fetchval(
+                "SELECT configuration::text FROM index_configurations "
+                "WHERE configuration_id = $1",
+                configuration_id,
+            )
+        if stored is None or json.loads(stored) != dict(configuration):
+            raise ValueError("index configuration ID conflicts with stored content")
+
+    @asynccontextmanager
+    async def build_lock(self, configuration_id: str) -> AsyncIterator[None]:
+        """Serialize generation builds that write one configuration's collections."""
+        lock_key = f"generation-build:{configuration_id}"
+        async with self._pool.acquire() as connection:
+            try:
+                await connection.execute(
+                    "SELECT pg_advisory_lock(hashtextextended($1, 0))", lock_key
+                )
+            except BaseException:
+                # The server may have granted the lock before a cancellation arrived.
+                connection.terminate()
+                raise
+            try:
+                yield
+            finally:
+                try:
+                    await connection.execute(
+                        "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lock_key
+                    )
+                except BaseException:
+                    connection.terminate()
+                    raise
 
     async def register_generation(
         self,
