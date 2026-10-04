@@ -26,7 +26,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-01 (#45) | done | daba634 | ADRs accepted; source of truth 1.35; glossary terms; plan and handoff |
 | P35-02 (#46) | done | 256cd10 | Qdrant v1.19.1 pinned; parity possible (IDF corpus filter required); export/import upgrade; Docling not installed locally |
 | P35-03 (#47) | done | 9d5f630 | Compose and CI on v1.19.1; four collections exported and imported to volume `qdrant_data_v1_19`, all checks passed; old volume kept; 43 integration tests passed |
-| P35-04 (#48) | done | this change | Migration renumbered to 018 (017 is ADR-0025's claim quotes); later card migrations shift to 019–021 |
+| P35-04 (#48) | done | 55040fe | Migration renumbered to 018 (017 is ADR-0025's claim quotes); later card migrations shift to 019–021 |
+| P35-05 (#49) | done | this change | `generation_index.py`; retrieved dense vectors are in `GenerationMatch.dense` (not a payload key); every point needs a dense vector |
 
 ## Environment facts
 
