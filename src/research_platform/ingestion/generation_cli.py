@@ -23,6 +23,11 @@ from research_platform.ingestion.generation_index import (
     GenerationIndexConfiguration,
     GenerationQdrantCollection,
 )
+from research_platform.ingestion.generation_publication import (
+    publish_generation,
+    purge_retired,
+    verify_generation,
+)
 from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.ingestion.indexing import IndexConfiguration
 from research_platform.ingestion.paper_index import PaperIndexRepository, sync_papers
@@ -57,6 +62,22 @@ def add_generation_commands(commands: Any) -> None:
     sync.add_argument("--collection-name", required=True)
     sync.add_argument("--configuration", type=Path, required=True)
     sync.add_argument("--generation", type=int, required=True)
+    for name, help_text in (
+        ("verify", "check a built generation against its snapshot"),
+        ("publish", "move the published pointer to a verified generation"),
+    ):
+        command = subcommands.add_parser(name, help=help_text)
+        command.add_argument("--collection-name", required=True)
+        command.add_argument("--configuration", type=Path, required=True)
+        command.add_argument("--generation", type=int, required=True)
+    purge = subcommands.add_parser(
+        "purge", help="delete retired passages no readable generation can see"
+    )
+    purge.add_argument("--collection-name", required=True)
+    purge.add_argument("--configuration", type=Path, required=True)
+    purge.add_argument(
+        "--apply", action="store_true", help="delete; without it only count"
+    )
     for command in (build, sync):
         command.add_argument(
             "--device", choices=("auto", "cpu", "cuda"), default="auto"
@@ -113,6 +134,33 @@ async def execute_generation_command(
             finally:
                 embedder.close()
             print(json.dumps(asdict(report), indent=2, default=str))
+        elif args.generation_command == "verify":
+            verification = await verify_generation(
+                registry=registry,
+                inputs=GenerationInputRepository(pool),
+                papers_repository=PaperIndexRepository(pool),
+                passages=GenerationQdrantCollection(configuration, "passages", http),
+                papers=GenerationQdrantCollection(configuration, "papers", http),
+                collection_id=collection_id,
+                configuration_id=configuration.configuration_id,
+                generation=args.generation,
+            )
+            print(json.dumps(asdict(verification), indent=2))
+        elif args.generation_command == "publish":
+            await publish_generation(
+                registry, collection_id, configuration.configuration_id, args.generation
+            )
+            print(json.dumps({"published_generation": args.generation}))
+        elif args.generation_command == "purge":
+            purged = await purge_retired(
+                pool=pool,
+                registry=registry,
+                passages=GenerationQdrantCollection(configuration, "passages", http),
+                collection_id=collection_id,
+                configuration_id=configuration.configuration_id,
+                dry_run=not args.apply,
+            )
+            print(json.dumps({"purgeable_points": purged, "deleted": args.apply}))
         elif args.generation_command == "sync-papers":
             record = await registry.get(
                 collection_id, configuration.configuration_id, args.generation

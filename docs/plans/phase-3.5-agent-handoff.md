@@ -29,7 +29,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-04 (#48) | done | 55040fe | Migration renumbered to 018 (017 is ADR-0025's claim quotes); later card migrations shift to 019–021 |
 | P35-05 (#49) | done | 5bfca4e | `generation_index.py`; retrieved dense vectors are in `GenerationMatch.dense` (not a payload key); every point needs a dense vector |
 | P35-06 (#50) | done | b045d7e | Generation 1 of `research-corpus` built: 44,277 points, all vectors reused, 0 embedded, 80 s; state `building` until P35-08 |
-| P35-07 (#51) | done | this change | `papers` collection synced: 157 papers, 100 indexed in generation 1; dense text is title plus decoded abstract |
+| P35-07 (#51) | done | 8b002b6 | `papers` collection synced: 157 papers, 100 indexed in generation 1; dense text is title plus decoded abstract |
+| P35-08 (#52) | done | this change | Generation 1 verified (44,277 of 44,277; 0 missing, unexpected, hash or field failures; probes passed) and published; purge dry run 0 |
 
 ## Environment facts
 

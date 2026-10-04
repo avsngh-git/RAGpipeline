@@ -473,6 +473,17 @@ class GenerationQdrantCollection:
         )
         response.raise_for_status()
 
+    async def delete_matching(self, filter_: Mapping[str, object]) -> None:
+        """Delete every point matching a filter; an empty filter is refused."""
+        if not filter_:
+            raise ValueError("refusing to delete without a filter")
+        response = await self._http.post(
+            f"{self._url}/points/delete",
+            params={"wait": "true"},
+            json={"filter": dict(filter_)},
+        )
+        response.raise_for_status()
+
     async def count(self, filter_: Mapping[str, object]) -> int:
         response = await self._http.post(
             f"{self._url}/points/count", json={"exact": True, "filter": dict(filter_)}
