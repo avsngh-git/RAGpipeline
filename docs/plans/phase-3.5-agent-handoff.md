@@ -1,0 +1,40 @@
+# Phase 3.5 — Agent handoff
+
+Updated: 2026-10-04. **Status: approved by the owner; implementation in progress.** The owner
+accepted ADRs [0022](../adr/0022-phase35-qdrant-search-and-content.md),
+[0023](../adr/0023-phase35-index-generations.md) and
+[0024](../adr/0024-phase35-online-discovery-and-ingestion.md) on 2026-10-04 and asked for the
+cards to be implemented one at a time, with one commit per card.
+
+## How work is picked up
+
+- Each card is a GitHub issue labelled `wayfinder:task` under the map issue
+  [#44](https://github.com/avsngh-git/RAGpipeline/issues/44). P35-01 to P35-30 are #45 to #74
+  in order.
+- Pick the first open card in map order whose "Blocked by" cards are closed. Follow the card
+  and the [Phase 3 card rules](phase-3-agent-answers.md#card-rules), with branches named
+  `phase3.5/p35-NN-short-name`.
+- 2026-10-04: the owner asked the planning agent to implement the cards sequentially on the
+  branch `phase3.5/implementation`, committing after each card. Pushing and pull requests
+  happen only when the owner asks.
+- P35-16 (#60) runs only if the P35-15 parity report fails and the owner approves it.
+
+## Progress
+
+| Card | State | Commit | Notes |
+| --- | --- | --- | --- |
+| P35-01 (#45) | done | this change | ADRs accepted; source of truth 1.35; glossary terms; plan and handoff |
+
+## Environment facts
+
+- Phase 2 search is served by Uvicorn in the host Conda environment `sci_research_agent`
+  (CUDA and model caches); Compose provides PostgreSQL, Qdrant and Ollama. The packaged API
+  image has no PyTorch, so `research-worker` also runs in the host environment. See
+  [Phase 2 search operations](../operations/phase-2-search.md).
+- The accepted snapshot `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` (generation 1) lives in the
+  database `research_phase1_review`; research runs use the same database.
+- The Phase 2 serving dense collection is `phase2-dev-gte-modernbert-base-v1` (44,277 points).
+- Compose and CI pin Qdrant v1.14.1 until P35-03.
+- Private Phase 3.5 data goes under `local-reference/phase35/`; `/tmp` is not persistent.
+- ADR-0025 (answer quality) changed synthesis prompts, budgets and verification after Phase 3;
+  agent-layer cards must read the current `main` versions of the agent modules.

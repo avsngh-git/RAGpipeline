@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.34\
+**Version:** 1.35\
 **Last updated:** 2026-10-04\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification)\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024\
 
 ---
 
@@ -164,7 +164,6 @@ flowchart TD
     SVC --> META["Metadata + Run Store"]
     SVC --> GRAPH["Citation Graph Service"]
     RET --> QD["Qdrant"]
-    RET --> LEX["Lexical Index"]
     META --> PG["PostgreSQL"]
     GRAPH --> PG
     GRAPH --> OA["OpenAlex"]
@@ -198,7 +197,7 @@ Observability surrounds the API, agent, tools, retrieval pipeline, model calls, 
 | Language | Python | Primary language for ML, retrieval, agents, and backend |
 | API | FastAPI + Pydantic | Typed async-capable HTTP service and generated API schema |
 | Relational store | PostgreSQL | Metadata, ingestion, runs, configuration references, citations |
-| Vector store | Qdrant | Dense retrieval with filtering as an actual service |
+| Vector store | Qdrant | Dense and lexical (sparse) retrieval with filtering and evidence serving as an actual service (ADR-0022) |
 | Agent orchestration | LangGraph | Explicit state, nodes, loops, and bounded execution |
 | Citation metadata | OpenAlex | Real scholarly metadata and citation relationships |
 | LLM serving | Self-hosted adapter; Ollama or llama.cpp compatible | Local operation and replaceable model backend |
@@ -212,7 +211,7 @@ Observability surrounds the API, agent, tools, retrieval pipeline, model calls, 
 
 These choices MUST be evaluated or recorded in ADRs before being treated as permanent:
 
-- lexical retrieval engine/library;
+- lexical retrieval engine/library (Phase 3.5: `scientific-en-v1` sparse vectors executed by Qdrant, [ADR-0022](../adr/0022-phase35-qdrant-search-and-content.md), subject to its parity rule);
 - exact embedding model;
 - exact cross-encoder reranker;
 - exact local tool-capable generator and quantization (Phase 3: text-only Qwen3.5-2B `Q4_K_M` on Ollama, all layers on the GPU beside retrieval, [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md); synthesis runs with thinking on and no output-token cap, [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md));
@@ -394,6 +393,13 @@ Each Qdrant point MUST include or reference:
 
 Do not treat Qdrant as the sole authoritative store for source text or provenance.
 
+From Phase 3.5 ([ADR-0022](../adr/0022-phase35-qdrant-search-and-content.md),
+[ADR-0023](../adr/0023-phase35-index-generations.md)), passage points also carry a copy of
+the evidence text with its `text_sha256`, source location and spans, and the
+`added_generation`/`retired_generation` tags of index generations. Search reads evidence
+content from Qdrant; PostgreSQL remains authoritative and validates permission and
+membership. Qdrant executes both dense and lexical (sparse) search.
+
 ### 8.5 Citation graph
 
 Citation relationships MUST originate from real OpenAlex-linked identifiers. Baseline graph traversal SHOULD use PostgreSQL adjacency tables and indexed queries. A dedicated graph database is excluded unless profiling proves a material need.
@@ -421,6 +427,7 @@ records finalization and quality acceptance.
 
 - **Snapshot acceptance:** processing produces inspectable/testable drafts. Normal research MUST use explicitly finalized snapshots with validated, fixed membership, selected document/extraction versions, effective configurations and evidence/index integrity. New evidence/configuration requires a new snapshot. A smaller finalized snapshot does not satisfy the 100-paper target.
 - **Quality failures:** unresolved extraction failures, including a results-table validation failure, prevent a paper from counting as successfully ingested. Preserve intermediate outputs for alternative extraction or reviewed correction with provenance. Exclusions and replacements MUST be explicit selection decisions, never silent quality filtering.
+- **Online ingestion (Phase 3.5, [ADR-0024](../adr/0024-phase35-online-discovery-and-ingestion.md)):** a `deep_research` run or `POST /v1/collections/{collection_id}/ingest` may request ingestion of discovered papers. Discovery covers ML and information retrieval research broadly, keeping English and 2020-onward defaults. The agent proposes papers; code enforces exact-file permission evidence, per-run and daily budgets and no recursive acquisition, and records every decision. A separate worker ingests requests one at a time; the resulting child snapshot is finalized automatically after the existing integrity validation and published as the next index generation ([ADR-0023](../adr/0023-phase35-index-generations.md)), which satisfies the finalized-snapshot rule above. Papers without a permitted source stay metadata-only; their OpenAlex abstracts may be cited as labelled abstract evidence for private local use.
 - **Verification scope:** prepare human-verified text/table samples from every paper in the 10-paper comparison before evaluating approaches. For the 100-paper pilot, run automated integrity checks across all papers and a documented manual quality sample. Report sampling and coverage without implying exhaustive cell-level review.
 
 Chunk-size/token-overlap baselines remain OPEN for future corpus variants and new
@@ -650,6 +657,9 @@ Initial tools:
 - `get_citations`
 - `get_references`
 - `find_related_papers`
+
+Phase 3.5 ([ADR-0024](../adr/0024-phase35-online-discovery-and-ingestion.md)) adds
+`discover_papers` and `request_ingestion`, available only in `deep_research` mode.
 
 Tool schemas MUST:
 
@@ -1334,6 +1344,34 @@ against 50% without; synthesis took a median 215 s. Of the Phase 4 inputs above,
 synthesis, the support check and compact tables are addressed; persisting drafts, the
 `answered` definition and the `deep_research` planner remain open.
 
+### Phase 3.5 — Qdrant search and online ingestion
+
+**Status: approved by the owner on 2026-10-04; implementation in progress.** The
+[Phase 3.5 plan](../plans/phase-3.5-qdrant-search.md), map issue
+[#44](https://github.com/avsngh-git/RAGpipeline/issues/44) and
+[handoff](../plans/phase-3.5-agent-handoff.md) track the cards. Decisions:
+[ADR-0022](../adr/0022-phase35-qdrant-search-and-content.md) (Qdrant executes dense and
+lexical search and serves evidence content; `scientific-en-v1` sparse vectors with the IDF
+modifier; profile `v10-qdrant` inherits Phase 2 acceptance only through exact parity),
+[ADR-0023](../adr/0023-phase35-index-generations.md) (index generations, publication pointer
+and run pinning) and [ADR-0024](../adr/0024-phase35-online-discovery-and-ingestion.md) (online
+discovery, policy-enforced membership, run-triggered ingestion through a separate worker).
+
+Deliver, in order with a gate after each step:
+
+- A — storage split: generation registry, content payloads, `papers` collection, run pinning;
+- B — lexical engine in Qdrant and cutover to `v10-qdrant`;
+- C — `discover_papers`, abstract evidence and semantic related papers;
+- D — ingestion outbox and worker, `request_ingestion`, run waiting, ingest API.
+
+Gates: A — content served from Qdrant matches PostgreSQL hashes and v10 rankings, a
+generation rebuilds from PostgreSQL and artifacts, and a generation with correct counts but
+wrong IDs is not published; B — lexical top-50 and end-to-end v10 parity, otherwise the full
+Phase 2 procedure with a fresh held-out set; C — leave-out discovery recall reported, not
+gated; D — scripted permission, budget, crash-resume and pinning cases pass in CI, at least 90%
+of ingestion-triggering live leave-out runs finish within their wait cap, and every failed run
+has a failure category. Answer quality is reported, not gated.
+
 ### Phase 4 — Observability, LLMOps, and security
 
 Deliver:
@@ -1420,7 +1458,7 @@ The project is portfolio-complete only when all of the following are true:
 
 Resolve these progressively; do not decide all of them before evidence is available.
 
-1. Expansion beyond the initial RAG/retrieval/reranking collection into broader ML research; initial boundaries are fixed in Section 8.6.
+1. Expansion beyond the initial RAG/retrieval/reranking collection into broader ML research; initial boundaries are fixed in Section 8.6. **Partly resolved for online discovery (ADR-0024):** ML and information retrieval broadly, English, 2020 onward.
 2. Exact supported full-text adapters and per-source permission/access verification under the agreed policy; the bounded direct-source adapter is resolved by [accepted ADR-0007](../adr/0007-bounded-direct-source-pdf-downloads.md).
 3. Phase 2 lexical choice is frozen as BM25S 0.3.11 with scientific-en-v1; later
    library or analyzer changes require new evidence.
@@ -1435,8 +1473,9 @@ Resolve these progressively; do not decide all of them before evidence is availa
    Synthesis runs with thinking on and no output cap (ADR-0025).
 7. Chunk-size/token-overlap baseline after corpus analysis.
 8. **Resolved for research runs (ADR-0019):** an in-process worker with resumable LangGraph
-   checkpoints; API-controlled ingestion remains open, while terminal-driven resumable
-   ingestion is settled for Phase 1.
+   checkpoints; terminal-driven resumable ingestion is settled for Phase 1. **API- and
+   run-triggered ingestion resolved for Phase 3.5 (ADR-0024):** a PostgreSQL outbox claimed by a
+   separate `research-worker` process.
 9. Authentication and caching implementations.
 10. Production hosting target and cost envelope.
 11. Thin UI choice.

@@ -118,3 +118,16 @@ _Avoid_: support judge, faithfulness score
 
 **Labeled table row**:
 A table row shown with every value next to its column headers, so a value can be read without counting columns.
+
+**Generation**:
+A numbered, finalized snapshot of a collection published to the search index; generation N adds papers to generation N−1. A research run reads one generation and changes it only at a recorded switch.
+_Avoid_: release, index version
+
+**Catalog paper**:
+A paper record known from scholarly metadata, with or without ingested full text, that discovery can rank and propose for ingestion.
+
+**Abstract evidence**:
+A paper's metadata abstract used as citable evidence and labelled separately from full-text passages.
+
+**Ingestion request**:
+A queued, policy-checked request to ingest named catalog papers into the next generation, created by a research run, the API or a terminal command.
