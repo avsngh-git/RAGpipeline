@@ -30,7 +30,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-05 (#49) | done | 5bfca4e | `generation_index.py`; retrieved dense vectors are in `GenerationMatch.dense` (not a payload key); every point needs a dense vector |
 | P35-06 (#50) | done | b045d7e | Generation 1 of `research-corpus` built: 44,277 points, all vectors reused, 0 embedded, 80 s; state `building` until P35-08 |
 | P35-07 (#51) | done | 8b002b6 | `papers` collection synced: 157 papers, 100 indexed in generation 1; dense text is title plus decoded abstract |
-| P35-08 (#52) | done | this change | Generation 1 verified (44,277 of 44,277; 0 missing, unexpected, hash or field failures; probes passed) and published; purge dry run 0 |
+| P35-08 (#52) | done | e3c7b93 | Generation 1 verified (44,277 of 44,277; 0 missing, unexpected, hash or field failures; probes passed) and published; purge dry run 0 |
+| P35-09 (#53) | done | this change | `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant` serves all four modes from generation content; generation dense search is exact (see findings) |
 
 ## Environment facts
 
@@ -61,3 +62,13 @@ cards to be implemented one at a time, with one commit per card.
   Accepted profile v10 therefore ranks paper metadata by title only. Lexical parity
   (P35-12/P35-15) must reproduce title-only paper text; using abstracts is a ranking
   change that needs evaluation.
+- P35-09 findings for the Gate A parity check (P35-10):
+  - Qdrant's JSON parsing can change the last bit of stored floats (bounding boxes
+    differ by one ulp). Text and hashes are exact; compare coordinates with a relative
+    tolerance of 1e-12.
+  - The Phase 2 dense branch used approximate HNSW search, and HNSW graphs differ between
+    collections even for identical vectors. On 24 test requests (dense, hybrid,
+    reranked; 3 queries, with and without a year filter) 6 top-10 lists differed in one or
+    two items. Generation dense search now uses exact search, so parity is checked as
+    exact search over the old collection against exact search over the generation, and
+    the report records how far v10's approximate results were from exact.

@@ -29,6 +29,7 @@ from research_platform.search.contracts import (
     SearchOperation,
     SearchRequest,
 )
+from research_platform.search.generation_search import GenerationDenseSearch
 from research_platform.search.profile_manifest import (
     load_frozen_profile,
     load_retrieval_profile_manifest,
@@ -184,7 +185,9 @@ def _evidence_input(index: int, *, table: bool = False) -> IndexInput:
     )
 
 
-def _executor() -> tuple[
+def _executor(
+    dense_search: object | None = None,
+) -> tuple[
     Phase2SearchExecutor,
     CrossEncoderReranker,
     _Hybrid,
@@ -243,7 +246,7 @@ def _executor() -> tuple[
         lexical_papers={profile.profile_id: _PaperLexical()},
         hybrid_profile=hybrid_profile,
         hybrid_search=hybrid,
-        dense_search=object(),
+        dense_search=object() if dense_search is None else dense_search,
         reranker=reranker,
         evidence_repository=evidence_repository,
     )
@@ -357,3 +360,44 @@ def test_dense_embedding_saturation_is_a_safe_retrieval_failure() -> None:
             raise AssertionError("embedding saturation must fail closed")
     finally:
         reranker.close()
+
+
+class _GenerationDense(GenerationDenseSearch):
+    def __init__(self, inputs: dict[str, IndexInput]) -> None:
+        self.inputs = inputs
+        self.reads: list[tuple[UUID, tuple[str, ...]]] = []
+
+    async def read_evidence(self, snapshot_id, evidence_ids):
+        self.reads.append((snapshot_id, tuple(evidence_ids)))
+        return tuple(self.inputs[evidence_id] for evidence_id in evidence_ids)
+
+
+class _NoLeaseRepository(_Repository):
+    def serving_index(self, snapshot_selection, configuration):
+        raise AssertionError("the Qdrant content path must not open a snapshot lease")
+
+    async def hydrate_snapshot_matches(self, snapshot, configuration, matches):
+        raise AssertionError("the Qdrant content path must not read PostgreSQL text")
+
+
+def test_qdrant_content_source_reads_evidence_from_generation_search() -> None:
+    inputs = (_evidence_input(1, table=True), _evidence_input(2), _evidence_input(3))
+    dense = _GenerationDense({item.evidence_id: item for item in inputs})
+    executor, reranker, _hybrid, profile, _evidence = _executor(dense)
+    executor._repository = _NoLeaseRepository(inputs)  # type: ignore[assignment]
+    try:
+        response = asyncio.run(
+            executor.execute(
+                _request(profile, SearchOperation.EVIDENCE_SEARCH),
+                request_id="synthetic-qdrant-content",
+            )
+        )
+    finally:
+        reranker.close()
+
+    assert [hit.chunk_id for hit in response.hits] == [
+        f"sha256:{index:064x}" for index in (1, 2)
+    ]
+    assert dense.reads == [
+        (profile.snapshot.snapshot_id, tuple(item.evidence_id for item in inputs))
+    ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from collections.abc import Callable, Mapping, Sequence
@@ -29,12 +30,18 @@ from research_platform.ingestion.evidence import (
     SourceLocation,
 )
 from research_platform.ingestion.evidence_repository import EvidenceRepository
+from research_platform.ingestion.generation_index import (
+    GenerationIndexConfiguration,
+    GenerationQdrantCollection,
+)
+from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.ingestion.identity import DocumentVersionKind
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
     IndexMatch,
     IndexRepository,
     QdrantIndex,
+    SnapshotIndexNotReady,
 )
 from research_platform.search.active_profile import resolve_frozen_profile_path
 from research_platform.search.application_errors import (
@@ -61,6 +68,11 @@ from research_platform.search.evidence_budgets import (
 )
 from research_platform.search.evidence_deduplication import (
     deduplicate_evidence_hits,
+)
+from research_platform.search.generation_search import (
+    GenerationDenseSearch,
+    PassageAuthorizer,
+    QdrantContentReader,
 )
 from research_platform.search.hybrid_search import (
     HybridEvidenceSearch,
@@ -169,7 +181,7 @@ class Phase2SearchExecutor:
         lexical_papers: Mapping[str, LexicalRetriever],
         hybrid_profile: RetrievalProfile,
         hybrid_search: HybridEvidenceSearch,
-        dense_search: SnapshotDenseSearch,
+        dense_search: SnapshotDenseSearch | GenerationDenseSearch,
         reranker: CrossEncoderReranker,
         evidence_repository: EvidenceRepository,
     ) -> None:
@@ -186,6 +198,9 @@ class Phase2SearchExecutor:
         self._dense = dense_search
         self._reranker = reranker
         self._evidence_repository = evidence_repository
+        self._generation_search = (
+            dense_search if isinstance(dense_search, GenerationDenseSearch) else None
+        )
 
     async def execute(
         self, request: SearchRequest, *, request_id: str
@@ -437,9 +452,14 @@ class Phase2SearchExecutor:
 
         if mode not in {RetrievalMode.HYBRID, RetrievalMode.RERANKED}:
             raise IncompatibleRetrievalProfile("unsupported retrieval mode")
-        async with self._repository.serving_index(
-            self._hybrid_profile.snapshot, self._configuration
-        ) as ready_index:
+        lease = (
+            contextlib.nullcontext(None)
+            if self._generation_search is not None
+            else self._repository.serving_index(
+                self._hybrid_profile.snapshot, self._configuration
+            )
+        )
+        async with lease as ready_index:
             try:
                 hybrid = await self._hybrid.search_query(
                     self._hybrid_profile,
@@ -533,9 +553,15 @@ class Phase2SearchExecutor:
             IndexMatch(evidence_id=identity, score=score, payload={})
             for identity, score, _scores in ranked
         )
-        hydrated = await self._repository.hydrate_snapshot_matches(
-            profile.snapshot, self._configuration, matches
-        )
+        if self._generation_search is not None:
+            hydrated = await self._generation_search.read_evidence(
+                profile.snapshot.snapshot_id,
+                [identity for identity, _score, _scores in ranked],
+            )
+        else:
+            hydrated = await self._repository.hydrate_snapshot_matches(
+                profile.snapshot, self._configuration, matches
+            )
         if tuple(item.evidence_id for item in hydrated) != tuple(
             identity for identity, _score, _scores in ranked
         ):
@@ -885,13 +911,18 @@ async def create_phase2_runtime(
         embedder = create_embedder_for_configuration(
             configuration, device=cast(Any, settings.model_device)
         )
-        qdrant = QdrantIndex(configuration, http)
-        dense = SnapshotDenseSearch(
-            repository,
-            qdrant,
-            query_embedder=embedder,
-            evidence_hydrator=repository,
-        )
+        dense: SnapshotDenseSearch | GenerationDenseSearch
+        if settings.content_source == "qdrant":
+            dense = await _generation_dense_search(
+                settings, pool, http, embedder, frozen.snapshot.snapshot_id
+            )
+        else:
+            dense = SnapshotDenseSearch(
+                repository,
+                QdrantIndex(configuration, http),
+                query_embedder=embedder,
+                evidence_hydrator=repository,
+            )
         hybrid = HybridEvidenceSearch(
             lexical_evidence[hybrid_profile.profile_id], dense
         )
@@ -960,6 +991,39 @@ async def create_phase2_runtime(
         await http.aclose()
         await pool.close()
         raise
+
+
+async def _generation_dense_search(
+    settings: Settings,
+    pool: asyncpg.Pool,
+    http: httpx.AsyncClient,
+    embedder: Any,
+    snapshot_id: UUID,
+) -> GenerationDenseSearch:
+    """Dense search and content over the configured collection's generations."""
+    try:
+        raw = json.loads(settings.generation_configuration.read_text(encoding="utf-8"))
+        configuration = GenerationIndexConfiguration.from_dict(raw)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        raise SearchDependencyUnavailable(
+            "generation index configuration is unavailable or invalid"
+        ) from None
+    registry = GenerationRegistry(pool)
+    passages = GenerationQdrantCollection(configuration, "passages", http)
+    search = GenerationDenseSearch(
+        passages=passages,
+        reader=QdrantContentReader(passages, PassageAuthorizer(pool), configuration),
+        registry=registry,
+        configuration=configuration,
+        query_embedder=embedder,
+    )
+    try:
+        await search.generation_for(snapshot_id)
+    except SnapshotIndexNotReady:
+        raise SearchDependencyUnavailable(
+            "the serving snapshot has no published generation"
+        ) from None
+    return search
 
 
 def _load_lexical_artifact(

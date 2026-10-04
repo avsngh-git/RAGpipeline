@@ -68,6 +68,23 @@ def _model_device_default() -> str:
     return os.environ.get("RESEARCH_PLATFORM_MODEL_DEVICE", "auto")
 
 
+def _content_source_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_CONTENT_SOURCE", "postgres")
+
+
+def _generation_collection_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_GENERATION_COLLECTION", "research-corpus")
+
+
+def _generation_configuration_default() -> Path:
+    return Path(
+        os.environ.get(
+            "RESEARCH_PLATFORM_GENERATION_CONFIGURATION",
+            "configs/phase35-generation-index.example.json",
+        )
+    )
+
+
 def _reranker_cache_dir_default() -> Path | None:
     value = os.environ.get("RESEARCH_PLATFORM_RERANKER_CACHE_DIR")
     return Path(value) if value else None
@@ -154,6 +171,11 @@ class Settings:
     lexical_index_root: Path = field(default_factory=_lexical_index_root_default)
     model_device: str = field(default_factory=_model_device_default)
     reranker_cache_dir: Path | None = field(default_factory=_reranker_cache_dir_default)
+    content_source: str = field(default_factory=_content_source_default)
+    generation_collection: str = field(default_factory=_generation_collection_default)
+    generation_configuration: Path = field(
+        default_factory=_generation_configuration_default
+    )
     llm_base_url: str = field(default_factory=_llm_base_url_default)
     llm_model: str = field(default_factory=_llm_model_default)
     llm_timeout_seconds: float = field(default_factory=_llm_timeout_default)
@@ -215,6 +237,15 @@ class Settings:
         if model_device not in {"auto", "cpu", "cuda"}:
             raise ValueError("model_device must be auto, cpu or cuda")
         object.__setattr__(self, "model_device", model_device)
+        content_source = self.content_source.strip().lower()
+        if content_source not in {"postgres", "qdrant"}:
+            raise ValueError("content_source must be postgres or qdrant")
+        object.__setattr__(self, "content_source", content_source)
+        if not self.generation_collection.strip():
+            raise ValueError("generation_collection must be a non-empty name")
+        object.__setattr__(
+            self, "generation_configuration", Path(self.generation_configuration)
+        )
         lexical_root = Path(self.lexical_index_root)
         if not str(lexical_root).strip():
             raise ValueError("lexical_index_root must be a non-empty path")

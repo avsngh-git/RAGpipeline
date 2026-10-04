@@ -500,16 +500,19 @@ class GenerationQdrantCollection:
         *,
         filter_: Mapping[str, object],
         limit: int,
+        exact: bool = False,
     ) -> tuple[GenerationMatch, ...]:
+        """Nearest dense neighbours; ``exact`` scans instead of using the HNSW graph."""
         _require_positive_int(limit, "limit")
-        return await self._query(
-            {
-                "query": self._dense(vector),
-                "using": DENSE_VECTOR,
-                "filter": dict(filter_),
-                "limit": limit,
-            }
-        )
+        body: dict[str, object] = {
+            "query": self._dense(vector),
+            "using": DENSE_VECTOR,
+            "filter": dict(filter_),
+            "limit": limit,
+        }
+        if exact:
+            body["params"] = {"exact": True}
+        return await self._query(body)
 
     async def query_sparse(
         self,

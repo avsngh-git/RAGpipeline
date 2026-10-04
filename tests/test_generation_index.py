@@ -293,3 +293,22 @@ def test_retrieve_reorders_by_requested_id_and_skips_missing() -> None:
     assert [m.point_id for m in matches] == [first, second]
     assert matches[0].dense == (0.1, 0.2)
     assert recorder.requests[-1][2]["with_vector"] == ["dense"]
+
+
+def test_query_dense_exact_sends_exact_parameter() -> None:
+    recorder = _Recorder()
+    recorder.responses[("POST", "/collections/test-passages/points/query")] = {
+        "points": []
+    }
+    _run(
+        recorder,
+        lambda c: c.query_dense(
+            (1.0, 0.0), filter_=generation_filter(1), limit=3, exact=True
+        ),
+    )
+    assert recorder.requests[-1][2]["params"] == {"exact": True}
+    _run(
+        recorder,
+        lambda c: c.query_dense((1.0, 0.0), filter_=generation_filter(1), limit=3),
+    )
+    assert "params" not in recorder.requests[-1][2]
