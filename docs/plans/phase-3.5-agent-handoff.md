@@ -23,7 +23,8 @@ cards to be implemented one at a time, with one commit per card.
 
 | Card | State | Commit | Notes |
 | --- | --- | --- | --- |
-| P35-01 (#45) | done | this change | ADRs accepted; source of truth 1.35; glossary terms; plan and handoff |
+| P35-01 (#45) | done | daba634 | ADRs accepted; source of truth 1.35; glossary terms; plan and handoff |
+| P35-02 (#46) | done | this change | Qdrant v1.19.1 pinned; parity possible (IDF corpus filter required); export/import upgrade; Docling not installed locally |
 
 ## Environment facts
 
