@@ -40,3 +40,5 @@ claims with support labels, and LangGraph checkpoints.
 018_index_generations.sql registers index generations of a collection with their build
 state and one published pointer per index configuration, and records the generation a
 research run reads.
+019_lexical_vocabulary.sql adds the append-only term IDs used by scientific BM25
+sparse vectors.

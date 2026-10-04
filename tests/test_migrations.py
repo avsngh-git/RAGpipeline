@@ -166,3 +166,14 @@ def test_generation_migration_contains_registry_and_run_generation() -> None:
     assert "parent_generation = generation - 1" in migration
     assert "ALTER TABLE research_runs" in migration
     assert "ADD COLUMN generation INTEGER" in migration
+
+
+def test_lexical_vocabulary_migration_is_append_only() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "019_lexical_vocabulary.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE lexical_vocabularies" in migration
+    assert "CREATE TABLE lexical_terms" in migration
+    assert "UNIQUE (vocabulary_id, term_id)" in migration
+    assert "BEFORE UPDATE OR DELETE ON lexical_terms" in migration
