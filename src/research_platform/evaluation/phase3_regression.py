@@ -170,10 +170,14 @@ class _CancelAtCheckpointSaver(InMemorySaver):
 
 
 def load_cases(path: Path) -> tuple[RegressionCase, ...]:
-    """Load versioned synthetic cases and reject unsupported test directives."""
+    """Load versioned synthetic cases and reject unsupported test directives.
+
+    Schema version 2 scripts quoted claims checked in code (ADR-0025). Version 1
+    scripted a support judge and is kept only as the Phase 3 acceptance record.
+    """
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        raise ValueError("regression case file must use schema_version 1")
+    if not isinstance(payload, dict) or payload.get("schema_version") != 2:
+        raise ValueError("regression case file must use schema_version 2")
     if set(payload) != {"schema_version", "corpus", "cases"}:
         raise ValueError("regression case file has unexpected top-level fields")
     corpus_data = payload.get("corpus")
@@ -201,8 +205,8 @@ def load_cases(path: Path) -> tuple[RegressionCase, ...]:
 def load_corpus(path: Path) -> FakeCorpus:
     """Load the shared synthetic corpus from a versioned case file."""
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        raise ValueError("regression case file must use schema_version 1")
+    if not isinstance(payload, dict) or payload.get("schema_version") != 2:
+        raise ValueError("regression case file must use schema_version 2")
     corpus_data = payload.get("corpus")
     if not isinstance(corpus_data, dict):
         raise ValueError("regression case file must include a corpus object")

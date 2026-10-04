@@ -323,14 +323,15 @@ class RunRepository:
                 for ordinal, claim in enumerate(claims, start=1):
                     claim_id = await connection.fetchval(
                         """
-                        INSERT INTO claims (run_id, claim_text, ordinal, support)
-                        VALUES ($1, $2, $3, $4)
+                        INSERT INTO claims (run_id, claim_text, ordinal, support, quote)
+                        VALUES ($1, $2, $3, $4, $5)
                         RETURNING id
                         """,
                         run_id,
                         claim.text,
                         ordinal,
                         claim.support.value,
+                        claim.quote,
                     )
                     await connection.executemany(
                         """
@@ -400,7 +401,7 @@ class RunRepository:
                 raise RunNotFound(f"run {run_id} was not found")
             claim_rows = await connection.fetch(
                 """
-                SELECT claim.ordinal, claim.claim_text, claim.support,
+                SELECT claim.ordinal, claim.claim_text, claim.support, claim.quote,
                        evidence.handle, evidence.chunk_id, evidence.paper_id,
                        evidence.metadata
                 FROM claims AS claim
@@ -422,7 +423,12 @@ class RunRepository:
             ordinal = row["ordinal"]
             grouped = claims_by_ordinal.setdefault(
                 ordinal,
-                {"text": row["claim_text"], "support": row["support"], "evidence": []},
+                {
+                    "text": row["claim_text"],
+                    "quote": row["quote"],
+                    "support": row["support"],
+                    "evidence": [],
+                },
             )
             if row["handle"] is None:
                 continue
@@ -449,6 +455,7 @@ class RunRepository:
             ClaimResult(
                 claim_id=f"claim-{ordinal}",
                 text=str(values["text"]),
+                quote=_optional_string(values["quote"]),
                 evidence=tuple(values["evidence"]),  # type: ignore[arg-type]
                 support=SupportLabel(str(values["support"])),
             )

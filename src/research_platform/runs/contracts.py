@@ -61,7 +61,11 @@ class FailureCategory(StrEnum):
 
 
 class SupportLabel(StrEnum):
-    """Judge label for a claim's evidence support."""
+    """Evidence support recorded for a claim.
+
+    Claims kept by quote verification are recorded as ``supported``; ``partial`` and
+    ``unsupported`` remain for runs judged by the earlier LLM support judge.
+    """
 
     SUPPORTED = "supported"
     PARTIAL = "partial"
@@ -78,7 +82,7 @@ class RunBudgets(_ContractModel):
     max_evidence_passages: int = Field(40, ge=1, le=100)
     max_synthesis_tokens: int = Field(8000, ge=500, le=32000)
     max_model_retries: int = Field(2, ge=0, le=5)
-    max_active_seconds: float = Field(300.0, gt=0, le=3600)
+    max_active_seconds: float = Field(1800.0, gt=0, le=3600)
     max_resumes: int = Field(2, ge=0, le=5)
 
 
@@ -127,10 +131,15 @@ class EvidenceCitation(_ContractModel):
 
 
 class ClaimResult(_ContractModel):
-    """One answer claim and the evidence handles cited for it."""
+    """One answer claim, the evidence cited for it and the quote it was checked against.
+
+    ``quote`` is the passage text the claim was verified against; runs from before
+    quote verification have none.
+    """
 
     claim_id: str = Field(pattern=_CLAIM_ID_PATTERN)
     text: str = Field(min_length=1, max_length=1000)
+    quote: str | None = Field(None, min_length=1, max_length=1000)
     evidence: tuple[EvidenceCitation, ...] = Field(min_length=1)
     support: SupportLabel
 
@@ -172,6 +181,7 @@ class RunUsage(_ContractModel):
     model_calls: int = Field(0, ge=0)
     active_seconds: float = Field(0.0, ge=0)
     resumes: int = Field(0, ge=0)
+    # Claims citing an unknown or unshown handle, and claims that failed verification.
     rejected_claims: int = Field(0, ge=0)
     unsupported_claims: int = Field(0, ge=0)
 

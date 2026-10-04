@@ -228,10 +228,11 @@ def test_complete_run_rewrites_claims_and_builds_view() -> None:
         replacement = ClaimResult(
             claim_id="claim-1",
             text="The resumed answer replaces the earlier claim.",
+            quote="Evidence passage.",
             evidence=(
                 EvidenceCitation(handle="E1", chunk_id=chunk_id, paper_id=paper_id),
             ),
-            support=SupportLabel.PARTIAL,
+            support=SupportLabel.SUPPORTED,
         )
         await repo.complete_run(
             run_id,

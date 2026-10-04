@@ -49,7 +49,7 @@ def test_settings_use_safe_development_defaults(monkeypatch) -> None:
     assert settings.llm_model == DEFAULT_LLM_MODEL
     assert settings.llm_timeout_seconds == DEFAULT_LLM_TIMEOUT_SECONDS
     assert settings.llm_context_tokens == DEFAULT_LLM_CONTEXT_TOKENS
-    assert settings.llm_thinking == frozenset({CallKind.PLAN})
+    assert settings.llm_thinking == frozenset({CallKind.PLAN, CallKind.SYNTHESIZE})
     assert settings.llm_seed == DEFAULT_LLM_SEED
     assert DEFAULT_DATABASE_URL not in repr(settings)
 
@@ -113,7 +113,7 @@ def test_settings_read_environment_overrides(monkeypatch) -> None:
         ),
         ("RESEARCH_PLATFORM_LLM_BASE_URL", "ftp://ollama.example", "llm_base_url"),
         ("RESEARCH_PLATFORM_LLM_MODEL", "  ", "llm_model"),
-        ("RESEARCH_PLATFORM_LLM_TIMEOUT_SECONDS", "600.1", "llm_timeout_seconds"),
+        ("RESEARCH_PLATFORM_LLM_TIMEOUT_SECONDS", "3600.1", "llm_timeout_seconds"),
         ("RESEARCH_PLATFORM_LLM_CONTEXT_TOKENS", "1024", "llm_context_tokens"),
         ("RESEARCH_PLATFORM_LLM_THINKING", "unknown", "CallKind"),
         ("RESEARCH_PLATFORM_LLM_SEED", "-1", "llm_seed"),

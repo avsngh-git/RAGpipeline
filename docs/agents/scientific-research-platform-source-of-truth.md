@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.33\
-**Last updated:** 2026-10-03\
+**Version:** 1.34\
+**Last updated:** 2026-10-04\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`)\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification)\
 
 ---
 
@@ -215,7 +215,7 @@ These choices MUST be evaluated or recorded in ADRs before being treated as perm
 - lexical retrieval engine/library;
 - exact embedding model;
 - exact cross-encoder reranker;
-- exact local tool-capable generator and quantization (Phase 3: text-only Qwen3.5-2B `Q4_K_M` on Ollama, all layers on the GPU beside retrieval, [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md));
+- exact local tool-capable generator and quantization (Phase 3: text-only Qwen3.5-2B `Q4_K_M` on Ollama, all layers on the GPU beside retrieval, [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md); synthesis runs with thinking on and no output-token cap, [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md));
 - local LLM serving implementation between supported adapters (Phase 3: Ollama, ADR-0018);
 - background execution mechanism for long research runs (Phase 3: in-process worker with LangGraph checkpoints, [ADR-0019](../adr/0019-phase3-research-run-execution.md)) and later API-controlled ingestion (Phase 1 uses resumable terminal commands);
 - production/demo hosting provider;
@@ -801,7 +801,7 @@ Every reported experiment MUST retain:
 
 CI will use a small deterministic suite. Thresholds are OPEN until a stable baseline exists. Once adopted, thresholds MUST be versioned and changes justified. CI SHOULD fail on material regressions such as invalid citations, broken tool schemas, large retrieval-quality drops, or API contract failures.
 
-LLM-as-judge MAY supplement evaluation but MUST NOT be the only source of truth. Judge model, prompt, and variance MUST be recorded.
+LLM-as-judge MAY supplement evaluation but MUST NOT be the only source of truth. Judge model, prompt, and variance MUST be recorded. Research answers keep a claim only after code verifies its quote against the cited passage ([ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md)); no LLM judge drops claims.
 
 ---
 
@@ -1323,6 +1323,17 @@ fix the `deep_research` planner calling only `search_papers`, and render tables 
 Question text, answers, passages and per-run evaluation data remain private under
 `local-reference/phase3-runs/`.
 
+**Answer-quality follow-up (2026-10-04, [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md),
+owner-accepted):** the owner set precision over latency. Synthesis now thinks with no output
+cap (32K context, 1,200 s call timeout, 1,800 s run budget), uses prompt `p3-synthesize-v2`
+with instructions and question before the evidence and one quoted, single-passage claim per
+fact, and sees table evidence as labeled rows. Code checks each claim's quote against its
+cited passage and replace the LLM support judge (ADR-0020 decision 3). On 21 development tasks
+in both modes, assistant review found 86% of kept claims supported and relevant with thinking
+against 50% without; synthesis took a median 215 s. Of the Phase 4 inputs above, constrained
+synthesis, the support check and compact tables are addressed; persisting drafts, the
+`answered` definition and the `deep_research` planner remain open.
+
 ### Phase 4 — Observability, LLMOps, and security
 
 Deliver:
@@ -1421,6 +1432,7 @@ Resolve these progressively; do not decide all of them before evidence is availa
 6. **Resolved for Phase 3 (ADR-0021):** text-only Qwen3.5-2B `Q4_K_M` on Ollama with
    all layers on the GPU beside Phase 2 retrieval. P3-04 showed the 4B does not fit beside
    retrieval and CPU retrieval is too slow. Future model changes require a new decision.
+   Synthesis runs with thinking on and no output cap (ADR-0025).
 7. Chunk-size/token-overlap baseline after corpus analysis.
 8. **Resolved for research runs (ADR-0019):** an in-process worker with resumable LangGraph
    checkpoints; API-controlled ingestion remains open, while terminal-driven resumable

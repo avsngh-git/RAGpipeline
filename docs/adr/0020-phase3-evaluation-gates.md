@@ -8,6 +8,8 @@ date: 2026-10-01
 Accepted by the project owner on 2026-10-01. This sets the Phase 3 part of open decision
 12 (thresholds for answer-generation and end-to-end evaluation).
 
+**Amended 2026-10-04 by [ADR-0025](0025-verified-quote-synthesis-with-thinking.md):** Decision 3 (the support judge drops claims) is replaced by quote verification in code.
+
 ## Context
 
 - The Phase 3 gate in section 21 of the source of truth is operational: representative

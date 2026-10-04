@@ -167,6 +167,13 @@ curl --fail-with-body http://127.0.0.1:8001/v1/research/RUN_ID
 research-runs show RUN_ID
 ```
 
+Synthesis thinks with no output cap ([ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md)):
+expect about 2 to 7 minutes per run on the RTX 3050. The defaults are
+`RESEARCH_PLATFORM_LLM_THINKING=plan,synthesize`, a 32,768-token context, a 1,200-second
+call timeout and a 1,800-second run budget. A view's claims each carry the `quote` that
+code verified against the cited passage; apply migration 017 (`scripts/migrate.py`) to the
+serving database before running this version.
+
 One worker executes one run at a time. Runs left queued or running by a process restart
 are resumed at startup from their PostgreSQL records and LangGraph checkpoints. A changed
 effective configuration or exhausted resume budget fails the run with a recorded category.

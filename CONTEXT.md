@@ -106,4 +106,15 @@ How well a completed research run's answer is supported: answered, partially sup
 The fixed classification recorded when a research run fails, such as an invalid model output or an exhausted budget.
 
 **Support label**:
-The judge's assessment of one claim against its cited passages: supported, partial or unsupported.
+The recorded support of one claim against its cited passage: supported, partial or unsupported. A claim kept by quote verification is supported; partial and unsupported appear only in runs checked by the earlier support judge.
+
+**Claim quote**:
+The sentence, or the part of one labeled table row, that a claim copies word for word from the passage it cites.
+_Avoid_: snippet, excerpt
+
+**Quote verification**:
+The check that a claim's quote occurs in its cited passage and that the claim states nothing the quote does not; a claim that fails it is dropped.
+_Avoid_: support judge, faithfulness score
+
+**Labeled table row**:
+A table row shown with every value next to its column headers, so a value can be read without counting columns.

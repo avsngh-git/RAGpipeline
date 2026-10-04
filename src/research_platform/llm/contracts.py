@@ -27,14 +27,19 @@ class StructuredCall(Generic[T]):
     messages: tuple[ChatMessage, ...]
     output_model: type[T]
     think: bool
-    max_output_tokens: int = 2048
+    # Output cap including thinking tokens. None leaves the length to the model; the
+    # call is still bounded by the client timeout and the run's wall-clock budget.
+    max_output_tokens: int | None = 2048
     max_repair_attempts: int = 2
 
     def __post_init__(self) -> None:
         if not self.messages:
             raise ValueError("messages must contain at least one message")
-        if not 1 <= self.max_output_tokens <= 32768:
-            raise ValueError("max_output_tokens must be between 1 and 32768")
+        if (
+            self.max_output_tokens is not None
+            and not 1 <= self.max_output_tokens <= 32768
+        ):
+            raise ValueError("max_output_tokens must be None or between 1 and 32768")
         if not 0 <= self.max_repair_attempts <= 5:
             raise ValueError("max_repair_attempts must be between 0 and 5")
 

@@ -29,7 +29,6 @@ def test_every_prompt_starts_with_the_system_prompt() -> None:
             max_actions=4,
         ),
         prompts.synthesize_messages(question="Find papers?", packed=PACKED),
-        prompts.judge_messages(claims=(), packed=PACKED),
     )
     expected = (
         "You are a research assistant that answers questions about scientific papers using only\n"
@@ -83,27 +82,35 @@ def test_evaluate_prompt_includes_observations_evidence_and_rounds_left() -> Non
     )
 
 
-def test_synthesize_prompt_includes_only_packed_evidence() -> None:
+def test_synthesize_prompt_puts_instructions_and_question_before_evidence() -> None:
     user = prompts.synthesize_messages(question="What changed?", packed=PACKED)[
         1
     ].content
 
-    assert user.startswith(f"Question: What changed?\nEvidence:\n{PACKED.text}\n")
-    assert "E2" not in user
-    assert '"insufficient_evidence"' in user
-    assert "at most 250 words" in user
-    assert "return no claims" in user
+    assert user == (
+        f"{prompts.SYNTHESIZE_INSTRUCTIONS}\nQUESTION\nWhat changed?\n\n"
+        f"EVIDENCE\n{PACKED.text}"
+    )
+    assert "E2" not in user.removeprefix(prompts.SYNTHESIZE_INSTRUCTIONS)
 
 
-def test_judge_prompt_numbers_claims_and_lists_citations() -> None:
-    user = prompts.judge_messages(
-        claims=((0, "A finding.", ("E1", "E4")), (3, "Another finding.", ("E1",))),
-        packed=PACKED,
-    )[1].content
+def test_synthesize_instructions_explain_symbols_and_order_the_steps() -> None:
+    instructions = prompts.SYNTHESIZE_INSTRUCTIONS
+    steps = [
+        "1. relevant_handles",
+        "2. insufficient_evidence",
+        "3. claims",
+        "a. handle",
+        "b. quote",
+        "c. text",
+        "4. answer",
+    ]
 
-    assert "0. A finding. [cites: E1, E4]\n3. Another finding. [cites: E1]" in user
-    assert PACKED.text in user
-    assert "claim_index, label and a reason of at most 20 words" in user
+    assert [instructions.index(step) for step in steps] == sorted(
+        instructions.index(step) for step in steps
+    )
+    for symbol in ('handle="E3"', "…", "Caption:", "Row:", "Group:", "[12]"):
+        assert symbol in instructions
 
 
 @pytest.mark.parametrize("status", ["succeeded", "cached", "failed", "rejected"])
@@ -189,6 +196,5 @@ def test_prompt_versions_cover_every_prompt() -> None:
         "system": "p3-system-v1",
         "plan": "p3-plan-v1",
         "evaluate": "p3-evaluate-v1",
-        "synthesize": "p3-synthesize-v1",
-        "judge": "p3-judge-v1",
+        "synthesize": "p3-synthesize-v2",
     }

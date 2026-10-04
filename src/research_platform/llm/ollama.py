@@ -86,7 +86,11 @@ class OllamaClient:
                         "think": call.think,
                         "options": {
                             "num_ctx": self._context_tokens,
-                            "num_predict": call.max_output_tokens,
+                            "num_predict": (
+                                -1
+                                if call.max_output_tokens is None
+                                else call.max_output_tokens
+                            ),
                             "seed": self._seed,
                         },
                     },
