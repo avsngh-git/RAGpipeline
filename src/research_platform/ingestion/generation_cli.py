@@ -25,6 +25,7 @@ from research_platform.ingestion.generation_index import (
 )
 from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.ingestion.indexing import IndexConfiguration
+from research_platform.ingestion.paper_index import PaperIndexRepository, sync_papers
 
 
 def add_generation_commands(commands: Any) -> None:
@@ -49,8 +50,18 @@ def add_generation_commands(commands: Any) -> None:
         type=UUID,
         help="snapshot whose per-snapshot points hold the vectors (default: --snapshot-id)",
     )
-    build.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
-    build.add_argument("--precision", choices=("fp32", "fp16"), default="fp32")
+    sync = subcommands.add_parser(
+        "sync-papers",
+        help="upsert known papers and mark a generation's members as indexed",
+    )
+    sync.add_argument("--collection-name", required=True)
+    sync.add_argument("--configuration", type=Path, required=True)
+    sync.add_argument("--generation", type=int, required=True)
+    for command in (build, sync):
+        command.add_argument(
+            "--device", choices=("auto", "cpu", "cuda"), default="auto"
+        )
+        command.add_argument("--precision", choices=("fp32", "fp16"), default="fp32")
 
 
 def load_generation_configuration(path: Path) -> GenerationIndexConfiguration:
@@ -102,3 +113,24 @@ async def execute_generation_command(
             finally:
                 embedder.close()
             print(json.dumps(asdict(report), indent=2, default=str))
+        elif args.generation_command == "sync-papers":
+            record = await registry.get(
+                collection_id, configuration.configuration_id, args.generation
+            )
+            embedder = create_embedder_for_configuration(
+                configuration.dense_configuration(),
+                device=args.device,
+                precision=args.precision,
+            )
+            try:
+                paper_report = await sync_papers(
+                    repository=PaperIndexRepository(pool),
+                    papers=GenerationQdrantCollection(configuration, "papers", http),
+                    embedder=embedder,
+                    configuration=configuration,
+                    generation=record.generation,
+                    snapshot_id=record.snapshot_id,
+                )
+            finally:
+                embedder.close()
+            print(json.dumps(asdict(paper_report), indent=2))

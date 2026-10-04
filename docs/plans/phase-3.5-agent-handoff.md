@@ -28,7 +28,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-03 (#47) | done | 9d5f630 | Compose and CI on v1.19.1; four collections exported and imported to volume `qdrant_data_v1_19`, all checks passed; old volume kept; 43 integration tests passed |
 | P35-04 (#48) | done | 55040fe | Migration renumbered to 018 (017 is ADR-0025's claim quotes); later card migrations shift to 019–021 |
 | P35-05 (#49) | done | 5bfca4e | `generation_index.py`; retrieved dense vectors are in `GenerationMatch.dense` (not a payload key); every point needs a dense vector |
-| P35-06 (#50) | done | this change | Generation 1 of `research-corpus` built: 44,277 points, all vectors reused, 0 embedded, 80 s; state `building` until P35-08 |
+| P35-06 (#50) | done | b045d7e | Generation 1 of `research-corpus` built: 44,277 points, all vectors reused, 0 embedded, 80 s; state `building` until P35-08 |
+| P35-07 (#51) | done | this change | `papers` collection synced: 157 papers, 100 indexed in generation 1; dense text is title plus decoded abstract |
 
 ## Environment facts
 
@@ -53,3 +54,9 @@ cards to be implemented one at a time, with one commit per card.
   `sha256:4cad3111d787948278dd448819a14ee7daa8ec4b7403bc0139cbdd60fd01a2b5`.
 - `research-ingest` applies pending migrations to `RESEARCH_PLATFORM_DATABASE_URL`;
   `research_phase1_review` has migrations through 018.
+- Phase 2 finding (P35-07): `IndexRepository.load_snapshot_lexical_inputs` reads
+  `papers.metadata` without decoding the JSON text, so every BM25S paper index was built
+  from titles only (0 of 100 abstracts; 10 accepted papers have OpenAlex abstracts).
+  Accepted profile v10 therefore ranks paper metadata by title only. Lexical parity
+  (P35-12/P35-15) must reproduce title-only paper text; using abstracts is a ranking
+  change that needs evaluation.
