@@ -39,19 +39,19 @@ Phase 3. **The owner accepted Phase 3 on 2026-10-03** ([owner acceptance record]
 | Serving | Ollama as a Compose service (profile `llm`, GPU); our own `httpx` adapter; no Qwen-Agent | ADR-0018 |
 | GPU sharing | Generator and Phase 2 retrieval share the GPU (2,934 MiB peak). The 4B does not fit beside retrieval; CPU reranking takes minutes per search | ADR-0021 |
 | Model output | Native tool calls with thinking on for planning (P3-19); schema-constrained JSON for evaluate, synthesize and judge. Handles in schemas carry the pattern `^E[1-9][0-9]*$` | ADR-0018, ADR-0021 |
-| Thinking | On for planning only (`RESEARCH_PLATFORM_LLM_THINKING=plan`); thinking with JSON output is slow and mostly invalid | ADR-0021 |
+| Thinking | On for planning only (`RESEARCH_PLATFORM_LLM_THINKING=plan`); thinking with JSON output is slow and mostly invalid. Since 2026-10-04 also on for synthesis, uncapped | ADR-0021, ADR-0025 |
 | Orchestration | LangGraph, one agent. `quick` is a fixed graph built first; `deep_research` plans, executes, then judges sufficiency and re-plans | [ADR-0019](../adr/0019-phase3-research-run-execution.md) |
 | Run execution | `POST /v1/research` queues; one in-process asyncio worker runs one run at a time | ADR-0019 |
 | Durability | LangGraph `AsyncPostgresSaver` in the Postgres schema `langgraph`, sync durability, strict msgpack; automatic resume on startup with at most 2 resumes, refused after a configuration change | ADR-0019 |
 | Evidence citing | The model cites `E1`…`E40` handles; code maps handles to `chunk_id`; an unknown handle is a verification failure | ADR-0019 |
-| Support check | One LLM judge call per answer labels each claim `supported`, `partial` or `unsupported`; unsupported claims are dropped | ADR-0020 |
+| Support check | One LLM judge call per answer labels each claim `supported`, `partial` or `unsupported`; unsupported claims are dropped. Since 2026-10-04 replaced by quote verification in code | ADR-0020, ADR-0025 |
 | Evaluation | Operational gates above; 21 development tasks, one per surviving Phase 2 development family; CI uses a scripted fake LLM only | ADR-0020 |
 | Deferred | Langfuse, authentication, rate limits, MCP and UI belong to later phases. Phase 3 includes 5 prompt-injection cases | this plan |
 
 Default run budgets, which live in code (P3-05) and are recorded with every run: 3 plan
 rounds; 4 actions per plan; 12 tool calls per run; identical calls served from cache;
 citation depth 2; 40 evidence passages; 8,000 synthesis tokens; 2 model retries per call;
-300 seconds of active time; 2 resumes.
+300 seconds of active time (1,800 seconds since ADR-0025); 2 resumes.
 
 ## Architecture
 

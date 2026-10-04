@@ -217,6 +217,7 @@ def test_migration_is_repeatable_and_database_constraints_are_enforced(
                 "014_snapshot_chunking_configuration",
                 "015_snapshot_variant_lineage",
                 "016_phase3_research_runs",
+                "017_claim_quotes",
             ]
 
             collection_name = f"integration-{uuid4().hex}"

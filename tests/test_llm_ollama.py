@@ -93,6 +93,29 @@ def test_request_body_has_schema_think_and_options() -> None:
     assert request.extensions["timeout"]["write"] == 12.5
 
 
+def test_uncapped_call_sends_no_output_limit() -> None:
+    captured: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json={"message": {"content": '{"answer":"ok"}'}})
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            call = StructuredCall(
+                kind=CallKind.SYNTHESIZE,
+                messages=(ChatMessage(role="user", content="Write an answer."),),
+                output_model=_Answer,
+                think=True,
+                max_output_tokens=None,
+            )
+            await _adapter(http).generate(call)
+
+    asyncio.run(exercise())
+
+    assert json.loads(captured[0].read())["options"]["num_predict"] == -1
+
+
 def test_valid_reply_returns_model_and_token_counts() -> None:
     def respond(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(

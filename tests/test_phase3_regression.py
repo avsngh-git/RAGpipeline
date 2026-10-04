@@ -16,7 +16,7 @@ from research_platform.evaluation.phase3_regression import (
 from research_platform.runs.contracts import FailureCategory, RunStatus
 
 _CASE_PATH = (
-    Path(__file__).parents[1] / "benchmarks" / "phase3" / "regression-cases-v1.json"
+    Path(__file__).parents[1] / "benchmarks" / "phase3" / "regression-cases-v2.json"
 )
 _CASES = load_cases(_CASE_PATH)
 _CORPUS = load_corpus(_CASE_PATH)
@@ -33,7 +33,7 @@ async def test_case(case: RegressionCase) -> None:
 def test_case_file_meets_category_minimums() -> None:
     counts = Counter(case.category for case in _CASES)
 
-    assert len(_CASES) >= 28
+    assert len(_CASES) >= 33
     assert counts == {
         "tool_routing": 10,
         "fabricated_handle": 4,
@@ -41,6 +41,7 @@ def test_case_file_meets_category_minimums() -> None:
         "prompt_injection": 5,
         "resume": 2,
         "failure_category": 3,
+        "claim_verification": 5,
     }
 
 

@@ -51,14 +51,10 @@ _SUCCESS_SCRIPT = (
     ScriptedReply(
         kind=CallKind.SYNTHESIZE,
         content=(
-            '{"answer":"Retrieval improves ranking [E1]",'
-            '"claims":[{"text":"Retrieval improves ranking",'
-            '"handles":["E1"]}],"insufficient_evidence":false}'
+            '{"relevant_handles":["E1"],"insufficient_evidence":false,'
+            '"claims":[{"handle":"E1","quote":"retrieval improves ranking",'
+            '"text":"Retrieval improves ranking"}],"answer":"Retrieval improves ranking [E1]"}'
         ),
-    ),
-    ScriptedReply(
-        kind=CallKind.JUDGE,
-        content='{"judgements":[{"claim_index":1,"label":"supported"}]}',
     ),
 )
 
@@ -208,7 +204,7 @@ async def test_answer_node_ignores_mismatched_chunk_text() -> None:
         (
             ScriptedReply(
                 kind=CallKind.SYNTHESIZE,
-                content='{"answer":"insufficient","claims":[],"insufficient_evidence":true}',
+                content='{"relevant_handles":[],"insufficient_evidence":true,"claims":[],"answer":"insufficient"}',
             ),
         )
     )
@@ -258,7 +254,7 @@ async def test_answer_node_packs_only_evidence_with_matching_nonempty_text() -> 
         (
             ScriptedReply(
                 kind=CallKind.SYNTHESIZE,
-                content='{"answer":"insufficient","claims":[],"insufficient_evidence":true}',
+                content='{"relevant_handles":[],"insufficient_evidence":true,"claims":[],"answer":"insufficient"}',
             ),
         )
     )
@@ -338,7 +334,7 @@ async def test_quick_graph_runs_three_nodes_in_order() -> None:
         "search_papers",
         "search_evidence",
     ]
-    assert [call.kind for call in llm.calls] == [CallKind.SYNTHESIZE, CallKind.JUDGE]
+    assert [call.kind for call in llm.calls] == [CallKind.SYNTHESIZE]
     assert result["candidate_paper_ids"] == ["W123"]
 
 

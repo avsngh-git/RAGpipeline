@@ -136,3 +136,30 @@ outcomes were no better than `quick`.
 assistant judgments with source uncertainty. Generation is nondeterministic, so replay
 counts vary by run. None of this is a held-out measurement, and none of it should be used
 to tune Phase 2 retrieval.
+
+## Follow-up experiments and decision (2026-10-04)
+
+Offline replays of all 42 stored runs (both modes, one deterministic replay per variant)
+and a blind assistant review of 75 kept claims led to
+[ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md), accepted by the owner,
+who set precision over latency. Aggregates:
+
+- **Prompt.** Putting instructions and the question before the evidence, describing every
+  symbol and ordering the JSON fields as steps (quote before claim) made the model decline
+  less (9 against 13 runs) but paraphrase more; one worked table example restored close
+  copying (46 kept claims, 20 runs with a kept claim).
+- **Tables.** Labeled table rows raised kept table claims from 0 to 9 without thinking and
+  11 with thinking; without labels the model misread multi-level headers.
+- **Thinking.** With no output cap every synthesis call stopped by itself (median 7,778
+  thinking tokens, 215 s; maximum 14,394 tokens, 409 s). Kept claims that were supported
+  and relevant rose from 50% (20 of 40 sampled) to 86% (30 of 35); relevance rose from 70%
+  to 94%. Capped thinking had been cut off inside the reasoning.
+- **Checks.** Quote verification in code dropped 7 of 15 partial or unsupported kept claims
+  and 2 of 60 supported ones. The 4B model, used as a reference judge, called 8 of 12 bad
+  claims supported.
+- **Stopped experiment.** Thinking only to select passages, then extracting without
+  thinking, was stopped after 4 runs at the owner's direction: selection thought as long as
+  full synthesis (568 s against 587 s over three matched runs), so it saved no time.
+
+Labels are assistant judgments, the samples are small (40 and 35 claims), and only 2 tasks
+(4 runs) have no supporting evidence. None of this is a held-out measurement.

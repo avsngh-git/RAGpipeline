@@ -50,6 +50,7 @@ from research_platform.search.paper_reads import (
     SnapshotPaperRead,
 )
 from research_platform.search.paper_related import RelatedPapersPage
+from research_platform.tools.table_text import render_table_rows
 
 
 class SearchService(Protocol):
@@ -514,10 +515,13 @@ def _collected_evidence(
 ) -> CollectedEvidence:
     score = hit.component_scores.reranker
     location: Mapping[str, Any] = asdict(hit.source_location)
+    labeled_table = (
+        render_table_rows(hit.table_context) if hit.table_context is not None else None
+    )
     return CollectedEvidence(
         chunk_id=hit.chunk_id,
         paper_id=hit.paper_id,
-        text=hit.text,
+        text=labeled_table or hit.text,
         title=title,
         publication_year=year,
         kind=hit.kind,

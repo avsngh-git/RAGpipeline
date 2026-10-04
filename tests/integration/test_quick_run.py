@@ -50,11 +50,10 @@ from research_platform.tools.research_tools import ResearchTools, ToolLedger
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
 _IDENTITY = ModelIdentity(name="scripted", runtime="scripted", context_tokens=8192)
 _SYNTHESIS = (
-    '{"answer":"Retrieval improves ranking [E1]",'
-    '"claims":[{"text":"Retrieval improves ranking",'
-    '"handles":["E1"]}],"insufficient_evidence":false}'
+    '{"relevant_handles":["E1"],"insufficient_evidence":false,'
+    '"claims":[{"handle":"E1","quote":"retrieval improves ranking",'
+    '"text":"Retrieval improves ranking"}],"answer":"Retrieval improves ranking [E1]"}'
 )
-_JUDGE = '{"judgements":[{"claim_index":1,"label":"supported"}]}'
 
 pytestmark = [
     pytest.mark.integration,
@@ -70,10 +69,7 @@ class BlockOnceLLM:
 
     def __init__(self) -> None:
         self.script = ScriptedLLM(
-            (
-                ScriptedReply(kind=CallKind.SYNTHESIZE, content=_SYNTHESIS),
-                ScriptedReply(kind=CallKind.JUDGE, content=_JUDGE),
-            ),
+            (ScriptedReply(kind=CallKind.SYNTHESIZE, content=_SYNTHESIS),),
             identity=_IDENTITY,
         )
         self.block = True
@@ -175,10 +171,7 @@ def test_quick_run_completes_and_resumes_with_postgres_checkpoint() -> None:
                 )
                 completed_runner = make_runner(
                     ScriptedLLM(
-                        (
-                            ScriptedReply(kind=CallKind.SYNTHESIZE, content=_SYNTHESIS),
-                            ScriptedReply(kind=CallKind.JUDGE, content=_JUDGE),
-                        ),
+                        (ScriptedReply(kind=CallKind.SYNTHESIZE, content=_SYNTHESIS),),
                         identity=_IDENTITY,
                     )
                 )

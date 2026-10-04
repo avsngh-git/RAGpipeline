@@ -50,11 +50,10 @@ _SNAPSHOT = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 _PROFILE = "sha256:" + "a" * 64
 _IDENTITY = ModelIdentity(name="scripted", runtime="scripted", context_tokens=8192)
 _SYNTHESIS = (
-    '{"answer":"Retrieval improves ranking [E1]",'
-    '"claims":[{"text":"Retrieval improves ranking",'
-    '"handles":["E1"]}],"insufficient_evidence":false}'
+    '{"relevant_handles":["E1"],"insufficient_evidence":false,'
+    '"claims":[{"handle":"E1","quote":"retrieval improves ranking",'
+    '"text":"Retrieval improves ranking"}],"answer":"Retrieval improves ranking [E1]"}'
 )
-_JUDGE = '{"judgements":[{"claim_index":1,"label":"supported"}]}'
 
 
 class RecordingStore(InMemoryRunStore):
@@ -103,10 +102,7 @@ def _plan(*calls: dict[str, object]) -> ScriptedReply:
 
 
 def _answer_replies() -> tuple[ScriptedReply, ...]:
-    return (
-        ScriptedReply(kind=CallKind.SYNTHESIZE, content=_SYNTHESIS),
-        ScriptedReply(kind=CallKind.JUDGE, content=_JUDGE),
-    )
+    return (ScriptedReply(kind=CallKind.SYNTHESIZE, content=_SYNTHESIS),)
 
 
 def _budgets(**overrides: Any) -> RunBudgets:
@@ -194,7 +190,7 @@ async def test_sufficient_after_first_round_answers() -> None:
         "search_evidence",
     ]
     assert view.usage.plan_rounds == 1
-    assert view.usage.model_calls == 4
+    assert view.usage.model_calls == 3
 
 
 @pytest.mark.anyio
@@ -218,7 +214,7 @@ async def test_replans_until_sufficient() -> None:
     view = await store.get_run_view(run_id)
     assert [name for _, _, name in store.appended] == ["search_papers", "get_paper"]
     assert view.usage.plan_rounds == 2
-    assert view.usage.model_calls == 5
+    assert view.usage.model_calls == 4
 
 
 @pytest.mark.anyio
@@ -235,8 +231,8 @@ async def test_plan_rounds_budget_stops_without_extra_model_call() -> None:
     assert status is RunStatus.COMPLETED
     view = await store.get_run_view(run_id)
     assert view.usage.plan_rounds == 1
-    assert view.usage.model_calls == 3
-    assert [call.kind for call in llm.calls] == [CallKind.SYNTHESIZE, CallKind.JUDGE]
+    assert view.usage.model_calls == 2
+    assert [call.kind for call in llm.calls] == [CallKind.SYNTHESIZE]
 
 
 @pytest.mark.anyio
@@ -307,7 +303,7 @@ async def test_invalid_evaluation_answers_with_current_evidence() -> None:
 
     assert await _runner(store, llm).run(run_id) is RunStatus.COMPLETED
     assert llm.remaining == 0
-    assert len(llm.calls) == 3
+    assert len(llm.calls) == 2
 
 
 @pytest.mark.anyio
@@ -452,7 +448,7 @@ async def test_model_calls_and_plan_rounds_recorded_in_usage() -> None:
     assert await _runner(store, llm).run(run_id) is RunStatus.COMPLETED
     usage = (await store.get_run_view(run_id)).usage
     assert usage.plan_rounds == 1
-    assert usage.model_calls == 4
+    assert usage.model_calls == 3
 
 
 def test_budget_helpers_and_default_actions_match_quick_mode() -> None:

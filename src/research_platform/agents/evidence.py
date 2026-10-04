@@ -74,6 +74,9 @@ class EvidenceRegistry(BaseModel):
         return frozenset(ref.handle for ref in self.refs)
 
 
+_TABLE_KINDS = frozenset({"table", "table_row_group"})
+
+
 def approx_tokens(text: str) -> int:
     """Estimate tokens using the Phase 3 character-count approximation."""
     return math.ceil(len(text) / 4)
@@ -94,12 +97,18 @@ def pack_evidence(
     *,
     max_tokens: int,
     max_passage_chars: int = 2000,
+    max_table_chars: int = 8000,
 ) -> PackedEvidence:
-    """Pack source passages in order without exceeding the approximate token cap."""
+    """Pack source passages in order without exceeding the approximate token cap.
+
+    Prose passages are cut at ``max_passage_chars``. Labeled table rows are longer
+    than prose and are cut only at ``max_table_chars``, so a row and its headers stay
+    together.
+    """
     if max_tokens < 0:
         raise ValueError("max_tokens must be non-negative")
-    if max_passage_chars < 1:
-        raise ValueError("max_passage_chars must be positive")
+    if max_passage_chars < 1 or max_table_chars < 1:
+        raise ValueError("max_passage_chars and max_table_chars must be positive")
 
     blocks: list[str] = []
     included: list[str] = []
@@ -110,9 +119,10 @@ def pack_evidence(
             omitted.append(ref.handle)
             continue
         raw_text = neutralize(texts.get(ref.chunk_id, ""))
+        limit = max_table_chars if ref.kind in _TABLE_KINDS else max_passage_chars
         passage = raw_text
-        if len(raw_text) > max_passage_chars:
-            passage = raw_text[:max_passage_chars] + "…"
+        if len(raw_text) > limit:
+            passage = raw_text[:limit] + "…"
 
         paper_id = neutralize(ref.paper_id).replace('"', "'")
         attributes = [f'handle="{ref.handle}"', f'paper="{paper_id}"']

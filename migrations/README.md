@@ -33,3 +33,7 @@ stage identity for resumable jobs.
 snapshot member.
 015_snapshot_variant_lineage.sql backfills and freezes each snapshot's exact chunk
 membership and records the finalized parent selection inherited by experimental variants.
+016_phase3_research_runs.sql adds research runs, their collected evidence, tool calls,
+claims with support labels, and LangGraph checkpoints.
+017_claim_quotes.sql stores the passage quote each claim was verified against
+(ADR-0025); claims from earlier runs keep a NULL quote.

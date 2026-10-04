@@ -15,8 +15,8 @@ DEFAULT_DEPENDENCY_TIMEOUT_SECONDS: Final = 2.0
 DEFAULT_EVIDENCE_ACCESS_PROFILE: Final = "disabled"
 DEFAULT_LLM_BASE_URL: Final = "http://localhost:11434"
 DEFAULT_LLM_MODEL: Final = "qwen3.5-2b-text:q4_k_m"
-DEFAULT_LLM_TIMEOUT_SECONDS: Final = 180.0
-DEFAULT_LLM_CONTEXT_TOKENS: Final = 16384
+DEFAULT_LLM_TIMEOUT_SECONDS: Final = 1200.0
+DEFAULT_LLM_CONTEXT_TOKENS: Final = 32768
 DEFAULT_LLM_SEED: Final = 20261001
 _ALLOWED_EVIDENCE_ACCESS_PROFILES: Final = frozenset(
     {"disabled", "trusted_private_local"}
@@ -109,7 +109,7 @@ def _llm_context_tokens_default() -> int:
 
 
 def _llm_thinking_default() -> frozenset[CallKind]:
-    raw_values = os.environ.get("RESEARCH_PLATFORM_LLM_THINKING", "plan")
+    raw_values = os.environ.get("RESEARCH_PLATFORM_LLM_THINKING", "plan,synthesize")
     values = (value.strip() for value in raw_values.split(","))
     return frozenset(CallKind(value) for value in values if value)
 
@@ -185,10 +185,10 @@ class Settings:
 
         if (
             not isfinite(self.llm_timeout_seconds)
-            or not 0 < self.llm_timeout_seconds <= 600
+            or not 0 < self.llm_timeout_seconds <= 3600
         ):
             raise ValueError(
-                "llm_timeout_seconds must be greater than 0 and at most 600"
+                "llm_timeout_seconds must be greater than 0 and at most 3600"
             )
 
         if not 2048 <= self.llm_context_tokens <= 262144:

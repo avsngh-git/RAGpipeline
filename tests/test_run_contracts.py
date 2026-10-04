@@ -34,7 +34,7 @@ def test_budgets_defaults_match_adr() -> None:
         "max_evidence_passages": 40,
         "max_synthesis_tokens": 8000,
         "max_model_retries": 2,
-        "max_active_seconds": 300.0,
+        "max_active_seconds": 1800.0,
         "max_resumes": 2,
     }
 

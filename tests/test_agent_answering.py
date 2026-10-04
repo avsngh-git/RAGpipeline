@@ -1,4 +1,4 @@
-"""Synthesis validates evidence handles before judging claims."""
+"""Synthesis validates evidence handles, then verifies each claim against its quote."""
 
 from __future__ import annotations
 
@@ -19,49 +19,39 @@ from research_platform.llm.types import CallKind
 from research_platform.runs.contracts import AnswerOutcome, RunBudgets, SupportLabel
 from research_platform.tools.research_tools import CollectedEvidence
 
+_PASSAGES = (
+    "Synthetic passage one reports a retrieval gain of 4.5 points on dataset A.",
+    "Synthetic passage two finds that reranking helps short queries.",
+    "Synthetic passage three describes the evaluation protocol.",
+)
+_QUOTE_ONE = _PASSAGES[0]
+_QUOTE_TWO = _PASSAGES[1]
+
 
 def _registry(
     *, long_second_title: bool = False
 ) -> tuple[EvidenceRegistry, dict[str, str]]:
-    items = (
+    items = tuple(
         CollectedEvidence(
-            chunk_id="chunk-1",
-            paper_id="W1",
-            text="Synthetic passage one.",
-            title="Synthetic paper one",
-            publication_year=2021,
+            chunk_id=f"chunk-{index}",
+            paper_id=f"W{index}",
+            text=text,
+            title=f"Synthetic paper {index}"
+            + (" title" * 500 if long_second_title and index == 2 else ""),
+            publication_year=2020 + index,
             kind="prose",
             source_location={},
             reranker_score=None,
-        ),
-        CollectedEvidence(
-            chunk_id="chunk-2",
-            paper_id="W2",
-            text="Synthetic passage two.",
-            title="Synthetic paper two" + (" title" * 500 if long_second_title else ""),
-            publication_year=2022,
-            kind="prose",
-            source_location={},
-            reranker_score=None,
-        ),
-        CollectedEvidence(
-            chunk_id="chunk-3",
-            paper_id="W3",
-            text="Synthetic passage three.",
-            title="Synthetic paper three",
-            publication_year=2023,
-            kind="prose",
-            source_location={},
-            reranker_score=None,
-        ),
+        )
+        for index, text in enumerate(_PASSAGES, start=1)
     )
     registry, _ = EvidenceRegistry().register(items, max_passages=3)
     texts = {item.chunk_id: item.text for item in items}
     return registry, texts
 
 
-def _reply(kind: CallKind, value: dict[str, object]) -> ScriptedReply:
-    return ScriptedReply(kind=kind, content=json.dumps(value))
+def _claim(handle: str, quote: str, text: str) -> dict[str, object]:
+    return {"handle": handle, "quote": quote, "text": text}
 
 
 def _draft(
@@ -70,25 +60,17 @@ def _draft(
     answer: str = "Synthetic answer.",
     insufficient: bool = False,
 ) -> ScriptedReply:
-    return _reply(
-        CallKind.SYNTHESIZE,
-        {
-            "answer": answer,
-            "claims": claims,
-            "insufficient_evidence": insufficient,
-        },
-    )
-
-
-def _judge(*judgements: tuple[int, str]) -> ScriptedReply:
-    return _reply(
-        CallKind.JUDGE,
-        {
-            "judgements": [
-                {"claim_index": index, "label": label, "reason": "Synthetic reason."}
-                for index, label in judgements
-            ]
-        },
+    relevant = list(dict.fromkeys(str(claim["handle"]) for claim in claims))
+    return ScriptedReply(
+        kind=CallKind.SYNTHESIZE,
+        content=json.dumps(
+            {
+                "relevant_handles": relevant,
+                "insufficient_evidence": insufficient,
+                "claims": claims,
+                "answer": answer,
+            }
+        ),
     )
 
 
@@ -115,28 +97,33 @@ async def _answer(
 
 
 @pytest.mark.anyio
-async def test_all_claims_supported_gives_answered() -> None:
+async def test_all_claims_verified_gives_answered() -> None:
     result, llm = await _answer(
         [
             _draft(
                 [
-                    {"text": "First synthetic finding.", "handles": ["E1"]},
-                    {"text": "Second synthetic finding.", "handles": ["E2"]},
+                    _claim(
+                        "E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A."
+                    ),
+                    _claim("E2", _QUOTE_TWO, "Reranking helps short queries."),
                 ],
-                answer="First [E1]. Second [E2].",
-            ),
-            _judge((1, "supported"), (2, "supported")),
+                answer="A summary that is never shown.",
+            )
         ]
     )
 
     assert result.outcome is AnswerOutcome.ANSWERED
     assert [claim.claim_id for claim in result.claims] == ["claim-1", "claim-2"]
+    assert [claim.quote for claim in result.claims] == [_QUOTE_ONE, _QUOTE_TWO]
     assert [claim.support for claim in result.claims] == [
         SupportLabel.SUPPORTED,
         SupportLabel.SUPPORTED,
     ]
-    assert result.answer == "First [E1]. Second [E2]."
-    assert result.model_calls == 2
+    assert result.answer == (
+        "Retrieval gained 4.5 points on dataset A. [E1] "
+        "Reranking helps short queries. [E2]"
+    )
+    assert result.model_calls == 1
     assert llm.remaining == 0
 
 
@@ -146,31 +133,30 @@ async def test_fabricated_handle_rejects_only_that_claim() -> None:
         [
             _draft(
                 [
-                    {"text": "Grounded synthetic finding.", "handles": ["E1"]},
-                    {"text": "Fabricated synthetic finding.", "handles": ["E99"]},
-                ],
-                answer="Grounded synthetic finding [E1]. Fabricated synthetic finding [E99].",
-            ),
-            _judge((1, "supported")),
+                    _claim(
+                        "E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A."
+                    ),
+                    _claim("E99", _QUOTE_ONE, "Fabricated synthetic finding."),
+                ]
+            )
         ]
     )
 
     assert result.rejected_claims == 1
+    assert result.unsupported_claims == 0
     assert result.outcome is AnswerOutcome.PARTIALLY_SUPPORTED
-    assert [claim.text for claim in result.claims] == ["Grounded synthetic finding."]
-    assert result.answer == "Grounded synthetic finding. [E1]"
+    assert [claim.text for claim in result.claims] == [
+        "Retrieval gained 4.5 points on dataset A."
+    ]
     assert "Fabricated synthetic finding" not in result.answer
-    assert llm.calls[1].messages[1].content.find("Grounded synthetic finding.") >= 0
-    assert "Fabricated synthetic finding." not in llm.calls[1].messages[1].content
+    assert len(llm.calls) == 1
 
 
 @pytest.mark.anyio
 async def test_known_but_omitted_handle_is_rejected() -> None:
     registry, texts = _registry(long_second_title=True)
     result, llm = await _answer(
-        [
-            _draft([{"text": "Omitted synthetic finding.", "handles": ["E2"]}]),
-        ],
+        [_draft([_claim("E2", _QUOTE_TWO, "Reranking helps short queries.")])],
         registry=registry,
         texts=texts,
         budgets=RunBudgets(max_synthesis_tokens=500),
@@ -184,11 +170,11 @@ async def test_known_but_omitted_handle_is_rejected() -> None:
 
 
 @pytest.mark.anyio
-async def test_every_claim_fabricated_gives_insufficient_and_skips_judge() -> None:
+async def test_every_claim_fabricated_gives_insufficient() -> None:
     result, llm = await _answer(
         [
             _draft(
-                [{"text": "Fabricated synthetic finding.", "handles": ["E99"]}],
+                [_claim("E99", _QUOTE_ONE, "Fabricated synthetic finding.")],
                 answer="Unverified statement [E99].",
             )
         ]
@@ -202,88 +188,65 @@ async def test_every_claim_fabricated_gives_insufficient_and_skips_judge() -> No
         == "No supported claims could be verified from the available evidence."
     )
     assert llm.remaining == 0
-    assert len(llm.calls) == 1
 
 
 @pytest.mark.anyio
-async def test_unsupported_claim_is_dropped_and_outcome_partial() -> None:
+async def test_quote_missing_from_passage_drops_claim() -> None:
     result, _ = await _answer(
         [
             _draft(
                 [
-                    {"text": "Supported synthetic finding.", "handles": ["E1"]},
-                    {"text": "Unsupported synthetic finding.", "handles": ["E2"]},
-                ],
-                answer="Supported statement [E1]. Unsupported statement [E2].",
-            ),
-            _judge((1, "supported"), (2, "unsupported")),
+                    _claim(
+                        "E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A."
+                    ),
+                    _claim(
+                        "E2",
+                        "Reranking always helps every query type.",
+                        "Reranking always helps every query type.",
+                    ),
+                ]
+            )
         ]
     )
 
     assert result.outcome is AnswerOutcome.PARTIALLY_SUPPORTED
-    assert [claim.text for claim in result.claims] == ["Supported synthetic finding."]
     assert result.unsupported_claims == 1
-    assert result.answer == "Supported synthetic finding. [E1]"
-    assert "Unsupported synthetic finding" not in result.answer
+    assert [claim.handle for claim in result.claims[0].evidence] == ["E1"]
+    assert "every query type" not in result.answer
 
 
 @pytest.mark.anyio
-async def test_every_unsupported_claim_gives_insufficient_evidence() -> None:
+async def test_quote_from_another_passage_drops_claim() -> None:
     result, _ = await _answer(
         [
             _draft(
-                [{"text": "Unsupported synthetic finding.", "handles": ["E1"]}],
-                answer="Unsupported statement [E1].",
-            ),
-            _judge((1, "unsupported")),
+                [_claim("E2", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")]
+            )
         ]
     )
 
     assert result.outcome is AnswerOutcome.INSUFFICIENT_EVIDENCE
+    assert result.unsupported_claims == 1
     assert result.claims == ()
-    assert result.unsupported_claims == 1
-    assert (
-        result.answer
-        == "No supported claims could be verified from the available evidence."
-    )
-    assert "Unsupported statement" not in result.answer
 
 
 @pytest.mark.anyio
-async def test_missing_judgement_counts_as_unsupported() -> None:
-    result, _ = await _answer(
-        [
-            _draft(
-                [
-                    {"text": "Judged synthetic finding.", "handles": ["E1"]},
-                    {"text": "Unjudged synthetic finding.", "handles": ["E2"]},
-                ]
-            ),
-            _judge((1, "supported")),
-        ]
-    )
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Retrieval gained 7.5 points on dataset A.",
+        "Retrieval significantly gained 4.5 points on dataset A.",
+        "Dense encoders outperform sparse baselines on multilingual benchmarks.",
+        "Retrieval gained 4.5 points on dataset A [E1].",
+    ],
+    ids=["invented-number", "added-intensifier", "drifted", "handle-in-text"],
+)
+async def test_claim_beyond_its_quote_is_dropped(text: str) -> None:
+    result, _ = await _answer([_draft([_claim("E1", _QUOTE_ONE, text)])])
 
+    assert result.outcome is AnswerOutcome.INSUFFICIENT_EVIDENCE
     assert result.unsupported_claims == 1
-    assert [claim.text for claim in result.claims] == ["Judged synthetic finding."]
-    assert result.outcome is AnswerOutcome.PARTIALLY_SUPPORTED
-
-
-@pytest.mark.anyio
-async def test_duplicate_and_out_of_range_judgements() -> None:
-    result, _ = await _answer(
-        [
-            _draft(
-                [
-                    {"text": "First synthetic finding.", "handles": ["E1"]},
-                    {"text": "Second synthetic finding.", "handles": ["E2"]},
-                ]
-            ),
-            _judge((1, "supported"), (1, "unsupported"), (99, "unsupported")),
-        ]
-    )
-
-    assert [claim.text for claim in result.claims] == ["First synthetic finding."]
-    assert result.unsupported_claims == 1
+    assert result.claims == ()
 
 
 @pytest.mark.anyio
@@ -291,7 +254,7 @@ async def test_insufficient_flag_returns_no_claims() -> None:
     result, llm = await _answer(
         [
             _draft(
-                [{"text": "Draft finding.", "handles": ["E1"]}],
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")],
                 answer="Evidence is insufficient [E99].",
                 insufficient=True,
             )
@@ -321,18 +284,18 @@ async def test_claims_are_renumbered_after_drops() -> None:
         [
             _draft(
                 [
-                    {"text": "Dropped synthetic finding.", "handles": ["E1"]},
-                    {"text": "Kept synthetic finding.", "handles": ["E2"]},
+                    _claim(
+                        "E1", _QUOTE_ONE, "Retrieval gained 9.9 points on dataset A."
+                    ),
+                    _claim("E2", _QUOTE_TWO, "Reranking helps short queries."),
                 ]
-            ),
-            _judge((1, "unsupported"), (2, "partial")),
+            )
         ]
     )
 
     assert len(result.claims) == 1
     assert result.claims[0].claim_id == "claim-1"
-    assert result.claims[0].text == "Kept synthetic finding."
-    assert result.claims[0].support is SupportLabel.PARTIAL
+    assert result.claims[0].text == "Reranking helps short queries."
 
 
 def test_strip_unknown_markers() -> None:
@@ -347,23 +310,48 @@ def test_strip_unknown_markers() -> None:
     )
 
 
-def test_draft_answer_schema_has_handle_pattern() -> None:
-    schema = json.dumps(DraftAnswer.model_json_schema())
+def test_draft_answer_schema_orders_fields_as_the_steps() -> None:
+    schema = DraftAnswer.model_json_schema()
 
-    assert '"pattern": "^E[1-9][0-9]*$"' in schema
+    assert '"pattern": "^E[1-9][0-9]*$"' in json.dumps(schema)
+    assert list(schema["properties"]) == [
+        "relevant_handles",
+        "insufficient_evidence",
+        "claims",
+        "answer",
+    ]
+    assert schema["required"] == list(schema["properties"])
+    assert list(schema["$defs"]["DraftClaim"]["properties"]) == [
+        "handle",
+        "quote",
+        "text",
+    ]
 
 
 @pytest.mark.anyio
-async def test_thinking_flag_follows_settings() -> None:
-    _, llm = await _answer(
+async def test_thinking_uncaps_synthesis_output() -> None:
+    _, thinking_llm = await _answer(
         [
-            _draft([{"text": "Synthetic finding.", "handles": ["E1"]}]),
-            _judge((1, "supported")),
+            _draft(
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")]
+            )
         ],
         thinking=frozenset({CallKind.SYNTHESIZE}),
     )
+    _, plain_llm = await _answer(
+        [
+            _draft(
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")]
+            )
+        ]
+    )
 
-    assert [call.think for call in llm.calls] == [True, False]
+    assert [(call.think, call.max_output_tokens) for call in thinking_llm.calls] == [
+        (True, None)
+    ]
+    assert [(call.think, call.max_output_tokens) for call in plain_llm.calls] == [
+        (False, 2048)
+    ]
 
 
 @pytest.mark.anyio

@@ -10,6 +10,8 @@ for Phase 3 and records the P3-04 fitness results that settle ADR-0018 decisions
 It supersedes the 2026-10-02 draft of this ADR, which chose the Ollama library 2B build
 with retrieval on CPU from a harness later found to be unfair.
 
+**Amended 2026-10-04 by [ADR-0025](0025-verified-quote-synthesis-with-thinking.md):** Decision 3 is amended: synthesis runs with thinking on and no output cap.
+
 ## Context
 
 - **Layer placement, not model size, caused the first 4B failure.** Ollama's automatic fit

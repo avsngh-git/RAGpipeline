@@ -49,7 +49,6 @@ _PROVENANCE_CALL_KINDS = (
     CallKind.PLAN,
     CallKind.EVALUATE,
     CallKind.SYNTHESIZE,
-    CallKind.JUDGE,
 )
 
 

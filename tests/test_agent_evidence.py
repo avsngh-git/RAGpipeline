@@ -172,3 +172,29 @@ def test_registry_round_trip_preserves_handle_assignment() -> None:
 
     assert tuple(ref.handle for ref in added) == ("E2",)
     assert updated.resolve("E1") == registry.refs[0]
+
+
+def test_pack_cuts_table_rows_only_at_the_table_limit() -> None:
+    prose = EvidenceRef(
+        handle="E1",
+        chunk_id="chunk-1",
+        paper_id="W1",
+        title=None,
+        publication_year=None,
+        kind="prose",
+    )
+    table = prose.model_copy(
+        update={"handle": "E2", "chunk_id": "chunk-2", "kind": "table_row_group"}
+    )
+
+    packed = pack_evidence(
+        (prose, table),
+        {"chunk-1": "p" * 30, "chunk-2": "t" * 30},
+        max_tokens=500,
+        max_passage_chars=10,
+        max_table_chars=25,
+    )
+
+    assert "p" * 10 + "…" in packed.text
+    assert "t" * 25 + "…" in packed.text
+    assert "t" * 26 not in packed.text
