@@ -101,6 +101,31 @@ def test_search_page_uses_bounded_query_and_hides_key_in_url() -> None:
     assert result.page.api_cost_usd == 0.001
 
 
+def test_search_page_appends_extra_filter() -> None:
+    captured: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json=_page([], None, count=0))
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            client = OpenAlexClient(
+                _config(), "test-secret", http, sleep=_no_sleep, clock=lambda: 0.0
+            )
+            await client.search_page(
+                "hybrid retrieval",
+                extra_filter="publication_year:2022-2024,primary_topic.field.id:fields/17",
+            )
+
+    asyncio.run(exercise())
+
+    assert captured[0].url.params["filter"] == (
+        "publication_year:2020-2026,language:en,"
+        "publication_year:2022-2024,primary_topic.field.id:fields/17"
+    )
+
+
 def test_pages_follow_cursor_and_keep_query_origin_and_page_numbers() -> None:
     cursors: list[str] = []
     payloads = [
@@ -199,6 +224,44 @@ def test_retry_honors_retry_after_and_reserves_each_attempt() -> None:
     assert asyncio.run(exercise()) == 2
     assert reservations == [True, True]
     assert sleeps == [0.0, 1.0]
+
+
+def test_scoped_reservation_preserves_constructor_reservation_on_each_attempt() -> None:
+    statuses = [429, 200]
+    constructor_reservations: list[bool] = []
+    scoped_reservations: list[bool] = []
+
+    def respond(_request: httpx.Request) -> httpx.Response:
+        status = statuses.pop(0)
+        return httpx.Response(
+            status,
+            headers={"Retry-After": "0"} if status == 429 else {},
+            json=_page([_work()], None),
+        )
+
+    async def reserve_constructor() -> None:
+        constructor_reservations.append(True)
+
+    async def reserve_scoped() -> None:
+        scoped_reservations.append(True)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            client = OpenAlexClient(
+                _config(),
+                "test-secret",
+                http,
+                reserve_request=reserve_constructor,
+                sleep=_no_sleep,
+                clock=lambda: 0.0,
+            )
+            with client.request_reservation_scope(reserve_scoped):
+                await client.search_page("hybrid retrieval")
+
+    asyncio.run(exercise())
+
+    assert constructor_reservations == [True, True]
+    assert scoped_reservations == [True, True]
 
 
 def test_total_request_limit_counts_retries() -> None:

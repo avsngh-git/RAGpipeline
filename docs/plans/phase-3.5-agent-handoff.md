@@ -1,6 +1,6 @@
 # Phase 3.5 — Agent handoff
 
-Updated: 2026-10-04. **Status: approved by the owner; implementation in progress.** The owner
+Updated: 2026-10-05. **Status: approved by the owner; implementation in progress.** The owner
 accepted ADRs [0022](../adr/0022-phase35-qdrant-search-and-content.md),
 [0023](../adr/0023-phase35-index-generations.md) and
 [0024](../adr/0024-phase35-online-discovery-and-ingestion.md) on 2026-10-04 and asked for the
@@ -40,7 +40,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-15 (#59) | done | a6d4316 | **Parity: pass** under ADR-0022 item 7 as amended by the owner on 2026-10-05 (tie-aware, 1e-6 relative); strict reading fails on 37 of 200 sampled queries through float32 tie order only. Development: 84/84 lexical, 336/336 end to end. See the [parity report](../reference/phase-3.5-lexical-parity-report.md) |
 | P35-16 (#60) | not needed | — | Parity passed |
 | P35-17 (#61) | done | this change | **Gate B passed.** Active pointer is `frozen-profile-v10-qdrant.toml`; defaults are Qdrant content and lexical engine with the lexical generation configuration. Deleted `phase2-dev-gte-modernbert-base-v1`, `research-passages-gte-v1` and `research-papers-gte-v1` after checking no run was queued or running (registry rows kept). Host API restarted on the defaults: 3 development queries × 4 modes × evidence and paper, 24/24 returned 200 with results and no fallback |
-| P35-18 (#62) | done | this change | Migration 020 adds catalog metadata revisions, discovery spend, and checked abstract evidence. OpenAlex upserts resolve identity and persist authors without creating documents or snapshot membership |
+| P35-18 (#62) | done | 5049e84 | Migration 020 adds catalog metadata revisions, discovery spend, and checked abstract evidence. OpenAlex upserts resolve identity and persist authors without creating documents or snapshot membership |
+| P35-19 (#63) | done | this change | Budgeted OpenAlex discovery, catalog and paper-vector upserts, dense question ranking; 26 focused tests pass. Live check: 25 works fetched, 5 ranked candidates, one `search_request` spend row at $0.001; snapshot membership and generation pointers unchanged. Private record: `local-reference/phase35/p35-19-live-check.json` |
 
 ## Environment facts
 
@@ -65,7 +66,7 @@ cards to be implemented one at a time, with one commit per card.
   dense generation configuration (`configs/phase35-generation-index.example.json`) is
   `sha256:4cad3111d787948278dd448819a14ee7daa8ec4b7403bc0139cbdd60fd01a2b5`.
 - `research-ingest` applies pending migrations to `RESEARCH_PLATFORM_DATABASE_URL`;
-  `research_phase1_review` has migrations through 018.
+  `research_phase1_review` has migrations through 020 (applied for the P35-19 live check).
 - Phase 2 finding (P35-07): `IndexRepository.load_snapshot_lexical_inputs` reads
   `papers.metadata` without decoding the JSON text, so every BM25S paper index was built
   from titles only (0 of 100 abstracts; 10 accepted papers have OpenAlex abstracts).

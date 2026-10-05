@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
+from decimal import Decimal
 from math import isfinite
 from pathlib import Path
 from typing import Final
@@ -26,6 +27,61 @@ _ALLOWED_ENVIRONMENTS: Final = frozenset({"development", "test", "production"})
 _ALLOWED_LOG_LEVELS: Final = frozenset(
     {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 )
+
+
+@dataclass(frozen=True)
+class DiscoverySettings:
+    """Conservative policy and cost defaults for online OpenAlex discovery."""
+
+    max_search_requests_per_run: int = 10
+    max_downloads_per_run: int = 5
+    daily_spend_cap_usd: Decimal = Decimal("0.50")
+    search_request_cost_usd: Decimal = Decimal("0.001")
+    content_download_cost_usd: Decimal = Decimal("0.01")
+    minimum_publication_year: int = 2020
+    language: str = "en"
+    openalex_field_ids: tuple[str, ...] = ("fields/17",)
+    results_per_request: int = 25
+
+    def __post_init__(self) -> None:
+        for name in (
+            "max_search_requests_per_run",
+            "max_downloads_per_run",
+            "results_per_request",
+            "minimum_publication_year",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be positive")
+        if self.minimum_publication_year < 2020:
+            raise ValueError("minimum_publication_year cannot be before 2020")
+        if self.results_per_request > 100:
+            raise ValueError("results_per_request cannot exceed OpenAlex's limit of 100")
+        if self.language != "en":
+            raise ValueError("online discovery language is fixed to 'en'")
+        if not isinstance(self.openalex_field_ids, tuple) or not self.openalex_field_ids:
+            raise ValueError("openalex_field_ids must be a non-empty tuple")
+        if any(
+            not isinstance(field_id, str)
+            or not field_id.startswith("fields/")
+            or not field_id.removeprefix("fields/").isdigit()
+            for field_id in self.openalex_field_ids
+        ):
+            raise ValueError("OpenAlex field IDs must look like 'fields/17'")
+        if len(set(self.openalex_field_ids)) != len(self.openalex_field_ids):
+            raise ValueError("openalex_field_ids must not contain duplicates")
+        if not isinstance(self.daily_spend_cap_usd, Decimal) or (
+            not self.daily_spend_cap_usd.is_finite()
+            or self.daily_spend_cap_usd <= 0
+            or self.daily_spend_cap_usd >= Decimal("1")
+        ):
+            raise ValueError("daily_spend_cap_usd must be finite, positive, and below $1")
+        for name in ("search_request_cost_usd", "content_download_cost_usd"):
+            value = getattr(self, name)
+            if not isinstance(value, Decimal) or not value.is_finite() or value <= 0:
+                raise ValueError(f"{name} must be a finite positive Decimal")
 
 
 def _environment_default() -> str:
