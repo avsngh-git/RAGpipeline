@@ -13,10 +13,10 @@ def _call(name: str, arguments: object) -> dict[str, object]:
     return {"function": {"name": name, "arguments": arguments}}
 
 
-def test_definitions_cover_seven_tools_without_tool_property() -> None:
+def test_definitions_cover_eight_tools_without_tool_property() -> None:
     definitions = research_tool_definitions()
 
-    assert len(definitions) == 7
+    assert len(definitions) == 8
     for definition in definitions:
         function = definition["function"]
         assert isinstance(function, dict)

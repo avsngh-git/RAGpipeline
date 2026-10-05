@@ -221,10 +221,11 @@ async def _build_research_services(
     """Compose and start the lifespan-owned research run runtime."""
     from research_platform.agents.graph_deep import build_deep_graph
     from research_platform.agents.graph_quick import build_quick_graph
+    from research_platform.config import DiscoverySettings
     from research_platform.ingestion.provenance import code_revision
     from research_platform.llm.ollama import OllamaClient
     from research_platform.runs.checkpointing import open_checkpointer
-    from research_platform.runs.contracts import ResearchMode
+    from research_platform.runs.contracts import ResearchMode, RunBudgets
     from research_platform.runs.executor import RunExecutor
     from research_platform.runs.repository import RunRepository
     from research_platform.runs.runner import (
@@ -249,6 +250,7 @@ async def _build_research_services(
     related = RelatedPaperReader(runtime.pool)
     discovery = await _build_discovery_service(settings, runtime, stack)
     similarity = _build_similarity_reader(settings, runtime)
+    ingestion = await _build_membership_policy(settings, runtime)
     tools = ResearchTools(
         search=phase2_services.search,
         papers=phase2_services.papers,
@@ -256,6 +258,7 @@ async def _build_research_services(
         related=related,
         discovery=discovery,
         similarity=similarity,
+        ingestion=ingestion,
     )
     llm_http = await stack.enter_async_context(
         httpx.AsyncClient(
@@ -276,6 +279,9 @@ async def _build_research_services(
             checkpointer=checkpointer,
             serving=serving,
             thinking=settings.llm_thinking,
+            budgets=RunBudgets.model_validate(
+                {"max_papers_per_wait": DiscoverySettings().max_papers_per_wait}
+            ),
             code_revision=code_revision(),
             graphs={
                 ResearchMode.QUICK: build_quick_graph,
@@ -305,6 +311,32 @@ def _build_similarity_reader(
     return PaperSimilarityReader(
         GenerationQdrantCollection(configuration, "papers", runtime.http),
         runtime.embedder,
+    )
+
+
+async def _build_membership_policy(settings: Settings, runtime: Any) -> Any:
+    """Build the ingestion membership policy for the configured generation."""
+    if not settings.generation_configuration.is_file():
+        return None
+
+    from research_platform.config import DiscoverySettings
+    from research_platform.ingestion.generation_index import (
+        GenerationIndexConfiguration,
+        GenerationQdrantCollection,
+    )
+    from research_platform.ingestion.generation_registry import GenerationRegistry
+    from research_platform.ingestion.membership_policy import MembershipPolicy
+
+    raw = json.loads(settings.generation_configuration.read_text(encoding="utf-8"))
+    configuration = GenerationIndexConfiguration.from_dict(raw)
+    collection_id = await GenerationRegistry(runtime.pool).ensure_collection(
+        settings.generation_collection
+    )
+    return MembershipPolicy(
+        runtime.pool,
+        GenerationQdrantCollection(configuration, "papers", runtime.http),
+        DiscoverySettings(),
+        collection_id=collection_id,
     )
 
 

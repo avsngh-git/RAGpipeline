@@ -35,6 +35,7 @@ class DiscoverySettings:
 
     max_search_requests_per_run: int = 10
     max_downloads_per_run: int = 5
+    max_papers_per_wait: int = 5
     daily_spend_cap_usd: Decimal = Decimal("0.50")
     search_request_cost_usd: Decimal = Decimal("0.001")
     content_download_cost_usd: Decimal = Decimal("0.01")
@@ -47,6 +48,7 @@ class DiscoverySettings:
         for name in (
             "max_search_requests_per_run",
             "max_downloads_per_run",
+            "max_papers_per_wait",
             "results_per_request",
             "minimum_publication_year",
         ):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from time import perf_counter
 from typing import Any, Literal, Protocol
@@ -20,6 +20,7 @@ from research_platform.agents.actions import (
     GetCitationsAction,
     GetPaperAction,
     GetReferencesAction,
+    RequestIngestionAction,
     SearchEvidenceAction,
     SearchPapersAction,
     action_key,
@@ -29,6 +30,7 @@ from research_platform.discovery.online import (
     DiscoveryBudgetExceeded,
 )
 from research_platform.ingestion.embeddings import EmbeddingModelError
+from research_platform.ingestion.membership_policy import PolicyResult
 from research_platform.ingestion.openalex import OpenAlexRequestError
 from research_platform.runs.contracts import ResearchFilters, ResearchMode, RunBudgets
 from research_platform.search.access import EvidenceAccessDenied
@@ -136,6 +138,23 @@ class DiscoveryServiceUnavailable(RuntimeError):
     """Raised when online discovery is not configured for this runtime."""
 
 
+class IngestionPolicyService(Protocol):
+    """Code-enforced membership decisions for proposed papers."""
+
+    async def submit(
+        self,
+        *,
+        run_id: UUID | None,
+        requested_by: Literal["run", "api", "terminal"],
+        paper_ids: Sequence[str],
+        max_papers: int,
+    ) -> PolicyResult: ...
+
+
+class IngestionPolicyUnavailable(RuntimeError):
+    """Raised when online ingestion is not configured for this runtime."""
+
+
 class ToolContext(BaseModel):
     """Immutable run-specific inputs required to execute a tool action."""
 
@@ -205,6 +224,7 @@ class ResearchTools:
         related: RelatedService,
         discovery: DiscoveryService | None = None,
         similarity: SimilarityService | None = None,
+        ingestion: IngestionPolicyService | None = None,
     ) -> None:
         self._search = search
         self._papers = papers
@@ -212,6 +232,7 @@ class ResearchTools:
         self._related = related
         self._discovery = discovery
         self._similarity = similarity
+        self._ingestion = ingestion
 
     async def uningested_for_question(
         self,
@@ -239,7 +260,7 @@ class ResearchTools:
         arguments = action.model_dump(mode="json")
         key = action_key(action)
 
-        if isinstance(action, DiscoverPapersAction) and (
+        if isinstance(action, (DiscoverPapersAction, RequestIngestionAction)) and (
             context.mode is not ResearchMode.DEEP_RESEARCH
         ):
             return self._record(
@@ -350,14 +371,18 @@ class ResearchTools:
                 duration_ms=_duration_ms(started),
             )
             return observation, updated
-        except DiscoveryServiceUnavailable:
+        except (DiscoveryServiceUnavailable, IngestionPolicyUnavailable) as error:
             observation = ToolObservation(
                 ordinal=ordinal,
                 tool=action.tool,
                 arguments=arguments,
                 status="failed",
                 summary={},
-                error_category="discovery_unavailable",
+                error_category=(
+                    "ingestion_unavailable"
+                    if isinstance(error, IngestionPolicyUnavailable)
+                    else "discovery_unavailable"
+                ),
                 retryable=False,
                 duration_ms=_duration_ms(started),
             )
@@ -369,11 +394,7 @@ class ResearchTools:
                 arguments=arguments,
                 status="failed",
                 summary={},
-                error_category=(
-                    "discovery_error"
-                    if isinstance(action, DiscoverPapersAction)
-                    else "retrieval_error"
-                ),
+                error_category=_service_error_category(action),
                 retryable=True,
                 duration_ms=_duration_ms(started),
             )
@@ -390,11 +411,7 @@ class ResearchTools:
                 arguments=arguments,
                 status="failed",
                 summary={},
-                error_category=(
-                    "discovery_error"
-                    if isinstance(action, DiscoverPapersAction)
-                    else "retrieval_error"
-                ),
+                error_category=_service_error_category(action),
                 retryable=True,
                 duration_ms=_duration_ms(started),
             )
@@ -458,6 +475,32 @@ class ResearchTools:
         effective_years: tuple[int | None, int | None],
         ledger: ToolLedger,
     ) -> tuple[dict[str, Any], tuple[CollectedEvidence, ...], dict[str, int]]:
+        if isinstance(action, RequestIngestionAction):
+            if self._ingestion is None:
+                raise IngestionPolicyUnavailable("online ingestion is not configured")
+            result = await self._ingestion.submit(
+                run_id=context.run_id,
+                requested_by="run",
+                paper_ids=action.paper_ids,
+                max_papers=context.budgets.max_papers_per_wait,
+            )
+            return (
+                {
+                    "request_id": (
+                        None if result.request_id is None else str(result.request_id)
+                    ),
+                    "decisions": [
+                        {
+                            "paper_id": decision.paper_id,
+                            "decision": decision.decision,
+                            "reason": decision.reason,
+                        }
+                        for decision in result.decisions
+                    ],
+                },
+                (),
+                {},
+            )
         if isinstance(action, DiscoverPapersAction):
             if self._discovery is None:
                 raise DiscoveryServiceUnavailable("online discovery is not configured")
@@ -746,6 +789,14 @@ def _collected_evidence(
         source_location=dict(location),
         reranker_score=score.score if score is not None else None,
     )
+
+
+def _service_error_category(action: Action) -> str:
+    if isinstance(action, DiscoverPapersAction):
+        return "discovery_error"
+    if isinstance(action, RequestIngestionAction):
+        return "ingestion_error"
+    return "retrieval_error"
 
 
 def _duration_ms(started: float) -> float:

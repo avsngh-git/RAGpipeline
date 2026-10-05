@@ -85,6 +85,7 @@ class RunBudgets(_ContractModel):
     max_model_retries: int = Field(2, ge=0, le=5)
     max_active_seconds: float = Field(1800.0, gt=0, le=3600)
     max_resumes: int = Field(2, ge=0, le=5)
+    max_papers_per_wait: int = Field(5, ge=1, le=20)
 
 
 class ResearchFilters(_ContractModel):

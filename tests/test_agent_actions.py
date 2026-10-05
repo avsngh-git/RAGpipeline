@@ -146,3 +146,24 @@ def test_discover_action_validates_years_and_limit() -> None:
     ):
         with pytest.raises(ValidationError):
             DiscoverPapersAction.model_validate({"tool": "discover_papers", **invalid})
+
+
+def test_request_ingestion_action_limits() -> None:
+    from pydantic import ValidationError
+
+    from research_platform.agents.actions import RequestIngestionAction
+
+    valid = RequestIngestionAction(
+        tool="request_ingestion", paper_ids=("W1", "W2"), reason="  gap  "
+    )
+    assert valid.reason == "gap"
+    for paper_ids, reason in (
+        ((), "gap"),
+        (tuple(f"W{i}" for i in range(6)), "gap"),
+        (("W1",), ""),
+        (("W1",), "x" * 201),
+    ):
+        with pytest.raises(ValidationError):
+            RequestIngestionAction(
+                tool="request_ingestion", paper_ids=paper_ids, reason=reason
+            )

@@ -52,6 +52,12 @@ class DiscoverPapersAction(_ActionModel):
         return self
 
 
+class RequestIngestionAction(_ActionModel):
+    tool: Literal["request_ingestion"]
+    paper_ids: tuple[str, ...] = Field(min_length=1, max_length=5)
+    reason: str = Field(min_length=1, max_length=200)
+
+
 class GetPaperAction(_ActionModel):
     tool: Literal["get_paper"]
     paper_id: str = Field(min_length=1, max_length=200)
@@ -80,6 +86,7 @@ Action = Annotated[
     SearchPapersAction
     | SearchEvidenceAction
     | DiscoverPapersAction
+    | RequestIngestionAction
     | GetPaperAction
     | GetCitationsAction
     | GetReferencesAction

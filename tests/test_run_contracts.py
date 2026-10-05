@@ -37,6 +37,7 @@ def test_budgets_defaults_match_adr() -> None:
         "max_model_retries": 2,
         "max_active_seconds": 1800.0,
         "max_resumes": 2,
+        "max_papers_per_wait": 5,
     }
 
 

@@ -17,6 +17,7 @@ from research_platform.agents.actions import (
     GetCitationsAction,
     GetPaperAction,
     GetReferencesAction,
+    RequestIngestionAction,
     SearchEvidenceAction,
     SearchPapersAction,
 )
@@ -43,6 +44,7 @@ from research_platform.search.paper_similarity import SimilarPaper
 from research_platform.tools.fakes import (
     FakeCorpus,
     FakeDiscoveryService,
+    FakeIngestionPolicy,
     FakePaper,
     FakePassage,
     FakeServices,
@@ -111,6 +113,7 @@ def _tools(
     *,
     discovery: FakeDiscoveryService | None = None,
     similarity: FakeSimilarityReader | None = None,
+    ingestion: FakeIngestionPolicy | None = None,
 ) -> tuple[ResearchTools, FakeServices]:
     resolved = corpus or _corpus()
     services = FakeServices(resolved)
@@ -122,6 +125,7 @@ def _tools(
             related=services,
             discovery=discovery,
             similarity=similarity,
+            ingestion=ingestion,
         ),
         services,
     )
@@ -997,3 +1001,69 @@ async def test_fake_search_is_deterministic_and_filters_years() -> None:
             replace(no_match_request, query="fail"),
             request_id="fake:3",
         )
+
+
+@pytest.mark.anyio
+async def test_request_ingestion_rejected_in_quick_mode() -> None:
+    policy = FakeIngestionPolicy({"W501": (False, 2024, "en")})
+    tools, _ = _tools(ingestion=policy)
+
+    observation, ledger = await tools.execute(
+        RequestIngestionAction(
+            tool="request_ingestion", paper_ids=("W501",), reason="needed evidence"
+        ),
+        context=_context(),
+        ledger=ToolLedger(),
+    )
+
+    assert observation.status == "rejected"
+    assert observation.error_category == "mode_not_allowed"
+    assert policy.calls == [] and ledger.tool_calls_used == 0
+
+
+@pytest.mark.anyio
+async def test_request_ingestion_observation_lists_decisions() -> None:
+    policy = FakeIngestionPolicy(
+        {"W501": (False, 2024, "en"), "W502": (True, 2024, "en")}
+    )
+    tools, _ = _tools(ingestion=policy)
+
+    observation, _ = await tools.execute(
+        RequestIngestionAction(
+            tool="request_ingestion",
+            paper_ids=("W501", "W502", "W999"),
+            reason="needed evidence",
+        ),
+        context=_context(
+            mode=ResearchMode.DEEP_RESEARCH,
+            budgets=RunBudgets(max_papers_per_wait=3),
+        ),
+        ledger=ToolLedger(),
+    )
+
+    assert observation.status == "succeeded" and observation.evidence == ()
+    assert observation.summary["request_id"] is not None
+    assert observation.summary["decisions"] == [
+        {"paper_id": "W501", "decision": "accepted", "reason": "accepted"},
+        {"paper_id": "W502", "decision": "refused", "reason": "already_indexed"},
+        {"paper_id": "W999", "decision": "refused", "reason": "unknown_paper"},
+    ]
+    assert policy.calls[0]["max_papers"] == 3
+
+
+@pytest.mark.anyio
+async def test_request_ingestion_unconfigured_is_failed_observation() -> None:
+    tools, _ = _tools()
+
+    observation, _ = await tools.execute(
+        RequestIngestionAction(
+            tool="request_ingestion", paper_ids=("W501",), reason="needed evidence"
+        ),
+        context=_context(mode=ResearchMode.DEEP_RESEARCH),
+        ledger=ToolLedger(),
+    )
+
+    assert (observation.status, observation.error_category) == (
+        "failed",
+        "ingestion_unavailable",
+    )

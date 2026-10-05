@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID, uuid5
 
+from research_platform.config import DiscoverySettings
 from research_platform.discovery.online import (
     DiscoveredPaper,
     DiscoveryBudgetExceeded,
 )
 from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
 from research_platform.ingestion.identity import is_valid_paper_id
+from research_platform.ingestion.membership_policy import (
+    MembershipDecision,
+    PolicyResult,
+    _Candidate,
+    decide,
+)
 from research_platform.search.application_errors import SearchDependencyUnavailable
 from research_platform.search.contracts import (
     ComponentScores,
@@ -136,6 +145,57 @@ class FakeDiscoveryService:
                 )
             )
         )[:limit]
+
+
+class FakeIngestionPolicy:
+    """In-memory membership policy using the real decision rules."""
+
+    def __init__(
+        self, catalog: Mapping[str, tuple[bool, int | None, str | None]] | None = None
+    ) -> None:
+        self.catalog = dict(catalog or {})
+        self.accepted_by_run: dict[UUID | None, int] = {}
+        self.pending: set[str] = set()
+        self.calls: list[dict[str, object]] = []
+
+    async def submit(
+        self,
+        *,
+        run_id: UUID | None,
+        requested_by: Literal["run", "api", "terminal"],
+        paper_ids: Sequence[str],
+        max_papers: int,
+    ) -> PolicyResult:
+        self.calls.append(
+            {"run_id": run_id, "paper_ids": tuple(paper_ids), "max_papers": max_papers}
+        )
+        decisions: list[MembershipDecision] = []
+        for paper_id in paper_ids:
+            entry = self.catalog.get(paper_id)
+            decision = decide(
+                paper_id,
+                _Candidate(
+                    in_papers=entry is not None,
+                    indexed=entry is not None and entry[0],
+                    year=None if entry is None else entry[1],
+                    language=None if entry is None else entry[2],
+                ),
+                settings=DiscoverySettings(),
+                duplicate=paper_id in self.pending,
+                accepted_for_run=self.accepted_by_run.get(run_id, 0),
+                max_papers=max_papers,
+            )
+            if decision.decision == "accepted":
+                self.accepted_by_run[run_id] = self.accepted_by_run.get(run_id, 0) + 1
+                self.pending.add(paper_id)
+            decisions.append(decision)
+        accepted = sorted(d.paper_id for d in decisions if d.decision == "accepted")
+        request_id = (
+            _stable_uuid(f"ingestion:{run_id}:{','.join(accepted)}")
+            if accepted
+            else None
+        )
+        return PolicyResult(request_id, tuple(decisions))
 
 
 class FakeSimilarityReader:
