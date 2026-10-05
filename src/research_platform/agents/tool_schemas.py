@@ -35,7 +35,7 @@ TOOL_DESCRIPTIONS: Final[dict[str, str]] = {
     "get_citations": "list stored papers that cite the given paper_id.",
     "get_references": "list stored papers that the given paper_id cites.",
     "find_related_papers": (
-        "list papers that share references or are cited together with paper_id."
+        "find papers related to paper_id by stored citation relationships or semantic similarity."
     ),
 }
 

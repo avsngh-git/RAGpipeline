@@ -59,6 +59,7 @@ from research_platform.search.paper_reads import (
     SnapshotPaperRead,
 )
 from research_platform.search.paper_related import RelatedPapersPage
+from research_platform.search.paper_similarity import SimilarPaper
 from research_platform.tools.table_text import render_table_rows
 
 
@@ -100,6 +101,22 @@ class RelatedService(Protocol):
     ) -> RelatedPapersPage: ...
 
 
+class SimilarityService(Protocol):
+    """Semantic paper recommendations from the Qdrant paper collection."""
+
+    async def similar_to_paper(
+        self, paper_id: str, *, generation: int, limit: int
+    ) -> tuple[SimilarPaper, ...]: ...
+
+    async def uningested_for_question(
+        self,
+        question: str,
+        *,
+        limit: int = 5,
+        minimum_similarity: float = 0.5,
+    ) -> tuple[SimilarPaper, ...]: ...
+
+
 class DiscoveryService(Protocol):
     """Budgeted online paper search used by deep-research runs."""
 
@@ -126,6 +143,7 @@ class ToolContext(BaseModel):
 
     run_id: UUID
     snapshot_id: UUID
+    generation: int | None = Field(default=None, ge=1)
     retrieval_profile_id: str
     mode: ResearchMode = ResearchMode.QUICK
     question: str = ""
@@ -186,12 +204,28 @@ class ResearchTools:
         citations: CitationService,
         related: RelatedService,
         discovery: DiscoveryService | None = None,
+        similarity: SimilarityService | None = None,
     ) -> None:
         self._search = search
         self._papers = papers
         self._citations = citations
         self._related = related
         self._discovery = discovery
+        self._similarity = similarity
+
+    async def uningested_for_question(
+        self,
+        question: str,
+        *,
+        limit: int = 5,
+        minimum_similarity: float = 0.5,
+    ) -> tuple[SimilarPaper, ...]:
+        """Return metadata-only semantic candidates when the reader is configured."""
+        if self._similarity is None:
+            return ()
+        return await self._similarity.uningested_for_question(
+            question, limit=limit, minimum_similarity=minimum_similarity
+        )
 
     async def execute(
         self,
@@ -596,6 +630,50 @@ class ResearchTools:
             )
 
         if isinstance(action, FindRelatedPapersAction):
+            if action.basis == "similarity":
+                if self._similarity is None:
+                    return (
+                        {
+                            "papers": [],
+                            "coverage_note": "Semantic paper similarity is unavailable.",
+                        },
+                        (),
+                        {},
+                    )
+                if context.generation is None:
+                    raise ValueError(
+                        "a pinned generation is required for semantic paper similarity"
+                    )
+                similar_papers = await self._similarity.similar_to_paper(
+                    action.paper_id,
+                    generation=context.generation,
+                    limit=action.limit,
+                )
+                source_depth = ledger.paper_depths.get(action.paper_id, 0)
+                depths = {
+                    paper.paper_id: min(
+                        ledger.paper_depths.get(paper.paper_id, source_depth + 1),
+                        source_depth + 1,
+                    )
+                    for paper in similar_papers
+                }
+                return (
+                    {
+                        "papers": [
+                            {
+                                "paper_id": paper.paper_id,
+                                "title": paper.title,
+                                "year": paper.publication_year,
+                                "similarity": paper.similarity,
+                                "catalog_status": paper.catalog_status,
+                            }
+                            for paper in similar_papers
+                        ],
+                        "coverage_note": "Semantic similarity is based on paper embeddings.",
+                    },
+                    (),
+                    depths,
+                )
             related_page = await self._related.find_related(
                 context.snapshot_id, action.paper_id, limit=action.limit
             )

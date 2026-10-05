@@ -17,6 +17,7 @@ from research_platform.llm.types import CallKind, ModelIdentity
 _CONFIGURATION_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _EVIDENCE_HANDLE_PATTERN = r"^E[1-9][0-9]*$"
 _CLAIM_ID_PATTERN = r"^claim-[1-9][0-9]*$"
+UNINGESTED_SIMILARITY_THRESHOLD = 0.5
 
 
 class _ContractModel(BaseModel):
@@ -153,7 +154,7 @@ class PaperSummary(_ContractModel):
 
 
 class RunProvenance(_ContractModel):
-    """Effective configuration and model information for a run."""
+    """Effective configuration, model information and catalog diagnostics for a run."""
 
     snapshot_id: UUID
     retrieval_profile_id: str
@@ -166,6 +167,13 @@ class RunProvenance(_ContractModel):
     trace_id: str
     generation: int | None = Field(None, ge=1)
     retrieval_settings_id: str | None = None
+    uningested_similarity_threshold: float | None = Field(
+        None,
+        ge=-1,
+        le=1,
+        description="Uncalibrated threshold for the metadata-only paper diagnostic.",
+    )
+    uningested_candidates: tuple[PaperSummary, ...] = ()
 
     @field_validator("configuration_id")
     @classmethod
@@ -199,6 +207,7 @@ class ResearchRunView(_ContractModel):
     answer_outcome: AnswerOutcome | None = None
     claims: tuple[ClaimResult, ...] = ()
     papers: tuple[PaperSummary, ...] = ()
+    uningested_candidates: tuple[PaperSummary, ...] = ()
     failure_category: FailureCategory | None = None
     error_message: str | None = None
     provenance: RunProvenance | None = None

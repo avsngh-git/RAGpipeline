@@ -39,12 +39,14 @@ from research_platform.search.contracts import (
     SearchResultStatus,
 )
 from research_platform.search.paper_reads import PaperIdentityConflict, SnapshotNotFound
+from research_platform.search.paper_similarity import SimilarPaper
 from research_platform.tools.fakes import (
     FakeCorpus,
     FakeDiscoveryService,
     FakePaper,
     FakePassage,
     FakeServices,
+    FakeSimilarityReader,
     fake_services,
 )
 from research_platform.tools.research_tools import (
@@ -90,10 +92,12 @@ def _context(
     budgets: RunBudgets | None = None,
     mode: ResearchMode = ResearchMode.QUICK,
     question: str = "What do recent retrieval studies find?",
+    generation: int | None = None,
 ) -> ToolContext:
     return ToolContext(
         run_id=RUN_ID,
         snapshot_id=SNAPSHOT_ID,
+        generation=generation,
         retrieval_profile_id=PROFILE_ID,
         mode=mode,
         question=question,
@@ -106,6 +110,7 @@ def _tools(
     corpus: FakeCorpus | None = None,
     *,
     discovery: FakeDiscoveryService | None = None,
+    similarity: FakeSimilarityReader | None = None,
 ) -> tuple[ResearchTools, FakeServices]:
     resolved = corpus or _corpus()
     services = FakeServices(resolved)
@@ -116,9 +121,126 @@ def _tools(
             citations=services,
             related=services,
             discovery=discovery,
+            similarity=similarity,
         ),
         services,
     )
+
+
+@pytest.mark.anyio
+async def test_related_similarity_basis_dispatches_to_similarity_reader() -> None:
+    similarity = FakeSimilarityReader(
+        similar_papers=(
+            SimilarPaper(
+                paper_id="W410",
+                title="Semantic retrieval study",
+                publication_year=2024,
+                similarity=0.87,
+                catalog_status="ingested",
+            ),
+        )
+    )
+    tools, _ = _tools(similarity=similarity)
+
+    observation, ledger = await tools.execute(
+        FindRelatedPapersAction(
+            tool="find_related_papers",
+            paper_id=PAPER_A,
+            limit=3,
+            basis="similarity",
+        ),
+        context=_context(generation=7),
+        ledger=ToolLedger(),
+    )
+
+    assert observation.status == "succeeded"
+    assert observation.summary["papers"] == [
+        {
+            "paper_id": "W410",
+            "title": "Semantic retrieval study",
+            "year": 2024,
+            "similarity": 0.87,
+            "catalog_status": "ingested",
+        }
+    ]
+    assert similarity.similar_calls == [
+        {"paper_id": PAPER_A, "generation": 7, "limit": 3}
+    ]
+    assert ledger.paper_depths["W410"] == 1
+
+
+@pytest.mark.anyio
+async def test_uningested_for_question_is_empty_without_similarity_reader() -> None:
+    tools, _ = _tools()
+
+    assert await tools.uningested_for_question("A synthetic research question") == ()
+
+
+@pytest.mark.anyio
+async def test_similarity_reader_wiring_uses_generation_config_without_openalex_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from research_platform.api import app as api_app
+    from research_platform.config import Settings
+    from research_platform.ingestion import generation_index
+    from research_platform.ingestion.generation_index import (
+        GenerationIndexConfiguration,
+    )
+    from research_platform.search.paper_similarity import PaperSimilarityReader
+
+    configuration = GenerationIndexConfiguration(
+        passages_collection="test-passages",
+        papers_collection="test-papers",
+        embedding_model="model",
+        embedding_revision="revision",
+        preprocessing_revision="preprocessing",
+        vector_size=2,
+        distance="Cosine",
+        batch_size=2,
+        maximum_input_tokens=512,
+    )
+    configuration_path = tmp_path / "generation.json"
+    configuration_path.write_text(json.dumps(configuration.to_dict()), encoding="utf-8")
+    qdrant_http = object()
+    dense_embedder = object()
+    collections: list[object] = []
+
+    class FakeGenerationCollection:
+        def __init__(
+            self,
+            received_configuration: GenerationIndexConfiguration,
+            collection: str,
+            http: object,
+        ) -> None:
+            self.configuration = received_configuration
+            self.collection = collection
+            self.http = http
+            collections.append(self)
+
+    monkeypatch.setattr(
+        generation_index, "GenerationQdrantCollection", FakeGenerationCollection
+    )
+    settings = Settings(
+        openalex_api_key=None,
+        generation_configuration=configuration_path,
+    )
+    runtime = SimpleNamespace(http=qdrant_http, embedder=dense_embedder)
+
+    reader = api_app._build_similarity_reader(settings, runtime)
+
+    assert isinstance(reader, PaperSimilarityReader)
+    assert len(collections) == 1
+    collection = collections[0]
+    assert isinstance(collection, FakeGenerationCollection)
+    assert collection.configuration.to_dict() == configuration.to_dict()
+    assert collection.collection == "papers"
+    assert collection.http is qdrant_http
+    assert reader._embedder is dense_embedder
+
+    missing_settings = Settings(
+        generation_configuration=tmp_path / "missing-generation.json"
+    )
+    assert api_app._build_similarity_reader(missing_settings, runtime) is None
 
 
 @pytest.mark.anyio

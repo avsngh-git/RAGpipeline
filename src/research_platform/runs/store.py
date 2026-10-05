@@ -11,6 +11,7 @@ from research_platform.runs.contracts import (
     AnswerOutcome,
     ClaimResult,
     FailureCategory,
+    PaperSummary,
     ResearchRequest,
     ResearchRunView,
     RunProvenance,
@@ -50,6 +51,14 @@ class RunStore(Protocol):
     async def load_evidence(
         self, run_id: UUID, handles: Sequence[str] | None = None
     ) -> dict[str, EvidenceRecord]: ...
+
+    async def save_uningested_candidates(
+        self,
+        run_id: UUID,
+        candidates: Sequence[PaperSummary],
+        *,
+        minimum_similarity: float,
+    ) -> None: ...
 
     async def complete_run(
         self,

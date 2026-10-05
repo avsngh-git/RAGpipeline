@@ -34,6 +34,7 @@ from research_platform.llm.contracts import (
 from research_platform.llm.types import CallKind, ModelIdentity
 from research_platform.runs.checkpointing import thread_config
 from research_platform.runs.contracts import (
+    UNINGESTED_SIMILARITY_THRESHOLD,
     FailureCategory,
     ResearchMode,
     ResearchRequest,
@@ -130,6 +131,13 @@ def build_provenance(
     if serving.generation is not None:
         effective_configuration["generation"] = serving.generation
         effective_configuration["retrieval_settings_id"] = serving.retrieval_settings_id
+    diagnostic_threshold = (
+        UNINGESTED_SIMILARITY_THRESHOLD if request.mode is ResearchMode.QUICK else None
+    )
+    if diagnostic_threshold is not None:
+        effective_configuration["uningested_similarity_threshold"] = (
+            diagnostic_threshold
+        )
     return RunProvenance(
         snapshot_id=snapshot_id,
         retrieval_profile_id=serving.retrieval_profile_id,
@@ -142,6 +150,7 @@ def build_provenance(
         trace_id=str(run_id),
         generation=serving.generation,
         retrieval_settings_id=serving.retrieval_settings_id,
+        uningested_similarity_threshold=diagnostic_threshold,
     )
 
 
@@ -278,6 +287,7 @@ class ResearchRunner:
                 retrieval_profile_id=provenance.retrieval_profile_id,
                 mode=stored.mode,
                 question=stored.request.question,
+                generation=provenance.generation,
                 filters=stored.request.filters,
                 budgets=self._deps.budgets,
             )

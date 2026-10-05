@@ -150,7 +150,15 @@ class RunRepository:
                 """
                 UPDATE research_runs
                 SET status = 'running', snapshot_id = $2, configuration_id = $3,
-                    provenance = $4::jsonb, trace_id = $5,
+                    provenance = $4::jsonb || CASE
+                        WHEN status = 'running' AND provenance IS NOT NULL THEN
+                            jsonb_build_object(
+                                'uningested_candidates', COALESCE(
+                                    provenance -> 'uningested_candidates', '[]'::jsonb),
+                                'uningested_similarity_threshold',
+                                    provenance -> 'uningested_similarity_threshold')
+                        ELSE '{}'::jsonb END,
+                    trace_id = $5,
                     started_at = COALESCE(started_at, now()), updated_at = now()
                 WHERE id = $1 AND status IN ('queued', 'running')
                 RETURNING id
@@ -391,6 +399,39 @@ class RunRepository:
             if row is None:
                 await _raise_transition(connection, run_id, "fail")
 
+    async def save_uningested_candidates(
+        self,
+        run_id: UUID,
+        candidates: Sequence[PaperSummary],
+        *,
+        minimum_similarity: float,
+    ) -> None:
+        """Store the quick-run catalog diagnostic without adding evidence or tool calls."""
+        if not math.isfinite(minimum_similarity) or not -1 <= minimum_similarity <= 1:
+            raise ValueError("minimum_similarity must be finite and between -1 and 1")
+        if len(candidates) > 5:
+            raise ValueError("at most five uningested candidates may be stored")
+        summaries = json.dumps([paper.model_dump(mode="json") for paper in candidates])
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                """
+                UPDATE research_runs
+                SET provenance = provenance || jsonb_build_object(
+                        'uningested_candidates', $2::jsonb,
+                        'uningested_similarity_threshold', $3::double precision),
+                    updated_at = now()
+                WHERE id = $1 AND status = 'running' AND provenance IS NOT NULL
+                RETURNING id
+                """,
+                run_id,
+                summaries,
+                minimum_similarity,
+            )
+            if row is None:
+                await _raise_transition(
+                    connection, run_id, "save uningested candidates"
+                )
+
     async def get_run_view(self, run_id: UUID) -> ResearchRunView:
         """Build the public run response from its authoritative records."""
         async with self._pool.acquire() as connection:
@@ -482,6 +523,9 @@ class RunRepository:
             ),
             claims=claims,
             papers=tuple(papers.values()),
+            uningested_candidates=provenance.uningested_candidates
+            if provenance
+            else (),
             failure_category=(
                 FailureCategory(run_row["failure_category"])
                 if run_row["failure_category"] is not None

@@ -43,7 +43,9 @@ cards to be implemented one at a time, with one commit per card.
 | P35-18 (#62) | done | 5049e84 | Migration 020 adds catalog metadata revisions, discovery spend, and checked abstract evidence. OpenAlex upserts resolve identity and persist authors without creating documents or snapshot membership |
 | P35-19 (#63) | done | abac8f4 | Budgeted OpenAlex discovery, catalog and paper-vector upserts, dense question ranking; 26 focused tests pass. Live check: 25 works fetched, 5 ranked candidates, one `search_request` spend row at $0.001; snapshot membership and generation pointers unchanged. Private record: `local-reference/phase35/p35-19-live-check.json` |
 
-| P35-20 (#64) | done | this change | Deep discovery action, mode and tool-budget guards, labelled abstract evidence, and dense plus frozen sparse runtime wiring. Focused tests, deep graph and scripted regression: 127 passed; Ruff and mypy pass. Owner approved the evidence header and deep-graph test edits omitted from the card file list |
+| P35-20 (#64) | done | 5a7c70a | Deep discovery action, mode and tool-budget guards, labelled abstract evidence, and dense plus frozen sparse runtime wiring. Focused tests, deep graph and scripted regression: 127 passed; Ruff and mypy pass. Owner approved the evidence header and deep-graph test edits omitted from the card file list |
+
+| P35-21 (#65) | done | this change | Semantic related-paper basis uses Qdrant recommend with pinned generation and source exclusion. Quick runs store up to five metadata-only candidates after evidence collection; threshold 0.5 is uncalibrated and recorded in provenance. Failures are logged without query/title text and do not fail the run. 141 focused and scripted regression tests passed; Ruff, format and mypy passed. Disposable PostgreSQL check confirmed storage and resume/completion retention; private record `local-reference/phase35/p35-21-persistence-check.json`. Owner approved adjacent runtime/store files |
 
 ## Environment facts
 

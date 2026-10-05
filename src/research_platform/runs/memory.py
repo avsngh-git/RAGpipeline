@@ -92,6 +92,14 @@ class InMemoryRunStore:
             configuration_id=provenance.configuration_id,
             started_at=run.started_at or datetime.now(UTC),
         )
+        previous = self._provenance.get(run_id)
+        if run.status is RunStatus.RUNNING and previous is not None:
+            provenance = provenance.model_copy(
+                update={
+                    "uningested_candidates": previous.uningested_candidates,
+                    "uningested_similarity_threshold": previous.uningested_similarity_threshold,
+                }
+            )
         self._provenance[run_id] = provenance
 
     async def record_resume(self, run_id: UUID) -> int:
@@ -180,6 +188,26 @@ class InMemoryRunStore:
             run, status=RunStatus.FAILED, completed_at=datetime.now(UTC)
         )
 
+    async def save_uningested_candidates(
+        self,
+        run_id: UUID,
+        candidates: Sequence[PaperSummary],
+        *,
+        minimum_similarity: float,
+    ) -> None:
+        """Store the same catalog diagnostic as the PostgreSQL run store."""
+        self._running(run_id, "save uningested candidates")
+        if not math.isfinite(minimum_similarity) or not -1 <= minimum_similarity <= 1:
+            raise ValueError("minimum_similarity must be finite and between -1 and 1")
+        if len(candidates) > 5:
+            raise ValueError("at most five uningested candidates may be stored")
+        self._provenance[run_id] = self._provenance[run_id].model_copy(
+            update={
+                "uningested_candidates": tuple(candidates),
+                "uningested_similarity_threshold": minimum_similarity,
+            }
+        )
+
     async def get_run_view(self, run_id: UUID) -> ResearchRunView:
         run = self._get_run(run_id)
         answer = self._answers.get(run_id)
@@ -202,6 +230,7 @@ class InMemoryRunStore:
                         ),
                     ),
                 )
+        provenance = self._provenance.get(run_id)
         return ResearchRunView(
             run_id=run_id,
             status=run.status,
@@ -211,9 +240,12 @@ class InMemoryRunStore:
             answer_outcome=answer[1] if answer else None,
             claims=claims,
             papers=tuple(papers.values()),
+            uningested_candidates=provenance.uningested_candidates
+            if provenance
+            else (),
             failure_category=failure[0] if failure else None,
             error_message=failure[1] if failure else None,
-            provenance=self._provenance.get(run_id),
+            provenance=provenance,
             usage=(
                 answer[2]
                 if answer

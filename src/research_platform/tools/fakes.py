@@ -41,6 +41,7 @@ from research_platform.search.paper_related import (
     RelationKind,
     rank_related,
 )
+from research_platform.search.paper_similarity import SimilarPaper
 from research_platform.tools.research_tools import (
     CitationService,
     PaperService,
@@ -134,6 +135,48 @@ class FakeDiscoveryService:
                     and paper.publication_year <= year_to
                 )
             )
+        )[:limit]
+
+
+class FakeSimilarityReader:
+    """Deterministic semantic paper results with recorded call arguments."""
+
+    def __init__(
+        self,
+        similar_papers: tuple[SimilarPaper, ...] = (),
+        uningested_papers: tuple[SimilarPaper, ...] = (),
+    ) -> None:
+        self.similar_papers = similar_papers
+        self.uningested_papers = uningested_papers
+        self.similar_calls: list[dict[str, object]] = []
+        self.uningested_calls: list[dict[str, object]] = []
+
+    async def similar_to_paper(
+        self, paper_id: str, *, generation: int, limit: int
+    ) -> tuple[SimilarPaper, ...]:
+        self.similar_calls.append(
+            {"paper_id": paper_id, "generation": generation, "limit": limit}
+        )
+        return self.similar_papers[:limit]
+
+    async def uningested_for_question(
+        self,
+        question: str,
+        *,
+        limit: int = 5,
+        minimum_similarity: float = 0.5,
+    ) -> tuple[SimilarPaper, ...]:
+        self.uningested_calls.append(
+            {
+                "question": question,
+                "limit": limit,
+                "minimum_similarity": minimum_similarity,
+            }
+        )
+        return tuple(
+            paper
+            for paper in self.uningested_papers
+            if paper.similarity >= minimum_similarity
         )[:limit]
 
 

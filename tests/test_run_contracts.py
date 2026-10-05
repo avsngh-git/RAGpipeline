@@ -12,6 +12,7 @@ from research_platform.runs.contracts import (
     ClaimResult,
     EvidenceCitation,
     FailureCategory,
+    PaperSummary,
     ResearchFilters,
     ResearchMode,
     ResearchRequest,
@@ -123,6 +124,16 @@ def _run_view(**overrides: object) -> ResearchRunView:
     return ResearchRunView(**values)
 
 
+def test_run_view_accepts_uningested_candidates() -> None:
+    candidate = PaperSummary(
+        paper_id="W410", title="Synthetic catalog study", publication_year=2024
+    )
+    view = _run_view(uningested_candidates=(candidate,))
+    assert view.uningested_candidates == (candidate,)
+    assert _run_view().uningested_candidates == ()
+    assert ResearchRunView.model_validate_json(view.model_dump_json()) == view
+
+
 def test_run_view_status_invariants() -> None:
     assert _run_view(status=RunStatus.QUEUED)
     assert _run_view(status=RunStatus.RUNNING)
@@ -209,3 +220,38 @@ def test_provenance_validates_configuration_identifier() -> None:
 
 def test_usage_defaults_are_independent() -> None:
     assert RunUsage().tool_calls == 0
+
+
+@pytest.mark.anyio
+async def test_uningested_candidates_survive_run_resume() -> None:
+    from research_platform.runs.memory import InMemoryRunStore
+
+    store = InMemoryRunStore()
+    run_id = await store.create_run(
+        ResearchRequest(question="Explain synthetic retrieval", mode="quick")
+    )
+    provenance = RunProvenance(
+        snapshot_id=uuid4(),
+        retrieval_profile_id="profile",
+        configuration_id="sha256:" + "a" * 64,
+        code_revision="synthetic-revision",
+        model=ModelIdentity(name="model", runtime="scripted", context_tokens=512),
+        thinking={CallKind.PLAN: False},
+        prompt_versions={},
+        budgets=RunBudgets(),
+        trace_id=str(run_id),
+    )
+    candidate = PaperSummary(
+        paper_id="W410", title="Synthetic catalog study", publication_year=2024
+    )
+    await store.mark_running(run_id, provenance=provenance)
+    await store.save_uningested_candidates(run_id, (candidate,), minimum_similarity=0.5)
+    await store.mark_running(run_id, provenance=provenance)
+    view = await store.get_run_view(run_id)
+    assert view.uningested_candidates == (candidate,)
+    assert view.provenance is not None
+    assert view.provenance.uningested_similarity_threshold == 0.5
+    assert view.provenance.uningested_candidates == (candidate,)
+    assert view.claims == ()
+    assert view.usage.tool_calls == 0
+    assert await store.load_evidence(run_id) == {}

@@ -73,6 +73,7 @@ class FindRelatedPapersAction(_ActionModel):
     tool: Literal["find_related_papers"]
     paper_id: str = Field(min_length=1, max_length=200)
     limit: int = Field(10, ge=1, le=20)
+    basis: Literal["citations", "similarity"] = "citations"
 
 
 Action = Annotated[

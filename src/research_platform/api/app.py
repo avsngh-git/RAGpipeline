@@ -4,7 +4,7 @@ import json
 import logging
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import Any, AsyncIterator, Literal
+from typing import TYPE_CHECKING, Any, AsyncIterator, Literal
 
 import httpx
 from fastapi import FastAPI, Request, Response
@@ -33,6 +33,9 @@ from .research_routes import ResearchAPIServices, create_research_router
 from .routes import Phase2APIServices, create_phase2_router
 
 logger = logging.getLogger("research_platform.api")
+
+if TYPE_CHECKING:
+    from research_platform.search.paper_similarity import PaperSimilarityReader
 
 
 class _DiscoveryEmbedder:
@@ -245,12 +248,14 @@ async def _build_research_services(
     store = RunRepository(runtime.pool)
     related = RelatedPaperReader(runtime.pool)
     discovery = await _build_discovery_service(settings, runtime, stack)
+    similarity = _build_similarity_reader(settings, runtime)
     tools = ResearchTools(
         search=phase2_services.search,
         papers=phase2_services.papers,
         citations=phase2_services.citations,
         related=related,
         discovery=discovery,
+        similarity=similarity,
     )
     llm_http = await stack.enter_async_context(
         httpx.AsyncClient(
@@ -282,6 +287,25 @@ async def _build_research_services(
     stack.push_async_callback(executor.stop)
     await executor.start()
     return ResearchAPIServices(store=store, executor=executor, serving=serving)
+
+
+def _build_similarity_reader(
+    settings: Settings, runtime: Any
+) -> "PaperSimilarityReader | None":
+    """Use the configured paper catalog even when online discovery is disabled."""
+    if not settings.generation_configuration.is_file():
+        return None
+    from research_platform.ingestion.generation_index import GenerationQdrantCollection
+    from research_platform.search.paper_similarity import PaperSimilarityReader
+
+    raw = json.loads(settings.generation_configuration.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise RuntimeError("generation index configuration must be an object")
+    configuration = GenerationIndexConfiguration.from_dict(raw)
+    return PaperSimilarityReader(
+        GenerationQdrantCollection(configuration, "papers", runtime.http),
+        runtime.embedder,
+    )
 
 
 async def _build_discovery_service(
