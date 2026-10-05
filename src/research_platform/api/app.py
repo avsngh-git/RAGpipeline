@@ -140,9 +140,16 @@ def create_app(
                 and runtime is not None
                 and settings.environment != "test"
             ):
-                application.state.ingestion_service = _build_ingestion_service(
-                    settings, runtime
-                )
+                try:
+                    application.state.ingestion_service = _build_ingestion_service(
+                        settings, runtime
+                    )
+                except Exception as error:
+                    application.state.ingestion_service = None
+                    logger.error(
+                        "ingestion_service_unavailable",
+                        extra={"error_type": type(error).__name__},
+                    )
 
             if research_services is None:
                 if runtime is not None and settings.environment != "test":
