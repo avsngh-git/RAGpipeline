@@ -160,6 +160,8 @@ class RunRepository:
                     snapshot_id = CASE WHEN status = 'queued' OR snapshot_id IS NULL
                         THEN $2 ELSE snapshot_id END,
                     configuration_id = $3,
+                    generation = CASE WHEN status = 'queued' AND $6::integer IS NOT NULL
+                        THEN $6 ELSE generation END,
                     provenance = $4::jsonb || CASE
                         WHEN status <> 'queued' AND provenance IS NOT NULL THEN
                             jsonb_build_object(
@@ -179,6 +181,7 @@ class RunRepository:
                 provenance.configuration_id,
                 _provenance_json(provenance),
                 provenance.trace_id,
+                provenance.generation,
             )
             if row is None:
                 await _raise_transition(connection, run_id, "mark running")

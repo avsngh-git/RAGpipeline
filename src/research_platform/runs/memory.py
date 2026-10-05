@@ -99,7 +99,11 @@ class InMemoryRunStore:
             ),
             configuration_id=provenance.configuration_id,
             generation=(
-                self.generations.get(run_id)
+                (
+                    provenance.generation
+                    if provenance.generation is not None
+                    else self.generations.get(run_id)
+                )
                 if run.status is RunStatus.QUEUED
                 else run.generation
             ),

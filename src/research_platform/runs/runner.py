@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -200,6 +200,7 @@ class RunnerDependencies:
     budgets: RunBudgets = field(default_factory=RunBudgets.model_construct)
     clock: Callable[[], float] = time.monotonic
     ingestion: IngestionStatusSource | None = None
+    serving_resolver: Callable[[], Awaitable[ServingIdentity]] | None = None
 
 
 class _ActivePauses:
@@ -276,6 +277,9 @@ class ResearchRunner:
         active_started = False
         pauses = _ActivePauses(self._deps.clock)
         serving = self._deps.serving
+        if not resuming and self._deps.serving_resolver is not None:
+            # A new run pins the generation published when it starts.
+            serving = await self._deps.serving_resolver()
         if resuming and stored.pinned_snapshot_id is not None:
             # A resumed run keeps the identity it started with, even after a
             # newer generation was published or the run switched generations.

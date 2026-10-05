@@ -607,7 +607,7 @@ async def test_wait_cap_continues_on_current_generation() -> None:
     ]
     assert waits[0].result_summary["pending_paper_ids"] == ["W501"]
     view = await store.get_run_view(run_id)
-    assert view.generation is None and queue.gets >= 2
+    assert view.generation == 1 and queue.gets >= 2
     assert (await store.get_run(run_id)).snapshot_id == _SNAPSHOT
 
 

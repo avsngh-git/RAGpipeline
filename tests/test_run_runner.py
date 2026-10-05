@@ -575,3 +575,39 @@ async def test_wait_time_not_counted_as_active() -> None:
     view = await store.get_run_view(run_id)
     assert view.usage.active_seconds == pytest.approx(0.0)
     assert view.generation == 2
+
+
+@pytest.mark.anyio
+async def test_new_run_pins_generation_published_at_start() -> None:
+    store = InMemoryRunStore()
+    run_id = await store.create_run(_request(), generation=1)
+    newer = ServingIdentity(UUID(int=9), _PROFILE, generation=3)
+
+    async def resolver() -> ServingIdentity:
+        return newer
+
+    search, papers, citations, related = fake_services(_corpus())
+    runner = ResearchRunner(
+        RunnerDependencies(
+            repository=store,
+            tools=ResearchTools(
+                search=search, papers=papers, citations=citations, related=related
+            ),
+            llm=ScriptedLLM(_SUCCESS, identity=_IDENTITY),
+            checkpointer=InMemorySaver(),
+            serving=ServingIdentity(_SNAPSHOT, _PROFILE, generation=1),
+            thinking=frozenset(),
+            code_revision="test-revision",
+            graphs={ResearchMode.QUICK: build_quick_graph},
+            budgets=RunBudgets(),
+            clock=StepClock(),
+            serving_resolver=resolver,
+        )
+    )
+
+    await runner.run(run_id)
+
+    stored = await store.get_run(run_id)
+    view = await store.get_run_view(run_id)
+    assert stored.generation == 3 and stored.snapshot_id == newer.snapshot_id
+    assert view.provenance is not None and view.provenance.generation == 3

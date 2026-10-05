@@ -284,6 +284,7 @@ async def _build_research_services(
                 {"max_papers_per_wait": DiscoverySettings().max_papers_per_wait}
             ),
             ingestion=IngestionQueue(runtime.pool),
+            serving_resolver=lambda: resolve_serving_identity(settings, runtime.pool),
             code_revision=code_revision(),
             graphs={
                 ResearchMode.QUICK: build_quick_graph,
