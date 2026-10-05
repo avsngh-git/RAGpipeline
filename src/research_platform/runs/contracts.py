@@ -36,6 +36,7 @@ class RunStatus(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
+    WAITING_FOR_INGESTION = "waiting_for_ingestion"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -86,6 +87,7 @@ class RunBudgets(_ContractModel):
     max_active_seconds: float = Field(1800.0, gt=0, le=3600)
     max_resumes: int = Field(2, ge=0, le=5)
     max_papers_per_wait: int = Field(5, ge=1, le=20)
+    max_ingestion_wait_seconds: float = Field(900.0, gt=0, le=3600)
 
 
 class ResearchFilters(_ContractModel):
@@ -212,6 +214,9 @@ class ResearchRunView(_ContractModel):
     failure_category: FailureCategory | None = None
     error_message: str | None = None
     provenance: RunProvenance | None = None
+    generation: int | None = Field(
+        None, ge=1, description="Current generation; provenance keeps the starting one."
+    )
     usage: RunUsage = Field(default_factory=lambda: RunUsage.model_construct())
     created_at: datetime
     completed_at: datetime | None = None

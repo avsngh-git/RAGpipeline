@@ -473,3 +473,105 @@ def test_provenance_records_generation_and_settings_id() -> None:
     assert pinned.generation == 2
     assert pinned.retrieval_settings_id == "sha256:" + "f" * 64
     assert pinned.configuration_id != plain.configuration_id
+
+
+@pytest.mark.anyio
+async def test_wait_time_not_counted_as_active() -> None:
+    import json
+    from datetime import UTC, datetime
+
+    from research_platform.agents.graph_deep import build_deep_graph
+    from research_platform.tools.fakes import FakeIngestionPolicy
+    from research_platform.worker.queue import IngestionRequest
+
+    class ManualClock:
+        def __init__(self) -> None:
+            self.value = 0.0
+
+        def __call__(self) -> float:
+            return self.value
+
+    clock = ManualClock()
+
+    class SlowQueue:
+        """Each poll represents 100 seconds of waiting for the worker."""
+
+        def __init__(self) -> None:
+            self.polls = 0
+
+        async def get(self, request_id: UUID) -> IngestionRequest:
+            self.polls += 1
+            clock.value += 100.0
+            return IngestionRequest(
+                request_id,
+                UUID(int=1),
+                None,
+                "run",
+                ("W501",),
+                "succeeded" if self.polls >= 2 else "claimed",
+                1,
+                {"generation": 2, "snapshot_id": str(UUID(int=7)), "outcomes": []},
+                created_at=datetime.now(UTC),
+            )
+
+    store = InMemoryRunStore()
+    run_id = await store.create_run(_request(mode=ResearchMode.DEEP_RESEARCH))
+    synthesis = (
+        '{"relevant_handles":[],"insufficient_evidence":true,"claims":[],'
+        '"answer":"Insufficient evidence."}'
+    )
+    llm = ScriptedLLM(
+        (
+            ScriptedReply(
+                kind=CallKind.PLAN,
+                tool_calls=(
+                    {
+                        "function": {
+                            "name": "request_ingestion",
+                            "arguments": {"paper_ids": ["W501"], "reason": "gap"},
+                        }
+                    },
+                ),
+            ),
+            ScriptedReply(
+                kind=CallKind.EVALUATE,
+                content=json.dumps(
+                    {"sufficient": True, "missing": "", "next_actions": []}
+                ),
+            ),
+            ScriptedReply(kind=CallKind.SYNTHESIZE, content=synthesis),
+        ),
+        identity=_IDENTITY,
+    )
+    search, papers, citations, related = fake_services(_corpus())
+    tools = ResearchTools(
+        search=search,
+        papers=papers,
+        citations=citations,
+        related=related,
+        ingestion=FakeIngestionPolicy({"W501": (False, 2024, "en")}),
+    )
+    queue = SlowQueue()
+    runner = ResearchRunner(
+        RunnerDependencies(
+            repository=store,
+            tools=tools,
+            llm=llm,
+            checkpointer=InMemorySaver(),
+            serving=ServingIdentity(_SNAPSHOT, _PROFILE, generation=1),
+            thinking=frozenset(),
+            code_revision="test-revision",
+            graphs={ResearchMode.DEEP_RESEARCH: build_deep_graph},
+            budgets=RunBudgets.model_construct(
+                max_active_seconds=150.0, max_ingestion_wait_seconds=1.0
+            ),
+            clock=clock,
+            ingestion=queue,
+        )
+    )
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    assert clock.value >= 200.0
+    view = await store.get_run_view(run_id)
+    assert view.usage.active_seconds == pytest.approx(0.0)
+    assert view.generation == 2

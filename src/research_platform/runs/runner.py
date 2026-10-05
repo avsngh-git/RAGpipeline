@@ -6,8 +6,9 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
@@ -18,7 +19,11 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import StateGraph
 
-from research_platform.agents.nodes import NodeDependencies, ToolStepFailed
+from research_platform.agents.nodes import (
+    IngestionStatusSource,
+    NodeDependencies,
+    ToolStepFailed,
+)
 from research_platform.agents.prompts import PROMPT_VERSIONS
 from research_platform.agents.state import ResearchState, initial_state
 from research_platform.config import Settings
@@ -194,6 +199,30 @@ class RunnerDependencies:
     graphs: Mapping[ResearchMode, GraphBuilder]
     budgets: RunBudgets = field(default_factory=RunBudgets.model_construct)
     clock: Callable[[], float] = time.monotonic
+    ingestion: IngestionStatusSource | None = None
+
+
+class _ActivePauses:
+    """Excludes paused intervals from active time and from the active deadline."""
+
+    def __init__(self, clock: Callable[[], float]) -> None:
+        self._clock = clock
+        self.paused_seconds = 0.0
+        self.timeout: asyncio.Timeout | None = None
+
+    @asynccontextmanager
+    async def pause(self) -> AsyncIterator[None]:
+        loop = asyncio.get_running_loop()
+        started, loop_started = self._clock(), loop.time()
+        deadline = None if self.timeout is None else self.timeout.when()
+        if self.timeout is not None:
+            self.timeout.reschedule(None)
+        try:
+            yield
+        finally:
+            self.paused_seconds += max(0.0, self._clock() - started)
+            if self.timeout is not None and deadline is not None:
+                self.timeout.reschedule(deadline + (loop.time() - loop_started))
 
 
 class ResearchRunner:
@@ -219,7 +248,10 @@ class ResearchRunner:
             )
             return stored.status
 
-        resuming = stored.status is RunStatus.RUNNING
+        resuming = stored.status in (
+            RunStatus.RUNNING,
+            RunStatus.WAITING_FOR_INGESTION,
+        )
         resume_count = stored.resume_count
         if resuming:
             resume_count = await self._deps.repository.record_resume(run_id)
@@ -242,12 +274,22 @@ class ResearchRunner:
         started = self._deps.clock()
         execution_seconds = 0.0
         active_started = False
+        pauses = _ActivePauses(self._deps.clock)
+        serving = self._deps.serving
+        if resuming and stored.pinned_snapshot_id is not None:
+            # A resumed run keeps the identity it started with, even after a
+            # newer generation was published or the run switched generations.
+            serving = replace(
+                serving,
+                snapshot_id=stored.pinned_snapshot_id,
+                generation=stored.pinned_generation,
+            )
         try:
             model = await self._deps.llm.identity()
             provenance = build_provenance(
                 run_id=run_id,
                 request=stored.request,
-                serving=self._deps.serving,
+                serving=serving,
                 model=model,
                 thinking=self._deps.thinking,
                 budgets=self._deps.budgets,
@@ -298,6 +340,8 @@ class ResearchRunner:
                 repository=self._deps.repository,
                 context=context,
                 thinking=self._deps.thinking,
+                ingestion=self._deps.ingestion,
+                pause_active=pauses.pause,
             )
             graph_builder = self._deps.graphs[stored.mode]
             graph = graph_builder(node_deps).compile(
@@ -317,12 +361,14 @@ class ResearchRunner:
             started = self._deps.clock()
             active_started = True
             try:
-                async with asyncio.timeout(remaining):
+                async with asyncio.timeout(remaining) as timeout:
+                    pauses.timeout = timeout
                     final_state = await graph.ainvoke(
                         graph_input, config, durability="sync"
                     )
             finally:
-                elapsed = max(0.0, self._deps.clock() - started)
+                pauses.timeout = None
+                elapsed = max(0.0, self._deps.clock() - started - pauses.paused_seconds)
                 execution_seconds = elapsed
                 accumulated_seconds = await self._deps.repository.add_active_seconds(
                     run_id, elapsed
@@ -358,12 +404,12 @@ class ResearchRunner:
             return status
         except asyncio.CancelledError:
             if active_started:
-                elapsed = max(0.0, self._deps.clock() - started)
+                elapsed = max(0.0, self._deps.clock() - started - pauses.paused_seconds)
                 await self._deps.repository.add_active_seconds(run_id, elapsed)
             raise
         except Exception as error:
             if active_started:
-                elapsed = max(0.0, self._deps.clock() - started)
+                elapsed = max(0.0, self._deps.clock() - started - pauses.paused_seconds)
                 execution_seconds = elapsed
                 accumulated_seconds = await self._deps.repository.add_active_seconds(
                     run_id, elapsed

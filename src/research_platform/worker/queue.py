@@ -6,6 +6,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -30,6 +31,7 @@ class IngestionRequest:
     status: IngestionStatus
     attempts: int
     result: Mapping[str, object]
+    created_at: datetime | None = None
 
 
 class IngestionQueue:
@@ -99,7 +101,7 @@ class IngestionQueue:
                 WHERE request.id = next_request.id
                 RETURNING request.id, request.collection_id, request.run_id,
                           request.requested_by, request.paper_ids, request.status,
-                          request.attempts, request.result
+                          request.attempts, request.result, request.created_at
                 """,
                 worker_id,
                 lease_seconds,
@@ -169,7 +171,7 @@ class IngestionQueue:
             row = await connection.fetchrow(
                 """
                 SELECT id, collection_id, run_id, requested_by, paper_ids, status,
-                       attempts, result
+                       attempts, result, created_at
                 FROM ingestion_requests
                 WHERE id = $1
                 """,
@@ -195,6 +197,7 @@ def _request_from_row(row: asyncpg.Record) -> IngestionRequest:
         status=row["status"],
         attempts=row["attempts"],
         result=dict(result_value),
+        created_at=row["created_at"],
     )
 
 

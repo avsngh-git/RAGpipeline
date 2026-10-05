@@ -235,6 +235,7 @@ async def _build_research_services(
     )
     from research_platform.search.paper_related import RelatedPaperReader
     from research_platform.tools.research_tools import ResearchTools
+    from research_platform.worker.queue import IngestionQueue
 
     phase2_services = runtime.api_services
     if not isinstance(phase2_services, Phase2APIServices):
@@ -282,6 +283,7 @@ async def _build_research_services(
             budgets=RunBudgets.model_validate(
                 {"max_papers_per_wait": DiscoverySettings().max_papers_per_wait}
             ),
+            ingestion=IngestionQueue(runtime.pool),
             code_revision=code_revision(),
             graphs={
                 ResearchMode.QUICK: build_quick_graph,

@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+from time import perf_counter
 from typing import Any, cast
+from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
 from pydantic import TypeAdapter
 
-from research_platform.agents.actions import Action, SufficiencyDecision
+from research_platform.agents.actions import (
+    Action,
+    RequestIngestionAction,
+    SufficiencyDecision,
+)
 from research_platform.agents.evidence import pack_evidence
-from research_platform.agents.nodes import NodeDependencies, answer_node, run_action
-from research_platform.agents.prompts import evaluate_messages, plan_messages
+from research_platform.agents.nodes import (
+    NodeDependencies,
+    answer_node,
+    record_observation,
+    run_action_observed,
+)
+from research_platform.agents.prompts import (
+    evaluate_messages,
+    format_observation,
+    plan_messages,
+)
 from research_platform.agents.state import ResearchState
 from research_platform.agents.tool_schemas import (
     actions_from_tool_calls,
@@ -23,6 +39,11 @@ from research_platform.llm.contracts import (
 )
 from research_platform.llm.types import CallKind
 from research_platform.runs.contracts import ResearchFilters, RunBudgets
+from research_platform.runs.repository import ToolCallRecord
+from research_platform.tools.research_tools import ToolObservation
+
+_POLL_SECONDS = 5.0
+_TERMINAL = frozenset({"succeeded", "partially_succeeded", "failed"})
 
 _ACTION_ADAPTER: TypeAdapter[Action] = TypeAdapter(Action)
 
@@ -108,15 +129,139 @@ def build_deep_graph(
             "registry": state["registry"],
             "observations": state["observations"],
         }
+        pending_request = state.get("pending_ingestion_request_id")
+        waits = state.get("ingestion_waits", 0)
         for raw_action in state["pending_actions"]:
             action_state = cast(ResearchState, {**state, **current})
             if remaining_actions(action_state, budgets) == 0:
                 break
             action = _ACTION_ADAPTER.validate_python(raw_action)
-            update = await run_action(deps, action_state, action)
+            if isinstance(action, RequestIngestionAction) and (
+                pending_request is not None or waits >= 1
+            ):
+                rejected = ToolObservation(
+                    ordinal=action_state["ledger"].records,
+                    tool=action.tool,
+                    arguments=action.model_dump(mode="json"),
+                    status="rejected",
+                    summary={},
+                    error_category="ingestion_already_requested",
+                )
+                current.update(await record_observation(deps, action_state, rejected))
+                continue
+            update, observation = await run_action_observed(deps, action_state, action)
             current.update(update)
+            request_id = observation.summary.get("request_id")
+            if isinstance(action, RequestIngestionAction) and isinstance(
+                request_id, str
+            ):
+                pending_request = request_id
 
-        return {**current, "pending_actions": []}
+        return {
+            **current,
+            "pending_actions": [],
+            "pending_ingestion_request_id": pending_request,
+        }
+
+    async def wait_ingestion(state: ResearchState) -> dict[str, Any]:
+        """Wait, within the cap, for this run's ingestion request; then switch."""
+        raw_request_id = state.get("pending_ingestion_request_id")
+        if raw_request_id is None or deps.ingestion is None:
+            return {"pending_ingestion_request_id": None}
+        request_id = UUID(raw_request_id)
+        await deps.repository.mark_waiting(deps.run_id)
+        started = perf_counter()
+        async with deps.pause_active():
+            request = await deps.ingestion.get(request_id)
+            deadline = (request.created_at or deps.now()) + timedelta(
+                seconds=budgets.max_ingestion_wait_seconds
+            )
+            while request.status not in _TERMINAL:
+                remaining = (deadline - deps.now()).total_seconds()
+                if remaining <= 0:
+                    break
+                await deps.sleep(min(_POLL_SECONDS, remaining))
+                request = await deps.ingestion.get(request_id)
+        await deps.repository.mark_resumed_from_wait(deps.run_id)
+
+        ordinal = state["ledger"].records
+        current_generation = state.get("generation") or deps.context.generation
+        duration_ms = (perf_counter() - started) * 1000
+        update: dict[str, Any] = {}
+        if request.status not in _TERMINAL:
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool="ingestion_wait",
+                arguments={"request_id": raw_request_id},
+                status="failed",
+                summary={
+                    "request_id": raw_request_id,
+                    "pending_paper_ids": list(request.paper_ids),
+                },
+                error_category="ingestion_wait_cap",
+                duration_ms=duration_ms,
+            )
+            update = await record_observation(deps, state, observation)
+        else:
+            generation = request.result.get("generation")
+            snapshot = request.result.get("snapshot_id")
+            outcomes = request.result.get("outcomes", [])
+            summary: dict[str, Any] = {
+                "request_id": raw_request_id,
+                "status": request.status,
+                "from_generation": current_generation,
+                "to_generation": current_generation,
+                "outcomes": outcomes if isinstance(outcomes, list) else [],
+            }
+            switch = (
+                isinstance(generation, int)
+                and isinstance(snapshot, str)
+                and (current_generation is None or generation > current_generation)
+            )
+            if switch:
+                summary["to_generation"] = generation
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool="ingestion_wait",
+                arguments={"request_id": raw_request_id},
+                status="succeeded",
+                summary=summary,
+                duration_ms=duration_ms,
+            )
+            if switch:
+                assert isinstance(generation, int) and isinstance(snapshot, str)
+                await deps.repository.switch_generation(
+                    deps.run_id,
+                    generation=generation,
+                    snapshot_id=UUID(snapshot),
+                    record=ToolCallRecord(
+                        ordinal=observation.ordinal,
+                        tool_name=observation.tool,
+                        arguments=observation.arguments,
+                        status=observation.status,
+                        result_summary=observation.summary,
+                        duration_ms=observation.duration_ms,
+                    ),
+                )
+                ledger = state["ledger"].model_copy(
+                    update={"records": state["ledger"].records + 1}
+                )
+                update = {
+                    "ledger": ledger,
+                    "observations": [
+                        *state["observations"],
+                        format_observation(observation, ()),
+                    ][-20:],
+                    "generation": generation,
+                    "snapshot_id": snapshot,
+                }
+            else:
+                update = await record_observation(deps, state, observation)
+        return {
+            **update,
+            "pending_ingestion_request_id": None,
+            "ingestion_waits": state.get("ingestion_waits", 0) + 1,
+        }
 
     async def evaluate(state: ResearchState) -> dict[str, Any]:
         if (
@@ -194,6 +339,13 @@ def build_deep_graph(
     def after_plan(state: ResearchState) -> str:
         return "answer" if not state["pending_actions"] else "execute"
 
+    def after_execute(state: ResearchState) -> str:
+        return (
+            "wait_ingestion"
+            if state.get("pending_ingestion_request_id") is not None
+            else "evaluate"
+        )
+
     def after_evaluate(state: ResearchState) -> str:
         return (
             "answer"
@@ -205,10 +357,12 @@ def build_deep_graph(
     builder.add_node("plan", plan)
     builder.add_node("execute", execute)
     builder.add_node("evaluate", evaluate)
+    builder.add_node("wait_ingestion", wait_ingestion)
     builder.add_node("answer", answer)
     builder.add_edge(START, "plan")
     builder.add_conditional_edges("plan", after_plan)
-    builder.add_edge("execute", "evaluate")
+    builder.add_conditional_edges("execute", after_execute)
+    builder.add_edge("wait_ingestion", "evaluate")
     builder.add_conditional_edges("evaluate", after_evaluate)
     builder.add_edge("answer", END)
     return builder

@@ -570,3 +570,85 @@ def test_create_run_stores_generation() -> None:
         assert stored == {pinned: 4, unpinned: None}
 
     _with_database(exercise)
+
+
+def test_switch_generation_records_tool_call() -> None:
+    async def exercise(
+        pool: asyncpg.Pool,
+        repo: RunRepository,
+        snapshot_id: UUID,
+        _paper_id: str,
+        _chunk_id: str,
+    ) -> None:
+        run_id = await repo.create_run(_request(snapshot_id), generation=4)
+        provenance = _provenance(snapshot_id).model_copy(update={"generation": 4})
+        await repo.mark_running(run_id, provenance=provenance)
+        record = ToolCallRecord(
+            ordinal=3,
+            tool_name="ingestion_wait",
+            arguments={"request_id": "r"},
+            status="succeeded",
+            result_summary={"from_generation": 4, "to_generation": 5},
+            duration_ms=12.0,
+        )
+        await repo.switch_generation(
+            run_id, generation=5, snapshot_id=snapshot_id, record=record
+        )
+        await repo.switch_generation(
+            run_id, generation=5, snapshot_id=snapshot_id, record=record
+        )
+
+        async with pool.acquire() as connection:
+            generation = await connection.fetchval(
+                "SELECT generation FROM research_runs WHERE id = $1", run_id
+            )
+            calls = await connection.fetch(
+                "SELECT tool_name, status FROM tool_calls WHERE run_id = $1", run_id
+            )
+        assert generation == 5
+        assert [(row["tool_name"], row["status"]) for row in calls] == [
+            ("ingestion_wait", "succeeded")
+        ]
+        stored = await repo.get_run(run_id)
+        assert (stored.generation, stored.pinned_generation) == (5, 4)
+        view = await repo.get_run_view(run_id)
+        assert view.generation == 5
+        assert view.provenance is not None and view.provenance.generation == 4
+
+    _with_database(exercise)
+
+
+def test_waiting_status_round_trip() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool,
+        repo: RunRepository,
+        snapshot_id: UUID,
+        _paper_id: str,
+        _chunk_id: str,
+    ) -> None:
+        run_id = await repo.create_run(_request(snapshot_id))
+        with pytest.raises(InvalidRunTransition):
+            await repo.mark_waiting(run_id)
+        await repo.mark_running(run_id, provenance=_provenance(snapshot_id))
+        await repo.mark_waiting(run_id)
+        assert (await repo.get_run(run_id)).status is RunStatus.WAITING_FOR_INGESTION
+        assert [
+            run.run_id
+            for run in await repo.list_runs([RunStatus.WAITING_FOR_INGESTION])
+        ] == [run_id]
+        assert await repo.record_resume(run_id) == 1
+        assert await repo.add_active_seconds(run_id, 1.5) == pytest.approx(1.5)
+        await repo.mark_running(run_id, provenance=_provenance(snapshot_id))
+        await repo.mark_waiting(run_id)
+        await repo.mark_resumed_from_wait(run_id)
+        assert (await repo.get_run(run_id)).status is RunStatus.RUNNING
+        await repo.mark_waiting(run_id)
+        await repo.fail_run(
+            run_id,
+            category=FailureCategory.TIMEOUT,
+            message="wait interrupted",
+            usage=RunUsage(),
+        )
+        assert (await repo.get_run(run_id)).status is RunStatus.FAILED
+
+    _with_database(exercise)

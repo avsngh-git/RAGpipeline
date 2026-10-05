@@ -81,19 +81,38 @@ class InMemoryRunStore:
 
     async def mark_running(self, run_id: UUID, *, provenance: RunProvenance) -> None:
         run = self._get_run(run_id)
-        if run.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
+        if run.status not in (
+            RunStatus.QUEUED,
+            RunStatus.RUNNING,
+            RunStatus.WAITING_FOR_INGESTION,
+        ):
             raise InvalidRunTransition(
                 f"cannot mark running run {run_id} from status {run.status.value}"
             )
         self._runs[run_id] = replace(
             run,
             status=RunStatus.RUNNING,
-            snapshot_id=provenance.snapshot_id,
+            snapshot_id=(
+                provenance.snapshot_id
+                if run.status is RunStatus.QUEUED or run.snapshot_id is None
+                else run.snapshot_id
+            ),
             configuration_id=provenance.configuration_id,
+            generation=(
+                self.generations.get(run_id)
+                if run.status is RunStatus.QUEUED
+                else run.generation
+            ),
+            pinned_snapshot_id=run.pinned_snapshot_id or provenance.snapshot_id,
+            pinned_generation=(
+                run.pinned_generation
+                if run.pinned_snapshot_id is not None
+                else provenance.generation
+            ),
             started_at=run.started_at or datetime.now(UTC),
         )
         previous = self._provenance.get(run_id)
-        if run.status is RunStatus.RUNNING and previous is not None:
+        if run.status is not RunStatus.QUEUED and previous is not None:
             provenance = provenance.model_copy(
                 update={
                     "uningested_candidates": previous.uningested_candidates,
@@ -115,6 +134,46 @@ class InMemoryRunStore:
         total = run.active_seconds + seconds
         self._runs[run_id] = replace(run, active_seconds=total)
         return total
+
+    async def mark_waiting(self, run_id: UUID) -> None:
+        run = self._get_run(run_id)
+        if run.status not in (RunStatus.RUNNING, RunStatus.WAITING_FOR_INGESTION):
+            raise InvalidRunTransition(
+                f"cannot mark waiting run {run_id} from status {run.status.value}"
+            )
+        self._runs[run_id] = replace(run, status=RunStatus.WAITING_FOR_INGESTION)
+
+    async def mark_resumed_from_wait(self, run_id: UUID) -> None:
+        run = self._get_run(run_id)
+        if run.status not in (RunStatus.RUNNING, RunStatus.WAITING_FOR_INGESTION):
+            raise InvalidRunTransition(
+                f"cannot resume run {run_id} from status {run.status.value}"
+            )
+        self._runs[run_id] = replace(run, status=RunStatus.RUNNING)
+
+    async def switch_generation(
+        self,
+        run_id: UUID,
+        *,
+        generation: int,
+        snapshot_id: UUID,
+        record: ToolCallRecord,
+    ) -> None:
+        run = self._get_run(run_id)
+        if run.status not in (RunStatus.RUNNING, RunStatus.WAITING_FOR_INGESTION):
+            raise InvalidRunTransition(
+                f"cannot switch generation of run {run_id} from {run.status.value}"
+            )
+        self._runs[run_id] = replace(
+            run, generation=generation, snapshot_id=snapshot_id
+        )
+        self.generations[run_id] = generation
+        await self.append_tool_call(run_id, record)
+
+    def tool_calls(self, run_id: UUID) -> tuple[ToolCallRecord, ...]:
+        """Recorded tool calls in ordinal order (test inspection)."""
+        calls = self._tool_calls.get(run_id, {})
+        return tuple(calls[ordinal] for ordinal in sorted(calls))
 
     async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None:
         if record.ordinal < 0:
@@ -178,7 +237,11 @@ class InMemoryRunStore:
         usage: RunUsage,
     ) -> None:
         run = self._get_run(run_id)
-        if run.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
+        if run.status not in (
+            RunStatus.QUEUED,
+            RunStatus.RUNNING,
+            RunStatus.WAITING_FOR_INGESTION,
+        ):
             raise InvalidRunTransition(
                 f"cannot fail run {run_id} from status {run.status.value}"
             )
@@ -246,6 +309,7 @@ class InMemoryRunStore:
             failure_category=failure[0] if failure else None,
             error_message=failure[1] if failure else None,
             provenance=provenance,
+            generation=run.generation,
             usage=(
                 answer[2]
                 if answer
@@ -286,7 +350,7 @@ class InMemoryRunStore:
 
     def _running(self, run_id: UUID, operation: str) -> StoredRun:
         run = self._get_run(run_id)
-        if run.status is not RunStatus.RUNNING:
+        if run.status not in (RunStatus.RUNNING, RunStatus.WAITING_FOR_INGESTION):
             raise InvalidRunTransition(
                 f"cannot {operation} run {run_id} from status {run.status.value}"
             )

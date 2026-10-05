@@ -42,6 +42,19 @@ class RunStore(Protocol):
 
     async def add_active_seconds(self, run_id: UUID, seconds: float) -> float: ...
 
+    async def mark_waiting(self, run_id: UUID) -> None: ...
+
+    async def mark_resumed_from_wait(self, run_id: UUID) -> None: ...
+
+    async def switch_generation(
+        self,
+        run_id: UUID,
+        *,
+        generation: int,
+        snapshot_id: UUID,
+        record: ToolCallRecord,
+    ) -> None: ...
+
     async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None: ...
 
     async def save_evidence(

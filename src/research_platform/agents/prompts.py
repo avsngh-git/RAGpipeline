@@ -60,6 +60,18 @@ def format_observation(
     else:
         if "paper_id" in summary:
             details = f": {_paper_description(summary)}"
+    decisions = summary.get("decisions")
+    if isinstance(decisions, list):
+        details = ": " + "; ".join(
+            f"{row.get('paper_id')} {row.get('decision')} ({row.get('reason')})"
+            for row in decisions[:5]
+            if isinstance(row, Mapping)
+        )
+    if "to_generation" in summary:
+        details = f": now searching generation {summary['to_generation']}"
+    pending = summary.get("pending_paper_ids")
+    if isinstance(pending, list):
+        details = f": still pending {', '.join(str(item) for item in pending[:5])}"
     handles = ", ".join(ref.handle for ref in new_refs)
     suffix = f"; new evidence {handles}" if handles else ""
     line = " ".join(f"{head}{details}{suffix}".splitlines())
