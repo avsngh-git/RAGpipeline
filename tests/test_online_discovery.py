@@ -177,14 +177,11 @@ class _FakeEmbedder:
     ) -> Sequence[Sequence[float]]:
         del configuration
         return [
-            (0.0, 1.0) if text == "Research question" else (1.0, 0.0)
-            for text in texts
+            (0.0, 1.0) if text == "Research question" else (1.0, 0.0) for text in texts
         ]
 
 
-def _page(
-    works: Sequence[OpenAlexWork], next_cursor: str | None
-) -> OpenAlexPage:
+def _page(works: Sequence[OpenAlexWork], next_cursor: str | None) -> OpenAlexPage:
     return OpenAlexPage(next_cursor, tuple(works), len(works), 0.001, {})
 
 

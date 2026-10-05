@@ -58,10 +58,15 @@ class DiscoverySettings:
         if self.minimum_publication_year < 2020:
             raise ValueError("minimum_publication_year cannot be before 2020")
         if self.results_per_request > 100:
-            raise ValueError("results_per_request cannot exceed OpenAlex's limit of 100")
+            raise ValueError(
+                "results_per_request cannot exceed OpenAlex's limit of 100"
+            )
         if self.language != "en":
             raise ValueError("online discovery language is fixed to 'en'")
-        if not isinstance(self.openalex_field_ids, tuple) or not self.openalex_field_ids:
+        if (
+            not isinstance(self.openalex_field_ids, tuple)
+            or not self.openalex_field_ids
+        ):
             raise ValueError("openalex_field_ids must be a non-empty tuple")
         if any(
             not isinstance(field_id, str)
@@ -77,7 +82,9 @@ class DiscoverySettings:
             or self.daily_spend_cap_usd <= 0
             or self.daily_spend_cap_usd >= Decimal("1")
         ):
-            raise ValueError("daily_spend_cap_usd must be finite, positive, and below $1")
+            raise ValueError(
+                "daily_spend_cap_usd must be finite, positive, and below $1"
+            )
         for name in ("search_request_cost_usd", "content_download_cost_usd"):
             value = getattr(self, name)
             if not isinstance(value, Decimal) or not value.is_finite() or value <= 0:

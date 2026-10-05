@@ -44,7 +44,9 @@ def _load_tasks(path: Path) -> tuple[dict[str, object], ...]:
             or not isinstance(judged, list)
             or any(not isinstance(paper_id, str) or not paper_id for paper_id in judged)
         ):
-            raise ValueError("development task is missing its identity, question, or judgments")
+            raise ValueError(
+                "development task is missing its identity, question, or judgments"
+            )
         if judged:
             selected.append(dict(task))
     if not selected:
@@ -131,7 +133,9 @@ async def _build(args: argparse.Namespace) -> None:
                 source_configuration.configuration_id,
             )
             if parent_row is None:
-                raise ValueError("published generation 1 for the research collection was not found")
+                raise ValueError(
+                    "published generation 1 for the research collection was not found"
+                )
             parent_snapshot_id = parent_row["snapshot_id"]
             parent_members = await connection.fetch(
                 "SELECT paper_id FROM snapshot_items WHERE snapshot_id = $1",
@@ -149,7 +153,8 @@ async def _build(args: argparse.Namespace) -> None:
 
         registry = GenerationRegistry(pool)
         collection_id = await registry.ensure_collection(
-            "leave-out-dev", description="Development leave-out corpus for Phase 3.5 discovery evaluation"
+            "leave-out-dev",
+            description="Development leave-out corpus for Phase 3.5 discovery evaluation",
         )
         async with pool.acquire() as connection:
             prior_generation = await connection.fetchval(
@@ -161,7 +166,9 @@ async def _build(args: argparse.Namespace) -> None:
                 source_configuration.configuration_id,
             )
         if prior_generation is not None:
-            raise ValueError("leave-out-dev already has a generation; refusing to overwrite it")
+            raise ValueError(
+                "leave-out-dev already has a generation; refusing to overwrite it"
+            )
 
         snapshots = SnapshotRepository(pool)
         parent_configuration = await snapshots.configuration_for(parent_snapshot_id)
@@ -176,7 +183,9 @@ async def _build(args: argparse.Namespace) -> None:
         for candidate in legacy_index_options:
             candidate_raw = json.loads(candidate.read_text(encoding="utf-8"))
             if not isinstance(candidate_raw, dict):
-                raise ValueError("legacy snapshot index configuration must be an object")
+                raise ValueError(
+                    "legacy snapshot index configuration must be an object"
+                )
             candidate_configuration = IndexConfiguration.from_dict(candidate_raw)
             if candidate_configuration.configuration_id == snapshot_index_id:
                 legacy_index_path = candidate
@@ -221,7 +230,9 @@ async def _build(args: argparse.Namespace) -> None:
             snapshot_id = existing_draft["id"]
             target_member_ids = parent_member_ids - set(hidden_papers)
             if existing_draft_members not in (parent_member_ids, target_member_ids):
-                raise ValueError("an existing leave-out draft has unexpected membership")
+                raise ValueError(
+                    "an existing leave-out draft has unexpected membership"
+                )
         async with pool.acquire() as connection:
             current_members = {
                 str(row["paper_id"])
@@ -262,7 +273,9 @@ async def _build(args: argparse.Namespace) -> None:
                 ) from None
             raise
         if finalized.member_count != remaining_count:
-            raise ValueError("finalized leave-out snapshot has an unexpected member count")
+            raise ValueError(
+                "finalized leave-out snapshot has an unexpected member count"
+            )
 
         from research_platform.ingestion.generation_build import (
             GenerationInputRepository,
@@ -299,7 +312,8 @@ async def _build(args: argparse.Namespace) -> None:
                 {
                     "created_at": datetime.now(UTC).isoformat(),
                     "dataset_path": str(args.dataset),
-                    "dataset_sha256": "sha256:" + hashlib.sha256(args.dataset.read_bytes()).hexdigest(),
+                    "dataset_sha256": "sha256:"
+                    + hashlib.sha256(args.dataset.read_bytes()).hexdigest(),
                     "selected_family_count": len(tasks),
                     "hidden_paper_count": len(hidden_papers),
                     "source_snapshot_id": str(parent_snapshot_id),
@@ -351,15 +365,29 @@ async def _build(args: argparse.Namespace) -> None:
     async with httpx.AsyncClient(
         base_url=settings.qdrant_url.rstrip("/"), timeout=30
     ) as http:
-        response = await http.delete(
-            "/collections/" + legacy_index_configuration.collection_name
+        # The legacy collection is shared with the accepted snapshot: remove only the
+        # leave-out snapshot's validation points, never the collection.
+        response = await http.post(
+            "/collections/"
+            + legacy_index_configuration.collection_name
+            + "/points/delete",
+            params={"wait": "true"},
+            json={
+                "filter": {
+                    "must": [
+                        {"key": "snapshot_id", "match": {"value": str(snapshot_id)}}
+                    ]
+                }
+            },
         )
         response.raise_for_status()
     build_details = json.loads(details_path.read_text(encoding="utf-8"))
     if not isinstance(build_details, dict):
         raise ValueError("leave-out build record is malformed")
-    build_details["temporary_validation_index_deleted"] = True
-    details_path.write_text(json.dumps(build_details, indent=2) + "\n", encoding="utf-8")
+    build_details["temporary_validation_points_deleted"] = True
+    details_path.write_text(
+        json.dumps(build_details, indent=2) + "\n", encoding="utf-8"
+    )
     print(
         json.dumps(
             {

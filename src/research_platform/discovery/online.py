@@ -93,7 +93,11 @@ class SpendLedger:
             raise ValueError("run_id must be a UUID or None")
         if kind not in {"search_request", "content_download"}:
             raise ValueError("unsupported discovery spend kind")
-        if not isinstance(cost_usd, Decimal) or not cost_usd.is_finite() or cost_usd <= 0:
+        if (
+            not isinstance(cost_usd, Decimal)
+            or not cost_usd.is_finite()
+            or cost_usd <= 0
+        ):
             raise ValueError("cost_usd must be a finite positive Decimal")
         cost_exponent = cost_usd.as_tuple().exponent
         if (
@@ -103,7 +107,9 @@ class SpendLedger:
         ):
             raise ValueError("cost_usd must fit discovery_spend numeric(8, 4)")
         if run_limit is not None and (
-            isinstance(run_limit, bool) or not isinstance(run_limit, int) or run_limit <= 0
+            isinstance(run_limit, bool)
+            or not isinstance(run_limit, int)
+            or run_limit <= 0
         ):
             raise ValueError("run_limit must be a positive integer or None")
         if (

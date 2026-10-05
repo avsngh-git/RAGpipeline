@@ -49,7 +49,9 @@ def _load_tasks(path: Path) -> tuple[dict[str, object], ...]:
             or any(not isinstance(paper_id, str) or not paper_id for paper_id in judged)
             or (filters is not None and not isinstance(filters, dict))
         ):
-            raise ValueError("development task is missing identity, question, or judgments")
+            raise ValueError(
+                "development task is missing identity, question, or judgments"
+            )
         if judged:
             selected.append(dict(task))
     if not selected:
@@ -104,7 +106,9 @@ async def _evaluate(args: argparse.Namespace) -> dict[str, object]:
     tasks = _load_tasks(args.dataset)
     settings = Settings()
     if settings.openalex_api_key is None:
-        raise ValueError("OPENALEX_API_KEY is required for the live development diagnostic")
+        raise ValueError(
+            "OPENALEX_API_KEY is required for the live development diagnostic"
+        )
     database_url = _database_url_for_review_database(settings.database_url)
     os.environ["RESEARCH_PLATFORM_DATABASE_URL"] = database_url
     configuration_raw = json.loads(args.configuration.read_text(encoding="utf-8"))
@@ -166,7 +170,9 @@ async def _evaluate(args: argparse.Namespace) -> dict[str, object]:
             )
             original_reserve = service.ledger.reserve
 
-            async def counted_reserve(*call_args: object, **call_kwargs: object) -> None:
+            async def counted_reserve(
+                *call_args: object, **call_kwargs: object
+            ) -> None:
                 nonlocal request_count
                 await original_reserve(*call_args, **call_kwargs)
                 request_count += 1
@@ -241,7 +247,8 @@ async def _evaluate(args: argparse.Namespace) -> dict[str, object]:
     return {
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
-        "dataset_sha256": "sha256:" + hashlib.sha256(args.dataset.read_bytes()).hexdigest(),
+        "dataset_sha256": "sha256:"
+        + hashlib.sha256(args.dataset.read_bytes()).hexdigest(),
         "generation_configuration_id": configuration.configuration_id,
         "collection_name": "leave-out-dev",
         "generation": 1,
@@ -326,7 +333,12 @@ def main() -> None:
     args.raw_output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(_render_report(result), encoding="utf-8")
-    print(json.dumps({key: value for key, value in result.items() if key != "limitations"}, indent=2))
+    print(
+        json.dumps(
+            {key: value for key, value in result.items() if key != "limitations"},
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
