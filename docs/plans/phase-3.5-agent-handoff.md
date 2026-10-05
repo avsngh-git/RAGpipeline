@@ -40,6 +40,7 @@ cards to be implemented one at a time, with one commit per card.
 | P35-15 (#59) | done | a6d4316 | **Parity: pass** under ADR-0022 item 7 as amended by the owner on 2026-10-05 (tie-aware, 1e-6 relative); strict reading fails on 37 of 200 sampled queries through float32 tie order only. Development: 84/84 lexical, 336/336 end to end. See the [parity report](../reference/phase-3.5-lexical-parity-report.md) |
 | P35-16 (#60) | not needed | — | Parity passed |
 | P35-17 (#61) | done | this change | **Gate B passed.** Active pointer is `frozen-profile-v10-qdrant.toml`; defaults are Qdrant content and lexical engine with the lexical generation configuration. Deleted `phase2-dev-gte-modernbert-base-v1`, `research-passages-gte-v1` and `research-papers-gte-v1` after checking no run was queued or running (registry rows kept). Host API restarted on the defaults: 3 development queries × 4 modes × evidence and paper, 24/24 returned 200 with results and no fallback |
+| P35-18 (#62) | done | this change | Migration 020 adds catalog metadata revisions, discovery spend, and checked abstract evidence. OpenAlex upserts resolve identity and persist authors without creating documents or snapshot membership |
 
 ## Environment facts
 

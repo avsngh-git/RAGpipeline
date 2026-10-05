@@ -232,7 +232,7 @@ class RunRepository:
     async def save_evidence(
         self, run_id: UUID, records: Sequence[EvidenceRecord]
     ) -> None:
-        """Copy evidence passages into the run, ignoring replayed writes."""
+        """Copy evidence into the run, ignoring replayed writes."""
         if not records:
             return
         async with self._pool.acquire() as connection:
@@ -240,8 +240,8 @@ class RunRepository:
                 await connection.executemany(
                     """
                     INSERT INTO research_run_evidence
-                        (run_id, handle, chunk_id, paper_id, text, metadata)
-                    VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+                        (run_id, handle, chunk_id, evidence_kind, paper_id, text, metadata)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
                     ON CONFLICT DO NOTHING
                     """,
                     [
@@ -249,6 +249,9 @@ class RunRepository:
                             run_id,
                             record.handle,
                             record.chunk_id,
+                            "abstract"
+                            if record.chunk_id.startswith("abstract:")
+                            else "chunk",
                             record.paper_id,
                             record.text,
                             _mapping_json(record.metadata),

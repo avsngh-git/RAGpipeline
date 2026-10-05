@@ -41,4 +41,6 @@ claims with support labels, and LangGraph checkpoints.
 state and one published pointer per index configuration, and records the generation a
 research run reads.
 019_lexical_vocabulary.sql adds the append-only term IDs used by scientific BM25
-sparse vectors.
+sparse vectors. 020_catalog_discovery.sql records OpenAlex metadata revisions and
+discovery spend, and permits run-local abstract evidence while retaining database
+checks that chunk evidence refers to indexed chunks.

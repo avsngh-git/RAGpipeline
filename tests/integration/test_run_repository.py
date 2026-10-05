@@ -188,6 +188,81 @@ def test_tool_call_and_evidence_writes_are_idempotent() -> None:
     _with_database(exercise)
 
 
+def test_abstract_evidence_saved_and_cited() -> None:
+    async def exercise(
+        pool: asyncpg.Pool,
+        repo: RunRepository,
+        snapshot_id: UUID,
+        paper_id: str,
+        _chunk_id: str,
+    ) -> None:
+        run_id = await repo.create_run(_request(snapshot_id))
+        await repo.mark_running(run_id, provenance=_provenance(snapshot_id))
+        abstract_id = f"abstract:{paper_id}"
+        evidence = EvidenceRecord(
+            handle="E1",
+            chunk_id=abstract_id,
+            paper_id=paper_id,
+            text="The abstract describes a useful result.",
+            metadata={"evidence_kind": "abstract", "title": "Fixture paper"},
+        )
+
+        await repo.save_evidence(run_id, [evidence])
+        await repo.complete_run(
+            run_id,
+            answer="The abstract reports a useful result.",
+            outcome=AnswerOutcome.ANSWERED,
+            claims=[
+                ClaimResult(
+                    claim_id="claim-1",
+                    text="The abstract reports a useful result.",
+                    quote="The abstract describes a useful result.",
+                    evidence=(
+                        EvidenceCitation(
+                            handle="E1", chunk_id=abstract_id, paper_id=paper_id
+                        ),
+                    ),
+                    support=SupportLabel.SUPPORTED,
+                )
+            ],
+            usage=RunUsage(),
+        )
+
+        kind = await pool.fetchval(
+            "SELECT evidence_kind FROM research_run_evidence WHERE run_id = $1",
+            run_id,
+        )
+        stored = await repo.get_run_view(run_id)
+
+        assert kind == "abstract"
+        assert stored.claims[0].evidence[0].chunk_id == abstract_id
+
+    _with_database(exercise)
+
+
+def test_unknown_chunk_citation_still_rejected() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool,
+        repo: RunRepository,
+        snapshot_id: UUID,
+        paper_id: str,
+        _chunk_id: str,
+    ) -> None:
+        run_id = await repo.create_run(_request(snapshot_id))
+        unknown = EvidenceRecord(
+            handle="E1",
+            chunk_id=f"unknown-chunk-{uuid4().hex}",
+            paper_id=paper_id,
+            text="This chunk does not exist.",
+            metadata={},
+        )
+
+        with pytest.raises(asyncpg.ForeignKeyViolationError):
+            await repo.save_evidence(run_id, [unknown])
+
+    _with_database(exercise)
+
+
 def test_complete_run_rewrites_claims_and_builds_view() -> None:
     async def exercise(
         _pool: asyncpg.Pool,

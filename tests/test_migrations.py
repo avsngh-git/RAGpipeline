@@ -177,3 +177,22 @@ def test_lexical_vocabulary_migration_is_append_only() -> None:
     assert "CREATE TABLE lexical_terms" in migration
     assert "UNIQUE (vocabulary_id, term_id)" in migration
     assert "BEFORE UPDATE OR DELETE ON lexical_terms" in migration
+
+
+def test_catalog_migration_contains_revisions_spend_and_abstract_evidence() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "020_catalog_discovery.sql"
+    ).read_text(encoding="utf-8")
+
+    for required in (
+        "CREATE TABLE paper_metadata_revisions",
+        "metadata_sha256",
+        "CREATE TABLE discovery_spend",
+        "idx_discovery_spend_date",
+        "idx_discovery_spend_run",
+        "evidence_kind IN ('chunk', 'abstract')",
+        "require_known_run_evidence_chunk",
+        "require_known_claim_evidence_source",
+        "foreign_key_violation",
+    ):
+        assert required in migration

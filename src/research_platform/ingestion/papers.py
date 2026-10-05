@@ -99,7 +99,7 @@ class PaperRepository:
                 imported_candidates = 0
                 citation_references: list[tuple[str, str]] = []
                 for candidate in candidates:
-                    paper_id, created = await self._resolve_paper_identity(
+                    paper_id, created = await self.resolve_paper_identity(
                         connection,
                         candidate["openalex_id"],
                         candidate["doi"],
@@ -108,7 +108,7 @@ class PaperRepository:
                         _as_json_object(candidate["metadata"]),
                     )
                     new_papers += int(created)
-                    await self._persist_authors(
+                    await self.persist_authors(
                         connection, paper_id, _as_json_object(candidate["metadata"])
                     )
                     await self._persist_document_versions(
@@ -278,7 +278,7 @@ class PaperRepository:
                     work = works[openalex_id]
                     if work.title is None:
                         raise ValueError(f"OpenAlex work {openalex_id} has no title")
-                    paper_id, created = await self._resolve_paper_identity(
+                    paper_id, created = await self.resolve_paper_identity(
                         connection,
                         work.openalex_id,
                         work.doi,
@@ -287,7 +287,7 @@ class PaperRepository:
                         work.metadata,
                     )
                     new_papers += int(created)
-                    await self._persist_authors(connection, paper_id, work.metadata)
+                    await self.persist_authors(connection, paper_id, work.metadata)
                     await self._persist_document_versions(
                         connection, paper_id, work.metadata
                     )
@@ -473,7 +473,7 @@ class PaperRepository:
             raise RuntimeError("database did not return the selected document ID")
         return document_id
 
-    async def _persist_authors(
+    async def persist_authors(
         self,
         connection: asyncpg.Connection,
         paper_id: str,
@@ -597,7 +597,7 @@ class PaperRepository:
                 location_json,
             )
 
-    async def _resolve_paper_identity(
+    async def resolve_paper_identity(
         self,
         connection: asyncpg.Connection,
         openalex_id: str,
