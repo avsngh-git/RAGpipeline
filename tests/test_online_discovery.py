@@ -481,3 +481,22 @@ def test_settings_page_size_must_match_openalex_client() -> None:
             ledger=cast(Any, _FakeLedger()),
             settings=DiscoverySettings(),
         )
+
+
+def test_question_punctuation_is_removed_from_the_search() -> None:
+    service, openalex, _catalog, _papers, _ledger = _service(
+        [_page([_work("W123")], None)]
+    )
+
+    asyncio.run(
+        service.discover(
+            run_id=uuid4(),
+            question="Research question",
+            query="Does reranking  help? Or wild*cards",
+        )
+    )
+
+    assert openalex.requests[0][0] == "Does reranking help Or wild cards"
+    assert (
+        asyncio.run(service.discover(run_id=uuid4(), question="q", query=" ?* ")) == ()
+    )

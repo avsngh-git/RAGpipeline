@@ -68,6 +68,11 @@ class DiscoveredPaper:
     catalog_status: CatalogStatus
 
 
+def openalex_search_query(query: str) -> str:
+    """Remove OpenAlex wildcard characters, which its ``search`` parameter rejects."""
+    return " ".join(query.translate({ord("?"): " ", ord("*"): " "}).split())
+
+
 class _SparseCapableEmbedder(VectorEmbedder, Protocol):
     async def encode_papers(
         self, texts: Sequence[str]
@@ -239,9 +244,12 @@ class OnlineDiscovery:
                 ),
             )
         )
+        search_query = openalex_search_query(query)
+        if not search_query:
+            return ()
         works = await self._search_works(
             run_id=run_id,
-            query=query,
+            query=search_query,
             extra_filter=extra_filter,
             limit=self.settings.results_per_request,
         )
