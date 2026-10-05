@@ -320,3 +320,15 @@ def test_purge_dry_run_deletes_nothing() -> None:
         )
     )
     assert count == 4 and passages.deleted == []
+
+
+def test_publish_skips_only_failed_generations() -> None:
+    class _FailedBetween(_Registry):
+        async def get(self, collection_id, configuration_id, generation):
+            return _record(generation, "failed" if generation == 2 else "verified")
+
+    registry = _FailedBetween(_record(3), published=1)
+    asyncio.run(publish_generation(registry, COLLECTION_ID, CONFIGURATION_ID, 3))
+    assert registry.publish_calls == [(3, 1)]
+    with pytest.raises(PublicationConflict, match="must follow"):
+        asyncio.run(publish_generation(registry, COLLECTION_ID, CONFIGURATION_ID, 1))

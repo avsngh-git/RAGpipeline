@@ -94,6 +94,10 @@ class VerificationRegistry(Protocol):
 
 
 class PublicationRegistry(Protocol):
+    async def get(
+        self, collection_id: UUID, configuration_id: str, generation: int
+    ) -> GenerationRecord: ...
+
     async def published(
         self, collection_id: UUID, configuration_id: str
     ) -> GenerationRecord | None: ...
@@ -240,17 +244,31 @@ async def publish_generation(
     configuration_id: str,
     generation: int,
 ) -> None:
-    """Publish a verified generation directly after the currently published one."""
+    """Publish a verified generation after the currently published one.
+
+    Generations between the two must all have failed; a failed build never blocks
+    later publication.
+    """
     current = await registry.published(collection_id, configuration_id)
     current_generation = None if current is None else current.generation
-    expected = None if generation == 1 else generation - 1
-    if current_generation != expected:
+    first_skipped = 1 if current_generation is None else current_generation + 1
+    if generation < first_skipped:
         raise PublicationConflict(
             f"generation {generation} must follow published generation "
             f"{current_generation}"
         )
+    for skipped in range(first_skipped, generation):
+        record = await registry.get(collection_id, configuration_id, skipped)
+        if record.state != "failed":
+            raise PublicationConflict(
+                f"generation {generation} must follow published generation "
+                f"{current_generation}; generation {skipped} is {record.state}"
+            )
     await registry.publish(
-        collection_id, configuration_id, generation, expected_predecessor=expected
+        collection_id,
+        configuration_id,
+        generation,
+        expected_predecessor=current_generation,
     )
 
 

@@ -911,8 +911,14 @@ class SnapshotRepository:
         }
 
     async def validate(
-        self, snapshot_id: UUID, *, minimum_papers: int = 100
+        self,
+        snapshot_id: UUID,
+        *,
+        minimum_papers: int = 100,
+        require_snapshot_index: bool = True,
     ) -> SnapshotValidationReport:
+        """Check a snapshot; without ``require_snapshot_index`` the legacy index is
+        not required, because generation verification checks the index instead."""
         _validate_minimum(minimum_papers)
         async with self._pool.acquire() as connection:
             snapshot = await connection.fetchrow(
@@ -922,7 +928,10 @@ class SnapshotRepository:
             if snapshot is None:
                 raise ValueError("snapshot does not exist")
             return await self._validate_on_connection(
-                connection, snapshot, minimum_papers=minimum_papers
+                connection,
+                snapshot,
+                minimum_papers=minimum_papers,
+                require_snapshot_index=require_snapshot_index,
             )
 
     async def finalize(
@@ -931,6 +940,7 @@ class SnapshotRepository:
         *,
         reviewer: str,
         minimum_papers: int = 100,
+        require_snapshot_index: bool = True,
     ) -> FinalizedSnapshot:
         _validate_minimum(minimum_papers)
         if not isinstance(reviewer, str) or not reviewer.strip():
@@ -949,7 +959,10 @@ class SnapshotRepository:
                 if snapshot["status"] != "draft":
                     raise ValueError("only draft snapshots can be finalized")
                 report = await self._validate_on_connection(
-                    connection, snapshot, minimum_papers=minimum_papers
+                    connection,
+                    snapshot,
+                    minimum_papers=minimum_papers,
+                    require_snapshot_index=require_snapshot_index,
                 )
                 if not report.valid:
                     raise SnapshotValidationError(report)
@@ -1023,6 +1036,7 @@ class SnapshotRepository:
         snapshot: Mapping[str, object],
         *,
         minimum_papers: int,
+        require_snapshot_index: bool = True,
     ) -> SnapshotValidationReport:
         snapshot_id = snapshot["id"]
         if not isinstance(snapshot_id, UUID):
@@ -1132,7 +1146,7 @@ class SnapshotRepository:
                     "snapshot configuration must name an index_configuration_id",
                 )
             )
-        else:
+        elif require_snapshot_index:
             index_state = await connection.fetchrow(
                 """
                 SELECT status, expected_count, indexed_count
