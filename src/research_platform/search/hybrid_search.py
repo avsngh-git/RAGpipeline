@@ -20,7 +20,7 @@ from research_platform.search.fusion import (
     FusedEvidenceCandidate,
     reciprocal_rank_fusion,
 )
-from research_platform.search.lexical import LexicalIndexManifest, LexicalSearchResult
+from research_platform.search.lexical_branches import AsyncLexicalEvidenceBranch
 from research_platform.search.profiles import RetrievalProfile
 
 
@@ -125,22 +125,6 @@ class HybridEvidenceSearchResponse:
         )
 
 
-class LexicalEvidenceBranch(Protocol):
-    @property
-    def profile(self) -> RetrievalProfile: ...
-
-    @property
-    def manifest(self) -> LexicalIndexManifest: ...
-
-    def search_with_stats(
-        self,
-        query: str,
-        *,
-        limit: int,
-        filters: SearchFilters = SearchFilters(),
-    ) -> LexicalSearchResult: ...
-
-
 class DenseEvidenceBranch(Protocol):
     async def search_hybrid_component_query(
         self,
@@ -167,7 +151,7 @@ class HybridEvidenceSearch:
 
     def __init__(
         self,
-        lexical: LexicalEvidenceBranch,
+        lexical: AsyncLexicalEvidenceBranch,
         dense: DenseEvidenceBranch,
     ) -> None:
         self._lexical = lexical
@@ -237,16 +221,16 @@ class HybridEvidenceSearch:
             raise HybridProfileMismatch(
                 "lexical index profile differs from the requested retrieval profile"
             )
-        manifest = self._lexical.manifest
+        identity = self._lexical.identity
         if (
-            manifest.role != "evidence"
-            or manifest.profile_id != profile.profile_id
-            or manifest.snapshot != profile.snapshot
+            identity.role != "evidence"
+            or identity.profile_id != profile.profile_id
+            or identity.snapshot != profile.snapshot
         ):
             raise HybridProfileMismatch(
                 "lexical artifact does not match the requested evidence profile"
             )
-        if not evaluation and manifest.snapshot_status != "finalized":
+        if not evaluation and identity.snapshot_status != "finalized":
             raise PermissionError("serving search requires a finalized lexical index")
 
         lexical_limit = profile.candidate_limits.lexical_top_k
@@ -256,13 +240,13 @@ class HybridEvidenceSearch:
             raise UnsupportedHybridProfile(
                 "hybrid profiles must configure all three candidate limits"
             )
-        if manifest.candidate_limit != lexical_limit:
+        if identity.candidate_limit != lexical_limit:
             raise HybridProfileMismatch(
                 "lexical artifact candidate limit differs from the profile"
             )
         lexical_started = perf_counter()
         try:
-            lexical_result = self._lexical.search_with_stats(
+            lexical_result = await self._lexical.search_with_stats(
                 query, limit=lexical_limit, filters=filters
             )
             if lexical_result.applied_filters != filters:

@@ -79,6 +79,12 @@ from research_platform.search.hybrid_search import (
 )
 from research_platform.search.lexical import LexicalRetriever
 from research_platform.search.lexical_artifacts import load_lexical_index
+from research_platform.search.lexical_branches import (
+    AsyncLexicalEvidenceBranch,
+    AsyncLexicalPaperBranch,
+    BM25SEvidenceBranch,
+    BM25SPaperBranch,
+)
 from research_platform.search.paper_fusion import fuse_paper_candidates
 from research_platform.search.paper_grouping import group_evidence_by_paper
 from research_platform.search.paper_reads import (
@@ -177,8 +183,8 @@ class Phase2SearchExecutor:
         eligibility_reader: SnapshotEligibilityReader,
         profiles_by_id: Mapping[str, RetrievalProfile],
         modes_by_profile_id: Mapping[str, RetrievalMode],
-        lexical_evidence: Mapping[str, LexicalRetriever],
-        lexical_papers: Mapping[str, LexicalRetriever],
+        lexical_evidence: Mapping[str, AsyncLexicalEvidenceBranch],
+        lexical_papers: Mapping[str, AsyncLexicalPaperBranch],
         hybrid_profile: RetrievalProfile,
         hybrid_search: HybridEvidenceSearch,
         dense_search: SnapshotDenseSearch | GenerationDenseSearch,
@@ -382,7 +388,7 @@ class Phase2SearchExecutor:
                     "lexical evidence profile is unavailable"
                 )
             lexical_started = perf_counter()
-            result = retriever.search_with_stats(
+            result = await retriever.search_with_stats(
                 request.query,
                 limit=profile.candidate_limits.lexical_top_k,
                 filters=request.filters,
@@ -662,7 +668,7 @@ class Phase2SearchExecutor:
             lexical_limit = profile.candidate_limits.lexical_top_k
             if lexical_limit is None:
                 raise IncompatibleRetrievalProfile("paper profile has no lexical limit")
-            result = paper_retriever.search_with_stats(
+            result = await paper_retriever.search_with_stats(
                 request.query,
                 eligible_ids=set(eligible.paper_metadata),
                 limit=lexical_limit,
@@ -918,12 +924,20 @@ async def create_phase2_runtime(
             raise SearchDependencyUnavailable("frozen snapshot selection has changed")
 
         root = settings.lexical_index_root
-        lexical_evidence, lexical_papers = _build_lexical_retrievers(
+        evidence_retrievers, paper_retrievers = _build_lexical_retrievers(
             serving,
             lambda profile, role: _load_lexical_artifact(
                 root, profile, role, mmap=True
             ),
         )
+        lexical_evidence: dict[str, AsyncLexicalEvidenceBranch] = {
+            profile_id: BM25SEvidenceBranch(retriever)
+            for profile_id, retriever in evidence_retrievers.items()
+        }
+        lexical_papers: dict[str, AsyncLexicalPaperBranch] = {
+            profile_id: BM25SPaperBranch(retriever)
+            for profile_id, retriever in paper_retrievers.items()
+        }
         embedder = create_embedder_for_configuration(
             configuration, device=cast(Any, settings.model_device)
         )

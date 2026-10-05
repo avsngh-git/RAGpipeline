@@ -34,7 +34,8 @@ cards to be implemented one at a time, with one commit per card.
 | P35-09 (#53) | done | 8bc79e0 | `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant` serves all four modes from generation content; generation dense search is exact (see findings) |
 | P35-10 (#54) | done | 7da9f27 | **Gate A passed** (see below); runs pin the published generation; `generations rebuild` added |
 | P35-11 (#55) | done | b9666f9 | Migration 019 vocabulary; sparse weights reproduce BM25S Lucene scores on a scientific corpus (oracle test) |
-| P35-12 (#56) | done | this change | Lexical configuration `sha256:3130e408…` (`configs/phase35-generation-index-lexical.example.json`): generation 1 built with copied dense vectors and `scientific_bm25` vectors, verified and published; evidence average 43.297 tokens over 44,277 chunks, paper average 11.69 over 100 titles |
+| P35-12 (#56) | done | e8a7b33 | Lexical configuration `sha256:3130e408…` (`configs/phase35-generation-index-lexical.example.json`): generation 1 built with copied dense vectors and `scientific_bm25` vectors, verified and published; evidence average 43.297 tokens over 44,277 chunks, paper average 11.69 over 100 titles |
+| P35-13 (#57) | done | this change | `lexical_branches.py`: async protocol, BM25S adapters (`asyncio.to_thread`) and Qdrant evidence/paper branches; serving still uses BM25S. Live test is `test_phase35_qdrant_lexical_live.py` (naming rule below): top-20 IDs and scores equal BM25S, with generation-2 points and a metadata-only paper outside the IDF corpus |
 
 ## Environment facts
 

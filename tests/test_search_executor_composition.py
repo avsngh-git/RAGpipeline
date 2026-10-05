@@ -115,7 +115,7 @@ class _Hybrid:
 
 
 class _PaperLexical:
-    def search_with_stats(self, query, *, eligible_ids, limit):
+    async def search_with_stats(self, query, *, eligible_ids, limit):
         assert eligible_ids == {"W123"}
         return SimpleNamespace(
             hits=(SimpleNamespace(paper_id="W123", score=1.0),), truncated=False
