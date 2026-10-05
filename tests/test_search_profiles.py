@@ -290,3 +290,23 @@ def test_with_snapshot_keeps_settings_id_and_changes_profile_id() -> None:
         profile(reranker=None).settings_id
         != replace(original, fusion=FusionSettings(rank_constant=10)).settings_id
     )
+
+
+def test_v10_qdrant_differs_only_in_lexical_identity() -> None:
+    from pathlib import Path
+
+    from research_platform.search.lexical import SCIENTIFIC_BM25_IDENTITY
+    from research_platform.search.lexical_branches import (
+        QDRANT_SCIENTIFIC_BM25_IDENTITY,
+    )
+    from research_platform.search.profile_manifest import load_frozen_profile
+
+    root = Path(__file__).resolve().parents[1] / "benchmarks/phase2"
+    v10 = load_frozen_profile(root / "frozen-profile-v10.toml")
+    qdrant = load_frozen_profile(root / "frozen-profile-v10-qdrant.toml")
+
+    assert v10.lexical_index == SCIENTIFIC_BM25_IDENTITY
+    assert qdrant.lexical_index == QDRANT_SCIENTIFIC_BM25_IDENTITY
+    assert replace(v10, lexical_index=qdrant.lexical_index) == qdrant
+    assert qdrant.settings_id != v10.settings_id
+    assert qdrant.profile_id != v10.profile_id

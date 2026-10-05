@@ -550,3 +550,135 @@ def test_unpublished_snapshot_is_incompatible() -> None:
             raise AssertionError("an unpublished snapshot must not be served")
     finally:
         reranker.close()
+
+
+def test_qdrant_engine_requires_qdrant_content_and_lexical_configuration() -> None:
+    import json
+
+    import pytest
+
+    from research_platform.config import Settings
+    from research_platform.ingestion.generation_index import (
+        GenerationIndexConfiguration,
+    )
+    from research_platform.search.application import (
+        SearchDependencyUnavailable,
+        _require_lexical_engine,
+    )
+
+    def configuration(name: str) -> GenerationIndexConfiguration:
+        raw = json.loads((ROOT / "configs" / name).read_text(encoding="utf-8"))
+        return GenerationIndexConfiguration.from_dict(raw)
+
+    dense_only = configuration("phase35-generation-index.example.json")
+    lexical = configuration("phase35-generation-index-lexical.example.json")
+    v10 = load_frozen_profile(ROOT / "benchmarks/phase2/frozen-profile-v10.toml")
+    qdrant = load_frozen_profile(
+        ROOT / "benchmarks/phase2/frozen-profile-v10-qdrant.toml"
+    )
+    engine = Settings(lexical_engine="qdrant", content_source="qdrant")
+    failures = (
+        (Settings(lexical_engine="qdrant", content_source="postgres"), qdrant, None),
+        (engine, qdrant, dense_only),
+        (engine, v10, lexical),
+        (Settings(lexical_engine="bm25s", content_source="qdrant"), qdrant, lexical),
+    )
+    for settings, profile, generation_configuration in failures:
+        with pytest.raises(SearchDependencyUnavailable):
+            _require_lexical_engine(settings, profile, generation_configuration)
+
+    _require_lexical_engine(engine, qdrant, lexical)
+    _require_lexical_engine(Settings(), v10, None)
+    with pytest.raises(ValueError, match="lexical_engine"):
+        Settings(lexical_engine="elasticsearch")
+
+
+class _HybridGenerationDense(_LaterGenerationDense):
+    async def search_hybrid_component_query(
+        self, profile, query, *, limit, filters=SearchFilters(), ready_index=None
+    ):
+        return await self.search_query(profile, query, limit=limit, filters=filters)
+
+
+class _GenerationLexical:
+    def __init__(self, profile, evidence_ids: tuple[str, ...]) -> None:
+        from research_platform.search.lexical_branches import LexicalBranchIdentity
+
+        self.profile = profile
+        self.evidence_ids = evidence_ids
+        self.identity = LexicalBranchIdentity(
+            role="evidence",
+            profile_id=profile.profile_id,
+            snapshot=profile.snapshot,
+            snapshot_status="finalized",
+            candidate_limit=profile.candidate_limits.lexical_top_k,
+        )
+
+    async def search_with_stats(self, query, *, limit, filters=SearchFilters()):
+        from research_platform.search.lexical import LexicalHit, LexicalSearchResult
+
+        return LexicalSearchResult(
+            hits=tuple(
+                LexicalHit(evidence_id, "W123", row, 2.0 - row)
+                for row, evidence_id in enumerate(reversed(self.evidence_ids))
+            ),
+            available_count=len(self.evidence_ids),
+            eligible_count=len(self.evidence_ids),
+            limit=limit,
+            truncated=False,
+            applied_filters=filters,
+        )
+
+
+class _QdrantLexicalFactory:
+    def __init__(self, evidence_ids: tuple[str, ...]) -> None:
+        self.evidence_ids = evidence_ids
+        self.profiles: list[object] = []
+
+    async def evidence(self, profile):
+        self.profiles.append(profile)
+        return _GenerationLexical(profile, self.evidence_ids)
+
+    async def paper(self, profile):
+        raise AssertionError("evidence search does not rank paper metadata")
+
+
+def test_qdrant_engine_serves_hybrid_for_other_generation() -> None:
+    inputs = (_evidence_input(1), _evidence_input(2))
+    dense = _HybridGenerationDense({item.evidence_id: item for item in inputs})
+    executor, reranker, hybrid, profile, _evidence = _executor(dense)
+    executor._pool = _ExistingSnapshots()  # type: ignore[assignment]
+    executor._repository = _NoLeaseRepository(inputs)  # type: ignore[assignment]
+
+    async def selection_for(snapshot_id):
+        from dataclasses import replace as dataclass_replace
+
+        return dataclass_replace(profile.snapshot, snapshot_id=snapshot_id)
+
+    executor._repository.snapshot_selection_for = selection_for  # type: ignore[attr-defined]
+    lexical = _QdrantLexicalFactory(tuple(item.evidence_id for item in inputs))
+    executor._qdrant_lexical = lexical  # type: ignore[assignment]
+    try:
+        response = asyncio.run(
+            executor.execute(
+                _later_request(profile, LATER_SNAPSHOT, RetrievalMode.RERANKED),
+                request_id="later-reranked-qdrant",
+            )
+        )
+    finally:
+        reranker.close()
+
+    serving_hybrid = executor._hybrid_profile
+    (later_hybrid,) = lexical.profiles
+    assert later_hybrid.snapshot.snapshot_id == LATER_SNAPSHOT
+    assert later_hybrid.settings_id == serving_hybrid.settings_id
+    assert dense.profiles == [later_hybrid]
+    assert not hybrid.profiles
+    assert response.snapshot_id == LATER_SNAPSHOT
+    assert response.effective_mode is RetrievalMode.HYBRID
+    assert response.effective_configuration_id == later_hybrid.profile_id
+    assert response.hits
+    assert {hit.chunk_id for hit in response.hits} <= {
+        item.evidence_id for item in inputs
+    }
+    assert all(hit.component_scores.lexical is not None for hit in response.hits)

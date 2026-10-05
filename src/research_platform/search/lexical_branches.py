@@ -8,9 +8,10 @@ eligibility, positive-match counts, ``(-score, stable_id)`` ordering and truncat
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Collection, Mapping
+from collections.abc import Awaitable, Callable, Collection, Mapping
 from dataclasses import dataclass
 from typing import Literal, Protocol
+from uuid import UUID
 
 from research_platform.ingestion.generation_index import (
     GenerationMatch,
@@ -30,8 +31,13 @@ from research_platform.search.lexical import (
     LexicalRetriever,
     LexicalSearchResult,
 )
-from research_platform.search.lexical_analyzer import tokenize_scientific_english
-from research_platform.search.profiles import RetrievalProfile
+from research_platform.search.lexical_analyzer import (
+    ANALYZER_ID,
+    ANALYZER_REVISION,
+    NORMALIZATION_REVISION,
+    tokenize_scientific_english,
+)
+from research_platform.search.profiles import LexicalIndexIdentity, RetrievalProfile
 from research_platform.search.sparse_lexical import (
     VocabularyRepository,
     query_term_weights,
@@ -39,6 +45,14 @@ from research_platform.search.sparse_lexical import (
 )
 
 TIE_MARGIN = 50
+QDRANT_SCIENTIFIC_BM25_IDENTITY = LexicalIndexIdentity(
+    implementation="qdrant-sparse-idf",
+    implementation_revision="qdrant-v1.19.1-lucene-idf",
+    analyzer=ANALYZER_ID,
+    analyzer_revision=ANALYZER_REVISION,
+    normalization_revision=NORMALIZATION_REVISION,
+    index_format_revision="scientific-bm25-sparse-v1",
+)
 
 
 @dataclass(frozen=True)
@@ -349,6 +363,55 @@ class QdrantPaperLexicalBranch(_QdrantLexical):
             filters=SearchFilters(),
             eligible_count=len(paper_ids),
         )
+
+
+class QdrantLexicalBranches:
+    """Build Qdrant lexical branches for a profile bound to a published generation."""
+
+    def __init__(
+        self,
+        *,
+        passages: GenerationQdrantCollection,
+        papers: GenerationQdrantCollection,
+        vocabulary: VocabularyRepository,
+        settings: SparseLexicalSettings,
+        generation_for: Callable[[UUID], Awaitable[int]],
+    ) -> None:
+        self._passages = passages
+        self._papers = papers
+        self._vocabulary = vocabulary
+        self._settings = settings
+        self._generation_for = generation_for
+
+    async def evidence(self, profile: RetrievalProfile) -> QdrantEvidenceLexicalBranch:
+        generation, candidate_limit = await self._resolve(profile)
+        return QdrantEvidenceLexicalBranch(
+            profile=profile,
+            passages=self._passages,
+            vocabulary=self._vocabulary,
+            settings=self._settings,
+            generation=generation,
+            candidate_limit=candidate_limit,
+        )
+
+    async def paper(self, profile: RetrievalProfile) -> QdrantPaperLexicalBranch:
+        generation, candidate_limit = await self._resolve(profile)
+        return QdrantPaperLexicalBranch(
+            profile=profile,
+            papers=self._papers,
+            vocabulary=self._vocabulary,
+            settings=self._settings,
+            generation=generation,
+            candidate_limit=candidate_limit,
+        )
+
+    async def _resolve(self, profile: RetrievalProfile) -> tuple[int, int]:
+        candidate_limit = profile.candidate_limits.lexical_top_k
+        if profile.lexical_index != QDRANT_SCIENTIFIC_BM25_IDENTITY or (
+            candidate_limit is None
+        ):
+            raise ValueError("profile does not select Qdrant scientific BM25")
+        return await self._generation_for(profile.snapshot.snapshot_id), candidate_limit
 
 
 def generation_conditions(filters: SearchFilters) -> list[dict[str, object]]:

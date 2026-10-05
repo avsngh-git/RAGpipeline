@@ -1,5 +1,6 @@
 """Tests for the tracked frozen profile manifest."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -218,6 +219,31 @@ def test_serving_profiles_for_v10_build_gte_stack_and_reuse_bm25() -> None:
     assert serving.hybrid.lexical_index == serving.lexical_source.lexical_index
     assert serving.dense.dense_index == serving.frozen.dense_index
     assert serving.dense.profile_id != serving.hybrid.profile_id
+
+
+def test_v10_qdrant_manifest_loads() -> None:
+    from research_platform.search.application import _resolve_serving_profiles
+    from research_platform.search.lexical_branches import (
+        QDRANT_SCIENTIFIC_BM25_IDENTITY,
+    )
+
+    path = ROOT / "benchmarks/phase2/frozen-profile-v10-qdrant.toml"
+    profile = load_frozen_profile(path)
+    v10 = _resolve_serving_profiles(ROOT / "benchmarks/phase2/frozen-profile-v10.toml")
+    serving = _resolve_serving_profiles(path)
+
+    assert profile.profile_id == (
+        "sha256:d4d26d267d22c639fde5f486a3e6c22aa9ec113ac4cc3e1aa31f58e857c55ba2"
+    )
+    assert serving.frozen == profile
+    for qdrant, bm25s in (
+        (serving.bm25, v10.bm25),
+        (serving.hybrid, v10.hybrid),
+    ):
+        assert qdrant.lexical_index == QDRANT_SCIENTIFIC_BM25_IDENTITY
+        assert qdrant == replace(bm25s, lexical_index=qdrant.lexical_index)
+    assert serving.dense == v10.dense
+    assert serving.configuration == v10.configuration
 
 
 def test_v10_rejects_unpinned_dense_identity(tmp_path: Path) -> None:

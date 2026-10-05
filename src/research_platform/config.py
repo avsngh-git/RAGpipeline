@@ -72,6 +72,10 @@ def _content_source_default() -> str:
     return os.environ.get("RESEARCH_PLATFORM_CONTENT_SOURCE", "postgres")
 
 
+def _lexical_engine_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_LEXICAL_ENGINE", "bm25s")
+
+
 def _generation_collection_default() -> str:
     return os.environ.get("RESEARCH_PLATFORM_GENERATION_COLLECTION", "research-corpus")
 
@@ -172,6 +176,7 @@ class Settings:
     model_device: str = field(default_factory=_model_device_default)
     reranker_cache_dir: Path | None = field(default_factory=_reranker_cache_dir_default)
     content_source: str = field(default_factory=_content_source_default)
+    lexical_engine: str = field(default_factory=_lexical_engine_default)
     generation_collection: str = field(default_factory=_generation_collection_default)
     generation_configuration: Path = field(
         default_factory=_generation_configuration_default
@@ -241,6 +246,10 @@ class Settings:
         if content_source not in {"postgres", "qdrant"}:
             raise ValueError("content_source must be postgres or qdrant")
         object.__setattr__(self, "content_source", content_source)
+        lexical_engine = self.lexical_engine.strip().lower()
+        if lexical_engine not in {"bm25s", "qdrant"}:
+            raise ValueError("lexical_engine must be bm25s or qdrant")
+        object.__setattr__(self, "lexical_engine", lexical_engine)
         if not self.generation_collection.strip():
             raise ValueError("generation_collection must be a non-empty name")
         object.__setattr__(
