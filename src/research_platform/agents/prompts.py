@@ -93,8 +93,9 @@ def plan_messages(
         f"Year filter: {filters.year_from or 'any'} to {filters.year_to or 'any'}\n"
         f"Tools:\n{descriptions}\n"
         f"Call between 1 and {max_actions} of the provided tools to gather the evidence needed to\n"
-        "answer the question. Prefer search_papers and search_evidence first; use citation tools only\n"
-        "for questions about how papers relate."
+        "answer the question. Prefer search_papers and search_evidence first; use discover_papers\n"
+        "when local evidence is insufficient and external OpenAlex candidates could help. Use citation\n"
+        "tools only for questions about how papers relate."
     )
 
 

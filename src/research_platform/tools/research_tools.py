@@ -9,10 +9,13 @@ from time import perf_counter
 from typing import Any, Literal, Protocol
 from uuid import UUID
 
+import asyncpg  # type: ignore[import-untyped]
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from research_platform.agents.actions import (
     Action,
+    DiscoverPapersAction,
     FindRelatedPapersAction,
     GetCitationsAction,
     GetPaperAction,
@@ -21,7 +24,13 @@ from research_platform.agents.actions import (
     SearchPapersAction,
     action_key,
 )
-from research_platform.runs.contracts import ResearchFilters, RunBudgets
+from research_platform.discovery.online import (
+    DiscoveredPaper,
+    DiscoveryBudgetExceeded,
+)
+from research_platform.ingestion.embeddings import EmbeddingModelError
+from research_platform.ingestion.openalex import OpenAlexRequestError
+from research_platform.runs.contracts import ResearchFilters, ResearchMode, RunBudgets
 from research_platform.search.access import EvidenceAccessDenied
 from research_platform.search.application_errors import (
     IncompatibleRetrievalProfile,
@@ -91,6 +100,25 @@ class RelatedService(Protocol):
     ) -> RelatedPapersPage: ...
 
 
+class DiscoveryService(Protocol):
+    """Budgeted online paper search used by deep-research runs."""
+
+    async def discover(
+        self,
+        *,
+        run_id: UUID | None,
+        question: str,
+        query: str,
+        year_from: int | None,
+        year_to: int | None,
+        limit: int,
+    ) -> tuple[DiscoveredPaper, ...]: ...
+
+
+class DiscoveryServiceUnavailable(RuntimeError):
+    """Raised when online discovery is not configured for this runtime."""
+
+
 class ToolContext(BaseModel):
     """Immutable run-specific inputs required to execute a tool action."""
 
@@ -99,6 +127,8 @@ class ToolContext(BaseModel):
     run_id: UUID
     snapshot_id: UUID
     retrieval_profile_id: str
+    mode: ResearchMode = ResearchMode.QUICK
+    question: str = ""
     filters: ResearchFilters
     budgets: RunBudgets
 
@@ -155,11 +185,13 @@ class ResearchTools:
         papers: PaperService,
         citations: CitationService,
         related: RelatedService,
+        discovery: DiscoveryService | None = None,
     ) -> None:
         self._search = search
         self._papers = papers
         self._citations = citations
         self._related = related
+        self._discovery = discovery
 
     async def execute(
         self,
@@ -172,6 +204,21 @@ class ResearchTools:
         ordinal = ledger.records
         arguments = action.model_dump(mode="json")
         key = action_key(action)
+
+        if isinstance(action, DiscoverPapersAction) and (
+            context.mode is not ResearchMode.DEEP_RESEARCH
+        ):
+            return self._record(
+                ledger,
+                ToolObservation(
+                    ordinal=ordinal,
+                    tool=action.tool,
+                    arguments=arguments,
+                    status="rejected",
+                    summary={},
+                    error_category="mode_not_allowed",
+                ),
+            )
 
         if key in ledger.cache:
             return self._record(
@@ -217,10 +264,14 @@ class ResearchTools:
             context.filters.year_from,
             context.filters.year_to,
             action.year_from
-            if isinstance(action, (SearchPapersAction, SearchEvidenceAction))
+            if isinstance(
+                action, (SearchPapersAction, SearchEvidenceAction, DiscoverPapersAction)
+            )
             else None,
             action.year_to
-            if isinstance(action, (SearchPapersAction, SearchEvidenceAction))
+            if isinstance(
+                action, (SearchPapersAction, SearchEvidenceAction, DiscoverPapersAction)
+            )
             else None,
         )
         if effective_years is None:
@@ -253,6 +304,30 @@ class ResearchTools:
                     effective_years=effective_years,
                     ledger=ledger,
                 )
+        except DiscoveryBudgetExceeded:
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool=action.tool,
+                arguments=arguments,
+                status="failed",
+                summary={},
+                error_category="discovery_budget",
+                retryable=False,
+                duration_ms=_duration_ms(started),
+            )
+            return observation, updated
+        except DiscoveryServiceUnavailable:
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool=action.tool,
+                arguments=arguments,
+                status="failed",
+                summary={},
+                error_category="discovery_unavailable",
+                retryable=False,
+                duration_ms=_duration_ms(started),
+            )
+            return observation, updated
         except (SearchDependencyUnavailable, RetrievalExecutionFailure, TimeoutError):
             observation = ToolObservation(
                 ordinal=ordinal,
@@ -260,7 +335,32 @@ class ResearchTools:
                 arguments=arguments,
                 status="failed",
                 summary={},
-                error_category="retrieval_error",
+                error_category=(
+                    "discovery_error"
+                    if isinstance(action, DiscoverPapersAction)
+                    else "retrieval_error"
+                ),
+                retryable=True,
+                duration_ms=_duration_ms(started),
+            )
+            return observation, updated
+        except (
+            OpenAlexRequestError,
+            EmbeddingModelError,
+            asyncpg.PostgresError,
+            httpx.HTTPError,
+        ):
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool=action.tool,
+                arguments=arguments,
+                status="failed",
+                summary={},
+                error_category=(
+                    "discovery_error"
+                    if isinstance(action, DiscoverPapersAction)
+                    else "retrieval_error"
+                ),
                 retryable=True,
                 duration_ms=_duration_ms(started),
             )
@@ -324,6 +424,46 @@ class ResearchTools:
         effective_years: tuple[int | None, int | None],
         ledger: ToolLedger,
     ) -> tuple[dict[str, Any], tuple[CollectedEvidence, ...], dict[str, int]]:
+        if isinstance(action, DiscoverPapersAction):
+            if self._discovery is None:
+                raise DiscoveryServiceUnavailable("online discovery is not configured")
+            discovered_papers = await self._discovery.discover(
+                run_id=context.run_id,
+                question=context.question,
+                query=action.query,
+                year_from=effective_years[0],
+                year_to=effective_years[1],
+                limit=action.limit,
+            )
+            summary: dict[str, Any] = {
+                "papers": [
+                    {
+                        "paper_id": paper.paper_id,
+                        "title": paper.title,
+                        "publication_year": paper.publication_year,
+                        "catalog_status": paper.catalog_status,
+                        "similarity": paper.similarity,
+                    }
+                    for paper in discovered_papers
+                ]
+            }
+            evidence = tuple(
+                CollectedEvidence(
+                    chunk_id=f"abstract:{paper.paper_id}",
+                    paper_id=paper.paper_id,
+                    text=paper.abstract,
+                    title=paper.title,
+                    publication_year=paper.publication_year,
+                    kind="abstract",
+                    source_location={},
+                    reranker_score=None,
+                )
+                for paper in discovered_papers
+                if paper.abstract is not None and paper.abstract.strip()
+            )
+            discovery_depths = {paper.paper_id: 0 for paper in discovered_papers}
+            return summary, evidence, discovery_depths
+
         if isinstance(action, (SearchPapersAction, SearchEvidenceAction)):
             operation = (
                 SearchOperation.PAPER_SEARCH

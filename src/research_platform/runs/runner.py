@@ -276,6 +276,8 @@ class ResearchRunner:
                 run_id=run_id,
                 snapshot_id=provenance.snapshot_id,
                 retrieval_profile_id=provenance.retrieval_profile_id,
+                mode=stored.mode,
+                question=stored.request.question,
                 filters=stored.request.filters,
                 budgets=self._deps.budgets,
             )

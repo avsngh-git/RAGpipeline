@@ -284,7 +284,7 @@ async def test_plan_uses_native_tool_calls_with_thinking() -> None:
     assert await runner.run(run_id) is RunStatus.COMPLETED
     request = llm.tool_requests[0]
     assert request.think is True
-    assert len(request.tools) == 6
+    assert len(request.tools) == 7
     assert request.max_repair_attempts == _budgets().max_model_retries
 
 

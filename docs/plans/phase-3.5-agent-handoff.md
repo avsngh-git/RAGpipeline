@@ -41,7 +41,9 @@ cards to be implemented one at a time, with one commit per card.
 | P35-16 (#60) | not needed | — | Parity passed |
 | P35-17 (#61) | done | this change | **Gate B passed.** Active pointer is `frozen-profile-v10-qdrant.toml`; defaults are Qdrant content and lexical engine with the lexical generation configuration. Deleted `phase2-dev-gte-modernbert-base-v1`, `research-passages-gte-v1` and `research-papers-gte-v1` after checking no run was queued or running (registry rows kept). Host API restarted on the defaults: 3 development queries × 4 modes × evidence and paper, 24/24 returned 200 with results and no fallback |
 | P35-18 (#62) | done | 5049e84 | Migration 020 adds catalog metadata revisions, discovery spend, and checked abstract evidence. OpenAlex upserts resolve identity and persist authors without creating documents or snapshot membership |
-| P35-19 (#63) | done | this change | Budgeted OpenAlex discovery, catalog and paper-vector upserts, dense question ranking; 26 focused tests pass. Live check: 25 works fetched, 5 ranked candidates, one `search_request` spend row at $0.001; snapshot membership and generation pointers unchanged. Private record: `local-reference/phase35/p35-19-live-check.json` |
+| P35-19 (#63) | done | abac8f4 | Budgeted OpenAlex discovery, catalog and paper-vector upserts, dense question ranking; 26 focused tests pass. Live check: 25 works fetched, 5 ranked candidates, one `search_request` spend row at $0.001; snapshot membership and generation pointers unchanged. Private record: `local-reference/phase35/p35-19-live-check.json` |
+
+| P35-20 (#64) | done | this change | Deep discovery action, mode and tool-budget guards, labelled abstract evidence, and dense plus frozen sparse runtime wiring. Focused tests, deep graph and scripted regression: 127 passed; Ruff and mypy pass. Owner approved the evidence header and deep-graph test edits omitted from the card file list |
 
 ## Environment facts
 

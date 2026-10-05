@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID, uuid5
 
+from research_platform.discovery.online import (
+    DiscoveredPaper,
+    DiscoveryBudgetExceeded,
+)
 from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
 from research_platform.ingestion.identity import is_valid_paper_id
 from research_platform.search.application_errors import SearchDependencyUnavailable
@@ -76,6 +80,61 @@ class FakeCorpus:
     passages: tuple[FakePassage, ...]
     citations: tuple[tuple[str, str], ...] = ()
     failing_queries: frozenset[str] = frozenset()
+
+
+class FakeDiscoveryService:
+    """Deterministic offline discovery results with recorded input arguments."""
+
+    def __init__(
+        self,
+        papers: tuple[DiscoveredPaper, ...] = (),
+        *,
+        budget_error: DiscoveryBudgetExceeded | None = None,
+    ) -> None:
+        self.papers = papers
+        self.budget_error = budget_error
+        self.calls: list[dict[str, object]] = []
+
+    async def discover(
+        self,
+        *,
+        run_id: UUID | None,
+        question: str,
+        query: str,
+        year_from: int | None,
+        year_to: int | None,
+        limit: int,
+    ) -> tuple[DiscoveredPaper, ...]:
+        self.calls.append(
+            {
+                "run_id": run_id,
+                "question": question,
+                "query": query,
+                "year_from": year_from,
+                "year_to": year_to,
+                "limit": limit,
+            }
+        )
+        if self.budget_error is not None:
+            raise self.budget_error
+        return tuple(
+            paper
+            for paper in self.papers
+            if (
+                year_from is None
+                or (
+                    paper.publication_year is not None
+                    and paper.publication_year >= year_from
+                )
+            )
+            and (
+                year_to is None
+                or (
+                    paper.publication_year is not None
+                    and paper.publication_year <= year_to
+                )
+            )
+        )[:limit]
 
 
 class FakeServices:

@@ -1,6 +1,8 @@
 """FastAPI application construction and core health/search routes."""
 
+import json
 import logging
+from collections.abc import Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any, AsyncIterator, Literal
 
@@ -10,6 +12,12 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 
 from research_platform.config import Settings
+from research_platform.ingestion.generation_index import (
+    GenerationIndexConfiguration,
+    SparseVector,
+)
+from research_platform.ingestion.indexing import IndexConfiguration, VectorEmbedder
+from research_platform.ingestion.paper_index import SparsePaperEncoder
 from research_platform.observability.logging_config import configure_logging
 from research_platform.observability.request_context import RequestIDMiddleware
 from research_platform.observability.request_logging import RequestLoggingMiddleware
@@ -18,12 +26,51 @@ from research_platform.services.readiness import (
     ReadinessChecker,
     ReadinessReport,
 )
+from research_platform.tools.research_tools import DiscoveryService
 
 from .errors import AppError, handle_app_error, handle_unexpected_error
 from .research_routes import ResearchAPIServices, create_research_router
 from .routes import Phase2APIServices, create_phase2_router
 
 logger = logging.getLogger("research_platform.api")
+
+
+class _DiscoveryEmbedder:
+    """Combine the runtime dense embedder with the frozen paper sparse encoder."""
+
+    def __init__(self, dense: VectorEmbedder, sparse: SparsePaperEncoder) -> None:
+        self._dense = dense
+        self._sparse = sparse
+
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        configuration: IndexConfiguration,
+    ) -> Sequence[Sequence[float]]:
+        return await self._dense.embed(texts, configuration=configuration)
+
+    async def encode_papers(
+        self, texts: Sequence[str]
+    ) -> tuple[tuple[SparseVector, tuple[str, ...]], ...]:
+        return await self._sparse.encode_papers(texts)
+
+
+async def _build_discovery_embedder(
+    dense: VectorEmbedder,
+    pool: Any,
+    configuration: GenerationIndexConfiguration,
+) -> VectorEmbedder:
+    """Attach sparse encoding using the lexical settings frozen with this generation."""
+    if configuration.lexical is None:
+        return dense
+
+    from research_platform.ingestion.sparse_build import SparseEncoder
+    from research_platform.search.sparse_lexical import VocabularyRepository
+
+    sparse = SparseEncoder(VocabularyRepository(pool), configuration.lexical)
+    await sparse.prepare()
+    return _DiscoveryEmbedder(dense, sparse)
 
 
 class HealthResponse(BaseModel):
@@ -197,11 +244,13 @@ async def _build_research_services(
 
     store = RunRepository(runtime.pool)
     related = RelatedPaperReader(runtime.pool)
+    discovery = await _build_discovery_service(settings, runtime, stack)
     tools = ResearchTools(
         search=phase2_services.search,
         papers=phase2_services.papers,
         citations=phase2_services.citations,
         related=related,
+        discovery=discovery,
     )
     llm_http = await stack.enter_async_context(
         httpx.AsyncClient(
@@ -233,3 +282,71 @@ async def _build_research_services(
     stack.push_async_callback(executor.stop)
     await executor.start()
     return ResearchAPIServices(store=store, executor=executor, serving=serving)
+
+
+async def _build_discovery_service(
+    settings: Settings, runtime: Any, stack: AsyncExitStack
+) -> DiscoveryService | None:
+    """Build discovery when its key and published-generation config are available."""
+    if (
+        settings.openalex_api_key is None
+        or not settings.generation_configuration.is_file()
+    ):
+        return None
+
+    from research_platform.config import DiscoverySettings
+    from research_platform.discovery.online import OnlineDiscovery, SpendLedger
+    from research_platform.ingestion.catalog import CatalogRepository
+    from research_platform.ingestion.config import (
+        DiscoveryConfig,
+        DiscoveryLimits,
+        YearRange,
+    )
+    from research_platform.ingestion.generation_index import (
+        GenerationIndexConfiguration,
+        GenerationQdrantCollection,
+    )
+    from research_platform.ingestion.openalex import OPENALEX_API_BASE, OpenAlexClient
+
+    raw_configuration = json.loads(
+        settings.generation_configuration.read_text(encoding="utf-8")
+    )
+    if not isinstance(raw_configuration, dict):
+        raise RuntimeError("generation index configuration must be an object")
+    configuration = GenerationIndexConfiguration.from_dict(raw_configuration)
+    discovery_embedder = await _build_discovery_embedder(
+        runtime.embedder, runtime.pool, configuration
+    )
+    discovery_settings = DiscoverySettings()
+    discovery_configuration = DiscoveryConfig(
+        queries=("deep research",),
+        year_range=YearRange(start_year=2020, end_year=2100),
+        limits=DiscoveryLimits(
+            per_page=discovery_settings.results_per_request,
+            max_pages_per_query=discovery_settings.max_search_requests_per_run,
+            max_total_requests=discovery_settings.max_search_requests_per_run,
+            max_retries=2,
+            timeout_seconds=15.0,
+            minimum_request_interval_seconds=1.0,
+        ),
+    )
+    openalex_http = await stack.enter_async_context(
+        httpx.AsyncClient(
+            base_url=OPENALEX_API_BASE,
+            timeout=httpx.Timeout(15.0),
+        )
+    )
+    openalex = OpenAlexClient(
+        discovery_configuration,
+        settings.openalex_api_key,
+        openalex_http,
+    )
+    return OnlineDiscovery(
+        openalex=openalex,
+        catalog=CatalogRepository(runtime.pool),
+        papers=GenerationQdrantCollection(configuration, "papers", runtime.http),
+        embedder=discovery_embedder,
+        configuration=configuration,
+        ledger=SpendLedger(runtime.pool),
+        settings=discovery_settings,
+    )
