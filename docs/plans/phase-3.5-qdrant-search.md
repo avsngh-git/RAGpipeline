@@ -25,7 +25,7 @@ Steps run in order. Each gate must pass before the next step starts.
 | Step | Delivers | Gate |
 | --- | --- | --- |
 | A — Storage split | Qdrant upgrade, generation registry, content payloads, `papers` collection, run pinning | Served text matches PostgreSQL `text_sha256`; generation 1 rebuilds from PostgreSQL and artifacts; a generation with correct counts but wrong IDs or hashes is not published; v10 rankings unchanged with content served from Qdrant |
-| B — Lexical engine | `scientific_bm25` sparse vectors, profile `v10-qdrant`, cutover | Parity rule (ADR-0022): lexical top-50 IDs and scores within float32 tolerance and identical end-to-end v10 rankings. Otherwise the full Phase 2 procedure (development comparison, then a fresh 30-family held-out set against the v14 gates). Fallback: in-process BM25S |
+| B — Lexical engine | `scientific_bm25` sparse vectors, profile `v10-qdrant`, cutover | Parity rule (ADR-0022, tie-aware since 2026-10-05): lexical top-50 IDs and scores within float32 tolerance, with reordering allowed only among scores within 1e-6 relative, and identical end-to-end v10 rankings. Otherwise the full Phase 2 procedure (development comparison, then a fresh 30-family held-out set against the v14 gates). Fallback: in-process BM25S |
 | C — Discovery | `discover_papers`, semantic `find_related_papers`, abstract evidence, `quick` reports known-not-ingested papers | Leave-out test on the development families: hide judged relevant papers and report how often discovery ranks them in its top 10. Reported, not gated |
 | D — Online ingestion | Outbox, worker service, `request_ingestion`, run waiting, ingest API | Operational, ADR-0020 style (below) |
 

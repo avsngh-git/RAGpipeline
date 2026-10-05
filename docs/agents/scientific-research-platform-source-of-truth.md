@@ -1,8 +1,8 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.35\
-**Last updated:** 2026-10-04\
+**Version:** 1.36\
+**Last updated:** 2026-10-05\
 **Audience:** Human contributors and coding agents<br>
 **Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024\
 
@@ -1367,7 +1367,9 @@ Deliver, in order with a gate after each step:
 Gates: A — content served from Qdrant matches PostgreSQL hashes and v10 rankings, a
 generation rebuilds from PostgreSQL and artifacts, and a generation with correct counts but
 wrong IDs is not published; B — lexical top-50 and end-to-end v10 parity, otherwise the full
-Phase 2 procedure with a fresh held-out set; C — leave-out discovery recall reported, not
+Phase 2 procedure with a fresh held-out set (lexical parity is tie-aware: results whose scores
+agree within 1e-6 relative may be ordered differently, owner amendment to ADR-0022 on
+2026-10-05); C — leave-out discovery recall reported, not
 gated; D — scripted permission, budget, crash-resume and pinning cases pass in CI, at least 90%
 of ingestion-triggering live leave-out runs finish within their wait cap, and every failed run
 has a failure category. Answer quality is reported, not gated.

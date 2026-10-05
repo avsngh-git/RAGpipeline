@@ -6,7 +6,9 @@ date: 2026-10-04
 # Phase 3.5: Qdrant executes search and serves evidence content
 
 Accepted by the project owner on 2026-10-04, after the Phase 3.5 planning interview,
-with the instruction to begin implementation.
+with the instruction to begin implementation. Item 7 amended by the owner on
+2026-10-05 (tie-aware lexical parity; see the
+[parity report](../reference/phase-3.5-lexical-parity-report.md)).
 Amends source-of-truth sections 5, 8.4 and 9.4 and refines ADR-0010 and ADR-0017; it
 does not change the accepted Phase 2 gates.
 
@@ -63,6 +65,15 @@ does not change the accepted Phase 2 gates.
 
    Otherwise the full Phase 2 procedure applies: a development comparison, then a fresh
    30-family held-out set judged against the v14 gates.
+
+   **Amendment (owner decision, 2026-10-05, P35-15).** Two float32 implementations
+   cannot break exact score ties the same way: BM25S orders equal scores by evidence
+   ID, while Qdrant's sums differ from them in the last bits. The lexical check is
+   therefore tie-aware. Lists match when the counts are equal and, at every position,
+   the two scores agree within a relative tolerance of 1e-6. Results whose scores
+   agree that closely may appear in a different order or swap across the top-50 cut.
+   Results whose scores differ by more must keep their order. The end-to-end check
+   is unchanged. Reports also give the strict ID-for-ID mismatch count.
 8. **Fallback and cutover.** If `v10-qdrant` fails, the lexical branch reverts to
    in-process BM25S and Qdrant keeps dense search and content serving. The old path stays
    behind the profile switch until the gate passes. Afterwards, BM25S remains only as the
