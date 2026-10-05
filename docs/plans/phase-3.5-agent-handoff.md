@@ -93,9 +93,9 @@ cards to be implemented one at a time, with one commit per card.
   snapshot into the shared `phase1-e5-small-v2` collection for finalization, then deleted the
   whole collection, including the accepted snapshot's 44,277 E5 points. The collection was
   restored from `local-reference/phase35/qdrant-export/` (53,961 points; count, digest, vector
-  and probe checks passed; accepted snapshot validates). The script now deletes only the
-  leave-out snapshot's points. The leave-out snapshot's recorded E5 index state is stale:
-  its E5 points are gone. It serves only from its generation collections.
+  and probe checks passed; accepted snapshot validates). The leave-out snapshot's E5 points
+  were then rebuilt (40,367 of 40,367; both snapshots validate). The script now keeps its
+  snapshot-scoped validation points and never deletes the shared collection.
 - **Gate B (2026-10-05), P35-15 and P35-17:** lexical parity passed under the tie-aware
   rule (ADR-0022 item 7, amended by the owner); see the
   [parity report](../reference/phase-3.5-lexical-parity-report.md). `v10-qdrant` serves by

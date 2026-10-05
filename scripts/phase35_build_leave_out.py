@@ -15,7 +15,6 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import asyncpg
-import httpx
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = Path("local-reference/phase3-runs/dev-tasks-v1.json")
@@ -268,7 +267,7 @@ async def _build(args: argparse.Namespace) -> None:
         except SnapshotValidationError as error:
             if any(issue.code == "index_not_built" for issue in error.report.issues):
                 raise RuntimeError(
-                    "leave-out finalization is blocked: the temporary legacy validation "
+                    "leave-out finalization is blocked: the legacy validation "
                     "index did not register a valid snapshot index state"
                 ) from None
             raise
@@ -321,7 +320,7 @@ async def _build(args: argparse.Namespace) -> None:
                     "collection_name": "leave-out-dev",
                     "generation_configuration_id": leaveout_configuration.configuration_id,
                     "generation_configuration_path": str(configuration_path),
-                    "temporary_validation_index_collection": legacy_index_configuration.collection_name,
+                    "validation_index_collection": legacy_index_configuration.collection_name,
                     "hidden_paper_ids": hidden_papers,
                 },
                 indent=2,
@@ -362,32 +361,8 @@ async def _build(args: argparse.Namespace) -> None:
             cwd=REPOSITORY_ROOT,
             check=True,
         )
-    async with httpx.AsyncClient(
-        base_url=settings.qdrant_url.rstrip("/"), timeout=30
-    ) as http:
-        # The legacy collection is shared with the accepted snapshot: remove only the
-        # leave-out snapshot's validation points, never the collection.
-        response = await http.post(
-            "/collections/"
-            + legacy_index_configuration.collection_name
-            + "/points/delete",
-            params={"wait": "true"},
-            json={
-                "filter": {
-                    "must": [
-                        {"key": "snapshot_id", "match": {"value": str(snapshot_id)}}
-                    ]
-                }
-            },
-        )
-        response.raise_for_status()
-    build_details = json.loads(details_path.read_text(encoding="utf-8"))
-    if not isinstance(build_details, dict):
-        raise ValueError("leave-out build record is malformed")
-    build_details["temporary_validation_points_deleted"] = True
-    details_path.write_text(
-        json.dumps(build_details, indent=2) + "\n", encoding="utf-8"
-    )
+    # The leave-out snapshot's E5 points stay in the shared legacy collection: they
+    # are snapshot-scoped, and its recorded index state refers to them.
     print(
         json.dumps(
             {
