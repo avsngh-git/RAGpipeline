@@ -29,6 +29,7 @@ from research_platform.services.readiness import (
 from research_platform.tools.research_tools import DiscoveryService
 
 from .errors import AppError, handle_app_error, handle_unexpected_error
+from .ingestion_routes import IngestionAPIService, create_ingestion_router
 from .research_routes import ResearchAPIServices, create_research_router
 from .routes import Phase2APIServices, create_phase2_router
 
@@ -94,6 +95,7 @@ def create_app(
     dependency_checker: ReadinessChecker | None = None,
     api_services: Phase2APIServices | None = None,
     research_services: ResearchAPIServices | None = None,
+    ingestion_service: IngestionAPIService | None = None,
 ) -> FastAPI:
     """Create the HTTP application with health and Phase 2 routes."""
     settings = settings or Settings()
@@ -112,6 +114,7 @@ def create_app(
             )
             application.state.phase2_services = api_services
             application.state.research_services = research_services
+            application.state.ingestion_service = ingestion_service
 
             if api_services is None and settings.environment != "test":
                 try:
@@ -131,6 +134,15 @@ def create_app(
                         "phase2_runtime_unavailable",
                         extra={"error_type": type(error).__name__},
                     )
+
+            if (
+                ingestion_service is None
+                and runtime is not None
+                and settings.environment != "test"
+            ):
+                application.state.ingestion_service = _build_ingestion_service(
+                    settings, runtime
+                )
 
             if research_services is None:
                 if runtime is not None and settings.environment != "test":
@@ -212,6 +224,7 @@ def create_app(
 
     app.include_router(create_phase2_router(settings, api_services))
     app.include_router(create_research_router(research_services))
+    app.include_router(create_ingestion_router(ingestion_service))
     return app
 
 
@@ -314,6 +327,25 @@ def _build_similarity_reader(
     return PaperSimilarityReader(
         GenerationQdrantCollection(configuration, "papers", runtime.http),
         runtime.embedder,
+    )
+
+
+def _build_ingestion_service(settings: Settings, runtime: Any) -> Any:
+    """The API ingestion service for the configured generation, if any."""
+    if not settings.generation_configuration.is_file():
+        return None
+
+    from research_platform.ingestion.generation_index import (
+        GenerationIndexConfiguration,
+        GenerationQdrantCollection,
+    )
+
+    from .ingestion_routes import CollectionIngestionService
+
+    raw = json.loads(settings.generation_configuration.read_text(encoding="utf-8"))
+    configuration = GenerationIndexConfiguration.from_dict(raw)
+    return CollectionIngestionService(
+        runtime.pool, GenerationQdrantCollection(configuration, "papers", runtime.http)
     )
 
 
