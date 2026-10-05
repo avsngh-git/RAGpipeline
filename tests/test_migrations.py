@@ -196,3 +196,14 @@ def test_catalog_migration_contains_revisions_spend_and_abstract_evidence() -> N
         "foreign_key_violation",
     ):
         assert required in migration
+
+
+def test_ingestion_request_migration_adds_outbox_and_waiting_run_status() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "021_ingestion_requests.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE ingestion_requests" in migration
+    assert "CREATE TABLE ingestion_decisions" in migration
+    assert "waiting_for_ingestion" in migration
+    assert "CHECK ((status = 'claimed') =" in migration

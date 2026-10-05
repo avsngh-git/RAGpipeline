@@ -42,6 +42,7 @@ pdf-vlm = [
 [project.scripts]
 research-ingest = "research_platform.ingestion.cli:main"
 research-runs = "research_platform.runs.cli:main"
+research-worker = "research_platform.worker.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

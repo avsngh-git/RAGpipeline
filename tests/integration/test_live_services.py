@@ -221,6 +221,7 @@ def test_migration_is_repeatable_and_database_constraints_are_enforced(
                 "018_index_generations",
                 "019_lexical_vocabulary",
                 "020_catalog_discovery",
+                "021_ingestion_requests",
             ]
 
             collection_name = f"integration-{uuid4().hex}"

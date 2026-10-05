@@ -44,3 +44,5 @@ research run reads.
 sparse vectors. 020_catalog_discovery.sql records OpenAlex metadata revisions and
 discovery spend, and permits run-local abstract evidence while retaining database
 checks that chunk evidence refers to indexed chunks.
+021_ingestion_requests.sql adds the transactional ingestion outbox, per-paper policy
+decisions, and the waiting-for-ingestion research-run state.
