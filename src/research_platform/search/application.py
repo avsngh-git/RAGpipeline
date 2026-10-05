@@ -990,6 +990,7 @@ async def create_phase2_runtime(
                 http,
                 embedder,
                 frozen.snapshot.snapshot_id,
+                allow_other_generation=settings.lexical_engine == "qdrant",
             )
         else:
             dense = SnapshotDenseSearch(
@@ -998,10 +999,21 @@ async def create_phase2_runtime(
                 query_embedder=embedder,
                 evidence_hydrator=repository,
             )
+        branch_bm25, branch_hybrid, branch_frozen = bm25_profile, hybrid_profile, frozen
         if settings.lexical_engine == "qdrant":
             assert isinstance(dense, GenerationDenseSearch)
             assert generation_configuration is not None
             assert generation_configuration.lexical is not None
+            if not await dense.is_published(frozen.snapshot.snapshot_id):
+                # Serve the configured collection's published generation, e.g. a
+                # leave-out corpus; requests bind profiles to it per generation.
+                served = await _published_snapshot(
+                    settings, pool, generation_configuration
+                )
+                selection = await repository.snapshot_selection_for(served)
+                branch_bm25 = bm25_profile.with_snapshot(selection)
+                branch_hybrid = hybrid_profile.with_snapshot(selection)
+                branch_frozen = frozen.with_snapshot(selection)
             qdrant_lexical = QdrantLexicalBranches(
                 passages=GenerationQdrantCollection(
                     generation_configuration, "passages", http
@@ -1015,11 +1027,11 @@ async def create_phase2_runtime(
             )
             lexical_evidence = {
                 profile.profile_id: await qdrant_lexical.evidence(profile)
-                for profile in (bm25_profile, hybrid_profile)
+                for profile in (branch_bm25, branch_hybrid)
             }
             lexical_papers = {
                 profile.profile_id: await qdrant_lexical.paper(profile)
-                for profile in (bm25_profile, hybrid_profile, frozen)
+                for profile in (branch_bm25, branch_hybrid, branch_frozen)
             }
         else:
             root = settings.lexical_index_root
@@ -1037,9 +1049,7 @@ async def create_phase2_runtime(
                 profile_id: BM25SPaperBranch(retriever)
                 for profile_id, retriever in paper_retrievers.items()
             }
-        hybrid = HybridEvidenceSearch(
-            lexical_evidence[hybrid_profile.profile_id], dense
-        )
+        hybrid = HybridEvidenceSearch(lexical_evidence[branch_hybrid.profile_id], dense)
         reranker_identity = frozen.reranker
         if reranker_identity is None:
             raise SearchDependencyUnavailable("frozen serving profile has no reranker")
@@ -1081,7 +1091,7 @@ async def create_phase2_runtime(
             },
             lexical_evidence=lexical_evidence,
             lexical_papers=lexical_papers,
-            hybrid_profile=hybrid_profile,
+            hybrid_profile=branch_hybrid,
             hybrid_search=hybrid,
             dense_search=dense,
             reranker=reranker,
@@ -1152,6 +1162,8 @@ async def _generation_dense_search(
     http: httpx.AsyncClient,
     embedder: Any,
     snapshot_id: UUID,
+    *,
+    allow_other_generation: bool = False,
 ) -> GenerationDenseSearch:
     """Dense search and content over the configured collection's generations."""
     registry = GenerationRegistry(pool)
@@ -1163,13 +1175,30 @@ async def _generation_dense_search(
         configuration=configuration,
         query_embedder=embedder,
     )
-    try:
-        await search.generation_for(snapshot_id)
-    except SnapshotIndexNotReady:
-        raise SearchDependencyUnavailable(
-            "the serving snapshot has no published generation"
-        ) from None
+    if not allow_other_generation:
+        try:
+            await search.generation_for(snapshot_id)
+        except SnapshotIndexNotReady:
+            raise SearchDependencyUnavailable(
+                "the serving snapshot has no published generation"
+            ) from None
     return search
+
+
+async def _published_snapshot(
+    settings: Settings,
+    pool: asyncpg.Pool,
+    configuration: GenerationIndexConfiguration,
+) -> UUID:
+    """The snapshot of the configured collection's published generation."""
+    registry = GenerationRegistry(pool)
+    collection_id = await registry.ensure_collection(settings.generation_collection)
+    published = await registry.published(collection_id, configuration.configuration_id)
+    if published is None:
+        raise SearchDependencyUnavailable(
+            "the generation collection has no published generation"
+        )
+    return published.snapshot_id
 
 
 def _load_lexical_artifact(
