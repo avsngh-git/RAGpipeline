@@ -46,6 +46,7 @@ cards to be implemented one at a time, with one commit per card.
 | P35-20 (#64) | done | 5a7c70a | Deep discovery action, mode and tool-budget guards, labelled abstract evidence, and dense plus frozen sparse runtime wiring. Focused tests, deep graph and scripted regression: 127 passed; Ruff and mypy pass. Owner approved the evidence header and deep-graph test edits omitted from the card file list |
 
 | P35-21 (#65) | done | this change | Semantic related-paper basis uses Qdrant recommend with pinned generation and source exclusion. Quick runs store up to five metadata-only candidates after evidence collection; threshold 0.5 is uncalibrated and recorded in provenance. Failures are logged without query/title text and do not fail the run. 141 focused and scripted regression tests passed; Ruff, format and mypy passed. Disposable PostgreSQL check confirmed storage and resume/completion retention; private record `local-reference/phase35/p35-21-persistence-check.json`. Owner approved adjacent runtime/store files |
+| P35-22 (#66) | done | this change | Finalized the 93-paper leave-out snapshot and published generation 1 with 40,367/40,367 vectors reused; verification passed. Ten-family Gate C diagnostic completed: mean recall@10 0.100, median 0.000, 1 hidden hit, and 1 hit with a recorded permitted route; 10 OpenAlex requests ($0.010). Aggregate report: [discovery report](../reference/phase-3.5-discovery-report.md). OpenAlex wildcard punctuation is removed from search strings while ranking retains the original question. |
 
 ## Environment facts
 
