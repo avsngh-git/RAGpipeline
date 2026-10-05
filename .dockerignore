@@ -47,5 +47,6 @@ benchmarks/phase2/*
 !benchmarks/phase2/frozen-profile-v9.toml
 !benchmarks/phase2/acceptance-v14.toml
 !benchmarks/phase2/frozen-profile-v10.toml
+!benchmarks/phase2/frozen-profile-v10-qdrant.toml
 !benchmarks/phase2/active-profile.toml
 !benchmarks/phase2/hybrid-e5-profile-v1.toml

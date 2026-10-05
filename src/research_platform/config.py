@@ -69,11 +69,11 @@ def _model_device_default() -> str:
 
 
 def _content_source_default() -> str:
-    return os.environ.get("RESEARCH_PLATFORM_CONTENT_SOURCE", "postgres")
+    return os.environ.get("RESEARCH_PLATFORM_CONTENT_SOURCE", "qdrant")
 
 
 def _lexical_engine_default() -> str:
-    return os.environ.get("RESEARCH_PLATFORM_LEXICAL_ENGINE", "bm25s")
+    return os.environ.get("RESEARCH_PLATFORM_LEXICAL_ENGINE", "qdrant")
 
 
 def _generation_collection_default() -> str:
@@ -84,7 +84,7 @@ def _generation_configuration_default() -> Path:
     return Path(
         os.environ.get(
             "RESEARCH_PLATFORM_GENERATION_CONFIGURATION",
-            "configs/phase35-generation-index.example.json",
+            "configs/phase35-generation-index-lexical.example.json",
         )
     )
 

@@ -588,7 +588,11 @@ def test_qdrant_engine_requires_qdrant_content_and_lexical_configuration() -> No
             _require_lexical_engine(settings, profile, generation_configuration)
 
     _require_lexical_engine(engine, qdrant, lexical)
-    _require_lexical_engine(Settings(), v10, None)
+    _require_lexical_engine(
+        Settings(lexical_engine="bm25s", content_source="postgres"), v10, None
+    )
+    defaults = Settings()
+    assert (defaults.lexical_engine, defaults.content_source) == ("qdrant", "qdrant")
     with pytest.raises(ValueError, match="lexical_engine"):
         Settings(lexical_engine="elasticsearch")
 

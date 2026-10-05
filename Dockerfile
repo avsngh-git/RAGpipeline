@@ -25,8 +25,10 @@ COPY benchmarks/phase2/acceptance-v1.toml \
      benchmarks/phase2/frozen-profile-v8.toml \
      benchmarks/phase2/frozen-profile-v9.toml \
      benchmarks/phase2/frozen-profile-v10.toml \
+     benchmarks/phase2/frozen-profile-v10-qdrant.toml \
      benchmarks/phase2/hybrid-e5-profile-v1.toml \
      ./benchmarks/phase2/
+COPY configs/phase35-generation-index-lexical.example.json ./configs/
 
 RUN python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt \
     && python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt \

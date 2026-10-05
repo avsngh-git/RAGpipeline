@@ -1,4 +1,4 @@
 schema_version = 1
-profile_manifest = "frozen-profile-v10.toml"
-profile_manifest_sha256 = "sha256:e1eea9c293c89a8778ad9b474e547da83f958d4c679d4fe020e16006291d7692"
-profile_id = "sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449"
+profile_manifest = "frozen-profile-v10-qdrant.toml"
+profile_manifest_sha256 = "sha256:a8bd5370be199a1e6b288bca46ed9029caaaf6d7603c278964aaced45975ce69"
+profile_id = "sha256:d4d26d267d22c639fde5f486a3e6c22aa9ec113ac4cc3e1aa31f58e857c55ba2"

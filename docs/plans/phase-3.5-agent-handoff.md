@@ -37,8 +37,9 @@ cards to be implemented one at a time, with one commit per card.
 | P35-12 (#56) | done | e8a7b33 | Lexical configuration `sha256:3130e408…` (`configs/phase35-generation-index-lexical.example.json`): generation 1 built with copied dense vectors and `scientific_bm25` vectors, verified and published; evidence average 43.297 tokens over 44,277 chunks, paper average 11.69 over 100 titles |
 | P35-13 (#57) | done | 8cf7da5 | `lexical_branches.py`: async protocol, BM25S adapters (`asyncio.to_thread`) and Qdrant evidence/paper branches; serving still uses BM25S. Live test is `test_phase35_qdrant_lexical_live.py` (naming rule below): top-20 IDs and scores equal BM25S, with generation-2 points and a metadata-only paper outside the IDF corpus |
 | P35-14 (#58) | done | a8a6909 | `frozen-profile-v10-qdrant.toml` (profile `sha256:d4d26d26…`; inactive, pointer stays on v10). `RESEARCH_PLATFORM_LEXICAL_ENGINE=qdrant` needs `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant` and `RESEARCH_PLATFORM_GENERATION_CONFIGURATION=configs/phase35-generation-index-lexical.example.json`; other published generations serve all modes. Live: all four modes served; 48 synthetic requests (4 modes, evidence and paper, 3 queries, with and without a year filter) gave hit lists identical to BM25S v10. This is not the parity decision (P35-15) |
-| P35-15 (#59) | done | this change | **Parity: pass** under ADR-0022 item 7 as amended by the owner on 2026-10-05 (tie-aware, 1e-6 relative); strict reading fails on 37 of 200 sampled queries through float32 tie order only. Development: 84/84 lexical, 336/336 end to end. See the [parity report](../reference/phase-3.5-lexical-parity-report.md) |
+| P35-15 (#59) | done | a6d4316 | **Parity: pass** under ADR-0022 item 7 as amended by the owner on 2026-10-05 (tie-aware, 1e-6 relative); strict reading fails on 37 of 200 sampled queries through float32 tie order only. Development: 84/84 lexical, 336/336 end to end. See the [parity report](../reference/phase-3.5-lexical-parity-report.md) |
 | P35-16 (#60) | not needed | — | Parity passed |
+| P35-17 (#61) | done | this change | **Gate B passed.** Active pointer is `frozen-profile-v10-qdrant.toml`; defaults are Qdrant content and lexical engine with the lexical generation configuration. Deleted `phase2-dev-gte-modernbert-base-v1`, `research-passages-gte-v1` and `research-papers-gte-v1` after checking no run was queued or running (registry rows kept). Host API restarted on the defaults: 3 development queries × 4 modes × evidence and paper, 24/24 returned 200 with results and no fallback |
 
 ## Environment facts
 
@@ -48,7 +49,8 @@ cards to be implemented one at a time, with one commit per card.
   [Phase 2 search operations](../operations/phase-2-search.md).
 - The accepted snapshot `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` (generation 1) lives in the
   database `research_phase1_review`; research runs use the same database.
-- The Phase 2 serving dense collection is `phase2-dev-gte-modernbert-base-v1` (44,277 points).
+- The Phase 2 dense collection `phase2-dev-gte-modernbert-base-v1` (44,277 points) was deleted at
+  the P35-17 cutover; serving reads `research-passages-gte-bm25-v1`.
 - Compose and CI pin Qdrant v1.19.1 (volume `qdrant_data_v1_19`); the v1.14.1 volume
   `ragpipeline_qdrant_data` is kept for rollback.
 - Private Phase 3.5 data goes under `local-reference/phase35/`; `/tmp` is not persistent.
@@ -80,6 +82,14 @@ cards to be implemented one at a time, with one commit per card.
     exact search over the old collection against exact search over the generation, and
     the report records how far v10's approximate results were from exact.
 
+- **Gate B (2026-10-05), P35-15 and P35-17:** lexical parity passed under the tie-aware
+  rule (ADR-0022 item 7, amended by the owner); see the
+  [parity report](../reference/phase-3.5-lexical-parity-report.md). `v10-qdrant` serves by
+  default and inherits the Phase 2 acceptance. BM25S remains the fallback
+  (`RESEARCH_PLATFORM_LEXICAL_ENGINE=bm25s` with the v10 manifest) and the parity oracle.
+- Serving collections are now `research-passages-gte-bm25-v1` and
+  `research-papers-gte-bm25-v1` (configuration `sha256:3130e408…`). The deleted Phase 2
+  collection's vectors remain in `local-reference/phase35/qdrant-export/`.
 - **Gate A (2026-10-04), P35-10:**
   - Content parity (`scripts/phase35_content_parity.py`): 44,277 of 44,277 evidence units
     give identical search hits from PostgreSQL hydration and from Qdrant payloads.
