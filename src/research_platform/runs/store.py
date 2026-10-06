@@ -18,6 +18,11 @@ from research_platform.runs.contracts import (
     RunStatus,
     RunUsage,
 )
+from research_platform.runs.llm_records import (
+    LLMCallPayload,
+    LLMCallRecord,
+    StoredLLMCall,
+)
 from research_platform.runs.repository import EvidenceRecord, StoredRun, ToolCallRecord
 
 
@@ -56,6 +61,17 @@ class RunStore(Protocol):
     ) -> None: ...
 
     async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None: ...
+
+    async def append_llm_call(
+        self,
+        run_id: UUID,
+        record: LLMCallRecord,
+        payload: LLMCallPayload | None = None,
+    ) -> int: ...
+
+    async def list_llm_calls(
+        self, run_id: UUID, *, include_payloads: bool = False
+    ) -> tuple[StoredLLMCall, ...]: ...
 
     async def save_evidence(
         self, run_id: UUID, records: Sequence[EvidenceRecord]

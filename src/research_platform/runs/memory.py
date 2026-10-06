@@ -21,6 +21,11 @@ from research_platform.runs.contracts import (
     RunUsage,
     configuration_id,
 )
+from research_platform.runs.llm_records import (
+    LLMCallPayload,
+    LLMCallRecord,
+    StoredLLMCall,
+)
 from research_platform.runs.repository import (
     ConfigurationMismatch,
     ConfigurationNotFound,
@@ -45,6 +50,7 @@ class InMemoryRunStore:
         self._evidence: dict[UUID, dict[str, EvidenceRecord]] = {}
         self.generations: dict[UUID, int | None] = {}
         self._configurations: dict[str, dict[str, object]] = {}
+        self._llm_calls: dict[UUID, list[StoredLLMCall]] = {}
 
     async def create_run(
         self, request: ResearchRequest, *, generation: int | None = None
@@ -193,6 +199,27 @@ class InMemoryRunStore:
         self._get_run(run_id)
         calls = self._tool_calls.setdefault(run_id, {})
         calls.setdefault(record.ordinal, record)
+
+    async def append_llm_call(
+        self,
+        run_id: UUID,
+        record: LLMCallRecord,
+        payload: LLMCallPayload | None = None,
+    ) -> int:
+        self._get_run(run_id)
+        calls = self._llm_calls.setdefault(run_id, [])
+        ordinal = len(calls) + 1
+        calls.append(StoredLLMCall(ordinal=ordinal, record=record, payload=payload))
+        return ordinal
+
+    async def list_llm_calls(
+        self, run_id: UUID, *, include_payloads: bool = False
+    ) -> tuple[StoredLLMCall, ...]:
+        self._get_run(run_id)
+        calls = self._llm_calls.get(run_id, [])
+        if include_payloads:
+            return tuple(calls)
+        return tuple(replace(call, payload=None) for call in calls)
 
     async def save_evidence(
         self, run_id: UUID, records: Sequence[EvidenceRecord]
@@ -372,6 +399,7 @@ class InMemoryRunStore:
             self._claims.pop(run_id, None)
             self._tool_calls.pop(run_id, None)
             self._evidence.pop(run_id, None)
+            self._llm_calls.pop(run_id, None)
         return removed
 
     def _get_run(self, run_id: UUID) -> StoredRun:

@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 
-from research_platform.runs.contracts import configuration_id
+from research_platform.llm.contracts import ChatMessage
+from research_platform.llm.types import CallKind
+from research_platform.runs.contracts import (
+    ResearchMode,
+    ResearchRequest,
+    configuration_id,
+)
+from research_platform.runs.llm_records import LLMCallPayload, LLMCallRecord
 from research_platform.runs.memory import InMemoryRunStore
-from research_platform.runs.repository import ConfigurationNotFound
+from research_platform.runs.repository import ConfigurationNotFound, RunNotFound
 
 _PAYLOAD: dict[str, object] = {
     "provenance_version": 2,
@@ -70,3 +79,57 @@ async def test_memory_loaded_configuration_is_a_copy() -> None:
     loaded["mode"] = "changed"
 
     assert (await store.load_run_configuration(expected))["mode"] == "quick"
+
+
+def _call(kind: CallKind = CallKind.PLAN) -> LLMCallRecord:
+    return LLMCallRecord(
+        kind=kind,
+        status="succeeded",
+        model_name="scripted",
+        think=False,
+        attempts=1,
+        duration_ms=3.0,
+        options={"seed": 7},
+    )
+
+
+async def _run(store: InMemoryRunStore):  # type: ignore[no-untyped-def]
+    return await store.create_run(
+        ResearchRequest(question="what helps", mode=ResearchMode.QUICK)
+    )
+
+
+@pytest.mark.anyio
+async def test_memory_llm_calls_number_from_one() -> None:
+    store = InMemoryRunStore()
+    run_id = await _run(store)
+
+    first = await store.append_llm_call(run_id, _call())
+    second = await store.append_llm_call(run_id, _call(CallKind.SYNTHESIZE))
+    calls = await store.list_llm_calls(run_id)
+
+    assert (first, second) == (1, 2)
+    assert [call.record.kind for call in calls] == [CallKind.PLAN, CallKind.SYNTHESIZE]
+
+
+@pytest.mark.anyio
+async def test_memory_payload_round_trip_and_hidden_unless_requested() -> None:
+    store = InMemoryRunStore()
+    run_id = await _run(store)
+    payload = LLMCallPayload(
+        messages=(ChatMessage("system", "rules"), ChatMessage("user", "question")),
+        output='{"answer": "x"}',
+        thinking="because",
+    )
+
+    await store.append_llm_call(run_id, _call(), payload)
+
+    assert (await store.list_llm_calls(run_id))[0].payload is None
+    stored = (await store.list_llm_calls(run_id, include_payloads=True))[0]
+    assert stored.payload == payload
+
+
+@pytest.mark.anyio
+async def test_memory_append_for_unknown_run_raises() -> None:
+    with pytest.raises(RunNotFound):
+        await InMemoryRunStore().append_llm_call(uuid4(), _call())

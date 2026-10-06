@@ -47,4 +47,6 @@ checks that chunk evidence refers to indexed chunks.
 021_ingestion_requests.sql adds the transactional ingestion outbox, per-paper policy
 decisions, and the waiting-for-ingestion research-run state.
 022_run_configurations.sql stores each effective research-run configuration once, keyed by
-its SHA-256 configuration ID (ADR-0026).
+its SHA-256 configuration ID (ADR-0026). 023_llm_calls.sql records one text-free row per
+model call of a research run, and the call's messages and output in a separate payload
+table written only at trace content `full`.
