@@ -1,16 +1,26 @@
 """Native Ollama tool schemas map back to validated agent actions."""
 
+import re
+
 import pytest
 
 from research_platform.agents.tool_schemas import (
     TOOL_DESCRIPTIONS,
     actions_from_tool_calls,
     research_tool_definitions,
+    tool_schema_digest,
 )
 
 
 def _call(name: str, arguments: object) -> dict[str, object]:
     return {"function": {"name": name, "arguments": arguments}}
+
+
+def test_tool_schema_digest_is_stable() -> None:
+    first = tool_schema_digest()
+
+    assert first == tool_schema_digest()
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", first)
 
 
 def test_definitions_cover_eight_tools_without_tool_property() -> None:

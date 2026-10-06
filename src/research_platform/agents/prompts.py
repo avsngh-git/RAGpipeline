@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from typing import Final
@@ -193,3 +194,36 @@ def synthesize_messages(
     return _messages(
         f"{SYNTHESIZE_INSTRUCTIONS}\nQUESTION\n{question}\n\nEVIDENCE\n{packed.text}"
     )
+
+
+def _messages_digest(messages: Sequence[ChatMessage]) -> str:
+    return hashlib.sha256(
+        "\n\x1e\n".join(
+            f"{message.role}\n{message.content}" for message in messages
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def prompt_fingerprints() -> dict[str, str]:
+    """SHA-256 of each prompt rendered from fixed placeholder inputs, keyed like PROMPT_VERSIONS."""
+    question = "{question}"
+    filters = ResearchFilters.model_validate({})
+    packed = PackedEvidence(text="{evidence}", included=("E1",), omitted=())
+    return {
+        "system": hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+        "plan": _messages_digest(
+            plan_messages(question=question, filters=filters, max_actions=4)
+        ),
+        "evaluate": _messages_digest(
+            evaluate_messages(
+                question=question,
+                observations=("{observation}",),
+                packed=packed,
+                rounds_left=2,
+                max_actions=4,
+            )
+        ),
+        "synthesize": _messages_digest(
+            synthesize_messages(question=question, packed=packed)
+        ),
+    }

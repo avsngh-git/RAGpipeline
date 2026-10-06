@@ -243,7 +243,7 @@ async def _build_research_services(
     from research_platform.agents.graph_quick import build_quick_graph
     from research_platform.config import DiscoverySettings
     from research_platform.ingestion.provenance import code_revision
-    from research_platform.llm.ollama import OllamaClient
+    from research_platform.llm.ollama import OllamaClient, decoding_settings
     from research_platform.runs.checkpointing import open_checkpointer
     from research_platform.runs.contracts import ResearchMode, RunBudgets
     from research_platform.runs.executor import RunExecutor
@@ -306,6 +306,7 @@ async def _build_research_services(
             ingestion=IngestionQueue(runtime.pool),
             serving_resolver=lambda: resolve_serving_identity(settings, runtime.pool),
             code_revision=code_revision(),
+            decoding=decoding_settings(settings),
             graphs={
                 ResearchMode.QUICK: build_quick_graph,
                 ResearchMode.DEEP_RESEARCH: build_deep_graph,

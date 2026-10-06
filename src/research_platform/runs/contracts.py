@@ -12,7 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
 
 _CONFIGURATION_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _EVIDENCE_HANDLE_PATTERN = r"^E[1-9][0-9]*$"
@@ -177,6 +177,11 @@ class RunProvenance(_ContractModel):
         description="Uncalibrated threshold for the metadata-only paper diagnostic.",
     )
     uningested_candidates: tuple[PaperSummary, ...] = ()
+    provenance_version: int = Field(1, ge=1)
+    prompt_fingerprints: dict[str, str] = Field(default_factory=dict)
+    tool_schema_digest: str | None = None
+    decoding: DecodingSettings | None = None
+    generation_configuration_id: str | None = None
 
     @field_validator("configuration_id")
     @classmethod
