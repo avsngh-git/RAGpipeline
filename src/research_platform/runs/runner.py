@@ -474,6 +474,8 @@ class ResearchRunner:
                 outcome=answer.outcome,
                 claims=answer.claims,
                 usage=usage,
+                drafts=answer.drafts,
+                synthesis=answer.synthesis,
             )
             status = RunStatus.COMPLETED
             category = None

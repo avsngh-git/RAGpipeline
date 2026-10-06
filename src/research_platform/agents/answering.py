@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Mapping
 from typing import Annotated
@@ -20,9 +21,12 @@ from research_platform.llm.types import CallKind
 from research_platform.runs.contracts import (
     AnswerOutcome,
     ClaimResult,
+    ClaimVerdict,
+    DraftClaimOutcome,
     EvidenceCitation,
     RunBudgets,
     SupportLabel,
+    SynthesisSummary,
 )
 
 EvidenceHandle = Annotated[str, Field(pattern=r"^E[1-9][0-9]*$")]
@@ -72,6 +76,8 @@ class VerifiedAnswer(BaseModel):
     rejected_claims: int = Field(ge=0)
     unsupported_claims: int = Field(ge=0)
     model_calls: int = Field(ge=0)
+    drafts: tuple[DraftClaimOutcome, ...] = ()
+    synthesis: SynthesisSummary | None = None
 
 
 def decide_outcome(
@@ -152,6 +158,13 @@ async def answer_question(
         )
     )
     draft = synthesis.value
+    summary = SynthesisSummary(
+        model_declared_insufficient=draft.insufficient_evidence,
+        relevant_handles=draft.relevant_handles,
+        packed_handles=packed.included,
+        omitted_handles=packed.omitted,
+        drafted=len(draft.claims),
+    )
     if draft.insufficient_evidence or not draft.claims:
         return VerifiedAnswer(
             answer=strip_unknown_markers(draft.answer, frozenset())
@@ -161,21 +174,62 @@ async def answer_question(
             rejected_claims=0,
             unsupported_claims=0,
             model_calls=1,
+            synthesis=summary,
         )
 
     shown = frozenset(packed.included)
     claims: list[ClaimResult] = []
+    outcomes: list[DraftClaimOutcome] = []
     rejected = 0
     unsupported = 0
-    for draft_claim in draft.claims:
+    for ordinal, draft_claim in enumerate(draft.claims, start=1):
         ref = registry.resolve(draft_claim.handle)
-        if ref is None or draft_claim.handle not in shown:
+        if ref is None:
             rejected += 1
+            outcomes.append(
+                _draft_outcome(ordinal, draft_claim, ClaimVerdict.UNKNOWN_HANDLE)
+            )
+            continue
+        if draft_claim.handle not in shown:
+            rejected += 1
+            outcomes.append(
+                _draft_outcome(
+                    ordinal,
+                    draft_claim,
+                    ClaimVerdict.NOT_SHOWN,
+                    chunk_id=ref.chunk_id,
+                    paper_id=ref.paper_id,
+                )
+            )
             continue
         passage = neutralize(texts.get(ref.chunk_id, ""))
-        if not verify_claim(draft_claim.text, draft_claim.quote, passage).passed:
+        checks = verify_claim(draft_claim.text, draft_claim.quote, passage)
+        if not checks.passed:
             unsupported += 1
+            outcomes.append(
+                _draft_outcome(
+                    ordinal,
+                    draft_claim,
+                    ClaimVerdict.FAILED_CHECKS,
+                    failed_checks=tuple(
+                        check.name
+                        for check in dataclasses.fields(checks)
+                        if not getattr(checks, check.name)
+                    ),
+                    chunk_id=ref.chunk_id,
+                    paper_id=ref.paper_id,
+                )
+            )
             continue
+        outcomes.append(
+            _draft_outcome(
+                ordinal,
+                draft_claim,
+                ClaimVerdict.KEPT,
+                chunk_id=ref.chunk_id,
+                paper_id=ref.paper_id,
+            )
+        )
         claims.append(
             ClaimResult(
                 claim_id=f"claim-{len(claims) + 1}",
@@ -202,4 +256,27 @@ async def answer_question(
         rejected_claims=rejected,
         unsupported_claims=unsupported,
         model_calls=1,
+        drafts=tuple(outcomes),
+        synthesis=summary,
+    )
+
+
+def _draft_outcome(
+    ordinal: int,
+    draft_claim: DraftClaim,
+    verdict: ClaimVerdict,
+    *,
+    failed_checks: tuple[str, ...] = (),
+    chunk_id: str | None = None,
+    paper_id: str | None = None,
+) -> DraftClaimOutcome:
+    return DraftClaimOutcome(
+        ordinal=ordinal,
+        handle=draft_claim.handle,
+        quote=draft_claim.quote,
+        text=draft_claim.text,
+        verdict=verdict,
+        failed_checks=failed_checks,
+        chunk_id=chunk_id,
+        paper_id=paper_id,
     )

@@ -16,7 +16,12 @@ from research_platform.agents.evidence import EvidenceRegistry
 from research_platform.llm.contracts import LLMInvalidOutput
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind
-from research_platform.runs.contracts import AnswerOutcome, RunBudgets, SupportLabel
+from research_platform.runs.contracts import (
+    AnswerOutcome,
+    ClaimVerdict,
+    RunBudgets,
+    SupportLabel,
+)
 from research_platform.tools.research_tools import CollectedEvidence
 
 _PASSAGES = (
@@ -368,3 +373,92 @@ async def test_invalid_model_output_propagates() -> None:
             budgets=RunBudgets(),
             thinking=frozenset(),
         )
+
+
+@pytest.mark.anyio
+async def test_drafts_record_unknown_handle() -> None:
+    result, _ = await _answer(
+        [
+            _draft(
+                [
+                    _claim(
+                        "E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A."
+                    ),
+                    _claim("E9", "invented quote text here", "Invented claim."),
+                ]
+            )
+        ]
+    )
+
+    assert [draft.verdict for draft in result.drafts] == [
+        ClaimVerdict.KEPT,
+        ClaimVerdict.UNKNOWN_HANDLE,
+    ]
+    assert result.drafts[1].ordinal == 2
+    assert result.drafts[1].chunk_id is None
+    assert result.drafts[0].chunk_id == "chunk-1"
+    assert result.drafts[0].paper_id == "W1"
+
+
+@pytest.mark.anyio
+async def test_drafts_record_not_shown_handle() -> None:
+    registry, texts = _registry(long_second_title=True)
+    result, _ = await _answer(
+        [_draft([_claim("E2", _QUOTE_TWO, "Reranking helps short queries.")])],
+        registry=registry,
+        texts=texts,
+        budgets=RunBudgets(max_synthesis_tokens=500),
+    )
+
+    assert [draft.verdict for draft in result.drafts] == [ClaimVerdict.NOT_SHOWN]
+    assert result.drafts[0].chunk_id == "chunk-2"
+    assert result.synthesis is not None
+    assert "E2" in result.synthesis.omitted_handles
+
+
+@pytest.mark.anyio
+async def test_drafts_record_failed_check_names() -> None:
+    result, _ = await _answer(
+        [
+            _draft(
+                [
+                    _claim(
+                        "E1",
+                        "a sentence that does not occur in the passage",
+                        "Retrieval gained points.",
+                    )
+                ]
+            )
+        ]
+    )
+
+    assert result.drafts[0].verdict is ClaimVerdict.FAILED_CHECKS
+    assert "quote_found" in result.drafts[0].failed_checks
+    assert result.unsupported_claims == 1
+
+
+@pytest.mark.anyio
+async def test_drafts_record_kept() -> None:
+    result, _ = await _answer(
+        [
+            _draft(
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")]
+            )
+        ]
+    )
+
+    assert len(result.drafts) == 1
+    assert result.drafts[0].verdict is ClaimVerdict.KEPT
+    assert result.drafts[0].failed_checks == ()
+    assert result.drafts[0].quote == _QUOTE_ONE
+
+
+@pytest.mark.anyio
+async def test_synthesis_summary_records_declared_insufficient() -> None:
+    result, _ = await _answer([_draft([], insufficient=True, answer="Not answerable.")])
+
+    assert result.drafts == ()
+    assert result.synthesis is not None
+    assert result.synthesis.model_declared_insufficient is True
+    assert result.synthesis.drafted == 0
+    assert result.synthesis.packed_handles == ("E1", "E2", "E3")
