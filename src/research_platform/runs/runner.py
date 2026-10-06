@@ -38,6 +38,7 @@ from research_platform.llm.contracts import (
     LLMUnavailable,
 )
 from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
+from research_platform.observability.request_context import bind_run_id
 from research_platform.runs.checkpointing import thread_config
 from research_platform.runs.contracts import (
     UNINGESTED_SIMILARITY_THRESHOLD,
@@ -289,6 +290,11 @@ class ResearchRunner:
         self._deps = deps
 
     async def run(self, run_id: UUID) -> RunStatus:
+        """Execute a run or return its existing terminal state."""
+        with bind_run_id(run_id):
+            return await self._run(run_id)
+
+    async def _run(self, run_id: UUID) -> RunStatus:
         """Execute a run or return its existing terminal state."""
         stored = await self._deps.repository.get_run(run_id)
         if stored.status in (RunStatus.COMPLETED, RunStatus.FAILED):
@@ -557,6 +563,8 @@ class ResearchRunner:
                 "model_calls": usage.model_calls,
                 "plan_rounds": usage.plan_rounds,
                 "resumes": usage.resumes,
+                "rejected_claims": usage.rejected_claims,
+                "unsupported_claims": usage.unsupported_claims,
             },
         )
 

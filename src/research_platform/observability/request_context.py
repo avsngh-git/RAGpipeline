@@ -1,19 +1,53 @@
 """Request correlation context and HTTP middleware."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Final, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 REQUEST_ID_HEADER: Final = "x-request-id"
 _REQUEST_ID: ContextVar[str | None] = ContextVar("request_id", default=None)
+_RUN_ID: ContextVar[str | None] = ContextVar("run_id", default=None)
 
 
 def get_request_id() -> str | None:
     """Return the correlation ID for the current request context."""
 
     return _REQUEST_ID.get()
+
+
+def get_run_id() -> str | None:
+    """Return the research run ID bound to the current context."""
+
+    return _RUN_ID.get()
+
+
+@contextmanager
+def bind_run_id(run_id: UUID | str) -> Iterator[None]:
+    """Bind a research run ID for log records emitted inside the block."""
+
+    token = _RUN_ID.set(str(run_id))
+    try:
+        yield
+    finally:
+        _RUN_ID.reset(token)
+
+
+@contextmanager
+def bind_request_id(request_id: str | None) -> Iterator[None]:
+    """Bind a request ID inside the block; does nothing when it is None."""
+
+    if request_id is None:
+        yield
+        return
+    token = _REQUEST_ID.set(request_id)
+    try:
+        yield
+    finally:
+        _REQUEST_ID.reset(token)
 
 
 def _request_id_from_scope(scope: Scope) -> str:

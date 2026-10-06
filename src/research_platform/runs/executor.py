@@ -6,6 +6,7 @@ import asyncio
 import logging
 from uuid import UUID
 
+from research_platform.observability.request_context import bind_request_id
 from research_platform.runs.contracts import RunStatus
 from research_platform.runs.runner import ResearchRunner
 from research_platform.runs.store import RunStore
@@ -33,7 +34,7 @@ class RunExecutor:
         self._runner = runner
         self._store = store
         self._max_queue = max_queue
-        self._queue: asyncio.Queue[UUID] = asyncio.Queue()
+        self._queue: asyncio.Queue[tuple[UUID, str | None]] = asyncio.Queue()
         self._worker: asyncio.Task[None] | None = None
         self._started = False
         self._start_lock = asyncio.Lock()
@@ -67,15 +68,15 @@ class RunExecutor:
                 recovered.extend(run.run_id for run in ordered)
 
             for run_id in recovered:
-                self._queue.put_nowait(run_id)
+                self._queue.put_nowait((run_id, None))
             self._started = True
             self._worker = asyncio.create_task(self._work(), name="research-run-worker")
 
-    async def submit(self, run_id: UUID) -> None:
+    async def submit(self, run_id: UUID, *, request_id: str | None = None) -> None:
         """Queue a newly persisted run subject to the admission limit."""
         if self.pending >= self._max_queue:
             raise ResearchQueueFull("research run queue is full")
-        self._queue.put_nowait(run_id)
+        self._queue.put_nowait((run_id, request_id))
 
     async def stop(self) -> None:
         """Cancel and await the worker, leaving an active run resumable."""
@@ -92,9 +93,10 @@ class RunExecutor:
 
     async def _work(self) -> None:
         while True:
-            run_id = await self._queue.get()
+            run_id, request_id = await self._queue.get()
             try:
-                await self._runner.run(run_id)
+                with bind_request_id(request_id):
+                    await self._runner.run(run_id)
             except asyncio.CancelledError:
                 raise
             except Exception as error:

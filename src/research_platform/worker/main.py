@@ -17,6 +17,7 @@ import asyncpg  # type: ignore[import-untyped]
 import httpx
 
 from research_platform.config import Settings
+from research_platform.observability.logging_config import configure_logging
 from research_platform.worker.queue import (
     IngestionQueue,
     IngestionRequest,
@@ -266,7 +267,7 @@ async def _run_main() -> None:
 
 def main() -> None:
     """Start the worker and stop cleanly on SIGINT or SIGTERM."""
-    logging.basicConfig(level=logging.INFO)
+    configure_logging(Settings().log_level)
     asyncio.run(_run_main())
 
 

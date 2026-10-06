@@ -6,7 +6,7 @@ import traceback
 from datetime import datetime, timezone
 from typing import Any
 
-from .request_context import get_request_id
+from .request_context import get_request_id, get_run_id
 
 
 class JsonFormatter(logging.Formatter):
@@ -23,6 +23,10 @@ class JsonFormatter(logging.Formatter):
         request_id = get_request_id() or getattr(record, "request_id", None)
         if request_id is not None:
             payload["request_id"] = request_id
+
+        run_id = getattr(record, "run_id", None) or get_run_id()
+        if run_id is not None:
+            payload["run_id"] = str(run_id)
 
         safe_fields = (
             "http_method",
@@ -47,6 +51,36 @@ class JsonFormatter(logging.Formatter):
             "dedup_omission_count",
             "truncated",
             "omitted_count",
+            "event",
+            "mode",
+            "status",
+            "duration_seconds",
+            "active_seconds",
+            "tool_calls",
+            "model_calls",
+            "plan_rounds",
+            "resumes",
+            "rejected_claims",
+            "unsupported_claims",
+            "kind",
+            "format",
+            "attempts",
+            "prompt_tokens",
+            "output_tokens",
+            "think",
+            "error_type",
+            "error_category",
+            "tool",
+            "ordinal",
+            "configuration_id",
+            "generation",
+            "paper_id",
+            "reason",
+            "worker_id",
+            "ingestion_request_id",
+            "principal",
+            "route_class",
+            "retry_after_seconds",
         )
         for field_name in safe_fields:
             if hasattr(record, field_name):
