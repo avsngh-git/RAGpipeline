@@ -14,11 +14,10 @@ _ENTRY_PATTERN = re.compile(
 def _validate_trivyignore(content: str, today: date | None = None) -> None:
     current_date = today or date.today()
     for line_number, line in enumerate(content.splitlines(), start=1):
-        entry = line.strip()
-        if not entry or entry.startswith("#"):
+        if not line or line.startswith("#"):
             continue
 
-        match = _ENTRY_PATTERN.fullmatch(entry)
+        match = _ENTRY_PATTERN.fullmatch(line)
         if match is None:
             raise ValueError(
                 f"line {line_number} must include a finding ID, reason, and expiry"
@@ -67,3 +66,16 @@ def test_parser_rejects_invalid_calendar_date() -> None:
             "CVE-2026-12345 # reason: awaiting upstream release; expires: 2026-02-30",
             today=date(2026, 1, 1),
         )
+
+
+def test_parser_rejects_surrounding_whitespace() -> None:
+    with pytest.raises(ValueError, match="finding ID"):
+        _validate_trivyignore(
+            " CVE-2026-12345 # reason: awaiting upstream release; expires: 2026-12-31 ",
+            today=date(2026, 10, 6),
+        )
+
+
+def test_parser_rejects_indented_comment() -> None:
+    with pytest.raises(ValueError, match="finding ID"):
+        _validate_trivyignore(" # this is not a comment", today=date(2026, 10, 6))
