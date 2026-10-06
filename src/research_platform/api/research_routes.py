@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 
+from research_platform.observability.request_context import get_request_id
 from research_platform.runs.contracts import (
     FailureCategory,
     ResearchRequest,
@@ -81,7 +82,7 @@ def create_research_router(
         )
         queued_view = await active.store.get_run_view(run_id)
         try:
-            await active.executor.submit(run_id)
+            await active.executor.submit(run_id, request_id=get_request_id())
         except ResearchQueueFull:
             await active.store.fail_run(
                 run_id,

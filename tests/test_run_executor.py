@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from research_platform.observability.request_context import get_request_id
 from research_platform.runs.contracts import ResearchMode, ResearchRequest, RunStatus
 from research_platform.runs.executor import ResearchQueueFull, RunExecutor
 from research_platform.runs.memory import InMemoryRunStore
@@ -26,9 +27,11 @@ class RecordingRunner:
         self.finished = asyncio.Event()
         self.fail_runs: set[UUID] = set()
         self.expected_calls = 0
+        self.request_ids: list[str | None] = []
 
     async def run(self, run_id: UUID) -> RunStatus:
         self.calls.append(run_id)
+        self.request_ids.append(get_request_id())
         self.active += 1
         self.maximum_active = max(self.maximum_active, self.active)
         self.entered.set()
@@ -141,6 +144,21 @@ def test_runs_execute_one_at_a_time_in_submit_order() -> None:
 
         assert runner.calls == run_ids
         assert runner.maximum_active == 1
+
+    asyncio.run(exercise())
+
+
+def test_submit_carries_request_id_into_run() -> None:
+    async def exercise() -> None:
+        runner = RecordingRunner()
+        runner.expected_calls = 1
+        executor = RunExecutor(runner, InMemoryRunStore())
+        await executor.start()
+        await executor.submit(UUID(int=9), request_id="req-9")
+        await asyncio.wait_for(runner.finished.wait(), timeout=1)
+        await executor.stop()
+
+        assert runner.request_ids == ["req-9"]
 
     asyncio.run(exercise())
 

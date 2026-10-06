@@ -47,7 +47,7 @@ class StubExecutor:
         self.full = full
         self.submissions: list[UUID] = []
 
-    async def submit(self, run_id: UUID) -> None:
+    async def submit(self, run_id: UUID, *, request_id: str | None = None) -> None:
         if self.full:
             raise ResearchQueueFull("synthetic queue full")
         self.submissions.append(run_id)
