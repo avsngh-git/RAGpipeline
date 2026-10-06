@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 from research_platform.runs.contracts import (
     AnswerOutcome,
     ClaimResult,
+    DraftClaimOutcome,
     FailureCategory,
     PaperSummary,
     ResearchRequest,
@@ -19,6 +20,7 @@ from research_platform.runs.contracts import (
     RunProvenance,
     RunStatus,
     RunUsage,
+    SynthesisSummary,
     configuration_id,
 )
 from research_platform.runs.llm_records import (
@@ -51,6 +53,8 @@ class InMemoryRunStore:
         self.generations: dict[UUID, int | None] = {}
         self._configurations: dict[str, dict[str, object]] = {}
         self._llm_calls: dict[UUID, list[StoredLLMCall]] = {}
+        self._drafts: dict[UUID, tuple[DraftClaimOutcome, ...]] = {}
+        self._synthesis: dict[UUID, SynthesisSummary] = {}
 
     async def create_run(
         self, request: ResearchRequest, *, generation: int | None = None
@@ -254,15 +258,28 @@ class InMemoryRunStore:
         outcome: AnswerOutcome,
         claims: Sequence[ClaimResult],
         usage: RunUsage,
+        drafts: Sequence[DraftClaimOutcome] = (),
+        synthesis: SynthesisSummary | None = None,
     ) -> None:
         run = self._running(run_id, "complete")
         _validate_claim_evidence(self._evidence.get(run_id, {}), claims)
         self._claims[run_id] = tuple(claims)
+        self._drafts[run_id] = tuple(drafts)
+        if synthesis is None:
+            self._synthesis.pop(run_id, None)
+        else:
+            self._synthesis[run_id] = synthesis
         self._answers[run_id] = (answer, outcome, usage)
         self._failures.pop(run_id, None)
         self._runs[run_id] = replace(
             run, status=RunStatus.COMPLETED, completed_at=datetime.now(UTC)
         )
+
+    async def list_draft_claims(self, run_id: UUID) -> tuple[DraftClaimOutcome, ...]:
+        return self._drafts.get(run_id, ())
+
+    async def get_synthesis_summary(self, run_id: UUID) -> SynthesisSummary | None:
+        return self._synthesis.get(run_id)
 
     async def fail_run(
         self,
@@ -400,6 +417,8 @@ class InMemoryRunStore:
             self._tool_calls.pop(run_id, None)
             self._evidence.pop(run_id, None)
             self._llm_calls.pop(run_id, None)
+            self._drafts.pop(run_id, None)
+            self._synthesis.pop(run_id, None)
         return removed
 
     def _get_run(self, run_id: UUID) -> StoredRun:

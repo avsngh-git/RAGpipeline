@@ -148,6 +148,38 @@ class ClaimResult(_ContractModel):
     support: SupportLabel
 
 
+class ClaimVerdict(StrEnum):
+    """Code verification result for one drafted claim."""
+
+    KEPT = "kept"
+    UNKNOWN_HANDLE = "unknown_handle"
+    NOT_SHOWN = "not_shown"
+    FAILED_CHECKS = "failed_checks"
+
+
+class DraftClaimOutcome(_ContractModel):
+    """One drafted claim and the verdict code verification gave it."""
+
+    ordinal: int = Field(ge=1)
+    handle: str
+    quote: str
+    text: str
+    verdict: ClaimVerdict
+    failed_checks: tuple[str, ...] = ()
+    chunk_id: str | None = None
+    paper_id: str | None = None
+
+
+class SynthesisSummary(_ContractModel):
+    """What the synthesis call saw and decided, without text."""
+
+    model_declared_insufficient: bool
+    relevant_handles: tuple[str, ...] = ()
+    packed_handles: tuple[str, ...] = ()
+    omitted_handles: tuple[str, ...] = ()
+    drafted: int = Field(0, ge=0)
+
+
 class PaperSummary(_ContractModel):
     """Compact paper metadata included in a run result."""
 

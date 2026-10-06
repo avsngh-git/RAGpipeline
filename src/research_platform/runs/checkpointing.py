@@ -24,6 +24,8 @@ _CHECKPOINT_TYPES: Final = (
     ("research_platform.llm.types", "ModelIdentity"),
     ("research_platform.runs.contracts", "AnswerOutcome"),
     ("research_platform.runs.contracts", "ClaimResult"),
+    ("research_platform.runs.contracts", "ClaimVerdict"),
+    ("research_platform.runs.contracts", "DraftClaimOutcome"),
     ("research_platform.runs.contracts", "EvidenceCitation"),
     ("research_platform.runs.contracts", "FailureCategory"),
     ("research_platform.runs.contracts", "PaperSummary"),
@@ -36,6 +38,7 @@ _CHECKPOINT_TYPES: Final = (
     ("research_platform.runs.contracts", "RunStatus"),
     ("research_platform.runs.contracts", "RunUsage"),
     ("research_platform.runs.contracts", "SupportLabel"),
+    ("research_platform.runs.contracts", "SynthesisSummary"),
     ("research_platform.tools.research_tools", "ToolLedger"),
 )
 

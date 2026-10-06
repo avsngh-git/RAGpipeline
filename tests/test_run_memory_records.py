@@ -7,10 +7,17 @@ from uuid import uuid4
 import pytest
 
 from research_platform.llm.contracts import ChatMessage
-from research_platform.llm.types import CallKind
+from research_platform.llm.types import CallKind, ModelIdentity
 from research_platform.runs.contracts import (
+    AnswerOutcome,
+    ClaimVerdict,
+    DraftClaimOutcome,
     ResearchMode,
     ResearchRequest,
+    RunBudgets,
+    RunProvenance,
+    RunUsage,
+    SynthesisSummary,
     configuration_id,
 )
 from research_platform.runs.llm_records import LLMCallPayload, LLMCallRecord
@@ -133,3 +140,64 @@ async def test_memory_payload_round_trip_and_hidden_unless_requested() -> None:
 async def test_memory_append_for_unknown_run_raises() -> None:
     with pytest.raises(RunNotFound):
         await InMemoryRunStore().append_llm_call(uuid4(), _call())
+
+
+_DRAFTS = (
+    DraftClaimOutcome(
+        ordinal=1,
+        handle="E1",
+        quote="a quote",
+        text="a claim",
+        verdict=ClaimVerdict.KEPT,
+        chunk_id="chunk-1",
+        paper_id="W1",
+    ),
+    DraftClaimOutcome(
+        ordinal=2,
+        handle="E7",
+        quote="other",
+        text="other claim",
+        verdict=ClaimVerdict.FAILED_CHECKS,
+        failed_checks=("quote_found", "numbers_from_quote"),
+    ),
+)
+_SUMMARY = SynthesisSummary(
+    model_declared_insufficient=False,
+    relevant_handles=("E1",),
+    packed_handles=("E1", "E7"),
+    omitted_handles=("E9",),
+    drafted=2,
+)
+
+
+@pytest.mark.anyio
+async def test_memory_store_persists_drafts_and_synthesis() -> None:
+    store = InMemoryRunStore()
+    run_id = await _run(store)
+    await store.mark_running(
+        run_id,
+        provenance=RunProvenance(
+            snapshot_id=uuid4(),
+            retrieval_profile_id="sha256:" + "a" * 64,
+            configuration_id="sha256:" + "b" * 64,
+            code_revision="test",
+            model=ModelIdentity(name="m", runtime="scripted", context_tokens=8192),
+            thinking={},
+            prompt_versions={},
+            budgets=RunBudgets(),
+            trace_id="t",
+        ),
+    )
+
+    await store.complete_run(
+        run_id,
+        answer="No supported claims.",
+        outcome=AnswerOutcome.INSUFFICIENT_EVIDENCE,
+        claims=(),
+        usage=RunUsage(),
+        drafts=_DRAFTS,
+        synthesis=_SUMMARY,
+    )
+
+    assert await store.list_draft_claims(run_id) == _DRAFTS
+    assert await store.get_synthesis_summary(run_id) == _SUMMARY

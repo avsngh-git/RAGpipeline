@@ -10,6 +10,7 @@ from uuid import UUID
 from research_platform.runs.contracts import (
     AnswerOutcome,
     ClaimResult,
+    DraftClaimOutcome,
     FailureCategory,
     PaperSummary,
     ResearchRequest,
@@ -17,6 +18,7 @@ from research_platform.runs.contracts import (
     RunProvenance,
     RunStatus,
     RunUsage,
+    SynthesisSummary,
 )
 from research_platform.runs.llm_records import (
     LLMCallPayload,
@@ -97,7 +99,15 @@ class RunStore(Protocol):
         outcome: AnswerOutcome,
         claims: Sequence[ClaimResult],
         usage: RunUsage,
+        drafts: Sequence[DraftClaimOutcome] = (),
+        synthesis: SynthesisSummary | None = None,
     ) -> None: ...
+
+    async def list_draft_claims(
+        self, run_id: UUID
+    ) -> tuple[DraftClaimOutcome, ...]: ...
+
+    async def get_synthesis_summary(self, run_id: UUID) -> SynthesisSummary | None: ...
 
     async def fail_run(
         self,

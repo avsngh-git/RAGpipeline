@@ -17,6 +17,8 @@ from research_platform.llm.types import CallKind
 from research_platform.runs.contracts import (
     AnswerOutcome,
     ClaimResult,
+    ClaimVerdict,
+    DraftClaimOutcome,
     EvidenceCitation,
     FailureCategory,
     PaperSummary,
@@ -27,6 +29,7 @@ from research_platform.runs.contracts import (
     RunStatus,
     RunUsage,
     SupportLabel,
+    SynthesisSummary,
     configuration_id,
 )
 from research_platform.runs.llm_records import (
@@ -464,8 +467,10 @@ class RunRepository:
         outcome: AnswerOutcome,
         claims: Sequence[ClaimResult],
         usage: RunUsage,
+        drafts: Sequence[DraftClaimOutcome] = (),
+        synthesis: SynthesisSummary | None = None,
     ) -> None:
-        """Atomically replace claims and finish a running run."""
+        """Atomically replace claims and drafts and finish a running run."""
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 status = await connection.fetchval(
@@ -504,18 +509,80 @@ class RunRepository:
                         ],
                     )
                 await connection.execute(
+                    "DELETE FROM draft_claims WHERE run_id = $1", run_id
+                )
+                await connection.executemany(
+                    """
+                    INSERT INTO draft_claims
+                        (run_id, ordinal, handle, quote, claim_text, verdict,
+                         failed_checks, chunk_id, paper_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    """,
+                    [
+                        (
+                            run_id,
+                            draft.ordinal,
+                            draft.handle,
+                            draft.quote,
+                            draft.text,
+                            draft.verdict.value,
+                            list(draft.failed_checks),
+                            draft.chunk_id,
+                            draft.paper_id,
+                        )
+                        for draft in drafts
+                    ],
+                )
+                await connection.execute(
                     """
                     UPDATE research_runs
                     SET status = 'completed', answer = $2, answer_outcome = $3,
                         usage = $4::jsonb, error_message = NULL,
-                        failure_category = NULL, completed_at = now(), updated_at = now()
+                        failure_category = NULL, completed_at = now(), updated_at = now(),
+                        synthesis = $5::jsonb
                     WHERE id = $1
                     """,
                     run_id,
                     answer,
                     outcome.value,
                     _usage_json(usage),
+                    synthesis.model_dump_json() if synthesis is not None else None,
                 )
+
+    async def list_draft_claims(self, run_id: UUID) -> tuple[DraftClaimOutcome, ...]:
+        """Return a run's drafted claims and their verdicts in ordinal order."""
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT ordinal, handle, quote, claim_text, verdict, failed_checks,
+                       chunk_id, paper_id
+                FROM draft_claims WHERE run_id = $1 ORDER BY ordinal
+                """,
+                run_id,
+            )
+        return tuple(
+            DraftClaimOutcome(
+                ordinal=row["ordinal"],
+                handle=row["handle"],
+                quote=row["quote"],
+                text=row["claim_text"],
+                verdict=ClaimVerdict(row["verdict"]),
+                failed_checks=tuple(row["failed_checks"]),
+                chunk_id=row["chunk_id"],
+                paper_id=row["paper_id"],
+            )
+            for row in rows
+        )
+
+    async def get_synthesis_summary(self, run_id: UUID) -> SynthesisSummary | None:
+        """Return the stored synthesis summary of a completed run, if any."""
+        async with self._pool.acquire() as connection:
+            value = await connection.fetchval(
+                "SELECT synthesis FROM research_runs WHERE id = $1", run_id
+            )
+        if value is None:
+            return None
+        return SynthesisSummary.model_validate_json(_json_text(value))
 
     async def fail_run(
         self,

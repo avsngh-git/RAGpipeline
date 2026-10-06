@@ -15,8 +15,13 @@ from research_platform.llm.contracts import ChatMessage
 from research_platform.llm.types import CallKind
 from research_platform.persistence.migrations import apply_migrations
 from research_platform.runs.contracts import (
+    AnswerOutcome,
+    ClaimVerdict,
+    DraftClaimOutcome,
     ResearchMode,
     ResearchRequest,
+    RunUsage,
+    SynthesisSummary,
     configuration_id,
 )
 from research_platform.runs.llm_records import LLMCallPayload, LLMCallRecord
@@ -281,5 +286,83 @@ def test_append_for_unknown_run_raises() -> None:
     ) -> None:
         with pytest.raises(RunNotFound):
             await repo.append_llm_call(uuid4(), _call())
+
+    _with_repository(exercise)
+
+
+_DRAFTS = (
+    DraftClaimOutcome(
+        ordinal=1,
+        handle="E1",
+        quote="a quote ✓",
+        text="a claim",
+        verdict=ClaimVerdict.NOT_SHOWN,
+        chunk_id="chunk-x",
+        paper_id="W1",
+    ),
+    DraftClaimOutcome(
+        ordinal=2,
+        handle="E7",
+        quote="other",
+        text="other claim",
+        verdict=ClaimVerdict.FAILED_CHECKS,
+        failed_checks=("quote_found", "numbers_from_quote"),
+    ),
+)
+_SUMMARY = SynthesisSummary(
+    model_declared_insufficient=False,
+    relevant_handles=("E1",),
+    packed_handles=("E1", "E7"),
+    omitted_handles=("E9",),
+    drafted=2,
+)
+
+
+async def _completed_run(  # type: ignore[no-untyped-def]
+    pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+):
+    run_id = await _new_run(repo, created)
+    async with pool.acquire() as connection:
+        await connection.execute(
+            "UPDATE research_runs SET status = 'running', started_at = now() "
+            "WHERE id = $1",
+            run_id,
+        )
+    await repo.complete_run(
+        run_id,
+        answer="No supported claims.",
+        outcome=AnswerOutcome.INSUFFICIENT_EVIDENCE,
+        claims=(),
+        usage=RunUsage(),
+        drafts=_DRAFTS,
+        synthesis=_SUMMARY,
+    )
+    return run_id
+
+
+def test_complete_run_persists_drafts_and_synthesis() -> None:
+    async def exercise(
+        pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+    ) -> None:
+        run_id = await _completed_run(pool, repo, created)
+
+        assert await repo.list_draft_claims(run_id) == _DRAFTS
+        assert await repo.get_synthesis_summary(run_id) == _SUMMARY
+
+    _with_repository(exercise)
+
+
+def test_drafts_cascade_with_run() -> None:
+    async def exercise(
+        pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+    ) -> None:
+        run_id = await _completed_run(pool, repo, created)
+
+        async with pool.acquire() as connection:
+            await connection.execute("DELETE FROM research_runs WHERE id = $1", run_id)
+            remaining = await connection.fetchval(
+                "SELECT count(*) FROM draft_claims WHERE run_id = $1", run_id
+            )
+        assert remaining == 0
 
     _with_repository(exercise)
