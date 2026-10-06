@@ -20,10 +20,20 @@ from research_platform.llm.contracts import (
     ToolCallRequest,
     ToolCallResult,
 )
-from research_platform.llm.types import ModelIdentity
+from research_platform.llm.types import DecodingSettings, ModelIdentity
 
 logger = logging.getLogger("research_platform.llm")
 T = TypeVar("T", bound=BaseModel)
+
+
+def decoding_settings(settings: Settings) -> DecodingSettings:
+    """The decoding options OllamaClient sends, read from settings."""
+    return DecodingSettings(
+        seed=settings.llm_seed,
+        context_tokens=settings.llm_context_tokens,
+        timeout_seconds=settings.llm_timeout_seconds,
+        temperature=None,
+    )
 
 
 class OllamaClient:

@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Final, cast
 from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
@@ -24,8 +24,9 @@ from research_platform.agents.nodes import (
     NodeDependencies,
     ToolStepFailed,
 )
-from research_platform.agents.prompts import PROMPT_VERSIONS
+from research_platform.agents.prompts import PROMPT_VERSIONS, prompt_fingerprints
 from research_platform.agents.state import ResearchState, initial_state
+from research_platform.agents.tool_schemas import tool_schema_digest
 from research_platform.config import Settings
 from research_platform.ingestion.generation_index import GenerationIndexConfiguration
 from research_platform.ingestion.generation_registry import GenerationRegistry
@@ -36,7 +37,7 @@ from research_platform.llm.contracts import (
     LLMTimeout,
     LLMUnavailable,
 )
-from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
 from research_platform.observability.request_context import bind_run_id
 from research_platform.runs.checkpointing import thread_config
 from research_platform.runs.contracts import (
@@ -62,6 +63,7 @@ _PROVENANCE_CALL_KINDS = (
     CallKind.EVALUATE,
     CallKind.SYNTHESIZE,
 )
+PROVENANCE_VERSION: Final = 2
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,7 @@ class ServingIdentity:
     retrieval_profile_id: str
     generation: int | None = None
     retrieval_settings_id: str | None = None
+    generation_configuration_id: str | None = None
 
 
 def load_serving_identity(path: Path | None = None) -> ServingIdentity:
@@ -106,10 +109,19 @@ async def resolve_serving_identity(
         retrieval_profile_id=profile.profile_id,
         generation=published.generation,
         retrieval_settings_id=profile.settings_id,
+        generation_configuration_id=configuration.configuration_id,
     )
 
 
-def build_provenance(
+@dataclass(frozen=True)
+class EffectiveConfiguration:
+    """The hashed configuration payload and the provenance built from it."""
+
+    payload: dict[str, object]
+    provenance: RunProvenance
+
+
+def build_effective_configuration(
     *,
     run_id: UUID,
     request: ResearchRequest,
@@ -118,12 +130,16 @@ def build_provenance(
     thinking: frozenset[CallKind],
     budgets: RunBudgets,
     code_revision: str,
-) -> RunProvenance:
-    """Build stable provenance for the effective run configuration."""
+    decoding: DecodingSettings | None = None,
+) -> EffectiveConfiguration:
+    """Build the effective run configuration payload and provenance."""
     snapshot_id = request.snapshot_id or serving.snapshot_id
     thinking_map = {kind: kind in thinking for kind in _PROVENANCE_CALL_KINDS}
     prompt_versions = dict(PROMPT_VERSIONS)
+    fingerprints = prompt_fingerprints()
+    schema_digest = tool_schema_digest()
     effective_configuration: dict[str, object] = {
+        "provenance_version": PROVENANCE_VERSION,
         "mode": request.mode.value,
         "filters": request.filters.model_dump(mode="json"),
         "snapshot_id": str(snapshot_id),
@@ -132,11 +148,17 @@ def build_provenance(
         "model": model.model_dump(mode="json"),
         "thinking": {kind.value: enabled for kind, enabled in thinking_map.items()},
         "prompt_versions": prompt_versions,
+        "prompt_fingerprints": fingerprints,
+        "tool_schema_digest": schema_digest,
+        "decoding": decoding.model_dump(mode="json") if decoding is not None else None,
         "code_revision": code_revision,
     }
     if serving.generation is not None:
         effective_configuration["generation"] = serving.generation
         effective_configuration["retrieval_settings_id"] = serving.retrieval_settings_id
+        effective_configuration["generation_configuration_id"] = (
+            serving.generation_configuration_id
+        )
     diagnostic_threshold = (
         UNINGESTED_SIMILARITY_THRESHOLD if request.mode is ResearchMode.QUICK else None
     )
@@ -144,7 +166,7 @@ def build_provenance(
         effective_configuration["uningested_similarity_threshold"] = (
             diagnostic_threshold
         )
-    return RunProvenance(
+    provenance = RunProvenance(
         snapshot_id=snapshot_id,
         retrieval_profile_id=serving.retrieval_profile_id,
         configuration_id=configuration_id(effective_configuration),
@@ -157,7 +179,40 @@ def build_provenance(
         generation=serving.generation,
         retrieval_settings_id=serving.retrieval_settings_id,
         uningested_similarity_threshold=diagnostic_threshold,
+        provenance_version=PROVENANCE_VERSION,
+        prompt_fingerprints=fingerprints,
+        tool_schema_digest=schema_digest,
+        decoding=decoding,
+        generation_configuration_id=serving.generation_configuration_id,
     )
+    return EffectiveConfiguration(
+        payload=effective_configuration,
+        provenance=provenance,
+    )
+
+
+def build_provenance(
+    *,
+    run_id: UUID,
+    request: ResearchRequest,
+    serving: ServingIdentity,
+    model: ModelIdentity,
+    thinking: frozenset[CallKind],
+    budgets: RunBudgets,
+    code_revision: str,
+    decoding: DecodingSettings | None = None,
+) -> RunProvenance:
+    """Build stable provenance for the effective run configuration."""
+    return build_effective_configuration(
+        run_id=run_id,
+        request=request,
+        serving=serving,
+        model=model,
+        thinking=thinking,
+        budgets=budgets,
+        code_revision=code_revision,
+        decoding=decoding,
+    ).provenance
 
 
 def classify_failure(error: BaseException) -> FailureCategory:
@@ -202,6 +257,7 @@ class RunnerDependencies:
     clock: Callable[[], float] = time.monotonic
     ingestion: IngestionStatusSource | None = None
     serving_resolver: Callable[[], Awaitable[ServingIdentity]] | None = None
+    decoding: DecodingSettings | None = None
 
 
 class _ActivePauses:
@@ -304,6 +360,7 @@ class ResearchRunner:
                 thinking=self._deps.thinking,
                 budgets=self._deps.budgets,
                 code_revision=self._deps.code_revision,
+                decoding=self._deps.decoding,
             )
             if resuming and stored.configuration_id != provenance.configuration_id:
                 return await self._fail_early(

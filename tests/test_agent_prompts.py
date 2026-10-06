@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
 import pytest
 
 from research_platform.agents import prompts, tool_schemas
@@ -14,6 +18,31 @@ PACKED = PackedEvidence(
     included=("E1",),
     omitted=("E2",),
 )
+
+
+def test_prompt_text_changes_require_new_version() -> None:
+    golden = json.loads(
+        (Path(__file__).with_name("prompt_fingerprints.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    fingerprints = prompts.prompt_fingerprints()
+    for name, version in prompts.PROMPT_VERSIONS.items():
+        assert version in golden, (
+            f"new prompt version {version}: add its fingerprint to "
+            "tests/prompt_fingerprints.json"
+        )
+        assert golden[version] == fingerprints[name], (
+            f"prompt {name!r} changed without a new version label: bump "
+            f"PROMPT_VERSIONS[{name!r}] and add the new fingerprint"
+        )
+
+
+def test_prompt_fingerprints_cover_every_prompt() -> None:
+    fingerprints = prompts.prompt_fingerprints()
+
+    assert set(fingerprints) == set(prompts.PROMPT_VERSIONS)
+    assert all(re.fullmatch(r"[0-9a-f]{64}", value) for value in fingerprints.values())
 
 
 def test_every_prompt_starts_with_the_system_prompt() -> None:

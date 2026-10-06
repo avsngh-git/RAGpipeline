@@ -19,8 +19,10 @@ from research_platform.ingestion.generation_index import (
 from research_platform.ingestion.indexing import IndexConfiguration, VectorEmbedder
 from research_platform.ingestion.paper_index import SparsePaperEncoder
 from research_platform.observability.logging_config import configure_logging
+from research_platform.observability.metrics import render_metrics
 from research_platform.observability.request_context import RequestIDMiddleware
 from research_platform.observability.request_logging import RequestLoggingMiddleware
+from research_platform.observability.request_metrics import HttpMetricsMiddleware
 from research_platform.services.readiness import (
     LiveDependencyChecker,
     ReadinessChecker,
@@ -187,6 +189,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.phase2_services = api_services
+    app.add_middleware(HttpMetricsMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)
     app.add_exception_handler(AppError, handle_app_error)
@@ -203,6 +206,11 @@ def create_app(
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics() -> Response:
+        body, content_type = render_metrics()
+        return Response(content=body, media_type=content_type)
 
     @app.get("/ready", response_model=ReadyResponse)
     async def ready(response: Response) -> ReadyResponse:
@@ -243,7 +251,7 @@ async def _build_research_services(
     from research_platform.agents.graph_quick import build_quick_graph
     from research_platform.config import DiscoverySettings
     from research_platform.ingestion.provenance import code_revision
-    from research_platform.llm.ollama import OllamaClient
+    from research_platform.llm.ollama import OllamaClient, decoding_settings
     from research_platform.runs.checkpointing import open_checkpointer
     from research_platform.runs.contracts import ResearchMode, RunBudgets
     from research_platform.runs.executor import RunExecutor
@@ -306,6 +314,7 @@ async def _build_research_services(
             ingestion=IngestionQueue(runtime.pool),
             serving_resolver=lambda: resolve_serving_identity(settings, runtime.pool),
             code_revision=code_revision(),
+            decoding=decoding_settings(settings),
             graphs={
                 ResearchMode.QUICK: build_quick_graph,
                 ResearchMode.DEEP_RESEARCH: build_deep_graph,
