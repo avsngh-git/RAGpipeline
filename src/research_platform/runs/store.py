@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import timedelta
 from typing import Protocol
 from uuid import UUID
@@ -93,5 +93,17 @@ class RunStore(Protocol):
     ) -> None: ...
 
     async def get_run_view(self, run_id: UUID) -> ResearchRunView: ...
+
+    async def save_run_configuration(
+        self,
+        configuration_id: str,
+        configuration: Mapping[str, object],
+        *,
+        provenance_version: int,
+    ) -> None: ...
+
+    async def load_run_configuration(
+        self, configuration_id: str
+    ) -> dict[str, object]: ...
 
     async def prune(self, *, older_than: timedelta) -> tuple[UUID, ...]: ...

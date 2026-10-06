@@ -346,7 +346,7 @@ class ResearchRunner:
             )
         try:
             model = await self._deps.llm.identity()
-            provenance = build_provenance(
+            effective = build_effective_configuration(
                 run_id=run_id,
                 request=stored.request,
                 serving=serving,
@@ -356,6 +356,7 @@ class ResearchRunner:
                 code_revision=self._deps.code_revision,
                 decoding=self._deps.decoding,
             )
+            provenance = effective.provenance
             if resuming and stored.configuration_id != provenance.configuration_id:
                 return await self._fail_early(
                     run_id,
@@ -369,6 +370,11 @@ class ResearchRunner:
                     stored.active_seconds,
                 )
 
+            await self._deps.repository.save_run_configuration(
+                provenance.configuration_id,
+                effective.payload,
+                provenance_version=provenance.provenance_version,
+            )
             await self._deps.repository.mark_running(run_id, provenance=provenance)
             remaining = self._deps.budgets.max_active_seconds - stored.active_seconds
             if remaining <= 0:

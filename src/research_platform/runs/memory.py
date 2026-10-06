@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -18,8 +19,11 @@ from research_platform.runs.contracts import (
     RunProvenance,
     RunStatus,
     RunUsage,
+    configuration_id,
 )
 from research_platform.runs.repository import (
+    ConfigurationMismatch,
+    ConfigurationNotFound,
     EvidenceRecord,
     InvalidRunTransition,
     RunNotFound,
@@ -40,6 +44,7 @@ class InMemoryRunStore:
         self._tool_calls: dict[UUID, dict[int, ToolCallRecord]] = {}
         self._evidence: dict[UUID, dict[str, EvidenceRecord]] = {}
         self.generations: dict[UUID, int | None] = {}
+        self._configurations: dict[str, dict[str, object]] = {}
 
     async def create_run(
         self, request: ResearchRequest, *, generation: int | None = None
@@ -325,6 +330,29 @@ class InMemoryRunStore:
             completed_at=run.completed_at,
         )
 
+    async def save_run_configuration(
+        self,
+        configuration_id: str,
+        configuration: Mapping[str, object],
+        *,
+        provenance_version: int,
+    ) -> None:
+        if _hash(configuration) != configuration_id:
+            raise ValueError("configuration_id does not match the configuration")
+        if provenance_version < 1:
+            raise ValueError("provenance_version must be at least 1")
+        stored = self._configurations.setdefault(
+            configuration_id, _json_copy(configuration)
+        )
+        if _hash(stored) != configuration_id:
+            raise ConfigurationMismatch(configuration_id)
+
+    async def load_run_configuration(self, configuration_id: str) -> dict[str, object]:
+        try:
+            return _json_copy(self._configurations[configuration_id])
+        except KeyError:
+            raise ConfigurationNotFound(configuration_id) from None
+
     async def prune(self, *, older_than: timedelta) -> tuple[UUID, ...]:
         if older_than <= timedelta(0):
             raise ValueError("older_than must be positive")
@@ -379,6 +407,17 @@ def _validate_claim_evidence(
         for handle, identity in requested.items()
     ):
         raise ValueError("claim evidence must match evidence stored for this run")
+
+
+def _hash(configuration: Mapping[str, object]) -> str:
+    return configuration_id(configuration)
+
+
+def _json_copy(configuration: Mapping[str, object]) -> dict[str, object]:
+    copied = json.loads(json.dumps(configuration, sort_keys=True, default=str))
+    if not isinstance(copied, dict):
+        raise ValueError("configuration must be a JSON object")
+    return copied
 
 
 def _nonnegative_finite(value: float, name: str) -> None:
