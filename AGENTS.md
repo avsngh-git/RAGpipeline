@@ -27,7 +27,9 @@ The user delegated Phase 2 implementation and source review to the agent;
 record new judgments as assistant-reviewed.
 For Phase 3 planning or review, read `docs/plans/phase-3-agent-handoff.md`, then
 `docs/plans/phase-3-agent-answers.md`. A Phase 3 implementer follows its GitHub
-issue card. These handoffs own phase-specific
+issue card. For Phase 4, read `docs/plans/phase-4-agent-handoff.md`, then
+`docs/plans/phase-4-observability-security.md`; a Phase 4 implementer follows its
+GitHub issue card under map issue #77. These handoffs own phase-specific
 progress and delegation. Otherwise default to tutoring for the user's Python learning.
 
 ### Issue tracker
