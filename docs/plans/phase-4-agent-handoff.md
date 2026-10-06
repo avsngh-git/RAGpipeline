@@ -22,6 +22,7 @@ The [plan](phase-4-observability-security.md) and map issue
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
 | P4-01 (#78) | done | PR #116 | ADRs 0026–0028 accepted 2026-10-06; plan, handoff, owner decisions, source of truth 1.39 |
+| P4-02 (#79) | in review | branch `phase4/p4-02-spike` | OpenTelemetry 1.45.0 and prometheus_client 0.26.0 in the lock; pins, Prometheus networking (bridge + `host.docker.internal`), memory (with Langfuse: peak 9,650 MiB used, 2,314 MiB available) and rendering in the [spike report](../reference/phase-4-langfuse-spike.md) |
 
 ## Environment facts
 
