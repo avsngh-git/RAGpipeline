@@ -4,7 +4,7 @@
 **Version:** 1.39\
 **Last updated:** 2026-10-06\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 proposed ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77))\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77))\
 
 ---
 
@@ -218,12 +218,12 @@ These choices MUST be evaluated or recorded in ADRs before being treated as perm
 - local LLM serving implementation between supported adapters (Phase 3: Ollama, ADR-0018);
 - background execution mechanism for long research runs (Phase 3: in-process worker with LangGraph checkpoints, [ADR-0019](../adr/0019-phase3-research-run-execution.md)) and later API-controlled ingestion (Phase 1 uses resumable terminal commands);
 - production/demo hosting provider;
-- authentication mechanism for the deployed demo (Phase 4: hashed API keys with scopes, [ADR-0027](../adr/0027-phase4-authentication-and-rate-limits.md), proposed);
+- authentication mechanism for the deployed demo (Phase 4: hashed API keys with scopes, [ADR-0027](../adr/0027-phase4-authentication-and-rate-limits.md));
 - caching implementation;
 - frontend framework;
 - broader ML corpus expansion and exact full-text adapters (initial corpus policy is fixed in Section 8.6);
 - citation graph representation details within PostgreSQL;
-- exact experiment/configuration tracking persistence beyond Langfuse traces (Phase 4: `run_configurations` and `experiments` tables in PostgreSQL, [ADR-0026](../adr/0026-phase4-observability-and-run-records.md) and [ADR-0028](../adr/0028-phase4-experiment-records-and-gate.md), proposed).
+- exact experiment/configuration tracking persistence beyond Langfuse traces (Phase 4: `run_configurations` and `experiments` tables in PostgreSQL, [ADR-0026](../adr/0026-phase4-observability-and-run-records.md) and [ADR-0028](../adr/0028-phase4-experiment-records-and-gate.md)).
 
 Candidates MAY be benchmarked in notebooks, but benchmark results and hardware feasibility MUST justify final selection.
 
@@ -1412,7 +1412,7 @@ Gate evidence (development only; labels and live judgments assistant-reviewed):
 
 ### Phase 4 — Observability, LLMOps, and security
 
-**Status: planned on 2026-10-06; ADRs proposed, awaiting owner acceptance.** The
+**Status: planned; ADRs accepted by the owner on 2026-10-06.** The
 [Phase 4 plan](../plans/phase-4-observability-security.md), map issue
 [#77](https://github.com/avsngh-git/RAGpipeline/issues/77) (cards #78–#114),
 [handoff](../plans/phase-4-agent-handoff.md) and
@@ -1535,7 +1535,7 @@ Resolve these progressively; do not decide all of them before evidence is availa
    checkpoints; terminal-driven resumable ingestion is settled for Phase 1. **API- and
    run-triggered ingestion resolved for Phase 3.5 (ADR-0024):** a PostgreSQL outbox claimed by a
    separate `research-worker` process.
-9. Authentication and caching implementations. **Authentication proposed for Phase 4
+9. Authentication and caching implementations. **Authentication resolved for Phase 4
    (ADR-0027):** hashed API keys with scopes and run ownership. Caching remains open.
 10. Production hosting target and cost envelope.
 11. Thin UI choice.
@@ -1547,7 +1547,7 @@ Resolve these progressively; do not decide all of them before evidence is availa
 13. Exact remote MCP SDK/transport version at implementation time.
 14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was
     retained after measuring the complete ten-paper source-artifact footprint. Run-data
-    retention is proposed in ADR-0026 (checkpoints 7/30 days, model-call text 90 days).
+    retention is set in ADR-0026 (checkpoints 7/30 days, model-call text 90 days).
 15. Advanced corpus-selection methods and expansion criteria beyond the required explainable shortlist and reviewed pilot manifests.
 
 Each resolution SHOULD be captured in an ADR or an explicit update here.

@@ -1,6 +1,6 @@
 # Phase 4 — Agent handoff
 
-Updated: 2026-10-06. **Status: planned; ADRs 0026–0028 proposed, awaiting owner acceptance.**
+Updated: 2026-10-06. **Status: ADRs 0026–0028 accepted by the owner on 2026-10-06; implementation open.**
 The [plan](phase-4-observability-security.md) and map issue
 [#77](https://github.com/avsngh-git/RAGpipeline/issues/77) define the cards; the
 [owner decisions](../reference/phase-4-owner-decisions.md) record the interview.
@@ -21,7 +21,7 @@ The [plan](phase-4-observability-security.md) and map issue
 
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
-| P4-01 (#78) | in review | branch `phase4/p4-01-adrs` | ADRs 0026–0028 proposed; plan, handoff, owner decisions, source of truth 1.39 |
+| P4-01 (#78) | done | branch `phase4/p4-01-adrs` | ADRs 0026–0028 accepted 2026-10-06; plan, handoff, owner decisions, source of truth 1.39 |
 
 ## Environment facts
 

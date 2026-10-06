@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-06
 ---
 
 # Phase 4: experiment records, the injection suite and the Phase 4 gate
 
-Proposed on 2026-10-06 after the Phase 4 planning interview, in which the owner chose the
+Accepted by the project owner on 2026-10-06, after the Phase 4 planning interview, in which the owner chose the
 options recorded here ([owner decisions](../reference/phase-4-owner-decisions.md), Q6–Q8,
 Q16, Q17). It makes the Phase 4 gate in source-of-truth section 21 checkable, and applies
 sections 13.3 (experiment record) and 15.1 (RAG threat model).

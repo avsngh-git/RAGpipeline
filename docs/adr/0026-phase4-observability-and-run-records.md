@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-06
 ---
 
 # Phase 4: observability, run records and provenance version 2
 
-Proposed on 2026-10-06 after the Phase 4 planning interview, in which the owner chose
+Accepted by the project owner on 2026-10-06, after the Phase 4 planning interview, in which the owner chose
 every option recorded here ([owner decisions](../reference/phase-4-owner-decisions.md),
 Q1–Q4, Q12–Q14). Implemented by the cards under map issue
 [#77](https://github.com/avsngh-git/RAGpipeline/issues/77).

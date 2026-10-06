@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-06
 ---
 
 # Phase 4: API-key authentication, run ownership, rate limits and scanning
 
-Proposed on 2026-10-06 after the Phase 4 planning interview, in which the owner chose the
+Accepted by the project owner on 2026-10-06, after the Phase 4 planning interview, in which the owner chose the
 options recorded here ([owner decisions](../reference/phase-4-owner-decisions.md), Q5,
 Q10, Q11, Q15). It resolves open decision 9 (authentication) in source-of-truth section 23
 and applies the baseline controls of section 15.

@@ -57,6 +57,13 @@ Evidence available at the time:
 - **Consequence:** every agent card carries its own rules, exact signatures, numbered steps,
   test names and a "stop and ask" list. Cards never touch live data.
 
+### 3. ADR acceptance (2026-10-06, P4-01)
+
+- **Decision:** accepted ADR-0026, ADR-0027 and ADR-0028 as written, and asked for P4-01 to
+  be pushed with a pull request. Implementation of the remaining cards goes to Codex Luna
+  agents.
+- **Record:** [#78](https://github.com/avsngh-git/RAGpipeline/issues/78).
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
