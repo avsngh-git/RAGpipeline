@@ -261,6 +261,21 @@ async def test_runner_saves_effective_configuration() -> None:
     assert configuration_id(stored) == view.provenance.configuration_id
 
 
+@pytest.mark.anyio
+async def test_runner_records_every_model_call() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    runner = _runner(store, ScriptedLLM(_SUCCESS, identity=_IDENTITY))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    view = await store.get_run_view(run_id)
+    calls = await store.list_llm_calls(run_id)
+
+    assert len(calls) == view.usage.model_calls == 1
+    assert calls[0].record.kind is CallKind.SYNTHESIZE
+    assert calls[0].record.status == "succeeded"
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
