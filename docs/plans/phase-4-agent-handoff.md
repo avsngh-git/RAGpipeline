@@ -21,7 +21,7 @@ The [plan](phase-4-observability-security.md) and map issue
 
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
-| P4-01 (#78) | done | branch `phase4/p4-01-adrs` | ADRs 0026–0028 accepted 2026-10-06; plan, handoff, owner decisions, source of truth 1.39 |
+| P4-01 (#78) | done | PR #116 | ADRs 0026–0028 accepted 2026-10-06; plan, handoff, owner decisions, source of truth 1.39 |
 
 ## Environment facts
 
