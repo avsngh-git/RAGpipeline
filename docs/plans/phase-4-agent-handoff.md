@@ -24,7 +24,10 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-01 (#78) | done | PR #116 | ADRs 0026–0028 accepted 2026-10-06; plan, handoff, owner decisions, source of truth 1.39 |
 | P4-02 (#79) | done | PR #117 | OpenTelemetry 1.45.0 and prometheus_client 0.26.0 in the lock; pins, Prometheus networking (bridge + `host.docker.internal`), memory (with Langfuse: peak 9,650 MiB used, 2,314 MiB available) and rendering in the [spike report](../reference/phase-4-langfuse-spike.md) |
 | P4-03 (#80) | done | PR #120 | Provenance version 2; golden `tests/prompt_fingerprints.json` |
-| P4-04 (#81) | in review | branch `phase4/p4-04-run-configurations` | Migration 022 `run_configurations`; the runner saves each effective configuration; implemented by the planning session |
+| P4-04 (#81) | done | PR #122 | Migration 022 `run_configurations`; the runner saves each effective configuration (planning session) |
+| P4-05 (#82) | done | PR #123 | Migration 023 `llm_calls` and `llm_call_payloads`; `append_llm_call` / `list_llm_calls` (planning session) |
+| P4-06 (#83) | done | PR #124 | `RecordingLLMClient` records every model call; payloads only at trace content `full` (planning session) |
+| P4-07 (#84) | done | PR #125 | Migration 024 `draft_claims` and `research_runs.synthesis`; verdicts per drafted claim. Also added `ClaimVerdict`, `DraftClaimOutcome` and `SynthesisSummary` to the checkpoint serializer allow-list (not in the card) (planning session) |
 | P4-08 (#85) | done | PR #118 | Run fields in JSON logs, run ID context, request ID into the run task, JSON worker logs; merge with P4-03 resolved one import conflict in `runner.py` |
 | P4-09 (#86) | done | PR #119 | Metrics module and `/metrics`; HTTP metrics by route template |
 | P4-29 (#106) | done | PR #121 | Trivy image and secret scans; seven owner-approved exceptions expire 2026-11-06 (owner decision 4) |
