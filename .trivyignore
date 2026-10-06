@@ -1,0 +1,3 @@
+# One accepted finding per line:
+#   <CVE-or-GHSA-id> # reason: <why it is accepted>; expires: YYYY-MM-DD
+# tests/test_trivyignore.py rejects entries without a reason or past their expiry.
