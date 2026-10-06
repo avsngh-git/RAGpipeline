@@ -64,6 +64,24 @@ Evidence available at the time:
   agents.
 - **Record:** [#78](https://github.com/avsngh-git/RAGpipeline/issues/78).
 
+### 4. Trivy exceptions instead of upgrades (2026-10-06, P4-29)
+
+- **Decision:** the first Trivy image scan reported seven fixable HIGH findings. The owner
+  chose dated `.trivyignore` exceptions, expiring 2026-11-06, over upgrading packages within
+  the scanner card.
+- **Evidence:** the findings were listed on
+  [#106](https://github.com/avsngh-git/RAGpipeline/issues/106):
+  - CVE-2026-84782 in Ubuntu `openssl`/`libssl3t64`, 3.0.13-0ubuntu3.15 (fixed in
+    0ubuntu3.16);
+  - GHSA-6v7p-g79w-8964 in `msgpack` 1.1.2 (fixed in 1.2.1);
+  - CVE-2025-47273 in `setuptools` 70.3.0 (fixed in 78.1.1);
+  - CVE-2026-97687 and CVE-2026-97689 in `urllib3` 2.7.0 (fixed in 2.8.0);
+  - GHSA-36hh-v3qg-5jq4 in `pyo3` 0.25.1 (fixed in 0.29.0);
+  - GHSA-4w2j-m93h-cj5j in `quinn-proto` 0.11.14 (fixed in 0.11.15).
+- **Alternatives set aside:** upgrading the base image and the Conda lock in P4-29.
+- **Re-examine:** before 2026-11-06, when `tests/test_trivyignore.py` starts failing CI on
+  the expired entries. Upgrade the packages and remove the entries.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial

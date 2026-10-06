@@ -25,6 +25,7 @@ from research_platform.runs.contracts import (
     RunStatus,
     RunUsage,
     SupportLabel,
+    configuration_id,
 )
 
 
@@ -34,6 +35,14 @@ class RunNotFound(LookupError):
 
 class InvalidRunTransition(RuntimeError):
     """A run lifecycle operation is invalid for its current status."""
+
+
+class ConfigurationNotFound(LookupError):
+    """No stored effective configuration has the requested ID."""
+
+
+class ConfigurationMismatch(ValueError):
+    """A stored configuration does not hash to its configuration ID."""
 
 
 @dataclass(frozen=True)
@@ -583,6 +592,45 @@ class RunRepository:
             completed_at=run_row["completed_at"],
         )
 
+    async def save_run_configuration(
+        self,
+        configuration_id: str,
+        configuration: Mapping[str, object],
+        *,
+        provenance_version: int,
+    ) -> None:
+        """Store an effective configuration once under its content hash."""
+        _check_configuration_id(configuration_id, configuration)
+        async with self._pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO run_configurations
+                    (configuration_id, provenance_version, configuration)
+                VALUES ($1, $2, $3::jsonb)
+                ON CONFLICT (configuration_id) DO NOTHING
+                """,
+                configuration_id,
+                provenance_version,
+                _configuration_json(configuration),
+            )
+            stored = await connection.fetchval(
+                "SELECT configuration FROM run_configurations WHERE configuration_id = $1",
+                configuration_id,
+            )
+        if _configuration_hash(_json_mapping(stored)) != configuration_id:
+            raise ConfigurationMismatch(configuration_id)
+
+    async def load_run_configuration(self, configuration_id: str) -> dict[str, object]:
+        """Return the stored effective configuration with this ID."""
+        async with self._pool.acquire() as connection:
+            stored = await connection.fetchval(
+                "SELECT configuration FROM run_configurations WHERE configuration_id = $1",
+                configuration_id,
+            )
+        if stored is None:
+            raise ConfigurationNotFound(configuration_id)
+        return _json_mapping(stored)
+
     async def prune(self, *, older_than: timedelta) -> tuple[UUID, ...]:
         """Delete old terminal runs and return the removed IDs."""
         if older_than <= timedelta(0):
@@ -733,6 +781,19 @@ def _json_mapping(value: object) -> dict[str, object]:
     if not isinstance(value, Mapping):
         raise ValueError("stored JSON value must be an object")
     return dict(value)
+
+
+def _configuration_hash(configuration: Mapping[str, object]) -> str:
+    return configuration_id(configuration)
+
+
+def _check_configuration_id(expected: str, configuration: Mapping[str, object]) -> None:
+    if _configuration_hash(configuration) != expected:
+        raise ValueError("configuration_id does not match the configuration")
+
+
+def _configuration_json(configuration: Mapping[str, object]) -> str:
+    return json.dumps(configuration, sort_keys=True, default=str)
 
 
 def _truncate_message(message: str) -> str:

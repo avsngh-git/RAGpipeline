@@ -46,3 +46,5 @@ discovery spend, and permits run-local abstract evidence while retaining databas
 checks that chunk evidence refers to indexed chunks.
 021_ingestion_requests.sql adds the transactional ingestion outbox, per-paper policy
 decisions, and the waiting-for-ingestion research-run state.
+022_run_configurations.sql stores each effective research-run configuration once, keyed by
+its SHA-256 configuration ID (ADR-0026).

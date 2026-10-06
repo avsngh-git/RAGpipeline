@@ -31,6 +31,7 @@ from research_platform.runs.contracts import (
     RunBudgets,
     RunStatus,
     RunUsage,
+    configuration_id,
 )
 from research_platform.runs.memory import InMemoryRunStore
 from research_platform.runs.repository import (
@@ -243,6 +244,21 @@ async def test_quick_run_completes_and_persists_claims() -> None:
         "search_papers",
         "search_evidence",
     ]
+
+
+@pytest.mark.anyio
+async def test_runner_saves_effective_configuration() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    runner = _runner(store, ScriptedLLM(_SUCCESS, identity=_IDENTITY))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    view = await store.get_run_view(run_id)
+
+    assert view.provenance is not None
+    stored = await store.load_run_configuration(view.provenance.configuration_id)
+    assert stored["provenance_version"] == 2
+    assert configuration_id(stored) == view.provenance.configuration_id
 
 
 @pytest.mark.parametrize(
