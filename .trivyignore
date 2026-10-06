@@ -1,10 +1,10 @@
 # One accepted finding per line:
 #   <CVE-or-GHSA-id> # reason: <why it is accepted>; expires: YYYY-MM-DD
 # tests/test_trivyignore.py rejects entries without a reason or past their expiry.
-CVE-2026-84782 # reason: temporarily accepted to keep P4-29 scoped to scanner rollout; expires: 2026-11-06
-GHSA-6v7p-g79w-8964 # reason: temporarily accepted to keep P4-29 scoped to scanner rollout; expires: 2026-11-06
-CVE-2025-47273 # reason: temporarily accepted to keep P4-29 scoped to scanner rollout; expires: 2026-11-06
-CVE-2026-97687 # reason: temporarily accepted to keep P4-29 scoped to scanner rollout; expires: 2026-11-06
-CVE-2026-97689 # reason: temporarily accepted to keep P4-29 scoped to scanner rollout; expires: 2026-11-06
-GHSA-36hh-v3qg-5jq4 # reason: temporarily accepted to keep P4-29 scoped to scanner rollout; expires: 2026-11-06
-GHSA-4w2j-m93h-cj5j # reason: temporarily accepted to keep P4-29 scoped to scanner rollout; expires: 2026-11-06
+CVE-2026-84782 # reason: owner accepted a temporary exception to avoid broader dependency changes in P4-29; expires: 2026-11-06
+GHSA-6v7p-g79w-8964 # reason: owner accepted a temporary exception to avoid broader dependency changes in P4-29; expires: 2026-11-06
+CVE-2025-47273 # reason: owner accepted a temporary exception to avoid broader dependency changes in P4-29; expires: 2026-11-06
+CVE-2026-97687 # reason: owner accepted a temporary exception to avoid broader dependency changes in P4-29; expires: 2026-11-06
+CVE-2026-97689 # reason: owner accepted a temporary exception to avoid broader dependency changes in P4-29; expires: 2026-11-06
+GHSA-36hh-v3qg-5jq4 # reason: owner accepted a temporary exception to avoid broader dependency changes in P4-29; expires: 2026-11-06
+GHSA-4w2j-m93h-cj5j # reason: owner accepted a temporary exception to avoid broader dependency changes in P4-29; expires: 2026-11-06
