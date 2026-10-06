@@ -7,7 +7,8 @@ quality is reported, not gated.
 **Wait-cap gate: pass** (9 of 9 ingestion-triggering runs within the cap, forced-trigger
 pass; not measurable in the natural pass, where the model never triggered ingestion).
 **Failure-category gate: pass** (no run failed in either pass). **Scripted CI cases:** all
-seven pass locally; hosted CI result is recorded with the pull request.
+seven pass locally and in hosted CI run
+[37361270869](https://github.com/avsngh-git/RAGpipeline/actions/runs/37361270869) on `faad169`.
 
 Question text, answers, run views and per-run records stay under ignored
 `local-reference/phase35/live/`; this report holds aggregates only.

@@ -101,10 +101,10 @@ both search and evidence content ([ADR-0022](../adr/0022-phase35-qdrant-search-a
 exported as below:
 
 ```bash
-CONFIG=configs/phase35-generation-index.example.json
+CONFIG=configs/phase35-generation-index-lexical.example.json   # the serving configuration
 research-ingest generations build --collection-name research-corpus \
   --snapshot-id <finalized snapshot> --configuration $CONFIG \
-  [--reuse-dense-configuration configs/phase2-gte-modernbert-base-index.example.json]
+  [--reuse-dense-generation-configuration <configuration with the same dense model>]
 research-ingest generations sync-papers --collection-name research-corpus \
   --configuration $CONFIG --generation <N>
 research-ingest generations verify --collection-name research-corpus \
@@ -137,6 +137,53 @@ The in-process BM25S path remains the fallback and the parity oracle. To serve i
 `RESEARCH_PLATFORM_PHASE2_PROFILE=benchmarks/phase2/frozen-profile-v10.toml` and
 `RESEARCH_PLATFORM_LEXICAL_INDEX_ROOT`, and build the lexical artifacts as described below.
 Qdrant still serves content and dense search in that mode.
+
+The runtime serves any published generation of the configured collection. When the frozen
+profile's own snapshot is not published in that collection (for example the leave-out
+corpus, `RESEARCH_PLATFORM_GENERATION_COLLECTION=leave-out-dev` with its configuration in
+`local-reference/phase35/leaveout-dev-generation-index.json`), the API serves the
+collection's published generation. New research runs pin the generation published when
+they start.
+
+`purge --apply` deletes only points no published generation or unfinished run can read.
+Never delete a Qdrant collection shared by several snapshots (for example
+`phase1-e5-small-v2`): remove one snapshot's points with a `snapshot_id` filter instead.
+
+## Online discovery and ingestion (Phase 3.5)
+
+[ADR-0024](../adr/0024-phase35-online-discovery-and-ingestion.md): in `deep_research` runs
+the agent may call `discover_papers` (OpenAlex search, abstracts as labelled evidence) and
+`request_ingestion`; `POST /v1/collections/{collection_id}/ingest` uses the same path.
+Code decides every proposed paper (`online-membership-v1`) and records it in
+`ingestion_decisions`; accepted papers become one `ingestion_requests` row.
+
+- **Budgets** (`DiscoverySettings`): 10 OpenAlex searches and 5 downloads per run, 5 papers
+  per wait, a daily spend cap of $0.50 shared by all runs, English and 2020 onward. A
+  `deep_research` run waits at most `max_ingestion_wait_seconds` (900) for its request,
+  outside its active-time budget, then switches once to the newly published generation.
+- **OpenAlex key:** discovery and OpenAlex content downloads need `OPENALEX_API_KEY`.
+- **Worker:** a separate process in the host Conda environment, one request at a time:
+
+  ```bash
+  RESEARCH_PLATFORM_INGESTION_HANDLER=online \
+  RESEARCH_PLATFORM_ARTIFACT_ROOT=data/artifacts \
+  research-worker            # SIGINT or SIGTERM stops it cleanly
+  ```
+
+  It claims requests with leases (a crashed worker's request is reclaimed), holds the
+  PostgreSQL GPU advisory lock, unloads the Ollama model, acquires each permitted PDF
+  (exact-file permission, reusing a stored copy), extracts with Docling, chunks with the
+  published snapshot's chunking configuration, then finalizes a child snapshot
+  (`policy:online-ingestion-v1`) and builds, verifies and publishes the next generation.
+  Papers without a permitted route stay metadata-only; a paper whose extraction needs a
+  manual flagged-table review is refused (`validation:flagged_table_review_pending`).
+- **Docling** is the repository's pinned `pdf` extra. Install it without changing the CUDA
+  PyTorch build: install `torchvision` from the PyTorch index matching the installed
+  `torch`, then the `pdf` pins with a constraints file that holds `torch`, `numpy` and
+  `transformers`. RapidOCR downloads its OCR models on first use.
+- **Average-length drift:** when a new generation's evidence average length drifts more
+  than 10% from the configuration, the generation details record
+  `new_configuration_recommended`; a new configuration is not created automatically.
 
 ## Start local dependencies
 

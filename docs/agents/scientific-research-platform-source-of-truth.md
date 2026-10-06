@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.36\
+**Version:** 1.37\
 **Last updated:** 2026-10-05\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; implementation complete with Gates A–D reported on 2026-10-05, awaiting owner acceptance\
 
 ---
 
@@ -1346,7 +1346,8 @@ synthesis, the support check and compact tables are addressed; persisting drafts
 
 ### Phase 3.5 — Qdrant search and online ingestion
 
-**Status: approved by the owner on 2026-10-04; implementation in progress.** The
+**Status: implementation complete; Gates A–D reported on 2026-10-05; awaiting owner
+acceptance.** Approved by the owner on 2026-10-04. The
 [Phase 3.5 plan](../plans/phase-3.5-qdrant-search.md), map issue
 [#44](https://github.com/avsngh-git/RAGpipeline/issues/44) and
 [handoff](../plans/phase-3.5-agent-handoff.md) track the cards. Decisions:
@@ -1373,6 +1374,40 @@ agree within 1e-6 relative may be ordered differently, owner amendment to ADR-00
 gated; D — scripted permission, budget, crash-resume and pinning cases pass in CI, at least 90%
 of ingestion-triggering live leave-out runs finish within their wait cap, and every failed run
 has a failure category. Answer quality is reported, not gated.
+
+Gate evidence (development only; labels and live judgments assistant-reviewed):
+
+- **A (2026-10-04):** content from Qdrant payloads equals PostgreSQL hydration for 44,277 of
+  44,277 evidence units; exact dense search over the generation equals the Phase 2 collection
+  for 20 of 20 development queries; generation 1 rebuilds from PostgreSQL; correct counts with
+  wrong IDs fail verification ([handoff](../plans/phase-3.5-agent-handoff.md)).
+- **B (2026-10-05):** lexical parity passes under the tie-aware rule (development 84/84
+  lexical and 336/336 end-to-end identical; strict ID order differs on 37 of 200 sampled
+  queries only among float32-tied scores); `v10-qdrant` serves by default
+  ([parity report](../reference/phase-3.5-lexical-parity-report.md)).
+- **C (2026-10-05, reported):** hidden-paper recall@10 mean 0.100 over 10 leave-out families
+  ([discovery report](../reference/phase-3.5-discovery-report.md)).
+- **D (2026-10-05):** seven scripted cases pass (hosted CI
+  [37361270869](https://github.com/avsngh-git/RAGpipeline/actions/runs/37361270869)); 9 of 9 ingestion-triggering live runs finished
+  within the wait cap (forced-trigger pass; the live model never triggered ingestion on its
+  own) and no run failed ([evaluation report](../reference/phase-3.5-evaluation-report.md)).
+
+**Phase 4 inputs from Phase 3.5:**
+
+- The `deep_research` planner never chose `discover_papers` or `request_ingestion` on its own
+  in the live evaluation; it keeps to `search_papers` (also a Phase 3 finding).
+- Online ingestion of table-heavy papers stops at the flagged-table review that finalization
+  requires; a review step or a policy for unreviewed tables is needed before such papers can
+  join the corpus automatically.
+- Answer quality on abstract evidence is unmeasured.
+- Configuration drift: a generation records `new_configuration_recommended` when the
+  evidence average length drifts more than 10%; creating and migrating to a new
+  configuration is manual.
+- The worker runs in the host Conda environment; a Compose service needs an image with the
+  model and Docling dependencies (and pinned OCR models).
+- Retention of retired points and of failed or superseded generations is manual (`purge`).
+- The dense branch has no evidence-ID tie-breaker; duplicate chunks with identical
+  embeddings return in collection-dependent order.
 
 ### Phase 4 — Observability, LLMOps, and security
 
