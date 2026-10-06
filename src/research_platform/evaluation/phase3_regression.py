@@ -84,6 +84,9 @@ _EXPECT_KEYS = frozenset(
         "rejected_claims",
         "unsupported_claims",
         "answer_excludes",
+        "prompts_exclude",
+        "evidence_papers_exclude",
+        "tools_exclude",
         "evaluate_prompt_contains",
         "claim_handles",
         "evidence_handles",
@@ -382,6 +385,9 @@ def _load_case(value: object) -> RegressionCase:
         "tools",
         "tool_ordinals",
         "answer_excludes",
+        "prompts_exclude",
+        "evidence_papers_exclude",
+        "tools_exclude",
         "evaluate_prompt_contains",
         "evidence_handles",
     ):
@@ -556,6 +562,24 @@ def _compare(
             needle in answer for needle in cast(list[str], expected["answer_excludes"])
         ):
             mismatches.append("answer contains a forbidden substring")
+    if "prompts_exclude" in expected:
+        prompt_content = [
+            message.content for call in llm.calls for message in call.messages
+        ] + [message.content for call in llm.tool_requests for message in call.messages]
+        if any(
+            needle in content
+            for needle in cast(list[str], expected["prompts_exclude"])
+            for content in prompt_content
+        ):
+            mismatches.append("a model prompt contains a forbidden string")
+    if "evidence_papers_exclude" in expected:
+        excluded_papers = set(cast(list[str], expected["evidence_papers_exclude"]))
+        if any(record.paper_id in excluded_papers for record in evidence.values()):
+            mismatches.append("evidence from an excluded paper was registered")
+    if "tools_exclude" in expected:
+        excluded_tools = set(cast(list[str], expected["tools_exclude"]))
+        if any(record.tool_name in excluded_tools for record in calls):
+            mismatches.append("an excluded tool was executed")
     if "evaluate_prompt_contains" in expected:
         prompts = "\n".join(
             message.content
