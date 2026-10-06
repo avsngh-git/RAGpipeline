@@ -1,6 +1,6 @@
 # Phase 3.5 — Agent handoff
 
-Updated: 2026-10-05. **Status: implementation complete; Gates A–D reported; awaiting owner acceptance.** The owner
+Updated: 2026-10-06. **Status: accepted by the owner on 2026-10-06.** Owner judgement calls are recorded in the [owner decisions](../reference/phase-3.5-owner-decisions.md). The owner
 accepted ADRs [0022](../adr/0022-phase35-qdrant-search-and-content.md),
 [0023](../adr/0023-phase35-index-generations.md) and
 [0024](../adr/0024-phase35-online-discovery-and-ingestion.md) on 2026-10-04 and asked for the
@@ -52,7 +52,7 @@ cards to be implemented one at a time, with one commit per card.
 | P35-27 (#71) | done | bdb4f3b | Deep runs wait for their ingestion request in a `wait_ingestion` node (status `waiting_for_ingestion`, polled every 5 s, cap `max_ingestion_wait_seconds` 900 measured from the request's `created_at`), then switch to the newly published generation once (`switch_generation` records an `ingestion_wait` tool call) or record `ingestion_wait_cap`. A second `request_ingestion` is rejected (`ingestion_already_requested`). Waiting is excluded from active time and the active deadline. Later tool calls use the switched generation; the run view shows the current generation and provenance keeps the starting one. Resumed runs rebuild provenance from their own pinned starting identity, and `mark_running` keeps a switched snapshot. Executor recovery order: running, waiting, queued. New runs pin the generation published when they first start (`serving_resolver`; follow-up commit) |
 | P35-28 (#72) | done | 73d018d | `POST /v1/collections/{collection_id}/ingest` (202 with per-paper decisions; `request_id` null when all are refused) and `GET /v1/collections/{collection_id}/ingest/{request_id}` (status, outcomes, generation) over the same membership policy and queue (`requested_by="api"`, up to 20 papers). 404 `collection_not_found`, 409 `collection_not_ready` (no published generation for the configured generation configuration), 404 for a request of another collection. Both routes are in the OpenAPI schema |
 | P35-29 (#73) | done | faad169 | **Gate D:** seven scripted cases pass (`tests/test_phase35_regression.py`; the worker-crash case needs PostgreSQL). Live on the leave-out corpus, see the [evaluation report](../reference/phase-3.5-evaluation-report.md): natural pass 10/10 completed but the model never triggered ingestion (wait gate not measurable); forced-trigger pass 9/9 ingestion-triggering runs within the wait cap, no failures; no hidden paper ingested because every re-extraction flagged a table for review. Fixed during the run: discovery sent `?` to OpenAlex (12 of 15 calls failed), and the API could not serve a collection whose published snapshot is not the frozen profile's |
-| P35-30 (#74) | in review | this change | Source of truth 1.37 (Phase 3.5 gate evidence and Phase 4 inputs), plan and handoff status, operations doc for the worker, online ingestion and serving other collections. Owner acceptance requested on #44 |
+| P35-30 (#74) | done | this change | Source of truth 1.37 (Phase 3.5 gate evidence and Phase 4 inputs), plan and handoff status, operations doc for the worker, online ingestion and serving other collections. Owner accepted on 2026-10-06; decisions in `docs/reference/phase-3.5-owner-decisions.md` |
 
 ## Environment facts
 

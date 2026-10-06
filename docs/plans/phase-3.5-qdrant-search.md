@@ -1,7 +1,7 @@
 # Phase 3.5 — Qdrant search and online ingestion
 
-Status: approved by the owner on 2026-10-04; implementation complete and Gates A–D reported on
-2026-10-05; awaiting owner acceptance. The answer-quality
+Status: accepted by the owner on 2026-10-06 (approved 2026-10-04). Owner judgement calls:
+[owner decisions](../reference/phase-3.5-owner-decisions.md). The answer-quality
 work it waited for is merged (ADR-0025). The decisions are in three accepted ADRs:
 
 - [ADR-0022](../adr/0022-phase35-qdrant-search-and-content.md): Qdrant search and content.

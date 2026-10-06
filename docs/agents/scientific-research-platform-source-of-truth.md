@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.37\
-**Last updated:** 2026-10-05\
+**Version:** 1.38\
+**Last updated:** 2026-10-06\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; implementation complete with Gates A–D reported on 2026-10-05, awaiting owner acceptance\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md))\
 
 ---
 
@@ -1346,8 +1346,9 @@ synthesis, the support check and compact tables are addressed; persisting drafts
 
 ### Phase 3.5 — Qdrant search and online ingestion
 
-**Status: implementation complete; Gates A–D reported on 2026-10-05; awaiting owner
-acceptance.** Approved by the owner on 2026-10-04. The
+**Status: accepted by the owner on 2026-10-06** after Gates A–D. The owner's judgement
+calls, including the two accepted with Gate D, are recorded in the
+[owner decisions](../reference/phase-3.5-owner-decisions.md). Approved on 2026-10-04. The
 [Phase 3.5 plan](../plans/phase-3.5-qdrant-search.md), map issue
 [#44](https://github.com/avsngh-git/RAGpipeline/issues/44) and
 [handoff](../plans/phase-3.5-agent-handoff.md) track the cards. Decisions:
