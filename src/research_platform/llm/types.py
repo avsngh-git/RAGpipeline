@@ -15,6 +15,17 @@ class CallKind(StrEnum):
     PROBE = "probe"
 
 
+class DecodingSettings(BaseModel):
+    """Model options the live adapter sends with every call."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    seed: int = Field(ge=0)
+    context_tokens: int = Field(ge=512)
+    timeout_seconds: float = Field(gt=0)
+    temperature: float | None = None
+
+
 class ModelIdentity(BaseModel):
     """Identifies the model and runtime used for a call."""
 

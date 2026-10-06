@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from typing import Final
@@ -85,6 +86,14 @@ def research_tool_definitions() -> list[dict[str, object]]:
             }
         )
     return tools
+
+
+def tool_schema_digest() -> str:
+    """Return a stable digest of the effective native tool schemas."""
+    serialized = json.dumps(
+        research_tool_definitions(), sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(serialized).hexdigest()
 
 
 def actions_from_tool_calls(
