@@ -2,7 +2,6 @@
 
 import asyncio
 from dataclasses import replace
-from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -24,6 +23,7 @@ from research_platform.search.lexical import (
     LexicalHit,
     LexicalSearchResult,
 )
+from research_platform.search.lexical_branches import LexicalBranchIdentity
 from research_platform.search.profiles import (
     CandidateLimits,
     DenseIndexIdentity,
@@ -84,7 +84,7 @@ def _dense_hit(evidence_id: str, rank: int, score: float) -> HydratedDenseHit:
 class _LexicalBranch:
     def __init__(self, profile: RetrievalProfile, result: LexicalSearchResult) -> None:
         self.profile = profile
-        self.manifest = SimpleNamespace(
+        self.identity = LexicalBranchIdentity(
             role="evidence",
             snapshot_status="finalized",
             profile_id=profile.profile_id,
@@ -95,7 +95,7 @@ class _LexicalBranch:
         self.error: Exception | None = None
         self.calls: list[tuple[str, int, SearchFilters]] = []
 
-    def search_with_stats(
+    async def search_with_stats(
         self,
         query: str,
         *,

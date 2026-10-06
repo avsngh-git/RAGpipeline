@@ -80,7 +80,7 @@ class PdfEvidenceProcessor:
         self,
         pool: asyncpg.Pool,
         *,
-        snapshot_id: UUID,
+        snapshot_id: UUID | None,
         artifact_root: Path,
         parser_config: DoclingPdfConfig,
         chunking_config: ChunkingConfig,
@@ -111,6 +111,8 @@ class PdfEvidenceProcessor:
             raise ValueError("source content review identity must be a SHA-256 ID")
         self._source_content_review_identity = source_content_review_identity
         self._reuse_snapshot_extractions = reuse_snapshot_extractions
+        if reuse_snapshot_extractions and snapshot_id is None:
+            raise ValueError("snapshot extraction reuse requires a snapshot")
         self._selected_extractions: dict[UUID, _SelectedExtractionCheckpoint] = {}
         self._prepared: PreparedPdfPipeline | None = None
 
@@ -389,18 +391,19 @@ class PdfEvidenceProcessor:
                     "the stored extraction does not match the selected source",
                     retryable=False,
                 )
-            if selected_checkpoint is None:
+            if selected_checkpoint is None and self._snapshot_id is not None:
                 await SnapshotRepository(self._pool).set_extraction(
                     self._snapshot_id, context.document_id, extraction_id
                 )
             cached_references: dict[str, object] = {
-                "snapshot_id": str(self._snapshot_id),
                 "extraction_id": str(extraction_id),
                 "source_artifact_id": str(artifact.association_id),
                 "configuration_id": expected_configuration_id,
                 "section_count": len(stored.result.sections),
                 "table_count": len(stored.result.tables),
             }
+            if self._snapshot_id is not None:
+                cached_references["snapshot_id"] = str(self._snapshot_id)
             return StageOutcome(
                 output_fingerprint=stored.output_fingerprint,
                 output_references=cached_references,
@@ -483,9 +486,10 @@ class PdfEvidenceProcessor:
         )
         try:
             persisted = await EvidenceRepository(self._pool).persist(result, ())
-            await SnapshotRepository(self._pool).set_extraction(
-                self._snapshot_id, context.document_id, extraction_id
-            )
+            if self._snapshot_id is not None:
+                await SnapshotRepository(self._pool).set_extraction(
+                    self._snapshot_id, context.document_id, extraction_id
+                )
         except ValueError:
             raise DocumentStageFailure(
                 "evidence_persistence_invalid",
@@ -493,7 +497,6 @@ class PdfEvidenceProcessor:
             ) from None
 
         output_references: dict[str, object] = {
-            "snapshot_id": str(self._snapshot_id),
             "extraction_id": str(extraction_id),
             "source_artifact_id": str(artifact.association_id),
             "configuration_id": prepared.extraction_configuration_id,
@@ -501,6 +504,8 @@ class PdfEvidenceProcessor:
             "table_count": persisted.table_count,
             "vision_review_table_ordinals": sorted(flagged),
         }
+        if self._snapshot_id is not None:
+            output_references["snapshot_id"] = str(self._snapshot_id)
         return StageOutcome(
             output_fingerprint=persisted.output_fingerprint,
             output_references=output_references,
@@ -615,13 +620,14 @@ class PdfEvidenceProcessor:
                 units,
                 chunking_configuration_id=prepared.chunking_configuration_id,
             )
-            await SnapshotRepository(self._pool).set_chunking_configuration(
-                self._snapshot_id,
-                context.document_id,
-                extraction_id,
-                prepared.chunking_configuration_id,
-                preserve_parent_non_text=self._reuse_snapshot_extractions,
-            )
+            if self._snapshot_id is not None:
+                await SnapshotRepository(self._pool).set_chunking_configuration(
+                    self._snapshot_id,
+                    context.document_id,
+                    extraction_id,
+                    prepared.chunking_configuration_id,
+                    preserve_parent_non_text=self._reuse_snapshot_extractions,
+                )
         except ValueError:
             raise DocumentStageFailure(
                 "evidence_persistence_invalid",

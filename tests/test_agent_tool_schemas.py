@@ -13,10 +13,10 @@ def _call(name: str, arguments: object) -> dict[str, object]:
     return {"function": {"name": name, "arguments": arguments}}
 
 
-def test_definitions_cover_six_tools_without_tool_property() -> None:
+def test_definitions_cover_eight_tools_without_tool_property() -> None:
     definitions = research_tool_definitions()
 
-    assert len(definitions) == 6
+    assert len(definitions) == 8
     for definition in definitions:
         function = definition["function"]
         assert isinstance(function, dict)
@@ -29,6 +29,34 @@ def test_definitions_cover_six_tools_without_tool_property() -> None:
         assert isinstance(properties, dict)
         assert "tool" not in properties
         assert "tool" not in parameters.get("required", [])
+
+
+def test_discover_papers_tool_definition() -> None:
+    definition = next(
+        item["function"]
+        for item in research_tool_definitions()
+        if item["function"]["name"] == "discover_papers"
+    )
+    assert definition["description"] == (
+        "search OpenAlex for papers not in the local corpus; returns candidates with "
+        "abstracts and whether they are already ingested"
+    )
+    parameters = definition["parameters"]
+    assert isinstance(parameters, dict)
+    properties = parameters["properties"]
+    assert isinstance(properties, dict)
+    assert properties["query"]["minLength"] == 1
+    assert properties["query"]["maxLength"] == 300
+    for year_field in ("year_from", "year_to"):
+        variants = properties[year_field]["anyOf"]
+        integer_variant = next(
+            variant for variant in variants if variant.get("type") == "integer"
+        )
+        assert integer_variant["minimum"] == 2020
+        assert integer_variant["maximum"] == 2100
+    assert properties["limit"]["default"] == 5
+    assert properties["limit"]["minimum"] == 1
+    assert properties["limit"]["maximum"] == 10
 
 
 def test_actions_from_tool_calls_parses_dict_and_string_arguments() -> None:

@@ -153,3 +153,57 @@ def test_snapshot_variant_migration_freezes_exact_chunk_selection() -> None:
     assert "INSERT INTO snapshot_item_chunks" in migration
     assert "prevent_finalized_snapshot_chunk_selection_change" in migration
     assert "ON DELETE RESTRICT" in migration
+
+
+def test_generation_migration_contains_registry_and_run_generation() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "018_index_generations.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE index_generations" in migration
+    assert "CREATE TABLE index_generation_pointers" in migration
+    assert "'building', 'verified', 'published', 'failed'" in migration
+    assert "parent_generation = generation - 1" in migration
+    assert "ALTER TABLE research_runs" in migration
+    assert "ADD COLUMN generation INTEGER" in migration
+
+
+def test_lexical_vocabulary_migration_is_append_only() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "019_lexical_vocabulary.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE lexical_vocabularies" in migration
+    assert "CREATE TABLE lexical_terms" in migration
+    assert "UNIQUE (vocabulary_id, term_id)" in migration
+    assert "BEFORE UPDATE OR DELETE ON lexical_terms" in migration
+
+
+def test_catalog_migration_contains_revisions_spend_and_abstract_evidence() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "020_catalog_discovery.sql"
+    ).read_text(encoding="utf-8")
+
+    for required in (
+        "CREATE TABLE paper_metadata_revisions",
+        "metadata_sha256",
+        "CREATE TABLE discovery_spend",
+        "idx_discovery_spend_date",
+        "idx_discovery_spend_run",
+        "evidence_kind IN ('chunk', 'abstract')",
+        "require_known_run_evidence_chunk",
+        "require_known_claim_evidence_source",
+        "foreign_key_violation",
+    ):
+        assert required in migration
+
+
+def test_ingestion_request_migration_adds_outbox_and_waiting_run_status() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations" / "021_ingestion_requests.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE ingestion_requests" in migration
+    assert "CREATE TABLE ingestion_decisions" in migration
+    assert "waiting_for_ingestion" in migration
+    assert "CHECK ((status = 'claimed') =" in migration

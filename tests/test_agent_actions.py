@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from research_platform.agents.actions import (
     ActionBatch,
+    DiscoverPapersAction,
     FindRelatedPapersAction,
     GetCitationsAction,
     GetPaperAction,
@@ -23,6 +24,7 @@ from research_platform.agents.actions import (
     [
         ("search_papers", {"query": "retrieval"}),
         ("search_evidence", {"query": "retrieval", "paper_ids": ["W1"]}),
+        ("discover_papers", {"query": "new paper discovery"}),
         ("get_paper", {"paper_id": "W1"}),
         ("get_citations", {"paper_id": "W1"}),
         ("get_references", {"paper_id": "W1"}),
@@ -81,6 +83,7 @@ def test_action_batch_json_schema_has_discriminator() -> None:
     schema = ActionBatch.model_json_schema()
     schema_text = json.dumps(schema)
     for tool in (
+        "discover_papers",
         "search_papers",
         "search_evidence",
         "get_paper",
@@ -119,3 +122,48 @@ def test_search_actions_reject_inverted_year_range(
         SearchPapersAction(tool="search_papers", query="retrieval", **values)
     with pytest.raises(ValidationError):
         SearchEvidenceAction(tool="search_evidence", query="retrieval", **values)
+
+
+def test_discover_action_validates_years_and_limit() -> None:
+    action = DiscoverPapersAction(
+        tool="discover_papers",
+        query="retrieval",
+        year_from=2020,
+        year_to=2100,
+        limit=10,
+    )
+    assert action.limit == 10
+    assert DiscoverPapersAction(tool="discover_papers", query="retrieval").limit == 5
+
+    for invalid in (
+        {"query": ""},
+        {"query": "q" * 301},
+        {"query": "retrieval", "year_from": 2019},
+        {"query": "retrieval", "year_to": 2101},
+        {"query": "retrieval", "year_from": 2025, "year_to": 2024},
+        {"query": "retrieval", "limit": 0},
+        {"query": "retrieval", "limit": 11},
+    ):
+        with pytest.raises(ValidationError):
+            DiscoverPapersAction.model_validate({"tool": "discover_papers", **invalid})
+
+
+def test_request_ingestion_action_limits() -> None:
+    from pydantic import ValidationError
+
+    from research_platform.agents.actions import RequestIngestionAction
+
+    valid = RequestIngestionAction(
+        tool="request_ingestion", paper_ids=("W1", "W2"), reason="  gap  "
+    )
+    assert valid.reason == "gap"
+    for paper_ids, reason in (
+        ((), "gap"),
+        (tuple(f"W{i}" for i in range(6)), "gap"),
+        (("W1",), ""),
+        (("W1",), "x" * 201),
+    ):
+        with pytest.raises(ValidationError):
+            RequestIngestionAction(
+                tool="request_ingestion", paper_ids=paper_ids, reason=reason
+            )

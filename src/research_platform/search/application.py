@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from collections.abc import Callable, Mapping, Sequence
@@ -29,13 +30,20 @@ from research_platform.ingestion.evidence import (
     SourceLocation,
 )
 from research_platform.ingestion.evidence_repository import EvidenceRepository
+from research_platform.ingestion.generation_index import (
+    GenerationIndexConfiguration,
+    GenerationQdrantCollection,
+)
+from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.ingestion.identity import DocumentVersionKind
 from research_platform.ingestion.indexing import (
     IndexConfiguration,
     IndexMatch,
     IndexRepository,
     QdrantIndex,
+    SnapshotIndexNotReady,
 )
+from research_platform.ingestion.snapshot_selection import SnapshotSelection
 from research_platform.search.active_profile import resolve_frozen_profile_path
 from research_platform.search.application_errors import (
     IncompatibleRetrievalProfile,
@@ -62,11 +70,24 @@ from research_platform.search.evidence_budgets import (
 from research_platform.search.evidence_deduplication import (
     deduplicate_evidence_hits,
 )
+from research_platform.search.generation_search import (
+    GenerationDenseSearch,
+    PassageAuthorizer,
+    QdrantContentReader,
+)
 from research_platform.search.hybrid_search import (
     HybridEvidenceSearch,
 )
 from research_platform.search.lexical import LexicalRetriever
 from research_platform.search.lexical_artifacts import load_lexical_index
+from research_platform.search.lexical_branches import (
+    QDRANT_SCIENTIFIC_BM25_IDENTITY,
+    AsyncLexicalEvidenceBranch,
+    AsyncLexicalPaperBranch,
+    BM25SEvidenceBranch,
+    BM25SPaperBranch,
+    QdrantLexicalBranches,
+)
 from research_platform.search.paper_fusion import fuse_paper_candidates
 from research_platform.search.paper_grouping import group_evidence_by_paper
 from research_platform.search.paper_reads import (
@@ -84,6 +105,7 @@ from research_platform.search.profiles import (
 from research_platform.search.reranker import CrossEncoderReranker
 from research_platform.search.reranker_models import PinnedSentenceTransformersReranker
 from research_platform.search.reranker_service import rerank_with_fallback
+from research_platform.search.sparse_lexical import VocabularyRepository
 from research_platform.search.table_context import (
     TableContextResolutionError,
     attach_table_context,
@@ -165,13 +187,14 @@ class Phase2SearchExecutor:
         eligibility_reader: SnapshotEligibilityReader,
         profiles_by_id: Mapping[str, RetrievalProfile],
         modes_by_profile_id: Mapping[str, RetrievalMode],
-        lexical_evidence: Mapping[str, LexicalRetriever],
-        lexical_papers: Mapping[str, LexicalRetriever],
+        lexical_evidence: Mapping[str, AsyncLexicalEvidenceBranch],
+        lexical_papers: Mapping[str, AsyncLexicalPaperBranch],
         hybrid_profile: RetrievalProfile,
         hybrid_search: HybridEvidenceSearch,
-        dense_search: SnapshotDenseSearch,
+        dense_search: SnapshotDenseSearch | GenerationDenseSearch,
         reranker: CrossEncoderReranker,
         evidence_repository: EvidenceRepository,
+        qdrant_lexical: QdrantLexicalBranches | None = None,
     ) -> None:
         self._pool = pool
         self._configuration = index_configuration
@@ -186,6 +209,10 @@ class Phase2SearchExecutor:
         self._dense = dense_search
         self._reranker = reranker
         self._evidence_repository = evidence_repository
+        self._qdrant_lexical = qdrant_lexical
+        self._generation_search = (
+            dense_search if isinstance(dense_search, GenerationDenseSearch) else None
+        )
 
     async def execute(
         self, request: SearchRequest, *, request_id: str
@@ -200,16 +227,7 @@ class Phase2SearchExecutor:
                 "mode does not match the retrieval profile"
             )
         if request.snapshot_id != profile.snapshot.snapshot_id:
-            async with self._pool.acquire() as connection:
-                exists = await connection.fetchval(
-                    "SELECT EXISTS (SELECT 1 FROM snapshots WHERE id = $1)",
-                    request.snapshot_id,
-                )
-            if not exists:
-                raise SnapshotNotFound("snapshot does not exist")
-            raise IncompatibleRetrievalProfile(
-                "retrieval profile is bound to a different snapshot"
-            )
+            profile = await self._profile_for_generation(profile, request)
 
         eligible = await self._eligibility.read(
             request.snapshot_id, filters=request.filters
@@ -233,7 +251,10 @@ class Phase2SearchExecutor:
         effective_mode = request.mode
         warnings: list[str] = []
         if request.mode is RetrievalMode.RERANKED:
-            if effective_profile_id == self._hybrid_profile.profile_id:
+            hybrid_profile_id = self._hybrid_profile.with_snapshot(
+                profile.snapshot
+            ).profile_id
+            if effective_profile_id == hybrid_profile_id:
                 effective_mode = RetrievalMode.HYBRID
                 warnings.append("reranking failed; unchanged hybrid order was returned")
         if deduplicated.omissions:
@@ -334,6 +355,64 @@ class Phase2SearchExecutor:
         )
         return response
 
+    async def _profile_for_generation(
+        self, profile: RetrievalProfile, request: SearchRequest
+    ) -> RetrievalProfile:
+        """Bind the profile to another published generation's snapshot, if allowed."""
+        async with self._pool.acquire() as connection:
+            exists = await connection.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM snapshots WHERE id = $1)",
+                request.snapshot_id,
+            )
+        if not exists:
+            raise SnapshotNotFound("snapshot does not exist")
+        if self._generation_search is None or not (
+            await self._generation_search.is_published(request.snapshot_id)
+        ):
+            raise IncompatibleRetrievalProfile(
+                "retrieval profile is bound to a different snapshot"
+            )
+        if request.mode is not RetrievalMode.DENSE and self._qdrant_lexical is None:
+            raise SearchDependencyUnavailable(
+                "lexical index is not available for this generation"
+            )
+        return profile.with_snapshot(
+            await self._repository.snapshot_selection_for(request.snapshot_id)
+        )
+
+    async def _evidence_branch(
+        self, profile: RetrievalProfile
+    ) -> AsyncLexicalEvidenceBranch | None:
+        """The serving branch, or a Qdrant branch for another published generation."""
+        branch = self._lexical_evidence.get(profile.profile_id)
+        if branch is None and self._qdrant_lexical is not None:
+            if profile.lexical_index is not None:
+                return await self._qdrant_lexical.evidence(profile)
+        return branch
+
+    async def _paper_branch(
+        self, profile: RetrievalProfile
+    ) -> AsyncLexicalPaperBranch | None:
+        branch = self._lexical_papers.get(profile.profile_id)
+        if branch is None and self._qdrant_lexical is not None:
+            if profile.lexical_index is not None:
+                return await self._qdrant_lexical.paper(profile)
+        return branch
+
+    async def _hybrid_for(
+        self, snapshot: SnapshotSelection
+    ) -> tuple[RetrievalProfile, HybridEvidenceSearch]:
+        """The hybrid profile and search bound to the request's generation."""
+        if snapshot == self._hybrid_profile.snapshot:
+            return self._hybrid_profile, self._hybrid
+        profile = self._hybrid_profile.with_snapshot(snapshot)
+        branch = await self._evidence_branch(profile)
+        if branch is None:
+            raise SearchDependencyUnavailable(
+                "lexical index is not available for this generation"
+            )
+        return profile, HybridEvidenceSearch(branch, self._dense)
+
     async def _evidence_candidates(
         self, profile: RetrievalProfile, request: SearchRequest
     ) -> tuple[
@@ -345,13 +424,13 @@ class Phase2SearchExecutor:
     ]:
         mode = request.mode
         if mode is RetrievalMode.LEXICAL:
-            retriever = self._lexical_evidence.get(profile.profile_id)
+            retriever = await self._evidence_branch(profile)
             if retriever is None or profile.candidate_limits.lexical_top_k is None:
                 raise SearchDependencyUnavailable(
                     "lexical evidence profile is unavailable"
                 )
             lexical_started = perf_counter()
-            result = retriever.search_with_stats(
+            result = await retriever.search_with_stats(
                 request.query,
                 limit=profile.candidate_limits.lexical_top_k,
                 filters=request.filters,
@@ -437,12 +516,18 @@ class Phase2SearchExecutor:
 
         if mode not in {RetrievalMode.HYBRID, RetrievalMode.RERANKED}:
             raise IncompatibleRetrievalProfile("unsupported retrieval mode")
-        async with self._repository.serving_index(
-            self._hybrid_profile.snapshot, self._configuration
-        ) as ready_index:
+        hybrid_profile, hybrid_search = await self._hybrid_for(profile.snapshot)
+        lease = (
+            contextlib.nullcontext(None)
+            if self._generation_search is not None
+            else self._repository.serving_index(
+                hybrid_profile.snapshot, self._configuration
+            )
+        )
+        async with lease as ready_index:
             try:
-                hybrid = await self._hybrid.search_query(
-                    self._hybrid_profile,
+                hybrid = await hybrid_search.search_query(
+                    hybrid_profile,
                     request.query,
                     filters=request.filters,
                     ready_index=ready_index,
@@ -455,7 +540,7 @@ class Phase2SearchExecutor:
                         "retrieval_component_failed",
                         extra={
                             "snapshot_id": str(request.snapshot_id),
-                            "retrieval_profile_id": self._hybrid_profile.profile_id,
+                            "retrieval_profile_id": hybrid_profile.profile_id,
                             "failure_stage": error.details.stage,
                             "failure_type": error.details.error_type,
                         },
@@ -468,9 +553,7 @@ class Phase2SearchExecutor:
                 (hit.evidence_id, hit.score, hit.component_scores)
                 for hit in hybrid.hits
             )
-            candidates, source_units = await self._hydrate(
-                self._hybrid_profile, ranked_fused
-            )
+            candidates, source_units = await self._hydrate(hybrid_profile, ranked_fused)
         counts: dict[str, int | float | str] = {
             "lexical": hybrid.lexical_pool.available_count,
             "dense": hybrid.dense_pool.available_count,
@@ -514,7 +597,7 @@ class Phase2SearchExecutor:
                         else "adapter_failure"
                     ),
                 },
-                self._hybrid_profile.profile_id,
+                hybrid_profile.profile_id,
             )
         return (
             outcome.hits,
@@ -533,9 +616,15 @@ class Phase2SearchExecutor:
             IndexMatch(evidence_id=identity, score=score, payload={})
             for identity, score, _scores in ranked
         )
-        hydrated = await self._repository.hydrate_snapshot_matches(
-            profile.snapshot, self._configuration, matches
-        )
+        if self._generation_search is not None:
+            hydrated = await self._generation_search.read_evidence(
+                profile.snapshot.snapshot_id,
+                [identity for identity, _score, _scores in ranked],
+            )
+        else:
+            hydrated = await self._repository.hydrate_snapshot_matches(
+                profile.snapshot, self._configuration, matches
+            )
         if tuple(item.evidence_id for item in hydrated) != tuple(
             identity for identity, _score, _scores in ranked
         ):
@@ -613,14 +702,14 @@ class Phase2SearchExecutor:
                 evidence_hits, selection_rules=profile.selection_rules
             )
         )
-        paper_retriever = self._lexical_papers.get(profile.profile_id)
+        paper_retriever = await self._paper_branch(profile)
         metadata_hits: tuple[PaperMetadataHit, ...] = ()
         metadata_truncated = False
         if paper_retriever is not None:
             lexical_limit = profile.candidate_limits.lexical_top_k
             if lexical_limit is None:
                 raise IncompatibleRetrievalProfile("paper profile has no lexical limit")
-            result = paper_retriever.search_with_stats(
+            result = await paper_retriever.search_with_stats(
                 request.query,
                 eligible_ids=set(eligible.paper_metadata),
                 limit=lexical_limit,
@@ -643,7 +732,7 @@ class Phase2SearchExecutor:
             candidates = fuse_paper_candidates(
                 metadata_hits, evidence_papers, settings=profile.fusion
             )
-        elif profile.profile_id in self._lexical_papers:
+        elif paper_retriever is not None:
             by_paper = {paper.paper_id: paper for paper in evidence_papers}
             candidates = tuple(
                 PaperHit(
@@ -730,9 +819,15 @@ def _resolve_serving_profiles(frozen_profile_path: Path | None) -> _ServingProfi
         expected_names = ("bm25_lexical", "dense_e5", "hybrid_e5")
         frozen_name = "reranked_minilm_hybrid"
     else:
+        if frozen.lexical_index == QDRANT_SCIENTIFIC_BM25_IDENTITY:
+            # Qdrant serves lexical search; only the lexical identity changes.
+            bm25_profile = replace(bm25_profile, lexical_index=frozen.lexical_index)
+        elif frozen.lexical_index != legacy_hybrid.lexical_index:
+            raise SearchDependencyUnavailable(
+                "frozen lexical index differs from the reusable BM25 artifacts"
+            )
         if (
-            frozen.lexical_index != legacy_hybrid.lexical_index
-            or frozen.candidate_limits.lexical_top_k
+            frozen.candidate_limits.lexical_top_k
             != legacy_hybrid.candidate_limits.lexical_top_k
         ):
             raise SearchDependencyUnavailable(
@@ -849,6 +944,12 @@ async def create_phase2_runtime(
     bm25_profile = serving.bm25
     dense_profile = serving.dense
     configuration = serving.configuration
+    generation_configuration = (
+        _load_generation_configuration(settings)
+        if settings.content_source == "qdrant"
+        else None
+    )
+    _require_lexical_engine(settings, frozen, generation_configuration)
 
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=10)
     if pool is None:
@@ -875,26 +976,80 @@ async def create_phase2_runtime(
         ):
             raise SearchDependencyUnavailable("frozen snapshot selection has changed")
 
-        root = settings.lexical_index_root
-        lexical_evidence, lexical_papers = _build_lexical_retrievers(
-            serving,
-            lambda profile, role: _load_lexical_artifact(
-                root, profile, role, mmap=True
-            ),
-        )
         embedder = create_embedder_for_configuration(
             configuration, device=cast(Any, settings.model_device)
         )
-        qdrant = QdrantIndex(configuration, http)
-        dense = SnapshotDenseSearch(
-            repository,
-            qdrant,
-            query_embedder=embedder,
-            evidence_hydrator=repository,
-        )
-        hybrid = HybridEvidenceSearch(
-            lexical_evidence[hybrid_profile.profile_id], dense
-        )
+        dense: SnapshotDenseSearch | GenerationDenseSearch
+        qdrant_lexical: QdrantLexicalBranches | None = None
+        lexical_evidence: dict[str, AsyncLexicalEvidenceBranch]
+        lexical_papers: dict[str, AsyncLexicalPaperBranch]
+        if generation_configuration is not None:
+            dense = await _generation_dense_search(
+                generation_configuration,
+                pool,
+                http,
+                embedder,
+                frozen.snapshot.snapshot_id,
+                allow_other_generation=settings.lexical_engine == "qdrant",
+            )
+        else:
+            dense = SnapshotDenseSearch(
+                repository,
+                QdrantIndex(configuration, http),
+                query_embedder=embedder,
+                evidence_hydrator=repository,
+            )
+        branch_bm25, branch_hybrid, branch_frozen = bm25_profile, hybrid_profile, frozen
+        if settings.lexical_engine == "qdrant":
+            assert isinstance(dense, GenerationDenseSearch)
+            assert generation_configuration is not None
+            assert generation_configuration.lexical is not None
+            if not await dense.is_published(frozen.snapshot.snapshot_id):
+                # Serve the configured collection's published generation, e.g. a
+                # leave-out corpus; requests bind profiles to it per generation.
+                served = await _published_snapshot(
+                    settings, pool, generation_configuration
+                )
+                selection = await repository.snapshot_selection_for(served)
+                branch_bm25 = bm25_profile.with_snapshot(selection)
+                branch_hybrid = hybrid_profile.with_snapshot(selection)
+                branch_frozen = frozen.with_snapshot(selection)
+            qdrant_lexical = QdrantLexicalBranches(
+                passages=GenerationQdrantCollection(
+                    generation_configuration, "passages", http
+                ),
+                papers=GenerationQdrantCollection(
+                    generation_configuration, "papers", http
+                ),
+                vocabulary=VocabularyRepository(pool),
+                settings=generation_configuration.lexical,
+                generation_for=dense.generation_for,
+            )
+            lexical_evidence = {
+                profile.profile_id: await qdrant_lexical.evidence(profile)
+                for profile in (branch_bm25, branch_hybrid)
+            }
+            lexical_papers = {
+                profile.profile_id: await qdrant_lexical.paper(profile)
+                for profile in (branch_bm25, branch_hybrid, branch_frozen)
+            }
+        else:
+            root = settings.lexical_index_root
+            evidence_retrievers, paper_retrievers = _build_lexical_retrievers(
+                serving,
+                lambda profile, role: _load_lexical_artifact(
+                    root, profile, role, mmap=True
+                ),
+            )
+            lexical_evidence = {
+                profile_id: BM25SEvidenceBranch(retriever)
+                for profile_id, retriever in evidence_retrievers.items()
+            }
+            lexical_papers = {
+                profile_id: BM25SPaperBranch(retriever)
+                for profile_id, retriever in paper_retrievers.items()
+            }
+        hybrid = HybridEvidenceSearch(lexical_evidence[branch_hybrid.profile_id], dense)
         reranker_identity = frozen.reranker
         if reranker_identity is None:
             raise SearchDependencyUnavailable("frozen serving profile has no reranker")
@@ -936,11 +1091,12 @@ async def create_phase2_runtime(
             },
             lexical_evidence=lexical_evidence,
             lexical_papers=lexical_papers,
-            hybrid_profile=hybrid_profile,
+            hybrid_profile=branch_hybrid,
             hybrid_search=hybrid,
             dense_search=dense,
             reranker=reranker,
             evidence_repository=EvidenceRepository(pool),
+            qdrant_lexical=qdrant_lexical,
         )
         from research_platform.api.routes import Phase2APIServices
         from research_platform.search.paper_graph import CitationGraphReader
@@ -960,6 +1116,89 @@ async def create_phase2_runtime(
         await http.aclose()
         await pool.close()
         raise
+
+
+def _load_generation_configuration(settings: Settings) -> GenerationIndexConfiguration:
+    try:
+        raw = json.loads(settings.generation_configuration.read_text(encoding="utf-8"))
+        return GenerationIndexConfiguration.from_dict(raw)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        raise SearchDependencyUnavailable(
+            "generation index configuration is unavailable or invalid"
+        ) from None
+
+
+def _require_lexical_engine(
+    settings: Settings,
+    profile: RetrievalProfile,
+    configuration: GenerationIndexConfiguration | None,
+) -> None:
+    """The lexical engine, content source, generation index and profile must agree."""
+    qdrant_profile = profile.lexical_index == QDRANT_SCIENTIFIC_BM25_IDENTITY
+    if settings.lexical_engine == "bm25s":
+        if qdrant_profile:
+            raise SearchDependencyUnavailable(
+                "the profile needs RESEARCH_PLATFORM_LEXICAL_ENGINE=qdrant"
+            )
+        return
+    if settings.content_source != "qdrant":
+        raise SearchDependencyUnavailable(
+            "Qdrant lexical search needs RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant"
+        )
+    if configuration is None or configuration.lexical is None:
+        raise SearchDependencyUnavailable(
+            "Qdrant lexical search needs a generation configuration with lexical "
+            "settings"
+        )
+    if not qdrant_profile:
+        raise SearchDependencyUnavailable(
+            "Qdrant lexical search needs a profile with the Qdrant lexical identity"
+        )
+
+
+async def _generation_dense_search(
+    configuration: GenerationIndexConfiguration,
+    pool: asyncpg.Pool,
+    http: httpx.AsyncClient,
+    embedder: Any,
+    snapshot_id: UUID,
+    *,
+    allow_other_generation: bool = False,
+) -> GenerationDenseSearch:
+    """Dense search and content over the configured collection's generations."""
+    registry = GenerationRegistry(pool)
+    passages = GenerationQdrantCollection(configuration, "passages", http)
+    search = GenerationDenseSearch(
+        passages=passages,
+        reader=QdrantContentReader(passages, PassageAuthorizer(pool), configuration),
+        registry=registry,
+        configuration=configuration,
+        query_embedder=embedder,
+    )
+    if not allow_other_generation:
+        try:
+            await search.generation_for(snapshot_id)
+        except SnapshotIndexNotReady:
+            raise SearchDependencyUnavailable(
+                "the serving snapshot has no published generation"
+            ) from None
+    return search
+
+
+async def _published_snapshot(
+    settings: Settings,
+    pool: asyncpg.Pool,
+    configuration: GenerationIndexConfiguration,
+) -> UUID:
+    """The snapshot of the configured collection's published generation."""
+    registry = GenerationRegistry(pool)
+    collection_id = await registry.ensure_collection(settings.generation_collection)
+    published = await registry.published(collection_id, configuration.configuration_id)
+    if published is None:
+        raise SearchDependencyUnavailable(
+            "the generation collection has no published generation"
+        )
+    return published.snapshot_id
 
 
 def _load_lexical_artifact(

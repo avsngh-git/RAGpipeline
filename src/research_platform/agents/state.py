@@ -10,7 +10,11 @@ from research_platform.tools.research_tools import ToolLedger
 
 
 class ResearchState(TypedDict):
-    """Bounded, checkpoint-safe state for one research run."""
+    """Bounded, checkpoint-safe state for one research run.
+
+    ``generation`` and ``snapshot_id`` override the run's starting generation after
+    an ingestion switch; ``None`` means the stored starting generation.
+    """
 
     question: str
     ledger: ToolLedger
@@ -23,6 +27,10 @@ class ResearchState(TypedDict):
     sufficient: bool
     missing: str
     answer: VerifiedAnswer | None
+    pending_ingestion_request_id: str | None
+    generation: int | None
+    snapshot_id: str | None
+    ingestion_waits: int
 
 
 def initial_state(question: str) -> ResearchState:
@@ -39,4 +47,8 @@ def initial_state(question: str) -> ResearchState:
         "sufficient": False,
         "missing": "",
         "answer": None,
+        "pending_ingestion_request_id": None,
+        "generation": None,
+        "snapshot_id": None,
+        "ingestion_waits": 0,
     }

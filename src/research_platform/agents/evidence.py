@@ -126,6 +126,8 @@ def pack_evidence(
 
         paper_id = neutralize(ref.paper_id).replace('"', "'")
         attributes = [f'handle="{ref.handle}"', f'paper="{paper_id}"']
+        if ref.kind == "abstract":
+            attributes.append('kind="abstract"')
         if ref.publication_year is not None:
             attributes.append(f'year="{ref.publication_year}"')
         if ref.title is not None:

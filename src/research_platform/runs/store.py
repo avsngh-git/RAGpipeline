@@ -11,6 +11,7 @@ from research_platform.runs.contracts import (
     AnswerOutcome,
     ClaimResult,
     FailureCategory,
+    PaperSummary,
     ResearchRequest,
     ResearchRunView,
     RunProvenance,
@@ -23,7 +24,9 @@ from research_platform.runs.repository import EvidenceRecord, StoredRun, ToolCal
 class RunStore(Protocol):
     """Async interface shared by the PostgreSQL and in-memory run stores."""
 
-    async def create_run(self, request: ResearchRequest) -> UUID: ...
+    async def create_run(
+        self, request: ResearchRequest, *, generation: int | None = None
+    ) -> UUID: ...
 
     async def get_run(self, run_id: UUID) -> StoredRun: ...
 
@@ -39,6 +42,19 @@ class RunStore(Protocol):
 
     async def add_active_seconds(self, run_id: UUID, seconds: float) -> float: ...
 
+    async def mark_waiting(self, run_id: UUID) -> None: ...
+
+    async def mark_resumed_from_wait(self, run_id: UUID) -> None: ...
+
+    async def switch_generation(
+        self,
+        run_id: UUID,
+        *,
+        generation: int,
+        snapshot_id: UUID,
+        record: ToolCallRecord,
+    ) -> None: ...
+
     async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None: ...
 
     async def save_evidence(
@@ -48,6 +64,14 @@ class RunStore(Protocol):
     async def load_evidence(
         self, run_id: UUID, handles: Sequence[str] | None = None
     ) -> dict[str, EvidenceRecord]: ...
+
+    async def save_uningested_candidates(
+        self,
+        run_id: UUID,
+        candidates: Sequence[PaperSummary],
+        *,
+        minimum_similarity: float,
+    ) -> None: ...
 
     async def complete_run(
         self,

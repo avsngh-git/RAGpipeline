@@ -6,9 +6,11 @@ import asyncio
 import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
-from typing import cast
+from typing import Iterator, cast
 
 import httpx
 
@@ -200,6 +202,9 @@ class OpenAlexClient:
         self._clock = clock
         self._requests_used = 0
         self._next_request_at = 0.0
+        self._scoped_reservation: ContextVar[RequestReservation | None] = ContextVar(
+            f"openalex_reservation_{id(self)}", default=None
+        )
 
     @property
     def requests_used(self) -> int:
@@ -210,8 +215,30 @@ class OpenAlexClient:
         return self._config.limits.max_total_requests
 
     @property
+    def results_per_request(self) -> int:
+        """Configured page size used by each Works search request."""
+        return self._config.limits.per_page
+
+    @property
     def configuration_id(self) -> str:
         return self._config.config_id
+
+    @contextmanager
+    def request_reservation_scope(
+        self, reserve_request: RequestReservation
+    ) -> Iterator[None]:
+        """Bind an async reservation hook to this task and its child calls.
+
+        The scope is held in a ContextVar so simultaneous discovery runs can share
+        one client without sharing their per-run budget callback.
+        """
+        token: Token[RequestReservation | None] = self._scoped_reservation.set(
+            reserve_request
+        )
+        try:
+            yield
+        finally:
+            self._scoped_reservation.reset(token)
 
     async def get_work_metadata(self, openalex_id: str) -> OpenAlexWork:
         """Fetch one work by ID for bounded unresolved-citation enrichment."""
@@ -226,15 +253,34 @@ class OpenAlexClient:
             raise OpenAlexResponseError("OpenAlex returned a different work ID")
         return work
 
-    async def search_page(self, query: str, cursor: str = "*") -> OpenAlexPage:
-        """Fetch one Works page for a configured query and cursor."""
+    async def search_page(
+        self,
+        query: str,
+        cursor: str = "*",
+        *,
+        extra_filter: str | None = None,
+    ) -> OpenAlexPage:
+        """Fetch one Works page for a query, cursor, and optional extra filter.
+
+        OpenAlex combines comma-separated filters with AND and pipe-separated values
+        with OR. `primary_topic.field.id` is the field filter used by online discovery.
+        See https://help.openalex.org/data/fields/ and
+        https://help.openalex.org/api/filtering/ for the API syntax.
+        """
         year_range = self._config.year_range
-        params = {
-            "search": query,
-            "filter": (
+        filters = [
+            (
                 f"publication_year:{year_range.start_year}-{year_range.end_year},"
                 f"language:{self._config.language}"
-            ),
+            )
+        ]
+        if extra_filter is not None:
+            if not isinstance(extra_filter, str) or not extra_filter.strip():
+                raise ValueError("extra_filter must be non-empty text when provided")
+            filters.append(extra_filter.strip())
+        params = {
+            "search": query,
+            "filter": ",".join(filters),
             "per_page": str(self._config.limits.per_page),
             "cursor": cursor,
             "select": _SELECT_FIELDS,
@@ -332,8 +378,14 @@ class OpenAlexClient:
             await self._wait_for_rate_limit()
             if self._requests_used >= self._config.limits.max_total_requests:
                 raise OpenAlexRequestError("OpenAlex total request limit reached")
+            scoped_reservation = self._scoped_reservation.get()
             if self._reserve_request is not None:
                 await self._reserve_request()
+            if (
+                scoped_reservation is not None
+                and scoped_reservation is not self._reserve_request
+            ):
+                await scoped_reservation()
             self._requests_used += 1
 
             try:

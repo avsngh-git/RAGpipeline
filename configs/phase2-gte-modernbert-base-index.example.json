@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "collection_name": "phase2-dev-gte-modernbert-base-v1",
+  "embedding_model": "Alibaba-NLP/gte-modernbert-base",
+  "embedding_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+  "preprocessing_revision": "gte-modernbert-base:no-prefix:cls-pooling:l2-normalize:v1",
+  "vector_size": 768,
+  "distance": "Cosine",
+  "batch_size": 8,
+  "maximum_input_tokens": 8192
+}

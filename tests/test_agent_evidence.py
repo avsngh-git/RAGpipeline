@@ -35,6 +35,24 @@ def test_register_assigns_sequential_handles_and_dedupes_by_chunk() -> None:
     assert tuple(ref.chunk_id for ref in registry.refs) == ("chunk-1", "chunk-2")
 
 
+def test_abstract_evidence_gets_handle() -> None:
+    abstract = _item("abstract:W410", text="Synthetic abstract.").model_copy(
+        update={"kind": "abstract"}
+    )
+
+    registry, added = EvidenceRegistry().register((abstract,), max_passages=5)
+
+    assert added == registry.refs
+    assert registry.resolve("E1") == registry.refs[0]
+    assert registry.refs[0].chunk_id == "abstract:W410"
+    assert registry.refs[0].kind == "abstract"
+    packed = pack_evidence(
+        registry.refs, {abstract.chunk_id: abstract.text}, max_tokens=100
+    )
+    assert 'kind="abstract"' in packed.text
+    assert packed.included == ("E1",)
+
+
 def test_register_caps_and_counts_dropped() -> None:
     registry, added = EvidenceRegistry().register(
         (_item("chunk-1"), _item("chunk-2"), _item("chunk-3")),

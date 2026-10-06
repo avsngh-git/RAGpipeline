@@ -39,6 +39,25 @@ class SearchEvidenceAction(_ActionModel):
         return self
 
 
+class DiscoverPapersAction(_ActionModel):
+    tool: Literal["discover_papers"]
+    query: str = Field(min_length=1, max_length=300)
+    year_from: int | None = Field(None, ge=2020, le=2100)
+    year_to: int | None = Field(None, ge=2020, le=2100)
+    limit: int = Field(5, ge=1, le=10)
+
+    @model_validator(mode="after")
+    def validate_year_range(self) -> DiscoverPapersAction:
+        _validate_year_range(self.year_from, self.year_to)
+        return self
+
+
+class RequestIngestionAction(_ActionModel):
+    tool: Literal["request_ingestion"]
+    paper_ids: tuple[str, ...] = Field(min_length=1, max_length=5)
+    reason: str = Field(min_length=1, max_length=200)
+
+
 class GetPaperAction(_ActionModel):
     tool: Literal["get_paper"]
     paper_id: str = Field(min_length=1, max_length=200)
@@ -60,11 +79,14 @@ class FindRelatedPapersAction(_ActionModel):
     tool: Literal["find_related_papers"]
     paper_id: str = Field(min_length=1, max_length=200)
     limit: int = Field(10, ge=1, le=20)
+    basis: Literal["citations", "similarity"] = "citations"
 
 
 Action = Annotated[
     SearchPapersAction
     | SearchEvidenceAction
+    | DiscoverPapersAction
+    | RequestIngestionAction
     | GetPaperAction
     | GetCitationsAction
     | GetReferencesAction

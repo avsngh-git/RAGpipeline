@@ -244,3 +244,29 @@ def test_start_fails_explicitly_when_recovery_query_is_saturated() -> None:
         assert executor._worker is None
 
     asyncio.run(exercise())
+
+
+def test_waiting_runs_are_recovered_before_queued() -> None:
+    async def exercise() -> None:
+        store = InMemoryRunStore()
+        base = datetime(2026, 1, 1, tzinfo=UTC)
+        queued = await _stored_run(store, created_at=base)
+        waiting = await _stored_run(
+            store,
+            status=RunStatus.WAITING_FOR_INGESTION,
+            created_at=base + timedelta(seconds=1),
+        )
+        running = await _stored_run(
+            store, status=RunStatus.RUNNING, created_at=base + timedelta(seconds=2)
+        )
+        runner = RecordingRunner()
+        runner.expected_calls = 3
+        executor = RunExecutor(runner, store)
+
+        await executor.start()
+        await asyncio.wait_for(runner.finished.wait(), timeout=1)
+        await executor.stop()
+
+        assert runner.calls == [running, waiting, queued]
+
+    asyncio.run(exercise())

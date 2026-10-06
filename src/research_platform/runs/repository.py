@@ -51,6 +51,9 @@ class StoredRun:
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    generation: int | None = None
+    pinned_snapshot_id: UUID | None = None
+    pinned_generation: int | None = None
 
 
 @dataclass(frozen=True)
@@ -83,19 +86,23 @@ class RunRepository:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
-    async def create_run(self, request: ResearchRequest) -> UUID:
-        """Store a queued run and return its generated ID."""
+    async def create_run(
+        self, request: ResearchRequest, *, generation: int | None = None
+    ) -> UUID:
+        """Store a queued run, pinned to ``generation`` when one is served."""
         async with self._pool.acquire() as connection:
             run_id = await connection.fetchval(
                 """
-                INSERT INTO research_runs (question, status, mode, request, snapshot_id)
-                VALUES ($1, 'queued', $2, $3::jsonb, $4)
+                INSERT INTO research_runs
+                    (question, status, mode, request, snapshot_id, generation)
+                VALUES ($1, 'queued', $2, $3::jsonb, $4, $5)
                 RETURNING id
                 """,
                 request.question,
                 request.mode.value,
                 _request_json(request),
                 request.snapshot_id,
+                generation,
             )
         return cast(UUID, run_id)
 
@@ -105,7 +112,9 @@ class RunRepository:
             row = await connection.fetchrow(
                 """
                 SELECT id, status, mode, request, snapshot_id, configuration_id,
-                       resume_count, active_seconds, created_at, started_at, completed_at
+                       resume_count, active_seconds, created_at, started_at, completed_at,
+                       generation, provenance ->> 'snapshot_id' AS pinned_snapshot_id,
+                       (provenance ->> 'generation')::integer AS pinned_generation
                 FROM research_runs
                 WHERE id = $1
                 """,
@@ -128,7 +137,9 @@ class RunRepository:
             rows = await connection.fetch(
                 """
                 SELECT id, status, mode, request, snapshot_id, configuration_id,
-                       resume_count, active_seconds, created_at, started_at, completed_at
+                       resume_count, active_seconds, created_at, started_at, completed_at,
+                       generation, provenance ->> 'snapshot_id' AS pinned_snapshot_id,
+                       (provenance ->> 'generation')::integer AS pinned_generation
                 FROM research_runs
                 WHERE status = ANY($1::text[])
                 ORDER BY created_at DESC, id DESC
@@ -145,10 +156,24 @@ class RunRepository:
             row = await connection.fetchrow(
                 """
                 UPDATE research_runs
-                SET status = 'running', snapshot_id = $2, configuration_id = $3,
-                    provenance = $4::jsonb, trace_id = $5,
+                SET status = 'running',
+                    snapshot_id = CASE WHEN status = 'queued' OR snapshot_id IS NULL
+                        THEN $2 ELSE snapshot_id END,
+                    configuration_id = $3,
+                    generation = CASE WHEN status = 'queued' AND $6::integer IS NOT NULL
+                        THEN $6 ELSE generation END,
+                    provenance = $4::jsonb || CASE
+                        WHEN status <> 'queued' AND provenance IS NOT NULL THEN
+                            jsonb_build_object(
+                                'uningested_candidates', COALESCE(
+                                    provenance -> 'uningested_candidates', '[]'::jsonb),
+                                'uningested_similarity_threshold',
+                                    provenance -> 'uningested_similarity_threshold')
+                        ELSE '{}'::jsonb END,
+                    trace_id = $5,
                     started_at = COALESCE(started_at, now()), updated_at = now()
-                WHERE id = $1 AND status IN ('queued', 'running')
+                WHERE id = $1
+                  AND status IN ('queued', 'running', 'waiting_for_ingestion')
                 RETURNING id
                 """,
                 run_id,
@@ -156,6 +181,7 @@ class RunRepository:
                 provenance.configuration_id,
                 _provenance_json(provenance),
                 provenance.trace_id,
+                provenance.generation,
             )
             if row is None:
                 await _raise_transition(connection, run_id, "mark running")
@@ -167,7 +193,7 @@ class RunRepository:
                 """
                 UPDATE research_runs
                 SET resume_count = resume_count + 1, updated_at = now()
-                WHERE id = $1 AND status = 'running'
+                WHERE id = $1 AND status IN ('running', 'waiting_for_ingestion')
                 RETURNING resume_count
                 """,
                 run_id,
@@ -184,7 +210,7 @@ class RunRepository:
                 """
                 UPDATE research_runs
                 SET active_seconds = active_seconds + $2, updated_at = now()
-                WHERE id = $1 AND status = 'running'
+                WHERE id = $1 AND status IN ('running', 'waiting_for_ingestion')
                 RETURNING active_seconds
                 """,
                 run_id,
@@ -194,41 +220,70 @@ class RunRepository:
                 await _raise_transition(connection, run_id, "add active time")
         return cast(float, total)
 
-    async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None:
-        """Insert a tool call once, keyed by its run-local ordinal."""
-        if record.ordinal < 0:
-            raise ValueError("ordinal must be non-negative")
-        if not record.tool_name.strip():
-            raise ValueError("tool_name must be non-empty")
-        _nonnegative_finite(record.duration_ms, "duration_ms")
+    async def mark_waiting(self, run_id: UUID) -> None:
+        """Move a running run to ``waiting_for_ingestion``; idempotent."""
+        await self._transition(
+            run_id, "waiting_for_ingestion", ("running", "waiting_for_ingestion")
+        )
+
+    async def mark_resumed_from_wait(self, run_id: UUID) -> None:
+        """Move a waiting run back to ``running``; idempotent."""
+        await self._transition(run_id, "running", ("waiting_for_ingestion", "running"))
+
+    async def switch_generation(
+        self,
+        run_id: UUID,
+        *,
+        generation: int,
+        snapshot_id: UUID,
+        record: ToolCallRecord,
+    ) -> None:
+        """Move a run to a newer published generation and record the switch."""
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await connection.execute(
+                row = await connection.fetchrow(
                     """
-                    INSERT INTO tool_calls
-                        (run_id, ordinal, tool_name, arguments, result, status,
-                         duration_ms, error_category)
-                    VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8)
-                    ON CONFLICT (run_id, ordinal) DO NOTHING
+                    UPDATE research_runs
+                    SET generation = $2, snapshot_id = $3, updated_at = now()
+                    WHERE id = $1
+                      AND status IN ('running', 'waiting_for_ingestion')
+                    RETURNING id
                     """,
                     run_id,
-                    record.ordinal,
-                    record.tool_name,
-                    _mapping_json(record.arguments),
-                    _mapping_json(record.result_summary),
-                    record.status,
-                    record.duration_ms,
-                    record.error_category,
+                    generation,
+                    snapshot_id,
                 )
-                await connection.execute(
-                    "UPDATE research_runs SET updated_at = now() WHERE id = $1",
-                    run_id,
-                )
+                if row is None:
+                    await _raise_transition(connection, run_id, "switch generation")
+                await _insert_tool_call(connection, run_id, record)
+
+    async def _transition(
+        self, run_id: UUID, status: str, allowed: Sequence[str]
+    ) -> None:
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                """
+                UPDATE research_runs SET status = $2, updated_at = now()
+                WHERE id = $1 AND status = ANY($3::text[])
+                RETURNING id
+                """,
+                run_id,
+                status,
+                list(allowed),
+            )
+            if row is None:
+                await _raise_transition(connection, run_id, f"mark {status}")
+
+    async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None:
+        """Insert a tool call once, keyed by its run-local ordinal."""
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await _insert_tool_call(connection, run_id, record)
 
     async def save_evidence(
         self, run_id: UUID, records: Sequence[EvidenceRecord]
     ) -> None:
-        """Copy evidence passages into the run, ignoring replayed writes."""
+        """Copy evidence into the run, ignoring replayed writes."""
         if not records:
             return
         async with self._pool.acquire() as connection:
@@ -236,8 +291,8 @@ class RunRepository:
                 await connection.executemany(
                     """
                     INSERT INTO research_run_evidence
-                        (run_id, handle, chunk_id, paper_id, text, metadata)
-                    VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+                        (run_id, handle, chunk_id, evidence_kind, paper_id, text, metadata)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
                     ON CONFLICT DO NOTHING
                     """,
                     [
@@ -245,6 +300,9 @@ class RunRepository:
                             run_id,
                             record.handle,
                             record.chunk_id,
+                            "abstract"
+                            if record.chunk_id.startswith("abstract:")
+                            else "chunk",
                             record.paper_id,
                             record.text,
                             _mapping_json(record.metadata),
@@ -373,7 +431,8 @@ class RunRepository:
                 SET status = 'failed', error_message = $2, failure_category = $3,
                     answer_outcome = NULL, usage = $4::jsonb,
                     completed_at = now(), updated_at = now()
-                WHERE id = $1 AND status IN ('queued', 'running')
+                WHERE id = $1
+                  AND status IN ('queued', 'running', 'waiting_for_ingestion')
                 RETURNING id
                 """,
                 run_id,
@@ -384,6 +443,39 @@ class RunRepository:
             if row is None:
                 await _raise_transition(connection, run_id, "fail")
 
+    async def save_uningested_candidates(
+        self,
+        run_id: UUID,
+        candidates: Sequence[PaperSummary],
+        *,
+        minimum_similarity: float,
+    ) -> None:
+        """Store the quick-run catalog diagnostic without adding evidence or tool calls."""
+        if not math.isfinite(minimum_similarity) or not -1 <= minimum_similarity <= 1:
+            raise ValueError("minimum_similarity must be finite and between -1 and 1")
+        if len(candidates) > 5:
+            raise ValueError("at most five uningested candidates may be stored")
+        summaries = json.dumps([paper.model_dump(mode="json") for paper in candidates])
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                """
+                UPDATE research_runs
+                SET provenance = provenance || jsonb_build_object(
+                        'uningested_candidates', $2::jsonb,
+                        'uningested_similarity_threshold', $3::double precision),
+                    updated_at = now()
+                WHERE id = $1 AND status = 'running' AND provenance IS NOT NULL
+                RETURNING id
+                """,
+                run_id,
+                summaries,
+                minimum_similarity,
+            )
+            if row is None:
+                await _raise_transition(
+                    connection, run_id, "save uningested candidates"
+                )
+
     async def get_run_view(self, run_id: UUID) -> ResearchRunView:
         """Build the public run response from its authoritative records."""
         async with self._pool.acquire() as connection:
@@ -391,7 +483,7 @@ class RunRepository:
                 """
                 SELECT id, question, status, mode, answer, answer_outcome,
                        failure_category, error_message, provenance, usage,
-                       created_at, completed_at
+                       created_at, completed_at, generation
                 FROM research_runs
                 WHERE id = $1
                 """,
@@ -475,6 +567,9 @@ class RunRepository:
             ),
             claims=claims,
             papers=tuple(papers.values()),
+            uningested_candidates=provenance.uningested_candidates
+            if provenance
+            else (),
             failure_category=(
                 FailureCategory(run_row["failure_category"])
                 if run_row["failure_category"] is not None
@@ -482,6 +577,7 @@ class RunRepository:
             ),
             error_message=run_row["error_message"],
             provenance=provenance,
+            generation=run_row["generation"],
             usage=_usage_from_json(run_row["usage"]),
             created_at=run_row["created_at"],
             completed_at=run_row["completed_at"],
@@ -502,6 +598,36 @@ class RunRepository:
                 older_than,
             )
         return tuple(row["id"] for row in rows)
+
+
+async def _insert_tool_call(
+    connection: asyncpg.Connection, run_id: UUID, record: ToolCallRecord
+) -> None:
+    if record.ordinal < 0:
+        raise ValueError("ordinal must be non-negative")
+    if not record.tool_name.strip():
+        raise ValueError("tool_name must be non-empty")
+    _nonnegative_finite(record.duration_ms, "duration_ms")
+    await connection.execute(
+        """
+        INSERT INTO tool_calls
+            (run_id, ordinal, tool_name, arguments, result, status,
+             duration_ms, error_category)
+        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8)
+        ON CONFLICT (run_id, ordinal) DO NOTHING
+        """,
+        run_id,
+        record.ordinal,
+        record.tool_name,
+        _mapping_json(record.arguments),
+        _mapping_json(record.result_summary),
+        record.status,
+        record.duration_ms,
+        record.error_category,
+    )
+    await connection.execute(
+        "UPDATE research_runs SET updated_at = now() WHERE id = $1", run_id
+    )
 
 
 async def _raise_transition(
@@ -557,6 +683,11 @@ def _stored_run(row: asyncpg.Record) -> StoredRun:
         created_at=row["created_at"],
         started_at=row["started_at"],
         completed_at=row["completed_at"],
+        generation=row["generation"],
+        pinned_snapshot_id=(
+            UUID(row["pinned_snapshot_id"]) if row["pinned_snapshot_id"] else None
+        ),
+        pinned_generation=row["pinned_generation"],
     )
 
 

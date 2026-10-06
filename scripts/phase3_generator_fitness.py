@@ -44,7 +44,15 @@ DEFAULT_CASES_PATH = (
     REPOSITORY_ROOT / "benchmarks/phase3/generator-fitness-cases-v1.json"
 )
 GPU_MODEL_LAYER_LIMIT = 99
-ACTION_TOOL_NAMES = tuple(TOOL_DESCRIPTIONS)
+# The Phase 3 fitness cases (v1) cover these tools; later deep-only tools are excluded.
+ACTION_TOOL_NAMES = (
+    "search_papers",
+    "search_evidence",
+    "get_paper",
+    "get_citations",
+    "get_references",
+    "find_related_papers",
+)
 HARNESS_VERSION = 4
 OUTPUT_TOKEN_LIMITS = {
     CallKind.PLAN: 384,
@@ -363,8 +371,12 @@ async def _native_plan(
 
 
 def _native_tools() -> list[dict[str, object]]:
-    """Compatibility wrapper for the shared action-schema definitions."""
-    return research_tool_definitions()
+    """The shared action-schema definitions for the Phase 3 tools."""
+    return [
+        tool
+        for tool in research_tool_definitions()
+        if cast(dict[str, Any], tool["function"])["name"] in ACTION_TOOL_NAMES
+    ]
 
 
 def _token_count(value: object) -> int | None:

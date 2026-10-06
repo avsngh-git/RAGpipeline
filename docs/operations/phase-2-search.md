@@ -58,7 +58,7 @@ docker run -d --rm --name ragpipeline-phase2-test-postgres \
   -p 127.0.0.1:35432:5432 postgres:16-alpine
 
 docker run -d --rm --name ragpipeline-phase2-test-qdrant \
-  -p 127.0.0.1:36333:6333 qdrant/qdrant:v1.14.1
+  -p 127.0.0.1:36333:6333 qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
 
 export RESEARCH_PLATFORM_TEST_DATABASE_URL='postgresql://research_test:research_test@127.0.0.1:35432/research_test'
 export RESEARCH_PLATFORM_TEST_QDRANT_URL='http://127.0.0.1:36333'
@@ -72,6 +72,118 @@ docker stop ragpipeline-phase2-test-qdrant
 Never point integration tests at `research_phase1_review`, `research`, or the serving
 Qdrant service. The tests create schemas and temporary collections in their dedicated
 targets.
+
+## Qdrant version
+
+Compose and CI pin Qdrant v1.19.1 (Phase 3.5, P35-03). Qdrant only guarantees storage
+compatibility across one minor version, so the 2026-10-04 move from v1.14.1 used export
+and import instead of an in-place upgrade:
+
+```bash
+python scripts/phase35_qdrant_migrate.py export --url http://127.0.0.1:6333 \
+  --directory local-reference/phase35/qdrant-export
+docker compose up -d qdrant   # new image and new volume qdrant_data_v1_19
+python scripts/phase35_qdrant_migrate.py import --url http://127.0.0.1:6333 \
+  --directory local-reference/phase35/qdrant-export
+```
+
+Import checks each collection's exact count, a payload digest, every vector within
+1e-6, and exact-search probes. All four local collections passed. The previous volume
+`ragpipeline_qdrant_data` (v1.14.1 storage) is kept unmodified for rollback: point the
+Compose service back at it together with the old image. The export holds private
+evidence text and stays under `local-reference/`.
+
+## Index generations (Phase 3.5)
+
+Generations put a collection's finalized snapshots into Qdrant collections that serve
+both search and evidence content ([ADR-0022](../adr/0022-phase35-qdrant-search-and-content.md),
+[ADR-0023](../adr/0023-phase35-index-generations.md)). With the database and Qdrant URLs
+exported as below:
+
+```bash
+CONFIG=configs/phase35-generation-index-lexical.example.json   # the serving configuration
+research-ingest generations build --collection-name research-corpus \
+  --snapshot-id <finalized snapshot> --configuration $CONFIG \
+  [--reuse-dense-generation-configuration <configuration with the same dense model>]
+research-ingest generations sync-papers --collection-name research-corpus \
+  --configuration $CONFIG --generation <N>
+research-ingest generations verify --collection-name research-corpus \
+  --configuration $CONFIG --generation <N>
+research-ingest generations publish --collection-name research-corpus \
+  --configuration $CONFIG --generation <N>
+research-ingest generations purge --collection-name research-corpus \
+  --configuration $CONFIG            # add --apply to delete
+research-ingest generations rebuild --collection-name research-corpus \
+  --configuration $CONFIG            # into empty collections, from PostgreSQL
+```
+
+`verify` compares exact evidence IDs, text hashes, payload fields, indexed papers and
+self-retrieval probes with the snapshot. `publish` only moves the pointer from the
+previous generation. Research runs record the generation they read. Generation dense
+search is exact rather than approximate.
+
+**Serving defaults since the Phase 3.5 cutover (P35-17, 2026-10-05).** The active profile is
+`frozen-profile-v10-qdrant.toml`, and the defaults are `RESEARCH_PLATFORM_CONTENT_SOURCE=qdrant`,
+`RESEARCH_PLATFORM_LEXICAL_ENGINE=qdrant` and
+`RESEARCH_PLATFORM_GENERATION_CONFIGURATION=configs/phase35-generation-index-lexical.example.json`.
+Qdrant serves evidence content, dense search and `scientific_bm25` lexical search from the
+published generation of that configuration (`research-passages-gte-bm25-v1`,
+`research-papers-gte-bm25-v1`). Lexical index files are no longer needed for serving. v10-qdrant
+inherits the Phase 2 acceptance through the
+[lexical parity report](../reference/phase-3.5-lexical-parity-report.md).
+
+The in-process BM25S path remains the fallback and the parity oracle. To serve it, set
+`RESEARCH_PLATFORM_LEXICAL_ENGINE=bm25s`,
+`RESEARCH_PLATFORM_PHASE2_PROFILE=benchmarks/phase2/frozen-profile-v10.toml` and
+`RESEARCH_PLATFORM_LEXICAL_INDEX_ROOT`, and build the lexical artifacts as described below.
+Qdrant still serves content and dense search in that mode.
+
+The runtime serves any published generation of the configured collection. When the frozen
+profile's own snapshot is not published in that collection (for example the leave-out
+corpus, `RESEARCH_PLATFORM_GENERATION_COLLECTION=leave-out-dev` with its configuration in
+`local-reference/phase35/leaveout-dev-generation-index.json`), the API serves the
+collection's published generation. New research runs pin the generation published when
+they start.
+
+`purge --apply` deletes only points no published generation or unfinished run can read.
+Never delete a Qdrant collection shared by several snapshots (for example
+`phase1-e5-small-v2`): remove one snapshot's points with a `snapshot_id` filter instead.
+
+## Online discovery and ingestion (Phase 3.5)
+
+[ADR-0024](../adr/0024-phase35-online-discovery-and-ingestion.md): in `deep_research` runs
+the agent may call `discover_papers` (OpenAlex search, abstracts as labelled evidence) and
+`request_ingestion`; `POST /v1/collections/{collection_id}/ingest` uses the same path.
+Code decides every proposed paper (`online-membership-v1`) and records it in
+`ingestion_decisions`; accepted papers become one `ingestion_requests` row.
+
+- **Budgets** (`DiscoverySettings`): 10 OpenAlex searches and 5 downloads per run, 5 papers
+  per wait, a daily spend cap of $0.50 shared by all runs, English and 2020 onward. A
+  `deep_research` run waits at most `max_ingestion_wait_seconds` (900) for its request,
+  outside its active-time budget, then switches once to the newly published generation.
+- **OpenAlex key:** discovery and OpenAlex content downloads need `OPENALEX_API_KEY`.
+- **Worker:** a separate process in the host Conda environment, one request at a time:
+
+  ```bash
+  RESEARCH_PLATFORM_INGESTION_HANDLER=online \
+  RESEARCH_PLATFORM_ARTIFACT_ROOT=data/artifacts \
+  research-worker            # SIGINT or SIGTERM stops it cleanly
+  ```
+
+  It claims requests with leases (a crashed worker's request is reclaimed), holds the
+  PostgreSQL GPU advisory lock, unloads the Ollama model, acquires each permitted PDF
+  (exact-file permission, reusing a stored copy), extracts with Docling, chunks with the
+  published snapshot's chunking configuration, then finalizes a child snapshot
+  (`policy:online-ingestion-v1`) and builds, verifies and publishes the next generation.
+  Papers without a permitted route stay metadata-only; a paper whose extraction needs a
+  manual flagged-table review is refused (`validation:flagged_table_review_pending`).
+- **Docling** is the repository's pinned `pdf` extra. Install it without changing the CUDA
+  PyTorch build: install `torchvision` from the PyTorch index matching the installed
+  `torch`, then the `pdf` pins with a constraints file that holds `torch`, `numpy` and
+  `transformers`. RapidOCR downloads its OCR models on first use.
+- **Average-length drift:** when a new generation's evidence average length drifts more
+  than 10% from the configuration, the generation details record
+  `new_configuration_recommended`; a new configuration is not created automatically.
 
 ## Start local dependencies
 
@@ -97,7 +209,11 @@ separate disposable database.
 
 ## Copy the gte index into the main stack
 
-The accepted profile v10 uses the `phase2-dev-gte-modernbert-base-v1` collection. The
+Historical. The `phase2-dev-gte-modernbert-base-v1` collection was deleted at the Phase 3.5
+cutover on 2026-10-05; its vectors and payloads are exported under
+`local-reference/phase35/qdrant-export/`. Serving now reads generation collections.
+
+The accepted profile v10 used the `phase2-dev-gte-modernbert-base-v1` collection. The
 index was built in the isolated `p2_eval_20260927` stack for the one-time assessment;
 copy it into the main stack before serving profile v10. The evaluation PostgreSQL
 database is named `research_test` and remains disposable. Do not point the main API at
@@ -213,7 +329,8 @@ do not log response text or identifiers.
 
 ## Build and verify indexes
 
-Create local BM25 and hybrid lexical artifacts from the accepted review database:
+Lexical artifacts are needed only for the BM25S fallback and the parity scripts. Create
+local BM25 and hybrid lexical artifacts from the accepted review database:
 
 ```bash
 umask 077
@@ -258,11 +375,10 @@ Phase 2 operations.
 
 Run Uvicorn in the host Conda environment so it can use WSL CUDA and the local model
 caches. Compose supplies only PostgreSQL and Qdrant. Export the server-side access
-profile and the artifact/cache paths explicitly:
+profile and the cache paths explicitly:
 
 ```bash
 export RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE=trusted_private_local
-export RESEARCH_PLATFORM_LEXICAL_INDEX_ROOT="$PWD/local-reference/phase2-indexes"
 export RESEARCH_PLATFORM_MODEL_DEVICE=auto
 export RESEARCH_PLATFORM_RERANKER_CACHE_DIR="$PWD/local-reference/phase2-reranker-cache"
 export HF_HOME="$PWD/local-reference/phase2-model-cache"
@@ -353,15 +469,19 @@ implementation/CI gate and freeze checks pass.
 
 ## Rebuild, failure, and cleanup
 
-- Missing or invalid lexical artifacts fail runtime readiness. Rebuild them with the
-  exact profile manifest and review database.
+- With the Qdrant lexical engine (the default), startup fails unless content comes from
+  Qdrant, the generation configuration has lexical settings, the profile names the Qdrant
+  lexical identity and the snapshot has a published generation.
+- With `RESEARCH_PLATFORM_LEXICAL_ENGINE=bm25s`, missing or invalid lexical artifacts fail
+  runtime readiness. Rebuild them with the exact profile manifest and review database.
 - Missing Qdrant points, stale filter metadata, or a mismatched profile fail closed.
   Rebuild the named Phase 2 collection and wait for its exact reconciliation report.
 - Do not use the accepted Phase 1 E5 collection as a repair target.
 - `permission_denied` means the API server was not configured for private-local
   evidence access. Changing a request does not grant that access.
 - A 503 or `/ready` response with `phase2_search: unavailable` requires checking the
-  database selection, Qdrant, lexical artifacts, and pinned model caches.
+  database selection, Qdrant, the published generation (or lexical artifacts under BM25S),
+  and pinned model caches.
 - Keep raw evaluation outputs mode 0600 under `local-reference/`. Clean only named
   disposable test containers, temporary model caches, or obsolete derived Phase 2
   artifacts after confirming they are not the configured serving paths.

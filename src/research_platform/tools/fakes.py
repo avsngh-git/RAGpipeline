@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID, uuid5
 
+from research_platform.config import DiscoverySettings
+from research_platform.discovery.online import (
+    DiscoveredPaper,
+    DiscoveryBudgetExceeded,
+)
 from research_platform.ingestion.evidence import EvidenceKind, SourceLocation
 from research_platform.ingestion.identity import is_valid_paper_id
+from research_platform.ingestion.membership_policy import (
+    MembershipDecision,
+    PolicyResult,
+    _Candidate,
+    decide,
+)
 from research_platform.search.application_errors import SearchDependencyUnavailable
 from research_platform.search.contracts import (
     ComponentScores,
@@ -37,6 +50,7 @@ from research_platform.search.paper_related import (
     RelationKind,
     rank_related,
 )
+from research_platform.search.paper_similarity import SimilarPaper
 from research_platform.tools.research_tools import (
     CitationService,
     PaperService,
@@ -76,6 +90,154 @@ class FakeCorpus:
     passages: tuple[FakePassage, ...]
     citations: tuple[tuple[str, str], ...] = ()
     failing_queries: frozenset[str] = frozenset()
+
+
+class FakeDiscoveryService:
+    """Deterministic offline discovery results with recorded input arguments."""
+
+    def __init__(
+        self,
+        papers: tuple[DiscoveredPaper, ...] = (),
+        *,
+        budget_error: DiscoveryBudgetExceeded | None = None,
+    ) -> None:
+        self.papers = papers
+        self.budget_error = budget_error
+        self.calls: list[dict[str, object]] = []
+
+    async def discover(
+        self,
+        *,
+        run_id: UUID | None,
+        question: str,
+        query: str,
+        year_from: int | None,
+        year_to: int | None,
+        limit: int,
+    ) -> tuple[DiscoveredPaper, ...]:
+        self.calls.append(
+            {
+                "run_id": run_id,
+                "question": question,
+                "query": query,
+                "year_from": year_from,
+                "year_to": year_to,
+                "limit": limit,
+            }
+        )
+        if self.budget_error is not None:
+            raise self.budget_error
+        return tuple(
+            paper
+            for paper in self.papers
+            if (
+                year_from is None
+                or (
+                    paper.publication_year is not None
+                    and paper.publication_year >= year_from
+                )
+            )
+            and (
+                year_to is None
+                or (
+                    paper.publication_year is not None
+                    and paper.publication_year <= year_to
+                )
+            )
+        )[:limit]
+
+
+class FakeIngestionPolicy:
+    """In-memory membership policy using the real decision rules."""
+
+    def __init__(
+        self, catalog: Mapping[str, tuple[bool, int | None, str | None]] | None = None
+    ) -> None:
+        self.catalog = dict(catalog or {})
+        self.accepted_by_run: dict[UUID | None, int] = {}
+        self.pending: set[str] = set()
+        self.calls: list[dict[str, object]] = []
+
+    async def submit(
+        self,
+        *,
+        run_id: UUID | None,
+        requested_by: Literal["run", "api", "terminal"],
+        paper_ids: Sequence[str],
+        max_papers: int,
+    ) -> PolicyResult:
+        self.calls.append(
+            {"run_id": run_id, "paper_ids": tuple(paper_ids), "max_papers": max_papers}
+        )
+        decisions: list[MembershipDecision] = []
+        for paper_id in paper_ids:
+            entry = self.catalog.get(paper_id)
+            decision = decide(
+                paper_id,
+                _Candidate(
+                    in_papers=entry is not None,
+                    indexed=entry is not None and entry[0],
+                    year=None if entry is None else entry[1],
+                    language=None if entry is None else entry[2],
+                ),
+                settings=DiscoverySettings(),
+                duplicate=paper_id in self.pending,
+                accepted_for_run=self.accepted_by_run.get(run_id, 0),
+                max_papers=max_papers,
+            )
+            if decision.decision == "accepted":
+                self.accepted_by_run[run_id] = self.accepted_by_run.get(run_id, 0) + 1
+                self.pending.add(paper_id)
+            decisions.append(decision)
+        accepted = sorted(d.paper_id for d in decisions if d.decision == "accepted")
+        request_id = (
+            _stable_uuid(f"ingestion:{run_id}:{','.join(accepted)}")
+            if accepted
+            else None
+        )
+        return PolicyResult(request_id, tuple(decisions))
+
+
+class FakeSimilarityReader:
+    """Deterministic semantic paper results with recorded call arguments."""
+
+    def __init__(
+        self,
+        similar_papers: tuple[SimilarPaper, ...] = (),
+        uningested_papers: tuple[SimilarPaper, ...] = (),
+    ) -> None:
+        self.similar_papers = similar_papers
+        self.uningested_papers = uningested_papers
+        self.similar_calls: list[dict[str, object]] = []
+        self.uningested_calls: list[dict[str, object]] = []
+
+    async def similar_to_paper(
+        self, paper_id: str, *, generation: int, limit: int
+    ) -> tuple[SimilarPaper, ...]:
+        self.similar_calls.append(
+            {"paper_id": paper_id, "generation": generation, "limit": limit}
+        )
+        return self.similar_papers[:limit]
+
+    async def uningested_for_question(
+        self,
+        question: str,
+        *,
+        limit: int = 5,
+        minimum_similarity: float = 0.5,
+    ) -> tuple[SimilarPaper, ...]:
+        self.uningested_calls.append(
+            {
+                "question": question,
+                "limit": limit,
+                "minimum_similarity": minimum_similarity,
+            }
+        )
+        return tuple(
+            paper
+            for paper in self.uningested_papers
+            if paper.similarity >= minimum_similarity
+        )[:limit]
 
 
 class FakeServices:

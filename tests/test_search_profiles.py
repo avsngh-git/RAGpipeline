@@ -270,3 +270,43 @@ def test_profile_stage_presence_and_bounds_are_validated() -> None:
         SelectionRules(paper_support_limit=6)
     with pytest.raises(ValueError, match="unknown"):
         RetrievalProfile.from_dict({**base.to_dict(), "git_revision": "abc"})
+
+
+def test_with_snapshot_keeps_settings_id_and_changes_profile_id() -> None:
+    original = profile()
+    later = SnapshotSelection.from_members(
+        snapshot_id=UUID("99999999-9999-4999-8999-999999999999"),
+        snapshot_configuration_id=SNAPSHOT_CONFIG_ID,
+        members=selection_members(),
+        selected_chunk_ids=("sha256:" + "d" * 64,),
+    )
+    bound = original.with_snapshot(later)
+
+    assert bound.snapshot == later
+    assert bound.settings_id == original.settings_id
+    assert bound.profile_id != original.profile_id
+    assert original.with_snapshot(original.snapshot) == original
+    assert (
+        profile(reranker=None).settings_id
+        != replace(original, fusion=FusionSettings(rank_constant=10)).settings_id
+    )
+
+
+def test_v10_qdrant_differs_only_in_lexical_identity() -> None:
+    from pathlib import Path
+
+    from research_platform.search.lexical import SCIENTIFIC_BM25_IDENTITY
+    from research_platform.search.lexical_branches import (
+        QDRANT_SCIENTIFIC_BM25_IDENTITY,
+    )
+    from research_platform.search.profile_manifest import load_frozen_profile
+
+    root = Path(__file__).resolve().parents[1] / "benchmarks/phase2"
+    v10 = load_frozen_profile(root / "frozen-profile-v10.toml")
+    qdrant = load_frozen_profile(root / "frozen-profile-v10-qdrant.toml")
+
+    assert v10.lexical_index == SCIENTIFIC_BM25_IDENTITY
+    assert qdrant.lexical_index == QDRANT_SCIENTIFIC_BM25_IDENTITY
+    assert replace(v10, lexical_index=qdrant.lexical_index) == qdrant
+    assert qdrant.settings_id != v10.settings_id
+    assert qdrant.profile_id != v10.profile_id

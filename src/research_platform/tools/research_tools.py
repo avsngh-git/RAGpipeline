@@ -3,25 +3,36 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from time import perf_counter
 from typing import Any, Literal, Protocol
 from uuid import UUID
 
+import asyncpg  # type: ignore[import-untyped]
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from research_platform.agents.actions import (
     Action,
+    DiscoverPapersAction,
     FindRelatedPapersAction,
     GetCitationsAction,
     GetPaperAction,
     GetReferencesAction,
+    RequestIngestionAction,
     SearchEvidenceAction,
     SearchPapersAction,
     action_key,
 )
-from research_platform.runs.contracts import ResearchFilters, RunBudgets
+from research_platform.discovery.online import (
+    DiscoveredPaper,
+    DiscoveryBudgetExceeded,
+)
+from research_platform.ingestion.embeddings import EmbeddingModelError
+from research_platform.ingestion.membership_policy import PolicyResult
+from research_platform.ingestion.openalex import OpenAlexRequestError
+from research_platform.runs.contracts import ResearchFilters, ResearchMode, RunBudgets
 from research_platform.search.access import EvidenceAccessDenied
 from research_platform.search.application_errors import (
     IncompatibleRetrievalProfile,
@@ -50,6 +61,7 @@ from research_platform.search.paper_reads import (
     SnapshotPaperRead,
 )
 from research_platform.search.paper_related import RelatedPapersPage
+from research_platform.search.paper_similarity import SimilarPaper
 from research_platform.tools.table_text import render_table_rows
 
 
@@ -91,6 +103,58 @@ class RelatedService(Protocol):
     ) -> RelatedPapersPage: ...
 
 
+class SimilarityService(Protocol):
+    """Semantic paper recommendations from the Qdrant paper collection."""
+
+    async def similar_to_paper(
+        self, paper_id: str, *, generation: int, limit: int
+    ) -> tuple[SimilarPaper, ...]: ...
+
+    async def uningested_for_question(
+        self,
+        question: str,
+        *,
+        limit: int = 5,
+        minimum_similarity: float = 0.5,
+    ) -> tuple[SimilarPaper, ...]: ...
+
+
+class DiscoveryService(Protocol):
+    """Budgeted online paper search used by deep-research runs."""
+
+    async def discover(
+        self,
+        *,
+        run_id: UUID | None,
+        question: str,
+        query: str,
+        year_from: int | None,
+        year_to: int | None,
+        limit: int,
+    ) -> tuple[DiscoveredPaper, ...]: ...
+
+
+class DiscoveryServiceUnavailable(RuntimeError):
+    """Raised when online discovery is not configured for this runtime."""
+
+
+class IngestionPolicyService(Protocol):
+    """Code-enforced membership decisions for proposed papers."""
+
+    async def submit(
+        self,
+        *,
+        run_id: UUID | None,
+        requested_by: Literal["run", "api", "terminal"],
+        paper_ids: Sequence[str],
+        max_papers: int,
+    ) -> PolicyResult: ...
+
+
+class IngestionPolicyUnavailable(RuntimeError):
+    """Raised when online ingestion is not configured for this runtime."""
+
+
 class ToolContext(BaseModel):
     """Immutable run-specific inputs required to execute a tool action."""
 
@@ -98,7 +162,10 @@ class ToolContext(BaseModel):
 
     run_id: UUID
     snapshot_id: UUID
+    generation: int | None = Field(default=None, ge=1)
     retrieval_profile_id: str
+    mode: ResearchMode = ResearchMode.QUICK
+    question: str = ""
     filters: ResearchFilters
     budgets: RunBudgets
 
@@ -155,11 +222,31 @@ class ResearchTools:
         papers: PaperService,
         citations: CitationService,
         related: RelatedService,
+        discovery: DiscoveryService | None = None,
+        similarity: SimilarityService | None = None,
+        ingestion: IngestionPolicyService | None = None,
     ) -> None:
         self._search = search
         self._papers = papers
         self._citations = citations
         self._related = related
+        self._discovery = discovery
+        self._similarity = similarity
+        self._ingestion = ingestion
+
+    async def uningested_for_question(
+        self,
+        question: str,
+        *,
+        limit: int = 5,
+        minimum_similarity: float = 0.5,
+    ) -> tuple[SimilarPaper, ...]:
+        """Return metadata-only semantic candidates when the reader is configured."""
+        if self._similarity is None:
+            return ()
+        return await self._similarity.uningested_for_question(
+            question, limit=limit, minimum_similarity=minimum_similarity
+        )
 
     async def execute(
         self,
@@ -172,6 +259,21 @@ class ResearchTools:
         ordinal = ledger.records
         arguments = action.model_dump(mode="json")
         key = action_key(action)
+
+        if isinstance(action, (DiscoverPapersAction, RequestIngestionAction)) and (
+            context.mode is not ResearchMode.DEEP_RESEARCH
+        ):
+            return self._record(
+                ledger,
+                ToolObservation(
+                    ordinal=ordinal,
+                    tool=action.tool,
+                    arguments=arguments,
+                    status="rejected",
+                    summary={},
+                    error_category="mode_not_allowed",
+                ),
+            )
 
         if key in ledger.cache:
             return self._record(
@@ -217,10 +319,14 @@ class ResearchTools:
             context.filters.year_from,
             context.filters.year_to,
             action.year_from
-            if isinstance(action, (SearchPapersAction, SearchEvidenceAction))
+            if isinstance(
+                action, (SearchPapersAction, SearchEvidenceAction, DiscoverPapersAction)
+            )
             else None,
             action.year_to
-            if isinstance(action, (SearchPapersAction, SearchEvidenceAction))
+            if isinstance(
+                action, (SearchPapersAction, SearchEvidenceAction, DiscoverPapersAction)
+            )
             else None,
         )
         if effective_years is None:
@@ -253,6 +359,34 @@ class ResearchTools:
                     effective_years=effective_years,
                     ledger=ledger,
                 )
+        except DiscoveryBudgetExceeded:
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool=action.tool,
+                arguments=arguments,
+                status="failed",
+                summary={},
+                error_category="discovery_budget",
+                retryable=False,
+                duration_ms=_duration_ms(started),
+            )
+            return observation, updated
+        except (DiscoveryServiceUnavailable, IngestionPolicyUnavailable) as error:
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool=action.tool,
+                arguments=arguments,
+                status="failed",
+                summary={},
+                error_category=(
+                    "ingestion_unavailable"
+                    if isinstance(error, IngestionPolicyUnavailable)
+                    else "discovery_unavailable"
+                ),
+                retryable=False,
+                duration_ms=_duration_ms(started),
+            )
+            return observation, updated
         except (SearchDependencyUnavailable, RetrievalExecutionFailure, TimeoutError):
             observation = ToolObservation(
                 ordinal=ordinal,
@@ -260,7 +394,24 @@ class ResearchTools:
                 arguments=arguments,
                 status="failed",
                 summary={},
-                error_category="retrieval_error",
+                error_category=_service_error_category(action),
+                retryable=True,
+                duration_ms=_duration_ms(started),
+            )
+            return observation, updated
+        except (
+            OpenAlexRequestError,
+            EmbeddingModelError,
+            asyncpg.PostgresError,
+            httpx.HTTPError,
+        ):
+            observation = ToolObservation(
+                ordinal=ordinal,
+                tool=action.tool,
+                arguments=arguments,
+                status="failed",
+                summary={},
+                error_category=_service_error_category(action),
                 retryable=True,
                 duration_ms=_duration_ms(started),
             )
@@ -324,6 +475,72 @@ class ResearchTools:
         effective_years: tuple[int | None, int | None],
         ledger: ToolLedger,
     ) -> tuple[dict[str, Any], tuple[CollectedEvidence, ...], dict[str, int]]:
+        if isinstance(action, RequestIngestionAction):
+            if self._ingestion is None:
+                raise IngestionPolicyUnavailable("online ingestion is not configured")
+            result = await self._ingestion.submit(
+                run_id=context.run_id,
+                requested_by="run",
+                paper_ids=action.paper_ids,
+                max_papers=context.budgets.max_papers_per_wait,
+            )
+            return (
+                {
+                    "request_id": (
+                        None if result.request_id is None else str(result.request_id)
+                    ),
+                    "decisions": [
+                        {
+                            "paper_id": decision.paper_id,
+                            "decision": decision.decision,
+                            "reason": decision.reason,
+                        }
+                        for decision in result.decisions
+                    ],
+                },
+                (),
+                {},
+            )
+        if isinstance(action, DiscoverPapersAction):
+            if self._discovery is None:
+                raise DiscoveryServiceUnavailable("online discovery is not configured")
+            discovered_papers = await self._discovery.discover(
+                run_id=context.run_id,
+                question=context.question,
+                query=action.query,
+                year_from=effective_years[0],
+                year_to=effective_years[1],
+                limit=action.limit,
+            )
+            summary: dict[str, Any] = {
+                "papers": [
+                    {
+                        "paper_id": paper.paper_id,
+                        "title": paper.title,
+                        "publication_year": paper.publication_year,
+                        "catalog_status": paper.catalog_status,
+                        "similarity": paper.similarity,
+                    }
+                    for paper in discovered_papers
+                ]
+            }
+            evidence = tuple(
+                CollectedEvidence(
+                    chunk_id=f"abstract:{paper.paper_id}",
+                    paper_id=paper.paper_id,
+                    text=paper.abstract,
+                    title=paper.title,
+                    publication_year=paper.publication_year,
+                    kind="abstract",
+                    source_location={},
+                    reranker_score=None,
+                )
+                for paper in discovered_papers
+                if paper.abstract is not None and paper.abstract.strip()
+            )
+            discovery_depths = {paper.paper_id: 0 for paper in discovered_papers}
+            return summary, evidence, discovery_depths
+
         if isinstance(action, (SearchPapersAction, SearchEvidenceAction)):
             operation = (
                 SearchOperation.PAPER_SEARCH
@@ -456,6 +673,50 @@ class ResearchTools:
             )
 
         if isinstance(action, FindRelatedPapersAction):
+            if action.basis == "similarity":
+                if self._similarity is None:
+                    return (
+                        {
+                            "papers": [],
+                            "coverage_note": "Semantic paper similarity is unavailable.",
+                        },
+                        (),
+                        {},
+                    )
+                if context.generation is None:
+                    raise ValueError(
+                        "a pinned generation is required for semantic paper similarity"
+                    )
+                similar_papers = await self._similarity.similar_to_paper(
+                    action.paper_id,
+                    generation=context.generation,
+                    limit=action.limit,
+                )
+                source_depth = ledger.paper_depths.get(action.paper_id, 0)
+                depths = {
+                    paper.paper_id: min(
+                        ledger.paper_depths.get(paper.paper_id, source_depth + 1),
+                        source_depth + 1,
+                    )
+                    for paper in similar_papers
+                }
+                return (
+                    {
+                        "papers": [
+                            {
+                                "paper_id": paper.paper_id,
+                                "title": paper.title,
+                                "year": paper.publication_year,
+                                "similarity": paper.similarity,
+                                "catalog_status": paper.catalog_status,
+                            }
+                            for paper in similar_papers
+                        ],
+                        "coverage_note": "Semantic similarity is based on paper embeddings.",
+                    },
+                    (),
+                    depths,
+                )
             related_page = await self._related.find_related(
                 context.snapshot_id, action.paper_id, limit=action.limit
             )
@@ -528,6 +789,14 @@ def _collected_evidence(
         source_location=dict(location),
         reranker_score=score.score if score is not None else None,
     )
+
+
+def _service_error_category(action: Action) -> str:
+    if isinstance(action, DiscoverPapersAction):
+        return "discovery_error"
+    if isinstance(action, RequestIngestionAction):
+        return "ingestion_error"
+    return "retrieval_error"
 
 
 def _duration_ms(started: float) -> float:

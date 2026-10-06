@@ -44,13 +44,17 @@ class RunExecutor:
         return self._queue.qsize()
 
     async def start(self) -> None:
-        """Restore running runs before queued runs, then start one worker."""
+        """Restore running, then waiting, then queued runs; start one worker."""
         async with self._start_lock:
             if self._started:
                 raise RuntimeError("run executor has already been started")
 
             recovered: list[UUID] = []
-            for status in (RunStatus.RUNNING, RunStatus.QUEUED):
+            for status in (
+                RunStatus.RUNNING,
+                RunStatus.WAITING_FOR_INGESTION,
+                RunStatus.QUEUED,
+            ):
                 runs = await self._store.list_runs([status], limit=_RECOVERY_LIMIT)
                 if len(runs) >= _RECOVERY_LIMIT:
                     raise RuntimeError(

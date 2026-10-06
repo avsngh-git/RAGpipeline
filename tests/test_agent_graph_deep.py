@@ -284,7 +284,7 @@ async def test_plan_uses_native_tool_calls_with_thinking() -> None:
     assert await runner.run(run_id) is RunStatus.COMPLETED
     request = llm.tool_requests[0]
     assert request.think is True
-    assert len(request.tools) == 6
+    assert len(request.tools) == 8
     assert request.max_repair_attempts == _budgets().max_model_retries
 
 
@@ -466,3 +466,204 @@ def test_budget_helpers_and_default_actions_match_quick_mode() -> None:
     assert [action.tool for action in actions] == ["search_papers", "search_evidence"]
     assert actions[0].model_dump(mode="json")["limit"] == 10
     assert actions[1].model_dump(mode="json")["limit"] == 20
+
+
+_NEW_SNAPSHOT = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+
+
+class _FakeQueue:
+    """Ingestion request statuses for the wait node."""
+
+    def __init__(self, status: str, result: dict[str, object] | None = None) -> None:
+        self.status = status
+        self.result = result or {}
+        self.gets = 0
+
+    async def get(self, request_id: UUID) -> Any:
+        from datetime import UTC, datetime
+
+        from research_platform.worker.queue import IngestionRequest
+
+        self.gets += 1
+        return IngestionRequest(
+            request_id,
+            UUID(int=1),
+            None,
+            "run",
+            ("W501",),
+            self.status,  # type: ignore[arg-type]
+            1,
+            self.result,
+            created_at=datetime.now(UTC),
+        )
+
+
+class _SnapshotRecordingSearch:
+    """Record each search's snapshot, answering from the fake corpus."""
+
+    def __init__(self, wrapped: Any) -> None:
+        self.wrapped = wrapped
+        self.snapshots: list[UUID] = []
+
+    async def execute(self, request: SearchRequest, *, request_id: str) -> Any:
+        from dataclasses import replace
+
+        self.snapshots.append(request.snapshot_id)
+        return await self.wrapped.execute(
+            replace(request, snapshot_id=_SNAPSHOT), request_id=request_id
+        )
+
+
+def _ingestion_runner(
+    store: InMemoryRunStore,
+    llm: LLMClient,
+    queue: _FakeQueue,
+    *,
+    budgets: RunBudgets | None = None,
+    clock: Any = None,
+) -> tuple[ResearchRunner, _SnapshotRecordingSearch]:
+    from research_platform.tools.fakes import FakeIngestionPolicy
+
+    search_service, papers, citations, related = fake_services(_corpus())
+    search = _SnapshotRecordingSearch(search_service)
+    tools = ResearchTools(
+        search=search,
+        papers=papers,
+        citations=citations,
+        related=related,
+        ingestion=FakeIngestionPolicy(
+            {"W501": (False, 2024, "en"), "W502": (False, 2024, "en")}
+        ),
+    )
+    extra = {} if clock is None else {"clock": clock}
+    runner = ResearchRunner(
+        RunnerDependencies(
+            repository=store,
+            tools=tools,
+            llm=llm,
+            checkpointer=InMemorySaver(),
+            serving=ServingIdentity(_SNAPSHOT, _PROFILE, generation=1),
+            thinking=frozenset(),
+            code_revision="test-revision",
+            graphs={ResearchMode.DEEP_RESEARCH: build_deep_graph},
+            budgets=budgets or RunBudgets.model_construct(),
+            ingestion=queue,
+            **extra,
+        )
+    )
+    return runner, search
+
+
+def _request(paper_id: str = "W501") -> dict[str, object]:
+    return _call("request_ingestion", {"paper_ids": [paper_id], "reason": "gap"})
+
+
+_PUBLISHED = {"generation": 2, "snapshot_id": str(_NEW_SNAPSHOT), "outcomes": []}
+
+
+@pytest.mark.anyio
+async def test_successful_ingestion_switches_generation_once() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (_plan(_request()), _evaluation(sufficient=True), *_answer_replies()),
+        identity=_IDENTITY,
+    )
+    runner, _search = _ingestion_runner(store, llm, _FakeQueue("succeeded", _PUBLISHED))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+
+    view = await store.get_run_view(run_id)
+    waits = [c for c in store.tool_calls(run_id) if c.tool_name == "ingestion_wait"]
+    assert len(waits) == 1 and waits[0].status == "succeeded"
+    assert waits[0].result_summary["from_generation"] == 1
+    assert waits[0].result_summary["to_generation"] == 2
+    assert view.generation == 2
+    assert view.provenance is not None and view.provenance.generation == 1
+    assert (await store.get_run(run_id)).snapshot_id == _NEW_SNAPSHOT
+
+
+@pytest.mark.anyio
+async def test_wait_cap_continues_on_current_generation() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (_plan(_request()), _evaluation(sufficient=True), *_answer_replies()),
+        identity=_IDENTITY,
+    )
+    queue = _FakeQueue("pending")
+    runner, _search = _ingestion_runner(
+        store,
+        llm,
+        queue,
+        budgets=RunBudgets.model_construct(max_ingestion_wait_seconds=0.05),
+    )
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+
+    waits = [c for c in store.tool_calls(run_id) if c.tool_name == "ingestion_wait"]
+    assert [(c.status, c.error_category) for c in waits] == [
+        ("failed", "ingestion_wait_cap")
+    ]
+    assert waits[0].result_summary["pending_paper_ids"] == ["W501"]
+    view = await store.get_run_view(run_id)
+    assert view.generation == 1 and queue.gets >= 2
+    assert (await store.get_run(run_id)).snapshot_id == _SNAPSHOT
+
+
+@pytest.mark.anyio
+async def test_second_request_is_rejected() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (
+            _plan(_request("W501"), _request("W502")),
+            _evaluation(
+                sufficient=False,
+                actions=[
+                    {
+                        "tool": "request_ingestion",
+                        "paper_ids": ["W502"],
+                        "reason": "again",
+                    }
+                ],
+            ),
+            _evaluation(sufficient=True),
+            *_answer_replies(),
+        ),
+        identity=_IDENTITY,
+    )
+    runner, _search = _ingestion_runner(store, llm, _FakeQueue("succeeded", _PUBLISHED))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+
+    calls = store.tool_calls(run_id)
+    requests = [c for c in calls if c.tool_name == "request_ingestion"]
+    assert [(c.status, c.error_category) for c in requests] == [
+        ("succeeded", None),
+        ("rejected", "ingestion_already_requested"),
+        ("rejected", "ingestion_already_requested"),
+    ]
+    assert len([c for c in calls if c.tool_name == "ingestion_wait"]) == 1
+
+
+@pytest.mark.anyio
+async def test_later_searches_use_new_generation() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (
+            _plan(_call("search_papers", {"query": "retrieval"}), _request()),
+            _evaluation(
+                sufficient=False,
+                actions=[{"tool": "search_evidence", "query": "retrieval"}],
+            ),
+            _evaluation(sufficient=True),
+            *_answer_replies(),
+        ),
+        identity=_IDENTITY,
+    )
+    runner, search = _ingestion_runner(store, llm, _FakeQueue("succeeded", _PUBLISHED))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    assert search.snapshots == [_SNAPSHOT, _NEW_SNAPSHOT]

@@ -17,6 +17,7 @@ from research_platform.llm.types import CallKind, ModelIdentity
 _CONFIGURATION_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _EVIDENCE_HANDLE_PATTERN = r"^E[1-9][0-9]*$"
 _CLAIM_ID_PATTERN = r"^claim-[1-9][0-9]*$"
+UNINGESTED_SIMILARITY_THRESHOLD = 0.5
 
 
 class _ContractModel(BaseModel):
@@ -35,6 +36,7 @@ class RunStatus(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
+    WAITING_FOR_INGESTION = "waiting_for_ingestion"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -84,6 +86,8 @@ class RunBudgets(_ContractModel):
     max_model_retries: int = Field(2, ge=0, le=5)
     max_active_seconds: float = Field(1800.0, gt=0, le=3600)
     max_resumes: int = Field(2, ge=0, le=5)
+    max_papers_per_wait: int = Field(5, ge=1, le=20)
+    max_ingestion_wait_seconds: float = Field(900.0, gt=0, le=3600)
 
 
 class ResearchFilters(_ContractModel):
@@ -153,7 +157,7 @@ class PaperSummary(_ContractModel):
 
 
 class RunProvenance(_ContractModel):
-    """Effective configuration and model information for a run."""
+    """Effective configuration, model information and catalog diagnostics for a run."""
 
     snapshot_id: UUID
     retrieval_profile_id: str
@@ -164,6 +168,15 @@ class RunProvenance(_ContractModel):
     prompt_versions: dict[str, str]
     budgets: RunBudgets
     trace_id: str
+    generation: int | None = Field(None, ge=1)
+    retrieval_settings_id: str | None = None
+    uningested_similarity_threshold: float | None = Field(
+        None,
+        ge=-1,
+        le=1,
+        description="Uncalibrated threshold for the metadata-only paper diagnostic.",
+    )
+    uningested_candidates: tuple[PaperSummary, ...] = ()
 
     @field_validator("configuration_id")
     @classmethod
@@ -197,9 +210,13 @@ class ResearchRunView(_ContractModel):
     answer_outcome: AnswerOutcome | None = None
     claims: tuple[ClaimResult, ...] = ()
     papers: tuple[PaperSummary, ...] = ()
+    uningested_candidates: tuple[PaperSummary, ...] = ()
     failure_category: FailureCategory | None = None
     error_message: str | None = None
     provenance: RunProvenance | None = None
+    generation: int | None = Field(
+        None, ge=1, description="Current generation; provenance keeps the starting one."
+    )
     usage: RunUsage = Field(default_factory=lambda: RunUsage.model_construct())
     created_at: datetime
     completed_at: datetime | None = None

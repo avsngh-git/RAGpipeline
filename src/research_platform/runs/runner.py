@@ -3,22 +3,32 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
+import asyncpg  # type: ignore[import-untyped]
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import StateGraph
 
-from research_platform.agents.nodes import NodeDependencies, ToolStepFailed
+from research_platform.agents.nodes import (
+    IngestionStatusSource,
+    NodeDependencies,
+    ToolStepFailed,
+)
 from research_platform.agents.prompts import PROMPT_VERSIONS
 from research_platform.agents.state import ResearchState, initial_state
+from research_platform.config import Settings
+from research_platform.ingestion.generation_index import GenerationIndexConfiguration
+from research_platform.ingestion.generation_registry import GenerationRegistry
 from research_platform.llm.contracts import (
     LLMClient,
     LLMInvalidOutput,
@@ -29,6 +39,7 @@ from research_platform.llm.contracts import (
 from research_platform.llm.types import CallKind, ModelIdentity
 from research_platform.runs.checkpointing import thread_config
 from research_platform.runs.contracts import (
+    UNINGESTED_SIMILARITY_THRESHOLD,
     FailureCategory,
     ResearchMode,
     ResearchRequest,
@@ -58,6 +69,8 @@ class ServingIdentity:
 
     snapshot_id: UUID
     retrieval_profile_id: str
+    generation: int | None = None
+    retrieval_settings_id: str | None = None
 
 
 def load_serving_identity(path: Path | None = None) -> ServingIdentity:
@@ -67,6 +80,31 @@ def load_serving_identity(path: Path | None = None) -> ServingIdentity:
     return ServingIdentity(
         snapshot_id=profile.snapshot.snapshot_id,
         retrieval_profile_id=profile.profile_id,
+    )
+
+
+async def resolve_serving_identity(
+    settings: Settings, pool: asyncpg.Pool, path: Path | None = None
+) -> ServingIdentity:
+    """The serving identity; with Qdrant content, the published generation's snapshot."""
+    profile = load_frozen_profile(resolve_frozen_profile_path(path))
+    if settings.content_source != "qdrant":
+        return ServingIdentity(
+            snapshot_id=profile.snapshot.snapshot_id,
+            retrieval_profile_id=profile.profile_id,
+        )
+    raw = json.loads(settings.generation_configuration.read_text(encoding="utf-8"))
+    configuration = GenerationIndexConfiguration.from_dict(raw)
+    registry = GenerationRegistry(pool)
+    collection_id = await registry.ensure_collection(settings.generation_collection)
+    published = await registry.published(collection_id, configuration.configuration_id)
+    if published is None:
+        raise RuntimeError("the generation collection has no published generation")
+    return ServingIdentity(
+        snapshot_id=published.snapshot_id,
+        retrieval_profile_id=profile.profile_id,
+        generation=published.generation,
+        retrieval_settings_id=profile.settings_id,
     )
 
 
@@ -84,7 +122,7 @@ def build_provenance(
     snapshot_id = request.snapshot_id or serving.snapshot_id
     thinking_map = {kind: kind in thinking for kind in _PROVENANCE_CALL_KINDS}
     prompt_versions = dict(PROMPT_VERSIONS)
-    effective_configuration = {
+    effective_configuration: dict[str, object] = {
         "mode": request.mode.value,
         "filters": request.filters.model_dump(mode="json"),
         "snapshot_id": str(snapshot_id),
@@ -95,6 +133,16 @@ def build_provenance(
         "prompt_versions": prompt_versions,
         "code_revision": code_revision,
     }
+    if serving.generation is not None:
+        effective_configuration["generation"] = serving.generation
+        effective_configuration["retrieval_settings_id"] = serving.retrieval_settings_id
+    diagnostic_threshold = (
+        UNINGESTED_SIMILARITY_THRESHOLD if request.mode is ResearchMode.QUICK else None
+    )
+    if diagnostic_threshold is not None:
+        effective_configuration["uningested_similarity_threshold"] = (
+            diagnostic_threshold
+        )
     return RunProvenance(
         snapshot_id=snapshot_id,
         retrieval_profile_id=serving.retrieval_profile_id,
@@ -105,6 +153,9 @@ def build_provenance(
         prompt_versions=prompt_versions,
         budgets=budgets,
         trace_id=str(run_id),
+        generation=serving.generation,
+        retrieval_settings_id=serving.retrieval_settings_id,
+        uningested_similarity_threshold=diagnostic_threshold,
     )
 
 
@@ -148,6 +199,31 @@ class RunnerDependencies:
     graphs: Mapping[ResearchMode, GraphBuilder]
     budgets: RunBudgets = field(default_factory=RunBudgets.model_construct)
     clock: Callable[[], float] = time.monotonic
+    ingestion: IngestionStatusSource | None = None
+    serving_resolver: Callable[[], Awaitable[ServingIdentity]] | None = None
+
+
+class _ActivePauses:
+    """Excludes paused intervals from active time and from the active deadline."""
+
+    def __init__(self, clock: Callable[[], float]) -> None:
+        self._clock = clock
+        self.paused_seconds = 0.0
+        self.timeout: asyncio.Timeout | None = None
+
+    @asynccontextmanager
+    async def pause(self) -> AsyncIterator[None]:
+        loop = asyncio.get_running_loop()
+        started, loop_started = self._clock(), loop.time()
+        deadline = None if self.timeout is None else self.timeout.when()
+        if self.timeout is not None:
+            self.timeout.reschedule(None)
+        try:
+            yield
+        finally:
+            self.paused_seconds += max(0.0, self._clock() - started)
+            if self.timeout is not None and deadline is not None:
+                self.timeout.reschedule(deadline + (loop.time() - loop_started))
 
 
 class ResearchRunner:
@@ -173,7 +249,10 @@ class ResearchRunner:
             )
             return stored.status
 
-        resuming = stored.status is RunStatus.RUNNING
+        resuming = stored.status in (
+            RunStatus.RUNNING,
+            RunStatus.WAITING_FOR_INGESTION,
+        )
         resume_count = stored.resume_count
         if resuming:
             resume_count = await self._deps.repository.record_resume(run_id)
@@ -196,12 +275,25 @@ class ResearchRunner:
         started = self._deps.clock()
         execution_seconds = 0.0
         active_started = False
+        pauses = _ActivePauses(self._deps.clock)
+        serving = self._deps.serving
+        if not resuming and self._deps.serving_resolver is not None:
+            # A new run pins the generation published when it starts.
+            serving = await self._deps.serving_resolver()
+        if resuming and stored.pinned_snapshot_id is not None:
+            # A resumed run keeps the identity it started with, even after a
+            # newer generation was published or the run switched generations.
+            serving = replace(
+                serving,
+                snapshot_id=stored.pinned_snapshot_id,
+                generation=stored.pinned_generation,
+            )
         try:
             model = await self._deps.llm.identity()
             provenance = build_provenance(
                 run_id=run_id,
                 request=stored.request,
-                serving=self._deps.serving,
+                serving=serving,
                 model=model,
                 thinking=self._deps.thinking,
                 budgets=self._deps.budgets,
@@ -239,6 +331,9 @@ class ResearchRunner:
                 run_id=run_id,
                 snapshot_id=provenance.snapshot_id,
                 retrieval_profile_id=provenance.retrieval_profile_id,
+                mode=stored.mode,
+                question=stored.request.question,
+                generation=provenance.generation,
                 filters=stored.request.filters,
                 budgets=self._deps.budgets,
             )
@@ -249,6 +344,8 @@ class ResearchRunner:
                 repository=self._deps.repository,
                 context=context,
                 thinking=self._deps.thinking,
+                ingestion=self._deps.ingestion,
+                pause_active=pauses.pause,
             )
             graph_builder = self._deps.graphs[stored.mode]
             graph = graph_builder(node_deps).compile(
@@ -268,12 +365,14 @@ class ResearchRunner:
             started = self._deps.clock()
             active_started = True
             try:
-                async with asyncio.timeout(remaining):
+                async with asyncio.timeout(remaining) as timeout:
+                    pauses.timeout = timeout
                     final_state = await graph.ainvoke(
                         graph_input, config, durability="sync"
                     )
             finally:
-                elapsed = max(0.0, self._deps.clock() - started)
+                pauses.timeout = None
+                elapsed = max(0.0, self._deps.clock() - started - pauses.paused_seconds)
                 execution_seconds = elapsed
                 accumulated_seconds = await self._deps.repository.add_active_seconds(
                     run_id, elapsed
@@ -309,12 +408,12 @@ class ResearchRunner:
             return status
         except asyncio.CancelledError:
             if active_started:
-                elapsed = max(0.0, self._deps.clock() - started)
+                elapsed = max(0.0, self._deps.clock() - started - pauses.paused_seconds)
                 await self._deps.repository.add_active_seconds(run_id, elapsed)
             raise
         except Exception as error:
             if active_started:
-                elapsed = max(0.0, self._deps.clock() - started)
+                elapsed = max(0.0, self._deps.clock() - started - pauses.paused_seconds)
                 execution_seconds = elapsed
                 accumulated_seconds = await self._deps.repository.add_active_seconds(
                     run_id, elapsed

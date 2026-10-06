@@ -10,15 +10,25 @@ from pydantic import BaseModel, TypeAdapter
 
 from research_platform.agents.actions import (
     Action,
+    DiscoverPapersAction,
     FindRelatedPapersAction,
     GetCitationsAction,
     GetPaperAction,
     GetReferencesAction,
+    RequestIngestionAction,
     SearchEvidenceAction,
     SearchPapersAction,
 )
 
 TOOL_DESCRIPTIONS: Final[dict[str, str]] = {
+    "discover_papers": (
+        "search OpenAlex for papers not in the local corpus; returns candidates with "
+        "abstracts and whether they are already ingested"
+    ),
+    "request_ingestion": (
+        "ask to add up to five discover_papers candidates to the local corpus; code "
+        "decides each paper and reports the decisions"
+    ),
     "search_papers": (
         "find papers relevant to a query; returns ranked papers with supporting "
         "passages."
@@ -30,11 +40,13 @@ TOOL_DESCRIPTIONS: Final[dict[str, str]] = {
     "get_citations": "list stored papers that cite the given paper_id.",
     "get_references": "list stored papers that the given paper_id cites.",
     "find_related_papers": (
-        "list papers that share references or are cited together with paper_id."
+        "find papers related to paper_id by stored citation relationships or semantic similarity."
     ),
 }
 
 _ACTION_MODELS: Final[tuple[tuple[str, type[BaseModel]], ...]] = (
+    ("discover_papers", DiscoverPapersAction),
+    ("request_ingestion", RequestIngestionAction),
     ("search_papers", SearchPapersAction),
     ("search_evidence", SearchEvidenceAction),
     ("get_paper", GetPaperAction),
@@ -46,7 +58,7 @@ _ACTION_ADAPTER: Final[TypeAdapter[Action]] = TypeAdapter(Action)
 
 
 def research_tool_definitions() -> list[dict[str, object]]:
-    """Return Ollama-compatible definitions for the six typed research actions."""
+    """Return Ollama-compatible definitions for the typed research actions."""
     tools: list[dict[str, object]] = []
     for name, model in _ACTION_MODELS:
         schema = model.model_json_schema()

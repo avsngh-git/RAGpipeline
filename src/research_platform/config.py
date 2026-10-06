@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
+from decimal import Decimal
 from math import isfinite
 from pathlib import Path
 from typing import Final
@@ -26,6 +27,70 @@ _ALLOWED_ENVIRONMENTS: Final = frozenset({"development", "test", "production"})
 _ALLOWED_LOG_LEVELS: Final = frozenset(
     {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 )
+
+
+@dataclass(frozen=True)
+class DiscoverySettings:
+    """Conservative policy and cost defaults for online OpenAlex discovery."""
+
+    max_search_requests_per_run: int = 10
+    max_downloads_per_run: int = 5
+    max_papers_per_wait: int = 5
+    daily_spend_cap_usd: Decimal = Decimal("0.50")
+    search_request_cost_usd: Decimal = Decimal("0.001")
+    content_download_cost_usd: Decimal = Decimal("0.01")
+    minimum_publication_year: int = 2020
+    language: str = "en"
+    openalex_field_ids: tuple[str, ...] = ("fields/17",)
+    results_per_request: int = 25
+
+    def __post_init__(self) -> None:
+        for name in (
+            "max_search_requests_per_run",
+            "max_downloads_per_run",
+            "max_papers_per_wait",
+            "results_per_request",
+            "minimum_publication_year",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be positive")
+        if self.minimum_publication_year < 2020:
+            raise ValueError("minimum_publication_year cannot be before 2020")
+        if self.results_per_request > 100:
+            raise ValueError(
+                "results_per_request cannot exceed OpenAlex's limit of 100"
+            )
+        if self.language != "en":
+            raise ValueError("online discovery language is fixed to 'en'")
+        if (
+            not isinstance(self.openalex_field_ids, tuple)
+            or not self.openalex_field_ids
+        ):
+            raise ValueError("openalex_field_ids must be a non-empty tuple")
+        if any(
+            not isinstance(field_id, str)
+            or not field_id.startswith("fields/")
+            or not field_id.removeprefix("fields/").isdigit()
+            for field_id in self.openalex_field_ids
+        ):
+            raise ValueError("OpenAlex field IDs must look like 'fields/17'")
+        if len(set(self.openalex_field_ids)) != len(self.openalex_field_ids):
+            raise ValueError("openalex_field_ids must not contain duplicates")
+        if not isinstance(self.daily_spend_cap_usd, Decimal) or (
+            not self.daily_spend_cap_usd.is_finite()
+            or self.daily_spend_cap_usd <= 0
+            or self.daily_spend_cap_usd >= Decimal("1")
+        ):
+            raise ValueError(
+                "daily_spend_cap_usd must be finite, positive, and below $1"
+            )
+        for name in ("search_request_cost_usd", "content_download_cost_usd"):
+            value = getattr(self, name)
+            if not isinstance(value, Decimal) or not value.is_finite() or value <= 0:
+                raise ValueError(f"{name} must be a finite positive Decimal")
 
 
 def _environment_default() -> str:
@@ -66,6 +131,27 @@ def _lexical_index_root_default() -> Path:
 
 def _model_device_default() -> str:
     return os.environ.get("RESEARCH_PLATFORM_MODEL_DEVICE", "auto")
+
+
+def _content_source_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_CONTENT_SOURCE", "qdrant")
+
+
+def _lexical_engine_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_LEXICAL_ENGINE", "qdrant")
+
+
+def _generation_collection_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_GENERATION_COLLECTION", "research-corpus")
+
+
+def _generation_configuration_default() -> Path:
+    return Path(
+        os.environ.get(
+            "RESEARCH_PLATFORM_GENERATION_CONFIGURATION",
+            "configs/phase35-generation-index-lexical.example.json",
+        )
+    )
 
 
 def _reranker_cache_dir_default() -> Path | None:
@@ -154,6 +240,12 @@ class Settings:
     lexical_index_root: Path = field(default_factory=_lexical_index_root_default)
     model_device: str = field(default_factory=_model_device_default)
     reranker_cache_dir: Path | None = field(default_factory=_reranker_cache_dir_default)
+    content_source: str = field(default_factory=_content_source_default)
+    lexical_engine: str = field(default_factory=_lexical_engine_default)
+    generation_collection: str = field(default_factory=_generation_collection_default)
+    generation_configuration: Path = field(
+        default_factory=_generation_configuration_default
+    )
     llm_base_url: str = field(default_factory=_llm_base_url_default)
     llm_model: str = field(default_factory=_llm_model_default)
     llm_timeout_seconds: float = field(default_factory=_llm_timeout_default)
@@ -215,6 +307,19 @@ class Settings:
         if model_device not in {"auto", "cpu", "cuda"}:
             raise ValueError("model_device must be auto, cpu or cuda")
         object.__setattr__(self, "model_device", model_device)
+        content_source = self.content_source.strip().lower()
+        if content_source not in {"postgres", "qdrant"}:
+            raise ValueError("content_source must be postgres or qdrant")
+        object.__setattr__(self, "content_source", content_source)
+        lexical_engine = self.lexical_engine.strip().lower()
+        if lexical_engine not in {"bm25s", "qdrant"}:
+            raise ValueError("lexical_engine must be bm25s or qdrant")
+        object.__setattr__(self, "lexical_engine", lexical_engine)
+        if not self.generation_collection.strip():
+            raise ValueError("generation_collection must be a non-empty name")
+        object.__setattr__(
+            self, "generation_configuration", Path(self.generation_configuration)
+        )
         lexical_root = Path(self.lexical_index_root)
         if not str(lexical_root).strip():
             raise ValueError("lexical_index_root must be a non-empty path")

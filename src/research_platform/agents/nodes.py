@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+import asyncio
+from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any, Protocol
 from uuid import UUID
 
 from research_platform.agents.actions import Action
@@ -20,6 +24,21 @@ from research_platform.tools.research_tools import (
     ToolContext,
     ToolObservation,
 )
+from research_platform.worker.queue import IngestionRequest
+
+
+class IngestionStatusSource(Protocol):
+    """Reads an ingestion request's status and result."""
+
+    async def get(self, request_id: UUID) -> IngestionRequest: ...
+
+
+def _no_pause() -> AbstractAsyncContextManager[None]:
+    return nullcontext()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
@@ -32,6 +51,21 @@ class NodeDependencies:
     repository: RunStore
     context: ToolContext
     thinking: frozenset[CallKind]
+    ingestion: IngestionStatusSource | None = None
+    pause_active: Callable[[], AbstractAsyncContextManager[None]] = _no_pause
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+    now: Callable[[], datetime] = field(default=_utc_now)
+
+
+def effective_context(deps: NodeDependencies, state: ResearchState) -> ToolContext:
+    """The run's tool context, moved to a newer generation after a switch."""
+    generation = state.get("generation")
+    snapshot_id = state.get("snapshot_id")
+    if generation is None or snapshot_id is None:
+        return deps.context
+    return deps.context.model_copy(
+        update={"generation": generation, "snapshot_id": UUID(snapshot_id)}
+    )
 
 
 class ToolStepFailed(RuntimeError):
@@ -59,7 +93,7 @@ async def _run_action(
     deps: NodeDependencies, state: ResearchState, action: Action
 ) -> tuple[dict[str, Any], ToolObservation]:
     observation, ledger = await deps.tools.execute(
-        action, context=deps.context, ledger=state["ledger"]
+        action, context=effective_context(deps, state), ledger=state["ledger"]
     )
     registry, new_refs = state["registry"].register(
         observation.evidence,
@@ -106,6 +140,28 @@ async def run_action(
     """Run and persist one action, adding only bounded model-facing history."""
     update, _ = await _run_action(deps, state, action)
     return update
+
+
+async def run_action_observed(
+    deps: NodeDependencies, state: ResearchState, action: Action
+) -> tuple[dict[str, Any], ToolObservation]:
+    """Like ``run_action``, also returning the observation."""
+    return await _run_action(deps, state, action)
+
+
+async def record_observation(
+    deps: NodeDependencies, state: ResearchState, observation: ToolObservation
+) -> dict[str, Any]:
+    """Persist an observation produced outside the tools; it adds no evidence."""
+    await deps.repository.append_tool_call(
+        deps.run_id, to_tool_call_record(observation)
+    )
+    ledger = state["ledger"].model_copy(update={"records": state["ledger"].records + 1})
+    line = format_observation(observation, ())
+    return {
+        "ledger": ledger,
+        "observations": [*state["observations"], line][-20:],
+    }
 
 
 async def answer_node(deps: NodeDependencies, state: ResearchState) -> dict[str, Any]:
