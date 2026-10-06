@@ -12,6 +12,8 @@ from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 
+from research_platform.llm.contracts import ChatMessage
+from research_platform.llm.types import CallKind
 from research_platform.runs.contracts import (
     AnswerOutcome,
     ClaimResult,
@@ -26,6 +28,11 @@ from research_platform.runs.contracts import (
     RunUsage,
     SupportLabel,
     configuration_id,
+)
+from research_platform.runs.llm_records import (
+    LLMCallPayload,
+    LLMCallRecord,
+    StoredLLMCall,
 )
 
 
@@ -288,6 +295,92 @@ class RunRepository:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
                 await _insert_tool_call(connection, run_id, record)
+
+    async def append_llm_call(
+        self,
+        run_id: UUID,
+        record: LLMCallRecord,
+        payload: LLMCallPayload | None = None,
+    ) -> int:
+        """Record one model call with the next ordinal and return the ordinal."""
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                exists = await connection.fetchval(
+                    "SELECT 1 FROM research_runs WHERE id = $1 FOR UPDATE", run_id
+                )
+                if exists is None:
+                    raise RunNotFound(f"run {run_id} was not found")
+                ordinal = await connection.fetchval(
+                    "SELECT COALESCE(max(ordinal), 0) + 1 FROM llm_calls WHERE run_id = $1",
+                    run_id,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO llm_calls
+                        (run_id, ordinal, kind, status, error_type, model_name, think,
+                         options, prompt_version, prompt_fingerprint, attempts,
+                         prompt_tokens, output_tokens, thinking_chars, duration_ms,
+                         trace_id, span_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12,
+                            $13, $14, $15, $16, $17)
+                    """,
+                    run_id,
+                    ordinal,
+                    record.kind.value,
+                    record.status,
+                    record.error_type,
+                    record.model_name,
+                    record.think,
+                    json.dumps(dict(record.options), sort_keys=True, default=str),
+                    record.prompt_version,
+                    record.prompt_fingerprint,
+                    record.attempts,
+                    record.prompt_tokens,
+                    record.output_tokens,
+                    record.thinking_chars,
+                    record.duration_ms,
+                    record.trace_id,
+                    record.span_id,
+                )
+                if payload is not None:
+                    await connection.execute(
+                        """
+                        INSERT INTO llm_call_payloads
+                            (run_id, ordinal, messages, output, thinking, error_preview)
+                        VALUES ($1, $2, $3::jsonb, $4, $5, $6)
+                        """,
+                        run_id,
+                        ordinal,
+                        _messages_json(payload.messages),
+                        payload.output,
+                        payload.thinking,
+                        payload.error_preview,
+                    )
+        return int(ordinal)
+
+    async def list_llm_calls(
+        self, run_id: UUID, *, include_payloads: bool = False
+    ) -> tuple[StoredLLMCall, ...]:
+        """Return a run's model calls in ordinal order."""
+        payload_columns = (
+            "p.messages, p.output, p.thinking, p.error_preview, p.run_id AS payload_run"
+            if include_payloads
+            else "NULL AS messages, NULL AS output, NULL AS thinking, "
+            "NULL AS error_preview, NULL AS payload_run"
+        )
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                f"""
+                SELECT c.*, {payload_columns}
+                FROM llm_calls c
+                LEFT JOIN llm_call_payloads p
+                  ON p.run_id = c.run_id AND p.ordinal = c.ordinal
+                WHERE c.run_id = $1
+                ORDER BY c.ordinal
+                """,
+                run_id,
+            )
+        return tuple(_stored_llm_call(row) for row in rows)
 
     async def save_evidence(
         self, run_id: UUID, records: Sequence[EvidenceRecord]
@@ -781,6 +874,61 @@ def _json_mapping(value: object) -> dict[str, object]:
     if not isinstance(value, Mapping):
         raise ValueError("stored JSON value must be an object")
     return dict(value)
+
+
+def _messages_json(messages: Sequence[ChatMessage]) -> str:
+    return json.dumps(
+        [{"role": message.role, "content": message.content} for message in messages],
+        ensure_ascii=False,
+    )
+
+
+def _messages_from_json(value: object) -> tuple[ChatMessage, ...]:
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, list):
+        raise ValueError("stored messages must be a list")
+    messages: list[ChatMessage] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            raise ValueError("stored message must be an object")
+        role = item.get("role")
+        content = item.get("content")
+        if role not in ("system", "user", "assistant") or not isinstance(content, str):
+            raise ValueError("stored message has an invalid role or content")
+        messages.append(ChatMessage(role, content))
+    return tuple(messages)
+
+
+def _stored_llm_call(row: asyncpg.Record) -> StoredLLMCall:
+    record = LLMCallRecord(
+        kind=CallKind(row["kind"]),
+        status=row["status"],
+        model_name=row["model_name"],
+        think=row["think"],
+        attempts=row["attempts"],
+        duration_ms=row["duration_ms"],
+        options=_json_mapping(row["options"]),
+        prompt_version=row["prompt_version"],
+        prompt_fingerprint=row["prompt_fingerprint"],
+        prompt_tokens=row["prompt_tokens"],
+        output_tokens=row["output_tokens"],
+        thinking_chars=row["thinking_chars"],
+        error_type=row["error_type"],
+        trace_id=row["trace_id"],
+        span_id=row["span_id"],
+    )
+    payload = (
+        LLMCallPayload(
+            messages=_messages_from_json(row["messages"]),
+            output=row["output"],
+            thinking=row["thinking"],
+            error_preview=row["error_preview"],
+        )
+        if row["payload_run"] is not None
+        else None
+    )
+    return StoredLLMCall(ordinal=row["ordinal"], record=record, payload=payload)
 
 
 def _configuration_hash(configuration: Mapping[str, object]) -> str:

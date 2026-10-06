@@ -11,9 +11,20 @@ from uuid import uuid4
 import asyncpg
 import pytest
 
+from research_platform.llm.contracts import ChatMessage
+from research_platform.llm.types import CallKind
 from research_platform.persistence.migrations import apply_migrations
-from research_platform.runs.contracts import configuration_id
-from research_platform.runs.repository import ConfigurationNotFound, RunRepository
+from research_platform.runs.contracts import (
+    ResearchMode,
+    ResearchRequest,
+    configuration_id,
+)
+from research_platform.runs.llm_records import LLMCallPayload, LLMCallRecord
+from research_platform.runs.repository import (
+    ConfigurationNotFound,
+    RunNotFound,
+    RunRepository,
+)
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
 
@@ -62,7 +73,11 @@ def _with_repository(
             async with pool.acquire() as connection:
                 await connection.execute(
                     "DELETE FROM run_configurations WHERE configuration_id = ANY($1)",
-                    created,
+                    [value for value in created if value.startswith("sha256:")],
+                )
+                await connection.execute(
+                    "DELETE FROM research_runs WHERE id::text = ANY($1)",
+                    [value for value in created if not value.startswith("sha256:")],
                 )
             await pool.close()
 
@@ -142,5 +157,129 @@ def test_load_missing_raises() -> None:
     ) -> None:
         with pytest.raises(ConfigurationNotFound):
             await repo.load_run_configuration("sha256:" + uuid4().hex + uuid4().hex)
+
+    _with_repository(exercise)
+
+
+def _call(kind: CallKind = CallKind.PLAN, **overrides: object) -> LLMCallRecord:
+    values: dict[str, object] = {
+        "kind": kind,
+        "status": "succeeded",
+        "model_name": "qwen",
+        "think": True,
+        "attempts": 2,
+        "duration_ms": 1500.5,
+        "options": {"seed": 7, "num_ctx": 32768},
+        "prompt_version": "p3-plan-v1",
+        "prompt_fingerprint": "a" * 64,
+        "prompt_tokens": 1000,
+        "output_tokens": 200,
+        "thinking_chars": 4000,
+        "trace_id": "0" * 32,
+        "span_id": "1" * 16,
+    }
+    values.update(overrides)
+    return LLMCallRecord(**values)  # type: ignore[arg-type]
+
+
+async def _new_run(repo: RunRepository, created: list[str]):  # type: ignore[no-untyped-def]
+    run_id = await repo.create_run(
+        ResearchRequest(question="what helps", mode=ResearchMode.QUICK)
+    )
+    created.append(str(run_id))
+    return run_id
+
+
+def test_append_llm_calls_numbers_from_one() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+    ) -> None:
+        run_id = await _new_run(repo, created)
+
+        first = await repo.append_llm_call(run_id, _call())
+        second = await repo.append_llm_call(
+            run_id,
+            _call(CallKind.SYNTHESIZE, status="failed", error_type="LLMTimeout"),
+        )
+        calls = await repo.list_llm_calls(run_id)
+
+        assert (first, second) == (1, 2)
+        assert [call.ordinal for call in calls] == [1, 2]
+        assert calls[0].record == _call()
+        assert calls[1].record.error_type == "LLMTimeout"
+
+    _with_repository(exercise)
+
+
+def test_payload_round_trip() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+    ) -> None:
+        run_id = await _new_run(repo, created)
+        payload = LLMCallPayload(
+            messages=(
+                ChatMessage("system", "rules ✓"),
+                ChatMessage("user", 'question with "quotes"'),
+            ),
+            output='{"answer": "x"}',
+            thinking="long thinking\nlines",
+        )
+
+        await repo.append_llm_call(run_id, _call(), payload)
+        stored = (await repo.list_llm_calls(run_id, include_payloads=True))[0]
+
+        assert stored.payload == payload
+
+    _with_repository(exercise)
+
+
+def test_payload_hidden_unless_requested() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+    ) -> None:
+        run_id = await _new_run(repo, created)
+        await repo.append_llm_call(
+            run_id, _call(), LLMCallPayload(messages=(ChatMessage("user", "q"),))
+        )
+        await repo.append_llm_call(run_id, _call())
+
+        hidden = await repo.list_llm_calls(run_id)
+        shown = await repo.list_llm_calls(run_id, include_payloads=True)
+
+        assert [call.payload for call in hidden] == [None, None]
+        assert shown[0].payload is not None
+        assert shown[1].payload is None
+
+    _with_repository(exercise)
+
+
+def test_llm_calls_cascade_with_run() -> None:
+    async def exercise(
+        pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+    ) -> None:
+        run_id = await _new_run(repo, created)
+        await repo.append_llm_call(
+            run_id, _call(), LLMCallPayload(messages=(ChatMessage("user", "q"),))
+        )
+
+        async with pool.acquire() as connection:
+            await connection.execute("DELETE FROM research_runs WHERE id = $1", run_id)
+            calls = await connection.fetchval(
+                "SELECT count(*) FROM llm_calls WHERE run_id = $1", run_id
+            )
+            payloads = await connection.fetchval(
+                "SELECT count(*) FROM llm_call_payloads WHERE run_id = $1", run_id
+            )
+        assert (calls, payloads) == (0, 0)
+
+    _with_repository(exercise)
+
+
+def test_append_for_unknown_run_raises() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool, repo: RunRepository, _created: list[str]
+    ) -> None:
+        with pytest.raises(RunNotFound):
+            await repo.append_llm_call(uuid4(), _call())
 
     _with_repository(exercise)
