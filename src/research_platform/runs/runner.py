@@ -37,6 +37,7 @@ from research_platform.llm.contracts import (
     LLMTimeout,
     LLMUnavailable,
 )
+from research_platform.llm.recording import RecordingLLMClient
 from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
 from research_platform.observability.request_context import bind_run_id
 from research_platform.runs.checkpointing import thread_config
@@ -258,6 +259,7 @@ class RunnerDependencies:
     ingestion: IngestionStatusSource | None = None
     serving_resolver: Callable[[], Awaitable[ServingIdentity]] | None = None
     decoding: DecodingSettings | None = None
+    store_llm_payloads: bool = False
 
 
 class _ActivePauses:
@@ -406,10 +408,20 @@ class ResearchRunner:
                 filters=stored.request.filters,
                 budgets=self._deps.budgets,
             )
+            llm = RecordingLLMClient(
+                self._deps.llm,
+                sink=self._deps.repository,
+                run_id=run_id,
+                model_name=model.name,
+                store_payloads=self._deps.store_llm_payloads,
+                prompt_versions=provenance.prompt_versions,
+                prompt_fingerprints=provenance.prompt_fingerprints,
+                decoding=self._deps.decoding,
+            )
             node_deps = NodeDependencies(
                 run_id=run_id,
                 tools=self._deps.tools,
-                llm=self._deps.llm,
+                llm=llm,
                 repository=self._deps.repository,
                 context=context,
                 thinking=self._deps.thinking,

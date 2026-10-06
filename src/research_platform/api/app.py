@@ -252,6 +252,10 @@ async def _build_research_services(
     from research_platform.config import DiscoverySettings
     from research_platform.ingestion.provenance import code_revision
     from research_platform.llm.ollama import OllamaClient, decoding_settings
+    from research_platform.observability.content import (
+        TraceContent,
+        trace_content_from_env,
+    )
     from research_platform.runs.checkpointing import open_checkpointer
     from research_platform.runs.contracts import ResearchMode, RunBudgets
     from research_platform.runs.executor import RunExecutor
@@ -315,6 +319,9 @@ async def _build_research_services(
             serving_resolver=lambda: resolve_serving_identity(settings, runtime.pool),
             code_revision=code_revision(),
             decoding=decoding_settings(settings),
+            store_llm_payloads=(
+                trace_content_from_env(settings.environment) is TraceContent.FULL
+            ),
             graphs={
                 ResearchMode.QUICK: build_quick_graph,
                 ResearchMode.DEEP_RESEARCH: build_deep_graph,
