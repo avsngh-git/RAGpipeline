@@ -131,3 +131,23 @@ A paper's metadata abstract used as citable evidence and labelled separately fro
 
 **Ingestion request**:
 A queued, policy-checked request to ingest named catalog papers into the next generation, created by a research run, the API or a terminal command.
+
+**Run record**:
+The authoritative PostgreSQL record of what a research run did: its effective configuration, tool calls, model calls, drafted claims with verdicts, and outcome. Traces add timing; run records decide.
+_Avoid_: log, trace when meaning the stored record
+
+**Trace content level**:
+How much content traces and stored model-call text may hold: `none` (names, timings, counts), `ids` (plus identifiers and scores) or `full` (plus prompts, model output and query text). Logs never hold text at any level.
+
+**Drafted claim**:
+A claim as the model wrote it during synthesis, before verification, kept with its verdict: kept, unknown handle, not shown, or failed checks.
+
+**Diagnosis stage**:
+The single stage to which a failed or partial research run is attributed from its run records, such as retrieval, evidence, generation or verification.
+
+**Experiment record**:
+One evaluation run of a named suite over a versioned dataset, with its configuration, component versions, hardware, metrics, failures and private per-item results.
+
+**Principal**:
+The named caller behind an API key; a research run belongs to the principal that started it.
+_Avoid_: user, account
