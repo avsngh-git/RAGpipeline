@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
+from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
 from typing import Sequence
@@ -22,6 +24,11 @@ from research_platform.runs.diagnosis import (
     render_markdown,
 )
 from research_platform.runs.repository import RunRepository
+from research_platform.runs.reproduce import (
+    check_run,
+    inputs_from_configuration,
+    reproduction_recipe,
+)
 
 
 def _positive_days(value: str) -> int:
@@ -45,6 +52,11 @@ def _parser() -> argparse.ArgumentParser:
     explain.add_argument("run_id", type=UUID)
     explain.add_argument("--json", action="store_true")
     explain.add_argument("--spans", type=Path)
+    reproduce = commands.add_parser(
+        "reproduce", help="check and print a research run reproduction recipe"
+    )
+    reproduce.add_argument("run_id", type=UUID)
+    reproduce.add_argument("--json", action="store_true")
     return parser
 
 
@@ -67,6 +79,30 @@ async def _execute(args: argparse.Namespace, settings: Settings) -> None:
                 if args.json
                 else render_markdown(diagnosis)
             )
+            return
+
+        if args.command == "reproduce":
+            check = await check_run(store, args.run_id)
+            output: dict[str, object] = {"check": asdict(check)}
+            if check.stored_configuration_found:
+                view = await store.get_run_view(args.run_id)
+                if view.provenance is None:
+                    raise RuntimeError("run has no provenance")
+                configuration = await store.load_run_configuration(
+                    view.provenance.configuration_id
+                )
+                reproduction = inputs_from_configuration(view.question, configuration)
+                output["recipe"] = reproduction_recipe(reproduction)
+            if args.json:
+                print(json.dumps(output, indent=2, default=str))
+            else:
+                print("Reproduction check:")
+                print(json.dumps(asdict(check), indent=2, default=str))
+                if "recipe" in output:
+                    print("Reproduction recipe:")
+                    print(json.dumps(output["recipe"], indent=2, default=str))
+            if not check.hash_matches or not check.rebuilt_matches:
+                raise SystemExit(1)
             return
 
         async with open_checkpointer(settings.database_url) as saver:
