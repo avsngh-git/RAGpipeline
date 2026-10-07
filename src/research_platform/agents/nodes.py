@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+import json
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID
+
+from opentelemetry.trace import Status, StatusCode
 
 from research_platform.agents.actions import Action
 from research_platform.agents.answering import answer_question
@@ -18,6 +21,21 @@ from research_platform.agents.state import ResearchState
 from research_platform.llm.contracts import LLMClient
 from research_platform.llm.types import CallKind
 from research_platform.observability.metrics import TOOL_CALLS, TOOL_LATENCY
+from research_platform.observability.tracing import (
+    ATTR_NODE,
+    ATTR_TOOL_ARGUMENTS,
+    ATTR_TOOL_ERROR_CATEGORY,
+    ATTR_TOOL_NAME,
+    ATTR_TOOL_NEW_EVIDENCE,
+    ATTR_TOOL_ORDINAL,
+    ATTR_TOOL_PAPER_IDS,
+    ATTR_TOOL_RESULT_IDS,
+    ATTR_TOOL_STATUS,
+    LF_LEVEL,
+    get_tracer,
+    set_id_attribute,
+    set_text_attribute,
+)
 from research_platform.runs.repository import EvidenceRecord, ToolCallRecord
 from research_platform.runs.store import RunStore
 from research_platform.tools.research_tools import (
@@ -77,6 +95,65 @@ class ToolStepFailed(RuntimeError):
         self.error_category = error_category
 
 
+NodeFunction = Callable[[ResearchState], Awaitable[dict[str, Any]]]
+
+
+def traced_node(name: str, node: NodeFunction) -> NodeFunction:
+    """Run a graph node inside a span named node.<name>."""
+
+    async def wrapper(state: ResearchState) -> dict[str, Any]:
+        with get_tracer().start_as_current_span(f"node.{name}") as span:
+            span.set_attribute(ATTR_NODE, name)
+            return await node(state)
+
+    return wrapper
+
+
+def _annotate_tool_span(
+    span: Any, observation: ToolObservation, new_refs: tuple[Any, ...]
+) -> None:
+    span.set_attribute(ATTR_TOOL_NAME, observation.tool)
+    span.set_attribute(ATTR_TOOL_ORDINAL, observation.ordinal)
+    span.set_attribute(ATTR_TOOL_STATUS, observation.status)
+    if observation.error_category is not None:
+        span.set_attribute(ATTR_TOOL_ERROR_CATEGORY, observation.error_category)
+
+    paper_ids: list[str] = []
+    for key in ("paper_id", "paper_ids"):
+        value = observation.arguments.get(key)
+        if isinstance(value, str):
+            paper_ids.append(value)
+        elif isinstance(value, (list, tuple)):
+            paper_ids.extend(item for item in value if isinstance(item, str))
+    set_id_attribute(span, ATTR_TOOL_PAPER_IDS, paper_ids)
+
+    chunks = observation.summary.get("chunks")
+    papers = observation.summary.get("papers")
+    rows = chunks if isinstance(chunks, list) else papers
+    id_key = "chunk_id" if isinstance(chunks, list) else "paper_id"
+    result_ids = [
+        row[id_key]
+        for row in rows or []
+        if isinstance(row, Mapping) and isinstance(row.get(id_key), str)
+    ][:50]
+    set_id_attribute(span, ATTR_TOOL_RESULT_IDS, result_ids)
+    set_id_attribute(
+        span,
+        ATTR_TOOL_NEW_EVIDENCE,
+        [ref.handle for ref in new_refs],
+    )
+    set_text_attribute(
+        span,
+        ATTR_TOOL_ARGUMENTS,
+        json.dumps(observation.arguments, sort_keys=True, default=str),
+    )
+    if observation.status == "rejected":
+        span.set_attribute(LF_LEVEL, "WARNING")
+    elif observation.status == "failed":
+        span.set_attribute(LF_LEVEL, "ERROR")
+        span.set_status(Status(StatusCode.ERROR))
+
+
 def to_tool_call_record(observation: ToolObservation) -> ToolCallRecord:
     """Map one tool observation to its text-free persisted record."""
     return ToolCallRecord(
@@ -93,48 +170,50 @@ def to_tool_call_record(observation: ToolObservation) -> ToolCallRecord:
 async def _run_action(
     deps: NodeDependencies, state: ResearchState, action: Action
 ) -> tuple[dict[str, Any], ToolObservation]:
-    observation, ledger = await deps.tools.execute(
-        action, context=effective_context(deps, state), ledger=state["ledger"]
-    )
-    TOOL_CALLS.labels(observation.tool, observation.status).inc()
-    TOOL_LATENCY.labels(observation.tool).observe(observation.duration_ms / 1000)
-    registry, new_refs = state["registry"].register(
-        observation.evidence,
-        max_passages=deps.context.budgets.max_evidence_passages,
-    )
-
-    await deps.repository.append_tool_call(
-        deps.run_id, to_tool_call_record(observation)
-    )
-    evidence_by_chunk = {item.chunk_id: item for item in observation.evidence}
-    records: list[EvidenceRecord] = []
-    for ref in new_refs:
-        item = evidence_by_chunk[ref.chunk_id]
-        records.append(
-            EvidenceRecord(
-                handle=ref.handle,
-                chunk_id=ref.chunk_id,
-                paper_id=ref.paper_id,
-                text=item.text,
-                metadata={
-                    "title": item.title,
-                    "publication_year": item.publication_year,
-                    "kind": item.kind,
-                    "source_location": item.source_location,
-                },
-            )
+    with get_tracer().start_as_current_span(f"tool.{action.tool}") as span:
+        observation, ledger = await deps.tools.execute(
+            action, context=effective_context(deps, state), ledger=state["ledger"]
         )
-    await deps.repository.save_evidence(deps.run_id, records)
+        TOOL_CALLS.labels(observation.tool, observation.status).inc()
+        TOOL_LATENCY.labels(observation.tool).observe(observation.duration_ms / 1000)
+        registry, new_refs = state["registry"].register(
+            observation.evidence,
+            max_passages=deps.context.budgets.max_evidence_passages,
+        )
 
-    line = format_observation(observation, new_refs)
-    return (
-        {
-            "ledger": ledger,
-            "registry": registry,
-            "observations": [*state["observations"], line][-20:],
-        },
-        observation,
-    )
+        await deps.repository.append_tool_call(
+            deps.run_id, to_tool_call_record(observation)
+        )
+        evidence_by_chunk = {item.chunk_id: item for item in observation.evidence}
+        records: list[EvidenceRecord] = []
+        for ref in new_refs:
+            item = evidence_by_chunk[ref.chunk_id]
+            records.append(
+                EvidenceRecord(
+                    handle=ref.handle,
+                    chunk_id=ref.chunk_id,
+                    paper_id=ref.paper_id,
+                    text=item.text,
+                    metadata={
+                        "title": item.title,
+                        "publication_year": item.publication_year,
+                        "kind": item.kind,
+                        "source_location": item.source_location,
+                    },
+                )
+            )
+        await deps.repository.save_evidence(deps.run_id, records)
+        _annotate_tool_span(span, observation, new_refs)
+
+        line = format_observation(observation, new_refs)
+        return (
+            {
+                "ledger": ledger,
+                "registry": registry,
+                "observations": [*state["observations"], line][-20:],
+            },
+            observation,
+        )
 
 
 async def run_action(
@@ -156,17 +235,21 @@ async def record_observation(
     deps: NodeDependencies, state: ResearchState, observation: ToolObservation
 ) -> dict[str, Any]:
     """Persist an observation produced outside the tools; it adds no evidence."""
-    await deps.repository.append_tool_call(
-        deps.run_id, to_tool_call_record(observation)
-    )
-    TOOL_CALLS.labels(observation.tool, observation.status).inc()
-    TOOL_LATENCY.labels(observation.tool).observe(observation.duration_ms / 1000)
-    ledger = state["ledger"].model_copy(update={"records": state["ledger"].records + 1})
-    line = format_observation(observation, ())
-    return {
-        "ledger": ledger,
-        "observations": [*state["observations"], line][-20:],
-    }
+    with get_tracer().start_as_current_span(f"tool.{observation.tool}") as span:
+        await deps.repository.append_tool_call(
+            deps.run_id, to_tool_call_record(observation)
+        )
+        TOOL_CALLS.labels(observation.tool, observation.status).inc()
+        TOOL_LATENCY.labels(observation.tool).observe(observation.duration_ms / 1000)
+        ledger = state["ledger"].model_copy(
+            update={"records": state["ledger"].records + 1}
+        )
+        line = format_observation(observation, ())
+        _annotate_tool_span(span, observation, ())
+        return {
+            "ledger": ledger,
+            "observations": [*state["observations"], line][-20:],
+        }
 
 
 async def answer_node(deps: NodeDependencies, state: ResearchState) -> dict[str, Any]:

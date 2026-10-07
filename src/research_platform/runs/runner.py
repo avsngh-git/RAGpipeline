@@ -18,6 +18,8 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import StateGraph
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 from research_platform.agents.nodes import (
     IngestionStatusSource,
@@ -44,7 +46,27 @@ from research_platform.observability.metrics import (
     RUN_ACTIVE_SECONDS,
     RUNS_FINISHED,
 )
-from research_platform.observability.request_context import bind_run_id
+from research_platform.observability.request_context import bind_run_id, get_request_id
+from research_platform.observability.tracing import (
+    ATTR_ANSWER_OUTCOME,
+    ATTR_CODE_REVISION,
+    ATTR_CONFIGURATION_ID,
+    ATTR_FAILURE_CATEGORY,
+    ATTR_GENERATION,
+    ATTR_MODE,
+    ATTR_REQUEST_ID,
+    ATTR_RESUME_COUNT,
+    ATTR_RETRIEVAL_PROFILE_ID,
+    ATTR_RUN_ID,
+    ATTR_SNAPSHOT_ID,
+    ATTR_STATUS,
+    LF_SESSION_ID,
+    LF_TRACE_NAME,
+    SPAN_PERSIST_COMPLETE,
+    SPAN_PERSIST_FAIL,
+    SPAN_RUN,
+    get_tracer,
+)
 from research_platform.runs.checkpointing import thread_config
 from research_platform.runs.contracts import (
     UNINGESTED_SIMILARITY_THRESHOLD,
@@ -137,6 +159,7 @@ def build_effective_configuration(
     budgets: RunBudgets,
     code_revision: str,
     decoding: DecodingSettings | None = None,
+    trace_id: str | None = None,
 ) -> EffectiveConfiguration:
     """Build the effective run configuration payload and provenance."""
     snapshot_id = request.snapshot_id or serving.snapshot_id
@@ -181,7 +204,7 @@ def build_effective_configuration(
         thinking=thinking_map,
         prompt_versions=prompt_versions,
         budgets=budgets,
-        trace_id=str(run_id),
+        trace_id=trace_id or str(run_id),
         generation=serving.generation,
         retrieval_settings_id=serving.retrieval_settings_id,
         uningested_similarity_threshold=diagnostic_threshold,
@@ -207,6 +230,7 @@ def build_provenance(
     budgets: RunBudgets,
     code_revision: str,
     decoding: DecodingSettings | None = None,
+    trace_id: str | None = None,
 ) -> RunProvenance:
     """Build stable provenance for the effective run configuration."""
     return build_effective_configuration(
@@ -218,6 +242,7 @@ def build_provenance(
         budgets=budgets,
         code_revision=code_revision,
         decoding=decoding,
+        trace_id=trace_id,
     ).provenance
 
 
@@ -298,8 +323,18 @@ class ResearchRunner:
 
     async def run(self, run_id: UUID) -> RunStatus:
         """Execute a run or return its existing terminal state."""
-        with bind_run_id(run_id):
-            return await self._run(run_id)
+        with bind_run_id(run_id), get_tracer().start_as_current_span(SPAN_RUN) as span:
+            span.set_attribute(LF_TRACE_NAME, SPAN_RUN)
+            span.set_attribute(LF_SESSION_ID, str(run_id))
+            span.set_attribute(ATTR_RUN_ID, str(run_id))
+            request_id = get_request_id()
+            if request_id is not None:
+                span.set_attribute(ATTR_REQUEST_ID, request_id)
+            status = await self._run(run_id)
+            span.set_attribute(ATTR_STATUS, status.value)
+            if status is RunStatus.FAILED:
+                span.set_status(Status(StatusCode.ERROR))
+            return status
 
     async def _run(self, run_id: UUID) -> RunStatus:
         """Execute a run or return its existing terminal state."""
@@ -360,6 +395,10 @@ class ResearchRunner:
             )
         try:
             model = await self._deps.llm.identity()
+            span_context = trace.get_current_span().get_span_context()
+            trace_id = (
+                format(span_context.trace_id, "032x") if span_context.is_valid else None
+            )
             effective = build_effective_configuration(
                 run_id=run_id,
                 request=stored.request,
@@ -369,8 +408,20 @@ class ResearchRunner:
                 budgets=self._deps.budgets,
                 code_revision=self._deps.code_revision,
                 decoding=self._deps.decoding,
+                trace_id=trace_id,
             )
             provenance = effective.provenance
+            span = trace.get_current_span()
+            span.set_attribute(ATTR_MODE, stored.mode.value)
+            span.set_attribute(ATTR_CONFIGURATION_ID, provenance.configuration_id)
+            span.set_attribute(ATTR_SNAPSHOT_ID, str(provenance.snapshot_id))
+            span.set_attribute(
+                ATTR_RETRIEVAL_PROFILE_ID, provenance.retrieval_profile_id
+            )
+            span.set_attribute(ATTR_CODE_REVISION, provenance.code_revision)
+            span.set_attribute(ATTR_RESUME_COUNT, resume_count)
+            if provenance.generation is not None:
+                span.set_attribute(ATTR_GENERATION, provenance.generation)
             if resuming and stored.configuration_id != provenance.configuration_id:
                 return await self._fail_early(
                     run_id,
@@ -474,15 +525,17 @@ class ResearchRunner:
                 active_seconds=accumulated_seconds,
                 resumes=resume_count,
             )
-            await self._deps.repository.complete_run(
-                run_id,
-                answer=answer.answer,
-                outcome=answer.outcome,
-                claims=answer.claims,
-                usage=usage,
-                drafts=answer.drafts,
-                synthesis=answer.synthesis,
-            )
+            with get_tracer().start_as_current_span(SPAN_PERSIST_COMPLETE):
+                await self._deps.repository.complete_run(
+                    run_id,
+                    answer=answer.answer,
+                    outcome=answer.outcome,
+                    claims=answer.claims,
+                    usage=usage,
+                    drafts=answer.drafts,
+                    synthesis=answer.synthesis,
+                )
+            span.set_attribute(ATTR_ANSWER_OUTCOME, answer.outcome.value)
             for draft in answer.drafts:
                 CLAIM_VERDICTS.labels(draft.verdict.value).inc()
             status = RunStatus.COMPLETED
@@ -516,12 +569,15 @@ class ResearchRunner:
                 resumes=resume_count,
             )
             category = classify_failure(error)
-            await self._deps.repository.fail_run(
-                run_id,
-                category=category,
-                message=_safe_error_message(error),
-                usage=usage,
-            )
+            span = trace.get_current_span()
+            span.set_attribute(ATTR_FAILURE_CATEGORY, category.value)
+            with get_tracer().start_as_current_span(SPAN_PERSIST_FAIL):
+                await self._deps.repository.fail_run(
+                    run_id,
+                    category=category,
+                    message=_safe_error_message(error),
+                    usage=usage,
+                )
             self._log_finished(
                 run_id,
                 stored.mode,
@@ -542,9 +598,11 @@ class ResearchRunner:
         usage: RunUsage,
         active_seconds: float,
     ) -> RunStatus:
-        await self._deps.repository.fail_run(
-            run_id, category=category, message=message, usage=usage
-        )
+        trace.get_current_span().set_attribute(ATTR_FAILURE_CATEGORY, category.value)
+        with get_tracer().start_as_current_span(SPAN_PERSIST_FAIL):
+            await self._deps.repository.fail_run(
+                run_id, category=category, message=message, usage=usage
+            )
         self._log_finished(
             run_id, mode, RunStatus.FAILED, category, 0.0, active_seconds, usage
         )

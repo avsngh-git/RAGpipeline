@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 
@@ -12,6 +13,7 @@ from research_platform.agents.nodes import (
     ToolStepFailed,
     _run_action,
     answer_node,
+    traced_node,
 )
 from research_platform.agents.state import ResearchState
 from research_platform.runs.contracts import (
@@ -104,10 +106,20 @@ def build_quick_graph(
         return await answer_node(deps, state)
 
     builder = StateGraph(ResearchState)
-    builder.add_node("search_papers", search_papers)
-    builder.add_node("search_evidence", search_evidence)
-    builder.add_node("record_uningested_candidates", record_uningested_candidates)
-    builder.add_node("answer", answer)
+    builder.add_node(
+        "search_papers", cast(Any, traced_node("search_papers", search_papers))
+    )
+    builder.add_node(
+        "search_evidence", cast(Any, traced_node("search_evidence", search_evidence))
+    )
+    builder.add_node(
+        "record_uningested_candidates",
+        cast(
+            Any,
+            traced_node("record_uningested_candidates", record_uningested_candidates),
+        ),
+    )
+    builder.add_node("answer", cast(Any, traced_node("answer", answer)))
     builder.add_edge(START, "search_papers")
     builder.add_edge("search_papers", "search_evidence")
     builder.add_edge("search_evidence", "record_uningested_candidates")
