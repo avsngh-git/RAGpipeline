@@ -141,8 +141,8 @@ async def answer_question(
 
     A claim is rejected when its handle was not registered and shown to the model,
     and counted unsupported when it fails a check in ``verify_claim``. The returned
-    answer text lists only kept claims; the model's own summary is not verified and
-    is not shown.
+    answer text lists only kept claims, or is a fixed message when no claim is kept;
+    the model's own answer text is never shown.
     """
     with get_tracer().start_as_current_span(SPAN_SYNTHESIZE) as synth_span:
         packed = pack_evidence(
@@ -180,8 +180,7 @@ async def answer_question(
         )
         if draft.insufficient_evidence or not draft.claims:
             return VerifiedAnswer(
-                answer=strip_unknown_markers(draft.answer, frozenset())
-                or _INSUFFICIENT_ANSWER,
+                answer=_INSUFFICIENT_ANSWER,
                 outcome=AnswerOutcome.INSUFFICIENT_EVIDENCE,
                 claims=(),
                 rejected_claims=0,
