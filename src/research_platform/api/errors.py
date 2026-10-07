@@ -1,6 +1,7 @@
 """Safe API error types and exception handlers."""
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import Request
@@ -32,13 +33,21 @@ class ErrorResponse(BaseModel):
 class AppError(Exception):
     """An expected application failure safe to expose to the client."""
 
-    def __init__(self, code: str, message: str, status_code: int = 400) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int = 400,
+        *,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
         if not 400 <= status_code <= 599:
             raise ValueError("status_code must be between 400 and 599")
         super().__init__(message)
         self.code = code
         self.message = message
         self.status_code = status_code
+        self.headers = dict(headers or {})
 
 
 def _request_id(request: Request) -> str | None:
@@ -59,11 +68,13 @@ async def handle_app_error(_request: Request, exc: Exception) -> JSONResponse:
             request_id=request_id,
         )
     )
-    headers = {REQUEST_ID_HEADER: request_id} if request_id else None
+    headers = dict(exc.headers)
+    if request_id:
+        headers[REQUEST_ID_HEADER] = request_id
     return JSONResponse(
         status_code=exc.status_code,
         content=response.model_dump(),
-        headers=headers,
+        headers=headers or None,
     )
 
 
