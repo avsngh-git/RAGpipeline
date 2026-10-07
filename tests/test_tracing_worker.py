@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 from collections.abc import Mapping
+from pathlib import Path
+from types import ModuleType
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -122,22 +125,29 @@ async def test_paper_spans_are_children_of_request() -> None:
     }
 
 
+def _deep_graph_helpers() -> ModuleType:
+    """Load the deep-graph test helpers by path (tests use importlib mode)."""
+    path = Path(__file__).with_name("test_agent_graph_deep.py")
+    spec = importlib.util.spec_from_file_location("_deep_graph_test_helpers", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 @pytest.mark.anyio
 async def test_wait_node_records_switch() -> None:
-    from test_agent_graph_deep import (
-        _IDENTITY,
-        _PUBLISHED,
-        RecordingStore,
-        _answer_replies,
-        _create_run,
-        _evaluation,
-        _FakeQueue,
-        _ingestion_runner,
-        _plan,
-    )
-    from test_agent_graph_deep import (
-        _request as ingestion_tool_request,
-    )
+    deep = _deep_graph_helpers()
+    _IDENTITY = deep._IDENTITY
+    _PUBLISHED = deep._PUBLISHED
+    RecordingStore = deep.RecordingStore
+    _answer_replies = deep._answer_replies
+    _create_run = deep._create_run
+    _evaluation = deep._evaluation
+    _FakeQueue = deep._FakeQueue
+    _ingestion_runner = deep._ingestion_runner
+    _plan = deep._plan
+    ingestion_tool_request = deep._request
 
     from research_platform.llm.scripted import ScriptedLLM
     from research_platform.runs.contracts import RunStatus
@@ -170,19 +180,16 @@ async def test_wait_node_records_switch() -> None:
 
 @pytest.mark.anyio
 async def test_wait_node_records_cap() -> None:
-    from test_agent_graph_deep import (
-        _IDENTITY,
-        RecordingStore,
-        _answer_replies,
-        _create_run,
-        _evaluation,
-        _FakeQueue,
-        _ingestion_runner,
-        _plan,
-    )
-    from test_agent_graph_deep import (
-        _request as ingestion_tool_request,
-    )
+    deep = _deep_graph_helpers()
+    _IDENTITY = deep._IDENTITY
+    RecordingStore = deep.RecordingStore
+    _answer_replies = deep._answer_replies
+    _create_run = deep._create_run
+    _evaluation = deep._evaluation
+    _FakeQueue = deep._FakeQueue
+    _ingestion_runner = deep._ingestion_runner
+    _plan = deep._plan
+    ingestion_tool_request = deep._request
 
     from research_platform.llm.scripted import ScriptedLLM
     from research_platform.runs.contracts import RunBudgets, RunStatus
