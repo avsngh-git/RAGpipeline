@@ -40,6 +40,19 @@ class IngestionQueue:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
+    async def pending_count(self) -> int:
+        """Number of requests pending or claimed."""
+        async with self._pool.acquire() as connection:
+            count = await connection.fetchval(
+                """
+                SELECT count(*) FROM ingestion_requests
+                WHERE status IN ('pending', 'claimed')
+                """
+            )
+        if not isinstance(count, int):
+            raise RuntimeError("PostgreSQL returned an invalid ingestion backlog")
+        return count
+
     @staticmethod
     async def enqueue(
         connection: asyncpg.Connection,
