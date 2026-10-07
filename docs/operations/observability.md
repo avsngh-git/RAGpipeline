@@ -4,13 +4,18 @@ The observability profile is optional. It adds Prometheus and a self-hosted Lang
 
 ## Start and stop
 
-Start the profile from the repository root:
+The services live in `docker-compose.observability.yml`, so the main file still starts
+without any Langfuse secrets. Copy the Langfuse variables from `.env.example` into `.env`,
+replace every placeholder, then start the profile from the repository root:
 
-    docker compose --profile observability up -d
+    docker compose -f docker-compose.yml -f docker-compose.observability.yml \
+      --profile observability up -d
 
 Stop only the optional observability services while keeping their named data volumes:
 
-    docker compose --profile observability stop prometheus langfuse-web langfuse-worker langfuse-clickhouse langfuse-redis langfuse-minio langfuse-postgres
+    docker compose -f docker-compose.yml -f docker-compose.observability.yml \
+      --profile observability stop prometheus langfuse-web langfuse-worker \
+      langfuse-clickhouse langfuse-redis langfuse-minio langfuse-postgres
 
 The Prometheus UI is available at <http://127.0.0.1:9090>; Langfuse is available at
 <http://127.0.0.1:3000>. Both ports bind to loopback. Configure the generated Langfuse
@@ -51,9 +56,9 @@ p95 model-call duration by kind:
 
     histogram_quantile(0.95, sum by (le, kind) (rate(research_llm_call_duration_seconds_bucket[5m])))
 
-Tool-call errors by tool:
+Failed or rejected tool calls by tool:
 
-    sum by (tool) (rate(research_tool_calls_total{status="error"}[5m]))
+    sum by (tool) (rate(research_tool_calls_total{status=~"failed|rejected"}[5m]))
 
 Ingestion backlog:
 
