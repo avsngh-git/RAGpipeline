@@ -49,6 +49,7 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-08 (#85) | done | PR #118 | Run fields in JSON logs, run ID context, request ID into the run task, JSON worker logs; merge with P4-03 resolved one import conflict in `runner.py` |
 | P4-09 (#86) | done | PR #119 | Metrics module and `/metrics`; HTTP metrics by route template |
 | P4-29 (#106) | done | PR #121 | Trivy image and secret scans; seven owner-approved exceptions expire 2026-11-06 (owner decision 4) |
+| P4-33 (#110) | reported | local branch `phase4/p4-33-security-live-report` | Three `security-live` runs recorded in the [report](../reference/phase-4-security-live-report.md); findings filed as [#139](https://github.com/avsngh-git/RAGpipeline/issues/139) and [#140](https://github.com/avsngh-git/RAGpipeline/issues/140); report awaits merge |
 
 ## Environment facts
 
