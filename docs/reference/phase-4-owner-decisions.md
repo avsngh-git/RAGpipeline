@@ -152,6 +152,20 @@ Evidence available at the time:
   sweep. The thinking setting is part of the effective configuration, so the change shows
   in `research-eval compare`.
 
+### 8. Gate item 4 walkthrough rejected (2026-10-07)
+
+- **Decision:** the owner rejected walkthrough `2138fb5e` and asked for the same request to
+  be run again under decisions 6 and 7, to see whether it still found nothing.
+- **Result:**
+  - Rerun `7a3517c0` answered with 2 kept claims. The model's own two `search_papers`
+    calls returned 0 papers; the code-added `search_evidence` supplied all 16 passages.
+  - Its code-added discovery returned 0 works because OpenAlex `search` requires every word;
+    fixed in PR #151 (decision 6, policy v3).
+  - Five repeats on policy v3: all partially supported with 1 kept claim; discovery found 5
+    papers per run, none cited; no ingestion. The kept and rejected drafts cite the same
+    passages as the original, so the remaining stage is verification.
+- **Follow-up:** the owner reviews the replacement walkthrough `7a3517c0` for gate item 4.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial

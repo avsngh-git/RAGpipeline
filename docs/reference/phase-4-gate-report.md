@@ -1,7 +1,8 @@
 # Phase 4 gate report
 
-**Status:** prepared 2026-10-07. Items 1, 2, 3 and 5 pass in CI; gate item 4 awaits the
-owner's walkthrough review.
+**Status:** prepared 2026-10-07. Items 1, 2, 3 and 5 pass in CI. Gate item 4: the owner
+rejected walkthrough `2138fb5e` and asked for a rerun under the new decisions; the
+replacement walkthrough `7a3517c0` awaits the owner's review.
 
 This report records the five items from ADR-0028. The live development walkthroughs and
 their supporting traces remain private under `local-reference/phase4/walkthroughs/` and
@@ -16,12 +17,20 @@ is reproduced here.
    passed in [batch CI run 37598135293](https://github.com/avsngh-git/RAGpipeline/actions/runs/37598135293).
 3. **`research-runs reproduce` — passed in CI.** P4-19's configuration hash and scripted
    rerun checks passed in [batch CI run 37598135293](https://github.com/avsngh-git/RAGpipeline/actions/runs/37598135293).
-4. **Five live development walkthroughs — prepared; owner review pending.** The five runs
-   below span three diagnosis stages. All five `research-runs reproduce` invocations exited
-   0, with matching hashes, rebuilt configurations, and no differences. The owner should
-   review the full walkthrough at
-   `local-reference/phase4/walkthroughs/2138fb5e-d591-494c-bc16-35126b200311.md` and record
-   the judgement in `phase-4-owner-decisions.md` before this item is marked passed.
+4. **Five live development walkthroughs — owner review pending.** The five runs below span
+   three diagnosis stages. All five `research-runs reproduce` invocations exited 0, with
+   matching hashes, rebuilt configurations, and no differences.
+   - **Rejected (2026-10-07, owner decision 8):** the owner rejected walkthrough
+     `2138fb5e-d591-494c-bc16-35126b200311` and asked for a rerun with the new decisions.
+   - **Replacement:** rerun `7a3517c0-592f-45eb-aa25-e5243483793f`, walkthrough at
+     `local-reference/phase4/walkthroughs/7a3517c0-592f-45eb-aa25-e5243483793f.md`. Same
+     request, with plan policy `p4-first-plan-searches-v2`, evaluate thinking and OpenAlex
+     configured. Outcome: answered, 2 kept claims. Its walkthrough also covers the
+     discovery-query fix (PR #151) and five repeats on policy v3: all partially supported
+     with 1 kept claim, remaining stage verification. `reproduce` from the run's commit
+     `e7cefcb` exited 0 with no differences.
+   - The owner reviews the replacement and records the judgement in
+     `phase-4-owner-decisions.md` before this item is marked passed.
 
    | Run | Mode / outcome | Stage | Trace finding |
    | --- | --- | --- | --- |
