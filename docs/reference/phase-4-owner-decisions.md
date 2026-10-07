@@ -163,6 +163,25 @@ Evidence available at the time:
   sweep. The thinking setting is part of the effective configuration, so the change shows
   in `research-eval compare`.
 
+### 9. Whole-question searches start every first deep plan (2026-10-07)
+
+- **Decision:** the owner chose a fixed first plan (plan policy `p4-first-plan-searches-v5`).
+  Every first `deep_research` plan begins as quick mode does, with `search_papers(question)`
+  then `search_evidence(question)`, followed by `discover_papers(question)` when discovery is
+  configured. The model's actions fill the remaining slots in order. A model search with the
+  same tool and query as a base search is dropped as a repeat.
+- **Evidence:** in the rerun and repeats of `2138fb5e`, the model's own two `search_papers`
+  calls searched single dataset names and returned 0 papers in every run; only the
+  code-added whole-question `search_evidence` found evidence.
+- **Test changes:** 24 scripted regression and security cases now list the base searches in
+  their tool expectations; their outcomes and safety expectations are unchanged. Cases whose
+  purpose needs more model actions got larger budgets:
+  - `inject-01`–`05`: 3 tool calls (was 2) and `tool_calls_at_most` 3, so evaluation still
+    runs;
+  - `route-08`, `route-09`, and the Phase 3.5 paper-limit case: 6 actions per plan;
+  - `route-08` also searches with `year_to: 2023` and a citation depth of 1, so its
+    rejection still comes from following references beyond the depth limit.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial

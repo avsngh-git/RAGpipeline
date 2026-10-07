@@ -368,15 +368,21 @@ async def case_paper_limit_and_daily_cap_refuse() -> CaseResult:
             _synthesis(),
         ),
         pipeline,
-        budgets=RunBudgets.model_validate({"max_papers_per_wait": 2}),
+        # Room for the first plan's three whole-question searches and both actions.
+        budgets=RunBudgets.model_validate(
+            {"max_papers_per_wait": 2, "max_actions_per_plan": 6}
+        ),
         discovery=discovery,
     )
     mismatches: list[str] = []
     discover = run.calls("discover_papers")
     _check(
         mismatches,
-        [(c.status, c.error_category) for c in discover]
-        == [("failed", "discovery_budget")],
+        bool(discover)
+        and all(
+            (c.status, c.error_category) == ("failed", "discovery_budget")
+            for c in discover
+        ),
         "daily cap did not refuse discovery",
     )
     requests = run.calls("request_ingestion")
@@ -454,10 +460,10 @@ async def case_generation_changes_only_at_switch() -> CaseResult:
     view = await run.store.get_run_view(run.run_id)
     names = [c.tool_name for c in run.calls()]
     mismatches: list[str] = []
-    # The first plan's code-added search_evidence runs before the switch.
+    # The first plan's whole-question searches run before the switch.
     _check(
         mismatches,
-        run.search.snapshots == [SNAPSHOT, SNAPSHOT, NEW_SNAPSHOT],
+        run.search.snapshots == [SNAPSHOT, SNAPSHOT, SNAPSHOT, NEW_SNAPSHOT],
         "wrong order",
     )
     _check(
@@ -465,8 +471,9 @@ async def case_generation_changes_only_at_switch() -> CaseResult:
         names
         == [
             "search_papers",
-            "request_ingestion",
             "search_evidence",
+            "search_papers",
+            "request_ingestion",
             "ingestion_wait",
             "search_evidence",
         ],

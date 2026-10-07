@@ -96,6 +96,7 @@
         "status": "completed",
         "answer_outcome": "insufficient_evidence",
         "tools": [
+          "search_papers",
           "search_evidence"
         ]
       }
@@ -144,6 +145,7 @@
         "status": "completed",
         "answer_outcome": "insufficient_evidence",
         "tools": [
+          "search_papers",
           "search_evidence"
         ]
       }
@@ -193,8 +195,8 @@
         "status": "completed",
         "answer_outcome": "insufficient_evidence",
         "tools": [
+          "search_papers",
           "search_evidence",
-          "get_paper",
           "get_paper",
           "get_paper",
           "get_paper",
@@ -291,6 +293,7 @@
         "status": "completed",
         "answer_outcome": "insufficient_evidence",
         "tools": [
+          "search_papers",
           "search_evidence"
         ]
       }
@@ -339,6 +342,7 @@
         "status": "completed",
         "answer_outcome": "insufficient_evidence",
         "tools": [
+          "search_papers",
           "search_evidence",
           "search_evidence"
         ]
@@ -385,6 +389,7 @@
         "status": "completed",
         "answer_outcome": "partially_supported",
         "tools": [
+          "search_papers",
           "search_evidence"
         ]
       }
@@ -426,6 +431,7 @@
         "failure_category": "invalid_model_output",
         "answer_outcome": null,
         "tools": [
+          "search_papers",
           "search_evidence"
         ]
       }
@@ -475,6 +481,8 @@
         "status": "completed",
         "answer_outcome": "insufficient_evidence",
         "tools": [
+          "search_papers",
+          "search_evidence",
           "search_evidence",
           "search_evidence",
           "search_evidence",

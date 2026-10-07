@@ -24,11 +24,18 @@ def test_run_logs_have_run_fields_and_no_text() -> None:
         cases = load_cases(cases_path)
         corpus = load_corpus(cases_path)
         case = next(item for item in cases if item.case_id == "route-01-search-path")
+        # The scripted searches differ from the marker question, so they run after
+        # the first plan's whole-question searches.
         case = dataclasses.replace(
             case,
             request=case.request.model_copy(
                 update={"question": "zq7731 private question marker"}
             ),
+            expect={
+                **case.expect,
+                "tools": ["search_papers", "search_evidence"] * 2,
+                "tool_statuses": {"succeeded": 4, "cached": 0, "rejected": 0},
+            },
         )
 
         lines: list[str] = []
@@ -57,7 +64,7 @@ def test_run_logs_have_run_fields_and_no_text() -> None:
         assert payload["mode"] == "deep_research"
         assert payload["status"] == "completed"
         assert "duration_seconds" in payload
-        assert payload["tool_calls"] == 2
+        assert payload["tool_calls"] == 4
         assert "model_calls" in payload
         assert all(
             "zq7731" not in line

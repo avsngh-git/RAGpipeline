@@ -1,11 +1,12 @@
-"""The deep planner's first plan always includes search_evidence and, when it is
-configured, discovery."""
+"""The deep planner's first plan starts with whole-question searches, then the
+model's actions."""
 
 from __future__ import annotations
 
 from research_platform.agents.actions import (
     Action,
     DiscoverPapersAction,
+    GetPaperAction,
     SearchEvidenceAction,
     SearchPapersAction,
 )
@@ -13,18 +14,15 @@ from research_platform.agents.graph_deep import ensure_first_plan_searches
 from research_platform.runs.contracts import ResearchFilters
 
 _QUESTION = "synthetic question about reranking"
+_BASE = ["search_papers", "search_evidence", "discover_papers"]
 
 
-def _search(query: str = _QUESTION) -> SearchPapersAction:
-    return SearchPapersAction(tool="search_papers", query=query)
+def _search(query: str, limit: int = 10) -> SearchPapersAction:
+    return SearchPapersAction(tool="search_papers", query=query, limit=limit)
 
 
-def _evidence(query: str = _QUESTION) -> SearchEvidenceAction:
-    return SearchEvidenceAction(tool="search_evidence", query=query)
-
-
-def _filters(**values: int | None) -> ResearchFilters:
-    return ResearchFilters.model_validate(values)
+def _paper(paper_id: str = "W1") -> GetPaperAction:
+    return GetPaperAction(tool="get_paper", paper_id=paper_id)
 
 
 def _ensure(
@@ -38,7 +36,7 @@ def _ensure(
     return ensure_first_plan_searches(
         planned,
         question=question,
-        filters=_filters(**filters),
+        filters=ResearchFilters.model_validate(filters),
         max_actions=max_actions,
         discovery=discovery,
     )
@@ -48,67 +46,53 @@ def _tools(actions: tuple[Action, ...]) -> list[str]:
     return [action.tool for action in actions]
 
 
-def test_evidence_and_discovery_appended_when_missing() -> None:
-    actions = _ensure((_search(),))
+def test_base_searches_come_first_then_the_model_action() -> None:
+    actions = _ensure((_search("FiQA"),))
 
-    assert _tools(actions) == ["search_papers", "search_evidence", "discover_papers"]
-    evidence, discover = actions[1], actions[2]
+    assert _tools(actions) == [*_BASE, "search_papers"]
+    papers, evidence, discover, model = actions
+    assert isinstance(papers, SearchPapersAction)
+    assert (papers.query, papers.limit) == (_QUESTION, 10)
     assert isinstance(evidence, SearchEvidenceAction)
     assert (evidence.query, evidence.limit, evidence.paper_ids) == (_QUESTION, 20, ())
     assert isinstance(discover, DiscoverPapersAction)
-    assert discover.query == _QUESTION
+    assert (discover.query, discover.limit) == (_QUESTION, 5)
+    assert model == _search("FiQA")
 
 
-def test_only_evidence_appended_without_discovery() -> None:
-    assert _tools(_ensure((_search(),), discovery=False)) == [
-        "search_papers",
-        "search_evidence",
-    ]
+def test_model_actions_fill_the_remaining_slots_in_order() -> None:
+    actions = _ensure((_paper("W1"), _paper("W2"), _paper("W3")), discovery=False)
 
-
-def test_existing_searches_are_kept_unchanged() -> None:
-    planned = (
-        _search(),
-        _evidence("model query"),
-        DiscoverPapersAction(tool="discover_papers", query="model query", limit=3),
-    )
-
-    assert _ensure(planned) == planned
-
-
-def test_full_plan_keeps_first_choices_and_replaces_the_last() -> None:
-    planned = tuple(_search(f"query {n}") for n in range(4))
-
-    actions = _ensure(planned)
-
-    assert actions[:2] == planned[:2]
     assert _tools(actions) == [
         "search_papers",
-        "search_papers",
         "search_evidence",
-        "discover_papers",
+        "get_paper",
+        "get_paper",
     ]
+    assert actions[2:] == (_paper("W1"), _paper("W2"))
 
 
-def test_two_action_plan_prefers_evidence_over_discovery() -> None:
-    actions = _ensure((_search(), _search("other")), max_actions=2)
+def test_model_search_with_a_base_query_is_a_repeat() -> None:
+    actions = _ensure((_search(_QUESTION, limit=5), _paper()))
 
-    assert _tools(actions) == ["search_papers", "search_evidence"]
-
-
-def test_two_action_plan_with_evidence_adds_discovery() -> None:
-    actions = _ensure((_search(), _evidence()), max_actions=2)
-
-    assert _tools(actions) == ["search_papers", "discover_papers"]
+    assert _tools(actions) == [*_BASE, "get_paper"]
 
 
-def test_nothing_added_when_only_one_action_allowed() -> None:
-    assert _ensure((_search(),), max_actions=1) == (_search(),)
+def test_small_budget_keeps_base_order() -> None:
+    assert _tools(_ensure((_paper(),), max_actions=2)) == _BASE[:2]
+    assert _tools(_ensure((_paper(),), max_actions=1)) == ["search_papers"]
 
 
-def test_year_filter_is_clamped_to_discovery_floor() -> None:
-    clamped = _ensure((_search(),), year_from=2015, year_to=2024)[-1]
-    kept = _ensure((_search(),), year_from=2022)[-1]
+def test_paper_search_keeps_the_run_year_filter() -> None:
+    papers = _ensure((), year_from=2015, year_to=2024)[0]
+
+    assert isinstance(papers, SearchPapersAction)
+    assert (papers.year_from, papers.year_to) == (2015, 2024)
+
+
+def test_discovery_year_filter_is_clamped_to_its_floor() -> None:
+    clamped = _ensure((), year_from=2015, year_to=2024)[2]
+    kept = _ensure((), year_from=2022)[2]
 
     assert isinstance(clamped, DiscoverPapersAction)
     assert (clamped.year_from, clamped.year_to) == (None, 2024)
@@ -116,16 +100,16 @@ def test_year_filter_is_clamped_to_discovery_floor() -> None:
     assert kept.year_from == 2022
 
 
-def test_no_discovery_when_filter_ends_before_2020() -> None:
-    actions = _ensure((_search(),), year_from=2010, year_to=2018)
-
-    assert _tools(actions) == ["search_papers", "search_evidence"]
+def test_no_discovery_when_unconfigured_or_filter_ends_before_2020() -> None:
+    assert _tools(_ensure((), discovery=False)) == _BASE[:2]
+    assert _tools(_ensure((), year_from=2010, year_to=2018)) == _BASE[:2]
 
 
 def test_long_question_is_truncated_to_each_query_limit() -> None:
-    actions = _ensure((_search(),), question="q" * 1000)
+    papers, evidence, discover = _ensure((), question="q" * 1000)
 
-    evidence, discover = actions[1], actions[2]
+    assert isinstance(papers, SearchPapersAction)
+    assert len(papers.query) == 500
     assert isinstance(evidence, SearchEvidenceAction)
     assert len(evidence.query) == 500
     assert isinstance(discover, DiscoverPapersAction)
