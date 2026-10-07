@@ -367,7 +367,11 @@ def build_deep_graph(
                     ),
                     output_model=SufficiencyDecision,
                     think=CallKind.EVALUATE in deps.thinking,
-                    max_output_tokens=768,
+                    # Ollama counts thinking against num_predict, so a capped thinking
+                    # call can end before its JSON; thinking calls are uncapped.
+                    max_output_tokens=None
+                    if CallKind.EVALUATE in deps.thinking
+                    else 768,
                     max_repair_attempts=budgets.max_model_retries,
                 )
             )

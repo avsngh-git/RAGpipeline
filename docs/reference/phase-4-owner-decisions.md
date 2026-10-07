@@ -118,6 +118,20 @@ Evidence available at the time:
     abstract evidence in answers, OpenAlex spend, and answer outcomes.
   - The rule costs one OpenAlex search per deep run against the $0.50 daily cap.
 
+### 7. Thinking for the evaluate call (2026-10-07)
+
+- **Decision:** the default `RESEARCH_PLATFORM_LLM_THINKING` becomes
+  `plan,evaluate,synthesize`. Without thinking, the evaluate call keeps its 768-token output
+  cap. With thinking, it has no cap, as synthesis does (ADR-0025).
+- **Evidence:** live runs showed thinking on for plan (about 1,000 characters) and
+  synthesis (about 27,000 characters), and off for evaluate. Ollama counts thinking tokens
+  against `num_predict`, so a capped thinking call can end before its JSON. An invalid
+  evaluation is treated as sufficient, which would silently stop evidence gathering.
+- **Alternatives set aside:** thinking with the 768-token cap kept (truncation risk).
+- **Re-examine:** evaluate durations and invalid-output repairs in the next `agent-dev`
+  sweep. The thinking setting is part of the effective configuration, so the change shows
+  in `research-eval compare`.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
