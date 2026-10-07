@@ -6,6 +6,7 @@ import asyncio
 import logging
 from uuid import UUID
 
+from research_platform.observability.metrics import RUN_QUEUE_DEPTH
 from research_platform.observability.request_context import bind_request_id
 from research_platform.runs.contracts import RunStatus
 from research_platform.runs.runner import ResearchRunner
@@ -69,6 +70,7 @@ class RunExecutor:
 
             for run_id in recovered:
                 self._queue.put_nowait((run_id, None))
+                RUN_QUEUE_DEPTH.set(self._queue.qsize())
             self._started = True
             self._worker = asyncio.create_task(self._work(), name="research-run-worker")
 
@@ -77,6 +79,7 @@ class RunExecutor:
         if self.pending >= self._max_queue:
             raise ResearchQueueFull("research run queue is full")
         self._queue.put_nowait((run_id, request_id))
+        RUN_QUEUE_DEPTH.set(self._queue.qsize())
 
     async def stop(self) -> None:
         """Cancel and await the worker, leaving an active run resumable."""
@@ -94,6 +97,7 @@ class RunExecutor:
     async def _work(self) -> None:
         while True:
             run_id, request_id = await self._queue.get()
+            RUN_QUEUE_DEPTH.set(self._queue.qsize())
             try:
                 with bind_request_id(request_id):
                     await self._runner.run(run_id)
