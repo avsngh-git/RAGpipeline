@@ -30,6 +30,7 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-07 (#84) | done | PR #125 | Migration 024 `draft_claims` and `research_runs.synthesis`; verdicts per drafted claim. Also added `ClaimVerdict`, `DraftClaimOutcome` and `SynthesisSummary` to the checkpoint serializer allow-list (not in the card) (planning session) |
 | P4-10 (#87) | done | PR #126 | Domain metrics for runs, tools, model calls, search stages and the worker (port 9101) |
 | P4-11 (#88) | done | PR #127 | Prometheus and Langfuse v4 in `docker-compose.observability.yml` (used with `-f`), not in `docker-compose.yml`: Compose interpolates required `${VAR:?}` secrets in every service, which broke plain `docker compose up`. Fixed in review |
+| P4-12 (#89) | done | see PR | Tracing setup, JSONL and OTLP exporters, all 74 span and attribute names from the card. Agent work found uncommitted in a `/tmp` clone; rescued and reviewed |
 | P4-20 (#97) | done | PR #128 | Migration 025 `experiments`, `ExperimentRecord`, stores and private item writer. Agent work found unpushed in a `/tmp` worktree; pushed and reviewed |
 | P4-30 (#107) | done | PR #129 | Nine scripted §15.1 attack cases; every control held. Agent work found unpushed; review pinned observed status, outcome and tool path so cases cannot pass vacuously |
 | P4-37 (#114) | done | PR #130 | `research-maintenance retention`, dry run by default. Agent work found uncommitted in `/tmp`; rescued and reviewed |
