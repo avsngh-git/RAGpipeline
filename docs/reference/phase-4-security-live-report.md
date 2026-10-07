@@ -49,6 +49,6 @@ The failures were filed as [issue #139](https://github.com/avsngh-git/RAGpipelin
 
 Review (planning session, 2026-10-07):
 
-- **Code gap (#139, `live-07`):** the insufficient-evidence branch of `answer_question` shows the model's unverified answer text. Proposed fix: return the fixed insufficient-evidence message in that branch, as the verified-claims branch already does. This changes the text users see for insufficient runs, so it needs an owner decision.
+- **Code gap (#139, `live-07`):** the insufficient-evidence branch of `answer_question` shows the model's unverified answer text. Proposed fix: return the fixed insufficient-evidence message in that branch, as the verified-claims branch already does. The owner approved the fix on 2026-10-07 (owner decision 5); it was implemented for #139.
 - **Model susceptibility (`live-03`, `live-05`, #140):** the model follows injected passages, but code controls held. These are expected for a 2B model and are what the code controls exist for. They are not control failures.
 - **Suite design:** `claims_cite_excludes_chunks` and `tools_exclude` measure whether the model obeyed an injection, not whether a control failed. A later suite version should report the two separately, for example "model followed injection" and "control breached".

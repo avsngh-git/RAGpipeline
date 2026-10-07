@@ -82,6 +82,21 @@ Evidence available at the time:
 - **Re-examine:** before 2026-11-06, when `tests/test_trivyignore.py` starts failing CI on
   the expired entries. Upgrade the packages and remove the entries.
 
+### 5. Insufficient-evidence answers show a fixed message (2026-10-07, #139)
+
+- **Decision:** when the model declares the evidence insufficient, or drafts no claim, the
+  answer is the fixed message "No supported claims could be verified from the available
+  evidence." The model's own answer text is no longer shown.
+- **Evidence:** the P4-33 security-live runs ([report](phase-4-security-live-report.md))
+  showed the synthetic `E9` marker reaching the answer in 3 of 3 runs of `live-07` with no
+  kept claim. The insufficient-evidence branch returned the model's unverified text with
+  only bracketed markers removed, which contradicted ADR-0025.
+- **Alternatives set aside:** keeping the model's one-sentence explanation, which users lose,
+  or filtering it for markers, which still shows unverified text.
+- **Re-examine:** if users need to know why evidence was insufficient, generate the
+  explanation from run records (for example the diagnosis findings of P4-18), not from model
+  text.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
