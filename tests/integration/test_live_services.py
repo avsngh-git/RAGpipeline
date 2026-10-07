@@ -225,6 +225,7 @@ def test_migration_is_repeatable_and_database_constraints_are_enforced(
                 "022_run_configurations",
                 "023_llm_calls",
                 "024_draft_claims",
+                "025_experiments",
             ]
 
             collection_name = f"integration-{uuid4().hex}"

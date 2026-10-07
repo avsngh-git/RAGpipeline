@@ -51,3 +51,6 @@ its SHA-256 configuration ID (ADR-0026). 023_llm_calls.sql records one text-free
 model call of a research run, and the call's messages and output in a separate payload
 table written only at trace content `full`. 024_draft_claims.sql keeps every claim the model
 drafted with the verdict code verification gave it, and a text-free synthesis summary per run.
+025_experiments.sql records evaluation suite runs and their dataset, code,
+configuration, component-version, hardware, metric and failure provenance; per-item
+results remain in private JSON Lines files.
