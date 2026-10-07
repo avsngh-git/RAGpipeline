@@ -248,6 +248,11 @@ class ResearchTools:
             question, limit=limit, minimum_similarity=minimum_similarity
         )
 
+    @property
+    def discovery_available(self) -> bool:
+        """Whether online discovery is configured for these tools."""
+        return self._discovery is not None
+
     async def execute(
         self,
         action: Action,

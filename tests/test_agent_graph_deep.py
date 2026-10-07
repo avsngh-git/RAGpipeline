@@ -133,6 +133,7 @@ def _runner(
     budgets: RunBudgets | None = None,
     search: Any = None,
     thinking: frozenset[CallKind] = frozenset(),
+    discovery: Any = None,
 ) -> ResearchRunner:
     search_service, papers, citations, related = fake_services(_corpus())
     tools = ResearchTools(
@@ -140,6 +141,7 @@ def _runner(
         papers=papers,
         citations=citations,
         related=related,
+        discovery=discovery,
     )
     return ResearchRunner(
         RunnerDependencies(
@@ -212,7 +214,11 @@ async def test_replans_until_sufficient() -> None:
 
     assert await _runner(store, llm).run(run_id) is RunStatus.COMPLETED
     view = await store.get_run_view(run_id)
-    assert [name for _, _, name in store.appended] == ["search_papers", "get_paper"]
+    assert [name for _, _, name in store.appended] == [
+        "search_papers",
+        "search_evidence",
+        "get_paper",
+    ]
     assert view.usage.plan_rounds == 2
     assert view.usage.model_calls == 4
 
@@ -349,9 +355,10 @@ async def test_duplicate_actions_are_cached() -> None:
     store = RecordingStore()
     run_id = await _create_run(store)
     search = _call("search_papers", {"query": "retrieval"})
+    evidence = _call("search_evidence", {"query": "retrieval"})
     llm = ScriptedLLM(
         (
-            _plan(search, search),
+            _plan(search, search, evidence),
             _evaluation(sufficient=True),
             *_answer_replies(),
         ),
@@ -360,8 +367,8 @@ async def test_duplicate_actions_are_cached() -> None:
 
     assert await _runner(store, llm).run(run_id) is RunStatus.COMPLETED
     view = await store.get_run_view(run_id)
-    assert view.usage.tool_calls == 1
-    assert len(store.appended) == 2
+    assert view.usage.tool_calls == 2
+    assert len(store.appended) == 3
     assert store.appended[0][1] != store.appended[1][1]
 
 
@@ -373,6 +380,7 @@ async def test_citation_depth_rejections_are_observed_not_fatal() -> None:
         (
             _plan(_call("get_citations", {"paper_id": "W123", "limit": 10})),
             _evaluation(sufficient=True),
+            *_answer_replies(),
         ),
         identity=_IDENTITY,
     )
@@ -666,4 +674,89 @@ async def test_later_searches_use_new_generation() -> None:
     runner, search = _ingestion_runner(store, llm, _FakeQueue("succeeded", _PUBLISHED))
 
     assert await runner.run(run_id) is RunStatus.COMPLETED
-    assert search.snapshots == [_SNAPSHOT, _NEW_SNAPSHOT]
+    # The first plan's code-added search_evidence runs before the switch.
+    assert search.snapshots == [_SNAPSHOT, _SNAPSHOT, _NEW_SNAPSHOT]
+
+
+@pytest.mark.anyio
+async def test_first_plan_adds_discovery_when_configured() -> None:
+    from research_platform.tools.fakes import FakeDiscoveryService
+
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (_plan(*_first_batch()), _evaluation(sufficient=True), *_answer_replies()),
+        identity=_IDENTITY,
+    )
+
+    runner = _runner(store, llm, discovery=FakeDiscoveryService())
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    assert [name for _, _, name in store.appended] == [
+        "search_papers",
+        "search_evidence",
+        "discover_papers",
+    ]
+
+
+@pytest.mark.anyio
+async def test_full_first_plan_keeps_first_choice_and_adds_discovery() -> None:
+    from research_platform.tools.fakes import FakeDiscoveryService
+
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (_plan(*_first_batch()), _evaluation(sufficient=True), *_answer_replies()),
+        identity=_IDENTITY,
+    )
+
+    runner = _runner(
+        store,
+        llm,
+        budgets=_budgets(max_actions_per_plan=2),
+        discovery=FakeDiscoveryService(),
+    )
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    assert [name for _, _, name in store.appended] == [
+        "search_papers",
+        "discover_papers",
+    ]
+
+
+@pytest.mark.anyio
+async def test_evaluate_with_thinking_is_uncapped() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (
+            _plan(_call("search_papers", {"query": "retrieval"})),
+            _evaluation(sufficient=True),
+            *_answer_replies(),
+        ),
+        identity=_IDENTITY,
+    )
+    runner = _runner(store, llm, thinking=frozenset({CallKind.PLAN, CallKind.EVALUATE}))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    evaluate = next(call for call in llm.calls if call.kind is CallKind.EVALUATE)
+    assert evaluate.think is True
+    assert evaluate.max_output_tokens is None
+
+
+@pytest.mark.anyio
+async def test_evaluate_without_thinking_keeps_its_cap() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (
+            _plan(_call("search_papers", {"query": "retrieval"})),
+            _evaluation(sufficient=True),
+            *_answer_replies(),
+        ),
+        identity=_IDENTITY,
+    )
+    runner = _runner(store, llm, thinking=frozenset({CallKind.PLAN}))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    evaluate = next(call for call in llm.calls if call.kind is CallKind.EVALUATE)
+    assert evaluate.think is False
+    assert evaluate.max_output_tokens == 768

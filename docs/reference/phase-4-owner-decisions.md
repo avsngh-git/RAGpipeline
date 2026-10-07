@@ -97,6 +97,61 @@ Evidence available at the time:
   explanation from run records (for example the diagnosis findings of P4-18), not from model
   text.
 
+### 6. Discovery in every first deep_research plan (2026-10-07, #115)
+
+- **Decision:** the planner fix deferred to backlog #115 is made now, as a code rule (plan
+  policy `p4-discover-first-v1`). When discovery is configured, the first `deep_research`
+  plan always includes one `discover_papers(question)` call, alongside the model's own
+  choices. A full plan keeps the model's first choice and replaces its last action. The plan
+  policy is part of the hashed effective configuration.
+- **Evidence:**
+  - Live plan-only experiment on the 21 development tasks
+    (`local-reference/phase4/planner-prompt-experiment/`).
+  - With the current prompt, the planner chose discovery in 1/21 plans.
+  - With a prompt naming the tool, it chose discovery in 12–16/21 plans, but did both local
+    search and discovery in only 9–10/21; one variant dropped local search in 6/21.
+  - The rerun of `e60ea304` with a working OpenAlex key still never discovered.
+- **Alternatives set aside:** a prompt-only change (unreliable on the 2B model, and it can
+  drop local search); leaving discovery to the model.
+- **Re-examine:**
+  - Measure with a new `agent-dev` sweep run with `OPENALEX_API_KEY` set: discovery calls,
+    abstract evidence in answers, OpenAlex spend, and answer outcomes.
+  - The rule costs one OpenAlex search per deep run against the $0.50 daily cap.
+- **Update (2026-10-07, plan policy `p4-first-plan-searches-v2`):** the owner extended the
+  rule to `search_evidence`. The first `deep_research` plan now also always includes
+  `search_evidence(question)` (limit 20), the passage search that quick mode already runs.
+  The model's first action is always kept. A full plan loses its last actions, and when
+  only two actions are allowed, `search_evidence` comes before discovery.
+  - **Evidence:** the same plan-only experiment on the 21 tasks. `search_evidence` was
+    planned in 0/21 plans with the current prompt, 1/21 with a conditional instruction
+    ("use search_evidence when the question asks for specific findings…"), and 12/21 with
+    an imperative one.
+  - **Alternatives set aside:** the imperative prompt alone (about half the runs), or
+    both prompt and rule.
+  - **Re-examine:** in the next `agent-dev` sweep, the share of kept claims citing
+    full-text passages, and answer outcomes against sweep `c24d4759`.
+
+- **Update (2026-10-07, plan policy `p4-first-plan-searches-v3`):** the code-added discovery
+  call now searches OpenAlex for the question's content words joined with `OR`, not the
+  whole question. OpenAlex `search` requires every word to match. In the rerun of
+  `2138fb5e` (`7a3517c0`), the whole question, its content words and even three of them
+  returned 0 works, while single terms from it had 52 to 21,343 matches. Discovery still
+  ranks the results by similarity to the question.
+
+### 7. Thinking for the evaluate call (2026-10-07)
+
+- **Decision:** the default `RESEARCH_PLATFORM_LLM_THINKING` becomes
+  `plan,evaluate,synthesize`. Without thinking, the evaluate call keeps its 768-token output
+  cap. With thinking, it has no cap, as synthesis does (ADR-0025).
+- **Evidence:** live runs showed thinking on for plan (about 1,000 characters) and
+  synthesis (about 27,000 characters), and off for evaluate. Ollama counts thinking tokens
+  against `num_predict`, so a capped thinking call can end before its JSON. An invalid
+  evaluation is treated as sufficient, which would silently stop evidence gathering.
+- **Alternatives set aside:** thinking with the 768-token cap kept (truncation risk).
+- **Re-examine:** evaluate durations and invalid-output repairs in the next `agent-dev`
+  sweep. The thinking setting is part of the effective configuration, so the change shows
+  in `research-eval compare`.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial

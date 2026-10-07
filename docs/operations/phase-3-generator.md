@@ -169,7 +169,7 @@ research-runs show RUN_ID
 
 Synthesis thinks with no output cap ([ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md)):
 expect about 2 to 7 minutes per run on the RTX 3050. The defaults are
-`RESEARCH_PLATFORM_LLM_THINKING=plan,synthesize`, a 32,768-token context, a 1,200-second
+`RESEARCH_PLATFORM_LLM_THINKING=plan,evaluate,synthesize` (evaluate added on 2026-10-07, Phase 4 owner decision 7; evaluation is then uncapped like synthesis), a 32,768-token context, a 1,200-second
 call timeout and a 1,800-second run budget. A view's claims each carry the `quote` that
 code verified against the cited passage; apply migration 017 (`scripts/migrate.py`) to the
 serving database before running this version.

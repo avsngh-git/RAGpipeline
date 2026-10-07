@@ -195,7 +195,9 @@ def _llm_context_tokens_default() -> int:
 
 
 def _llm_thinking_default() -> frozenset[CallKind]:
-    raw_values = os.environ.get("RESEARCH_PLATFORM_LLM_THINKING", "plan,synthesize")
+    raw_values = os.environ.get(
+        "RESEARCH_PLATFORM_LLM_THINKING", "plan,evaluate,synthesize"
+    )
     values = (value.strip() for value in raw_values.split(","))
     return frozenset(CallKind(value) for value in values if value)
 
