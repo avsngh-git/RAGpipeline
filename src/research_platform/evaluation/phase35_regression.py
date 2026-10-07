@@ -645,7 +645,11 @@ async def case_abstract_requests_unknown_paper() -> CaseResult:
 
 
 async def case_ingestion_targets_beyond_run_limit() -> CaseResult:
-    """Requests beyond the run paper limit are refused before queueing."""
+    """Requests beyond the run paper limit are refused before queueing.
+
+    The request carries five papers, the most the tool schema allows, against a
+    run limit of three; the policy must accept three and refuse two.
+    """
     discovered = tuple(
         DiscoveredPaper(
             paper_id=f"W50{index}",
@@ -656,7 +660,7 @@ async def case_ingestion_targets_beyond_run_limit() -> CaseResult:
             catalog_status="metadata_only",
             similarity=0.9,
         )
-        for index in range(1, 9)
+        for index in range(1, 6)
     )
     discovery = FakeDiscoveryService(discovered)
     pipeline = InMemoryIngestionPipeline({})
@@ -677,7 +681,7 @@ async def case_ingestion_targets_beyond_run_limit() -> CaseResult:
             _synthesis(),
         ),
         pipeline,
-        budgets=RunBudgets.model_validate({"max_papers_per_wait": 5}),
+        budgets=RunBudgets.model_validate({"max_papers_per_wait": 3}),
         discovery=discovery,
     )
     requests = run.calls("request_ingestion")
@@ -691,8 +695,8 @@ async def case_ingestion_targets_beyond_run_limit() -> CaseResult:
     mismatches: list[str] = []
     _check(
         mismatches,
-        sum(decision.get("decision") == "accepted" for decision in decisions) == 5,
-        "expected exactly five accepted papers",
+        sum(decision.get("decision") == "accepted" for decision in decisions) == 3,
+        "expected exactly three accepted papers",
     )
     _check(
         mismatches,
@@ -701,13 +705,13 @@ async def case_ingestion_targets_beyond_run_limit() -> CaseResult:
             for decision in decisions
             if decision.get("decision") == "refused"
         ]
-        == ["run_paper_limit"] * 3,
+        == ["run_paper_limit"] * 2,
         "papers beyond the run limit were not refused",
     )
     _check(
         mismatches,
         len(pipeline.requests) == 1
-        and len(next(iter(pipeline.requests.values())).paper_ids) == 5,
+        and len(next(iter(pipeline.requests.values())).paper_ids) == 3,
         "the queued request exceeded the run limit",
     )
     return CaseResult("ingestion_targets_beyond_run_limit", tuple(mismatches))
