@@ -133,6 +133,7 @@ def _runner(
     budgets: RunBudgets | None = None,
     search: Any = None,
     thinking: frozenset[CallKind] = frozenset(),
+    discovery: Any = None,
 ) -> ResearchRunner:
     search_service, papers, citations, related = fake_services(_corpus())
     tools = ResearchTools(
@@ -140,6 +141,7 @@ def _runner(
         papers=papers,
         citations=citations,
         related=related,
+        discovery=discovery,
     )
     return ResearchRunner(
         RunnerDependencies(
@@ -667,3 +669,47 @@ async def test_later_searches_use_new_generation() -> None:
 
     assert await runner.run(run_id) is RunStatus.COMPLETED
     assert search.snapshots == [_SNAPSHOT, _NEW_SNAPSHOT]
+
+
+@pytest.mark.anyio
+async def test_first_plan_adds_discovery_when_configured() -> None:
+    from research_platform.tools.fakes import FakeDiscoveryService
+
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (_plan(*_first_batch()), _evaluation(sufficient=True), *_answer_replies()),
+        identity=_IDENTITY,
+    )
+
+    runner = _runner(store, llm, discovery=FakeDiscoveryService())
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    assert [name for _, _, name in store.appended] == [
+        "search_papers",
+        "search_evidence",
+        "discover_papers",
+    ]
+
+
+@pytest.mark.anyio
+async def test_full_first_plan_keeps_first_choice_and_adds_discovery() -> None:
+    from research_platform.tools.fakes import FakeDiscoveryService
+
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (_plan(*_first_batch()), _evaluation(sufficient=True), *_answer_replies()),
+        identity=_IDENTITY,
+    )
+
+    runner = _runner(
+        store,
+        llm,
+        budgets=_budgets(max_actions_per_plan=2),
+        discovery=FakeDiscoveryService(),
+    )
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    assert [name for _, _, name in store.appended] == [
+        "search_papers",
+        "discover_papers",
+    ]
