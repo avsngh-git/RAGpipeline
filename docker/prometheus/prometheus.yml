@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: research-api-host
+    static_configs:
+      - targets: ["host.docker.internal:8001"]
+
+  - job_name: research-api-compose
+    static_configs:
+      - targets: ["api:8000"]
+
+  - job_name: research-worker-host
+    static_configs:
+      - targets: ["host.docker.internal:9101"]
