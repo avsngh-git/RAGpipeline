@@ -11,10 +11,7 @@ from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 
 from research_platform.config import Settings
-from research_platform.evaluation.experiments import (
-    ExperimentRecord,
-    PostgresExperimentStore,
-)
+from research_platform.evaluation.experiments import PostgresExperimentStore
 from research_platform.evaluation.suites import SUITES
 from research_platform.evaluation.suites.base import run_suite
 
@@ -51,10 +48,6 @@ def _positive_limit(value: str) -> int:
     if limit < 1:
         raise argparse.ArgumentTypeError("limit must be a positive integer")
     return limit
-
-
-def _record_json(record: ExperimentRecord) -> str:
-    return record.model_dump_json()
 
 
 async def _execute(args: argparse.Namespace, settings: Settings) -> None:
