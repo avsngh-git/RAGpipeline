@@ -46,6 +46,7 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-17 (#94) | done | P4-17 PR | **Gate item 1 passes in CI:** 10 trace and log contract tests (required spans, one connected tree, root and generation attributes, no text in `ids` mode or logs, run records match the trace, search stage tree) |
 | P4-24 (#101) | done | PR #136 | `research-eval compare`: metric deltas, seeded paired bootstrap, configuration differences, stage counts; output confined to `local-reference/` |
 | P4-27 (#104) | done | PR #137 | Runs record their principal; another principal gets 404, `admin` reads all; evaluation scripts send `RESEARCH_PLATFORM_API_KEY`. Review: integration tests lacked `mode` and failed in CI; fixed |
+| P4-28 (#105) | done | P4-28 PR | In-memory token buckets per key and route class, 2 active runs per key, 64 KiB body limit (413), 429 with `Retry-After`. Agent work found committed in a `/tmp` clone, not pushed |
 | P4-20 (#97) | done | PR #128 | Migration 025 `experiments`, `ExperimentRecord`, stores and private item writer. Agent work found unpushed in a `/tmp` worktree; pushed and reviewed |
 | P4-30 (#107) | done | PR #129 | Nine scripted §15.1 attack cases; every control held. Agent work found unpushed; review pinned observed status, outcome and tool path so cases cannot pass vacuously |
 | P4-37 (#114) | done | PR #130 | `research-maintenance retention`, dry run by default. Agent work found uncommitted in `/tmp`; rescued and reviewed |
