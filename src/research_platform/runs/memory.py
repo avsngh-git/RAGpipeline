@@ -194,6 +194,10 @@ class InMemoryRunStore:
         calls = self._tool_calls.get(run_id, {})
         return tuple(calls[ordinal] for ordinal in sorted(calls))
 
+    async def list_tool_calls(self, run_id: UUID) -> tuple[ToolCallRecord, ...]:
+        self._get_run(run_id)
+        return self.tool_calls(run_id)
+
     async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None:
         if record.ordinal < 0:
             raise ValueError("ordinal must be non-negative")

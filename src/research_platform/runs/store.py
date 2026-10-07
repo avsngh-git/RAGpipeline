@@ -64,6 +64,8 @@ class RunStore(Protocol):
 
     async def append_tool_call(self, run_id: UUID, record: ToolCallRecord) -> None: ...
 
+    async def list_tool_calls(self, run_id: UUID) -> tuple[ToolCallRecord, ...]: ...
+
     async def append_llm_call(
         self,
         run_id: UUID,

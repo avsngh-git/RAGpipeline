@@ -41,6 +41,21 @@ class FakeStore:
             created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
+    async def list_tool_calls(self, run_id: UUID):
+        return ()
+
+    async def list_llm_calls(self, run_id: UUID, *, include_payloads: bool = False):
+        return ()
+
+    async def list_draft_claims(self, run_id: UUID):
+        return ()
+
+    async def get_synthesis_summary(self, run_id: UUID):
+        return None
+
+    async def load_evidence(self, run_id: UUID):
+        return {}
+
 
 class FakeSaver:
     pass
@@ -114,6 +129,33 @@ def test_show_prints_view(monkeypatch, capsys) -> None:
     assert store.requested_run_id == run_id
     assert used_urls == ["postgresql://test:test@localhost/research_test"]
     assert '"status": "queued"' in capsys.readouterr().out
+    assert pool.closed
+
+
+def test_explain_prints_json(monkeypatch, capsys) -> None:
+    pool = FakePool()
+    store = FakeStore()
+    run_id = uuid4()
+    monkeypatch.setattr(
+        cli,
+        "Settings",
+        lambda: Settings(database_url="postgresql://test:test@localhost/research_test"),
+    )
+
+    async def create_pool(
+        database_url: str, *, min_size: int, max_size: int
+    ) -> FakePool:
+        assert database_url.endswith("/research_test")
+        return pool
+
+    monkeypatch.setattr(cli.asyncpg, "create_pool", create_pool)
+    monkeypatch.setattr(cli, "RunRepository", lambda _pool: store)
+
+    cli.main(["explain", str(run_id), "--json"])
+
+    output = capsys.readouterr().out
+    assert '"run_id"' in output
+    assert '"stage": "in_progress"' in output
     assert pool.closed
 
 

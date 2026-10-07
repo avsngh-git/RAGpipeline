@@ -29,6 +29,7 @@ from research_platform.runs.repository import (
     ConfigurationNotFound,
     RunNotFound,
     RunRepository,
+    ToolCallRecord,
 )
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
@@ -254,6 +255,36 @@ def test_payload_hidden_unless_requested() -> None:
         assert [call.payload for call in hidden] == [None, None]
         assert shown[0].payload is not None
         assert shown[1].payload is None
+
+    _with_repository(exercise)
+
+
+def test_list_tool_calls_in_order() -> None:
+    async def exercise(
+        _pool: asyncpg.Pool, repo: RunRepository, created: list[str]
+    ) -> None:
+        run_id = await _new_run(repo, created)
+        later = ToolCallRecord(
+            ordinal=2,
+            tool_name="search_evidence",
+            arguments={"limit": 3},
+            status="succeeded",
+            result_summary={"count": 2},
+            duration_ms=4.5,
+        )
+        earlier = ToolCallRecord(
+            ordinal=1,
+            tool_name="search_papers",
+            arguments={"query_id": "zq7731"},
+            status="rejected",
+            result_summary={"reason": "budget"},
+            duration_ms=2.0,
+            error_category="budget",
+        )
+        await repo.append_tool_call(run_id, later)
+        await repo.append_tool_call(run_id, earlier)
+
+        assert await repo.list_tool_calls(run_id) == (earlier, later)
 
     _with_repository(exercise)
 
