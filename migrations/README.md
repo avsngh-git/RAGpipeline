@@ -54,3 +54,5 @@ drafted with the verdict code verification gave it, and a text-free synthesis su
 025_experiments.sql records evaluation suite runs and their dataset, code,
 configuration, component-version, hardware, metric and failure provenance; per-item
 results remain in private JSON Lines files.
+026_api_keys.sql stores API key hashes, prefixes, principals and scopes, and adds a
+principal owner to each research run (ADR-0027).
