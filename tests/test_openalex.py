@@ -126,6 +126,49 @@ def test_search_page_appends_extra_filter() -> None:
     )
 
 
+def test_semantic_search_sends_one_uncursored_page() -> None:
+    captured: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json=_page([_work()], None))
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            client = OpenAlexClient(
+                _config(), "test-secret", http, sleep=_no_sleep, clock=lambda: 0.0
+            )
+            page = await client.semantic_search(
+                "How does " + "x" * 3000,
+                extra_filter="publication_year:2022-2024,has_abstract:true",
+            )
+            assert page.results[0].openalex_id == "W123"
+
+    asyncio.run(exercise())
+    params = captured[0].url.params
+
+    assert "search" not in params
+    assert len(params["search.semantic"]) == 2000
+    assert "cursor" not in params
+    assert params["per_page"] == "50"
+    assert params["filter"] == (
+        "publication_year:2020-2026,language:en,"
+        "publication_year:2022-2024,has_abstract:true"
+    )
+    assert params["select"].endswith(",primary_topic")
+    assert "test-secret" not in str(captured[0].url)
+
+
+def test_semantic_search_rejects_an_empty_query() -> None:
+    async def exercise() -> None:
+        async with httpx.AsyncClient() as http:
+            client = OpenAlexClient(_config(), "test-secret", http)
+            with pytest.raises(ValueError, match="non-empty query"):
+                await client.semantic_search("  ")
+
+    asyncio.run(exercise())
+
+
 def test_pages_follow_cursor_and_keep_query_origin_and_page_numbers() -> None:
     cursors: list[str] = []
     payloads = [

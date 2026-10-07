@@ -52,11 +52,18 @@ CONFIGURATION = GenerationIndexConfiguration(
 )
 
 
-def _work(openalex_id: str, *, title: str | None = None) -> OpenAlexWork:
+def _work(
+    openalex_id: str, *, title: str | None = None, field: str | None = "17"
+) -> OpenAlexWork:
     return OpenAlexWork.from_payload(
         {
             "id": f"https://openalex.org/{openalex_id}",
             "title": title or f"Title {openalex_id}",
+            "primary_topic": (
+                {"field": {"id": f"https://openalex.org/fields/{field}"}}
+                if field is not None
+                else None
+            ),
             "publication_year": 2024,
             "language": "en",
             "type": "article",
@@ -84,11 +91,11 @@ class _FakeOpenAlex:
         finally:
             self._reserve_request = previous
 
-    async def search_page(
-        self, query: str, cursor: str, *, extra_filter: str | None = None
+    async def semantic_search(
+        self, query: str, *, extra_filter: str | None = None
     ) -> OpenAlexPage:
         await self._reserve_request()
-        self.requests.append((query, cursor, extra_filter))
+        self.requests.append((query, "semantic", extra_filter))
         return self.pages[len(self.requests) - 1]
 
 
@@ -274,10 +281,9 @@ def test_scoped_reservation_runs_for_each_retry() -> None:
 
 
 def test_run_search_limit_refuses() -> None:
-    settings = DiscoverySettings(max_search_requests_per_run=1)
     service, openalex, catalog, _papers, _ledger = _service(
-        [_page([_work("W123")], "next"), _page([_work("W456")], None)],
-        settings=settings,
+        [_page([_work("W123")], None)],
+        ledger=_FakeLedger(deny="run_search_limit"),
     )
 
     async def exercise() -> None:
@@ -292,8 +298,25 @@ def test_run_search_limit_refuses() -> None:
 
     asyncio.run(exercise())
 
-    assert len(openalex.requests) == 1
+    assert openalex.requests == []
     assert catalog.works == []
+
+
+def test_one_semantic_request_per_discovery() -> None:
+    service, openalex, _catalog, _papers, ledger = _service(
+        [_page([_work("W123")], None)]
+    )
+
+    asyncio.run(
+        service.discover(
+            run_id=uuid4(),
+            question="Research question",
+            query="hybrid retrieval",
+        )
+    )
+
+    assert [request[1] for request in openalex.requests] == ["semantic"]
+    assert len(ledger.reservations) == 1
 
 
 def test_daily_cap_refuses() -> None:
@@ -350,7 +373,7 @@ def test_daily_cap_refuses() -> None:
     assert connection.inserted == []
 
 
-def test_year_floor_and_field_filter_in_request() -> None:
+def test_year_floor_and_abstract_filter_in_request() -> None:
     service, openalex, _catalog, _papers, _ledger = _service(
         [_page([_work("W123")], None)]
     )
@@ -365,9 +388,29 @@ def test_year_floor_and_field_filter_in_request() -> None:
         )
     )
 
-    assert openalex.requests[0][2] == (
-        "publication_year:2020-2024,primary_topic.field.id:17"
+    assert openalex.requests[0][2] == "publication_year:2020-2024,has_abstract:true"
+
+
+def test_works_outside_the_configured_field_are_dropped() -> None:
+    service, _openalex, catalog, _papers, _ledger = _service(
+        [
+            _page(
+                [_work("W123"), _work("W456", field="27"), _work("W789", field=None)],
+                None,
+            )
+        ]
     )
+
+    results = asyncio.run(
+        service.discover(
+            run_id=uuid4(),
+            question="Research question",
+            query="hybrid retrieval",
+        )
+    )
+
+    assert [work.openalex_id for work in catalog.works] == ["W123"]
+    assert [paper.paper_id for paper in results] == ["paper-W123"]
 
 
 def test_results_upserted_as_metadata_only() -> None:
