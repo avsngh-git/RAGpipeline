@@ -299,6 +299,30 @@ class RunRepository:
             async with connection.transaction():
                 await _insert_tool_call(connection, run_id, record)
 
+    async def list_tool_calls(self, run_id: UUID) -> tuple[ToolCallRecord, ...]:
+        """Return a run's tool calls in ordinal order."""
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT ordinal, tool_name, arguments, result, status, duration_ms,
+                       error_category
+                FROM tool_calls WHERE run_id = $1 ORDER BY ordinal
+                """,
+                run_id,
+            )
+        return tuple(
+            ToolCallRecord(
+                ordinal=row["ordinal"],
+                tool_name=row["tool_name"],
+                arguments=_json_mapping(row["arguments"]),
+                result_summary=_json_mapping(row["result"]),
+                status=row["status"],
+                duration_ms=row["duration_ms"],
+                error_category=row["error_category"],
+            )
+            for row in rows
+        )
+
     async def append_llm_call(
         self,
         run_id: UUID,
