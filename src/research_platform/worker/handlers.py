@@ -14,6 +14,14 @@ import httpx
 
 from research_platform.ingestion.generation_append import AppendReport
 from research_platform.ingestion.online_ingestion import PaperIngestOutcome
+from research_platform.observability.tracing import (
+    ATTR_INGESTION_PAPER_ID,
+    ATTR_INGESTION_REASON,
+    ATTR_INGESTION_STATUS,
+    SPAN_INGESTION_PAPER,
+    get_tracer,
+    set_id_attribute,
+)
 from research_platform.worker.gpu import gpu_lock
 from research_platform.worker.queue import IngestionRequest, IngestionTerminalStatus
 
@@ -39,6 +47,17 @@ class Appender(Protocol):
 IngesterFactory = Callable[[Mapping[str, object]], PaperIngester]
 AppenderFactory = Callable[[], AbstractAsyncContextManager[Appender]]
 LockFactory = Callable[[asyncpg.Pool], AbstractAsyncContextManager[None]]
+
+
+async def _ingest_traced(
+    ingester: PaperIngester, paper_id: str, run_id: UUID | None
+) -> PaperIngestOutcome:
+    with get_tracer().start_as_current_span(SPAN_INGESTION_PAPER) as span:
+        set_id_attribute(span, ATTR_INGESTION_PAPER_ID, paper_id)
+        outcome = await ingester.ingest_paper(paper_id, run_id=run_id)
+        set_id_attribute(span, ATTR_INGESTION_STATUS, outcome.status)
+        set_id_attribute(span, ATTR_INGESTION_REASON, outcome.reason)
+        return outcome
 
 
 def handler_status(
@@ -80,7 +99,7 @@ class OnlineIngestionHandler:
                 await self._release_gpu()
             ingester = self._ingester(chunking)
             outcomes = [
-                await ingester.ingest_paper(paper_id, run_id=request.run_id)
+                await _ingest_traced(ingester, paper_id, request.run_id)
                 for paper_id in request.paper_ids
             ]
             try:

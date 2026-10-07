@@ -8,6 +8,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
+from opentelemetry.trace import get_current_span
 from pydantic import TypeAdapter
 
 from research_platform.agents.actions import (
@@ -39,6 +40,13 @@ from research_platform.llm.contracts import (
     ToolCallRequest,
 )
 from research_platform.llm.types import CallKind
+from research_platform.observability.tracing import (
+    ATTR_GENERATION,
+    ATTR_INGESTION_REQUEST_ID,
+    ATTR_INGESTION_STATUS,
+    ATTR_INGESTION_WAITED_SECONDS,
+    set_id_attribute,
+)
 from research_platform.runs.contracts import ResearchFilters, RunBudgets
 from research_platform.runs.repository import ToolCallRecord
 from research_platform.tools.research_tools import ToolObservation
@@ -170,6 +178,8 @@ def build_deep_graph(
         if raw_request_id is None or deps.ingestion is None:
             return {"pending_ingestion_request_id": None}
         request_id = UUID(raw_request_id)
+        span = get_current_span()
+        set_id_attribute(span, ATTR_INGESTION_REQUEST_ID, raw_request_id)
         await deps.repository.mark_waiting(deps.run_id)
         started = perf_counter()
         async with deps.pause_active():
@@ -188,8 +198,10 @@ def build_deep_graph(
         ordinal = state["ledger"].records
         current_generation = state.get("generation") or deps.context.generation
         duration_ms = (perf_counter() - started) * 1000
+        set_id_attribute(span, ATTR_INGESTION_WAITED_SECONDS, duration_ms / 1000)
         update: dict[str, Any] = {}
         if request.status not in _TERMINAL:
+            set_id_attribute(span, ATTR_INGESTION_STATUS, "wait_cap")
             observation = ToolObservation(
                 ordinal=ordinal,
                 tool="ingestion_wait",
@@ -220,7 +232,12 @@ def build_deep_graph(
                 and (current_generation is None or generation > current_generation)
             )
             if switch:
+                set_id_attribute(span, ATTR_INGESTION_STATUS, "switched")
+                assert isinstance(generation, int)
+                set_id_attribute(span, ATTR_GENERATION, generation)
                 summary["to_generation"] = generation
+            else:
+                set_id_attribute(span, ATTR_INGESTION_STATUS, request.status)
             observation = ToolObservation(
                 ordinal=ordinal,
                 tool="ingestion_wait",
