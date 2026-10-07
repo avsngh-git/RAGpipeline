@@ -12,7 +12,7 @@ import pytest
 
 from research_platform.auth.keys import PostgresApiKeyStore, Scope, hash_api_key
 from research_platform.persistence.migrations import apply_migrations
-from research_platform.runs.contracts import ResearchRequest
+from research_platform.runs.contracts import ResearchMode, ResearchRequest
 from research_platform.runs.repository import RunRepository
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
@@ -104,7 +104,9 @@ def test_create_run_persists_principal() -> None:
     async def exercise(pool: asyncpg.Pool) -> None:
         repo = RunRepository(pool)
         run_id = await repo.create_run(
-            ResearchRequest(question="synthetic ownership question"),
+            ResearchRequest(
+                question="synthetic ownership question", mode=ResearchMode.QUICK
+            ),
             principal="integration-owner",
         )
         try:
@@ -121,12 +123,14 @@ def test_count_active_runs() -> None:
         repo = RunRepository(pool)
         run_ids = [
             await repo.create_run(
-                ResearchRequest(question=f"active {index}"), principal="count-owner"
+                ResearchRequest(question=f"active {index}", mode=ResearchMode.QUICK),
+                principal="count-owner",
             )
             for index in range(3)
         ]
         other_id = await repo.create_run(
-            ResearchRequest(question="other principal"), principal="other-owner"
+            ResearchRequest(question="other principal", mode=ResearchMode.QUICK),
+            principal="other-owner",
         )
         try:
             await pool.execute(
