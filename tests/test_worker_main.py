@@ -26,6 +26,9 @@ class _Queue:
         self.request = _request()
         self.completed: tuple[str, dict[str, object]] | None = None
 
+    async def pending_count(self) -> int:
+        return 0
+
     async def claim_next(
         self, worker_id: str, *, lease_seconds: float = 300
     ) -> IngestionRequest | None:

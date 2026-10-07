@@ -15,9 +15,15 @@ from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 import httpx
+import prometheus_client
 
 from research_platform.config import Settings
 from research_platform.observability.logging_config import configure_logging
+from research_platform.observability.metrics import (
+    INGESTION_BACKLOG,
+    INGESTION_REQUESTS,
+    REGISTRY,
+)
 from research_platform.worker.queue import (
     IngestionQueue,
     IngestionRequest,
@@ -62,6 +68,7 @@ async def run_worker(
         request = await queue.claim_next(
             worker_id, lease_seconds=_DEFAULT_LEASE_SECONDS
         )
+        INGESTION_BACKLOG.set(await queue.pending_count())
         if request is None:
             try:
                 await asyncio.wait_for(stop.wait(), timeout=poll_seconds)
@@ -126,6 +133,7 @@ async def _process_request(
             status = "failed"
             result = {"error_type": type(error).__name__}
         await queue.complete(request.id, worker_id, status=status, result=result)
+        INGESTION_REQUESTS.labels(status).inc()
     finally:
         heartbeat_task.cancel()
         if not handler_task.done():
@@ -249,6 +257,10 @@ async def _run_main() -> None:
     for signal_number in (signal.SIGINT, signal.SIGTERM):
         with suppress(NotImplementedError, RuntimeError):
             loop.add_signal_handler(signal_number, stop.set)
+
+    port = int(os.environ.get("RESEARCH_PLATFORM_WORKER_METRICS_PORT", "9101"))
+    if port > 0:
+        prometheus_client.start_http_server(port, addr="127.0.0.1", registry=REGISTRY)
 
     # The GPU lock, the append lock and the build lock each hold a session.
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=8)
