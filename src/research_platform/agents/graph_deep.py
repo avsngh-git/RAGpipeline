@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import timedelta
 from time import perf_counter
-from typing import Any, cast
+from typing import Any, Final, cast
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -13,6 +14,7 @@ from pydantic import TypeAdapter
 
 from research_platform.agents.actions import (
     Action,
+    DiscoverPapersAction,
     RequestIngestionAction,
     SufficiencyDecision,
 )
@@ -90,6 +92,46 @@ def default_actions(question: str, filters: ResearchFilters) -> tuple[Action, ..
     )
 
 
+PLAN_POLICY: Final = "p4-discover-first-v1"
+_DISCOVERY_MIN_YEAR: Final = 2020
+
+
+def ensure_discovery(
+    actions: Sequence[Action],
+    *,
+    question: str,
+    filters: ResearchFilters,
+    max_actions: int,
+) -> tuple[Action, ...]:
+    """Add one discover_papers call to the first plan unless it already has one.
+
+    The 2B planner rarely chooses discovery on its own (backlog #115), so code adds it.
+    When the plan is full, discovery replaces the last action, so the model's first
+    choice is kept. Nothing is added when fewer than two actions are allowed or the
+    year filter ends before discovery's 2020 floor.
+    """
+    if any(isinstance(action, DiscoverPapersAction) for action in actions):
+        return tuple(actions)
+    if max_actions < 2:
+        return tuple(actions)
+    if filters.year_to is not None and filters.year_to < _DISCOVERY_MIN_YEAR:
+        return tuple(actions)
+    year_from = (
+        filters.year_from
+        if filters.year_from is not None and filters.year_from >= _DISCOVERY_MIN_YEAR
+        else None
+    )
+    discover = DiscoverPapersAction(
+        tool="discover_papers",
+        query=question[:300],
+        year_from=year_from,
+        year_to=filters.year_to,
+        limit=5,
+    )
+    kept = tuple(actions)[: max_actions - 1]
+    return (*kept, discover)
+
+
 def build_deep_graph(
     deps: NodeDependencies,
 ) -> StateGraph[ResearchState, None, ResearchState, ResearchState]:
@@ -124,6 +166,14 @@ def build_deep_graph(
                 *state["observations"],
                 "plan fallback: default actions",
             ][-20:]
+
+        if deps.tools.discovery_available:
+            actions = ensure_discovery(
+                actions,
+                question=state["question"],
+                filters=deps.context.filters,
+                max_actions=max_actions,
+            )
 
         return {
             "pending_actions": [action.model_dump(mode="json") for action in actions],

@@ -21,6 +21,7 @@ from langgraph.graph import StateGraph
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+from research_platform.agents.graph_deep import PLAN_POLICY
 from research_platform.agents.nodes import (
     IngestionStatusSource,
     NodeDependencies,
@@ -169,6 +170,7 @@ def build_effective_configuration(
     schema_digest = tool_schema_digest()
     effective_configuration: dict[str, object] = {
         "provenance_version": PROVENANCE_VERSION,
+        "plan_policy": PLAN_POLICY,
         "mode": request.mode.value,
         "filters": request.filters.model_dump(mode="json"),
         "snapshot_id": str(snapshot_id),

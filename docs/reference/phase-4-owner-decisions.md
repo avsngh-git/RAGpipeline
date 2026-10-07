@@ -97,6 +97,27 @@ Evidence available at the time:
   explanation from run records (for example the diagnosis findings of P4-18), not from model
   text.
 
+### 6. Discovery in every first deep_research plan (2026-10-07, #115)
+
+- **Decision:** the planner fix deferred to backlog #115 is made now, as a code rule (plan
+  policy `p4-discover-first-v1`). When discovery is configured, the first `deep_research`
+  plan always includes one `discover_papers(question)` call, alongside the model's own
+  choices. A full plan keeps the model's first choice and replaces its last action. The plan
+  policy is part of the hashed effective configuration.
+- **Evidence:**
+  - Live plan-only experiment on the 21 development tasks
+    (`local-reference/phase4/planner-prompt-experiment/`).
+  - With the current prompt, the planner chose discovery in 1/21 plans.
+  - With a prompt naming the tool, it chose discovery in 12–16/21 plans, but did both local
+    search and discovery in only 9–10/21; one variant dropped local search in 6/21.
+  - The rerun of `e60ea304` with a working OpenAlex key still never discovered.
+- **Alternatives set aside:** a prompt-only change (unreliable on the 2B model, and it can
+  drop local search); leaving discovery to the model.
+- **Re-examine:**
+  - Measure with a new `agent-dev` sweep run with `OPENALEX_API_KEY` set: discovery calls,
+    abstract evidence in answers, OpenAlex spend, and answer outcomes.
+  - The rule costs one OpenAlex search per deep run against the $0.50 daily cap.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
