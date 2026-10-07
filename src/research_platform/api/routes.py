@@ -40,8 +40,8 @@ from research_platform.search.paper_reads import (
     SnapshotPaperRead,
 )
 
-from .auth import require_scope
 from .errors import AppError
+from .rate_limits import RouteClass, rate_limited
 from .schemas.papers import CitationGraphResponse, PaperReadResponse
 from .schemas.search import (
     EvidenceSearchRequest,
@@ -257,7 +257,9 @@ def create_phase2_router(
     async def search_papers(
         body: PaperSearchRequest,
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.SEARCH))
+        ],
     ) -> PaperSearchResponse:
         _require_private_evidence(settings)
         active_services = _services_for_request(request, services)
@@ -306,7 +308,9 @@ def create_phase2_router(
     async def search_evidence(
         body: EvidenceSearchRequest,
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.SEARCH))
+        ],
     ) -> EvidenceSearchResponse:
         _require_private_evidence(settings)
         active_services = _services_for_request(request, services)
@@ -354,7 +358,9 @@ def create_phase2_router(
     )
     async def read_paper(
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.PAPER_READ))
+        ],
         paper_id: str = Path(pattern=r"^W[0-9]+$"),
         snapshot_id: UUID = Query(),
     ) -> PaperReadResponse:
@@ -420,7 +426,9 @@ def create_phase2_router(
     )
     async def read_references(
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.PAPER_READ))
+        ],
         paper_id: str = Path(pattern=r"^W[0-9]+$"),
         snapshot_id: UUID = Query(),
         limit: int = Query(default=20, ge=1, le=100),
@@ -438,7 +446,9 @@ def create_phase2_router(
     )
     async def read_citations(
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.PAPER_READ))
+        ],
         paper_id: str = Path(pattern=r"^W[0-9]+$"),
         snapshot_id: UUID = Query(),
         limit: int = Query(default=20, ge=1, le=100),
