@@ -21,6 +21,7 @@ from research_platform.agents.nodes import (
     answer_node,
     record_observation,
     run_action_observed,
+    traced_node,
 )
 from research_platform.agents.prompts import (
     evaluate_messages,
@@ -354,11 +355,13 @@ def build_deep_graph(
         )
 
     builder = StateGraph(ResearchState)
-    builder.add_node("plan", plan)
-    builder.add_node("execute", execute)
-    builder.add_node("evaluate", evaluate)
-    builder.add_node("wait_ingestion", wait_ingestion)
-    builder.add_node("answer", answer)
+    builder.add_node("plan", cast(Any, traced_node("plan", plan)))
+    builder.add_node("execute", cast(Any, traced_node("execute", execute)))
+    builder.add_node("evaluate", cast(Any, traced_node("evaluate", evaluate)))
+    builder.add_node(
+        "wait_ingestion", cast(Any, traced_node("wait_ingestion", wait_ingestion))
+    )
+    builder.add_node("answer", cast(Any, traced_node("answer", answer)))
     builder.add_edge(START, "plan")
     builder.add_conditional_edges("plan", after_plan)
     builder.add_conditional_edges("execute", after_execute)
