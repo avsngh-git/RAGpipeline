@@ -21,8 +21,8 @@ from research_platform.runs.repository import RunNotFound
 from research_platform.runs.runner import ServingIdentity
 from research_platform.runs.store import RunStore
 
-from .auth import require_scope
 from .errors import AppError
+from .rate_limits import RouteClass, rate_limited
 
 
 @dataclass(frozen=True)
@@ -67,11 +67,23 @@ def create_research_router(
     async def start_research(
         body: ResearchRequest,
         request: Request,
-        principal: Annotated[Principal, Depends(require_scope(Scope.RESEARCH))],
+        principal: Annotated[
+            Principal, Depends(rate_limited(Scope.RESEARCH, RouteClass.RESEARCH_CREATE))
+        ],
     ) -> ResearchRunView:
         active = _active_services(request, services)
         if active is None:
             raise _service_unavailable()
+        if (
+            await active.store.count_active_runs(principal.name)
+            >= request.app.state.rate_limit_settings.max_active_runs_per_principal
+        ):
+            raise AppError(
+                "too_many_active_runs",
+                "Too many research runs are active for this key.",
+                429,
+                headers={"Retry-After": "30"},
+            )
         if (
             body.snapshot_id is not None
             and body.snapshot_id != active.serving.snapshot_id
@@ -110,7 +122,9 @@ def create_research_router(
     async def get_research(
         run_id: UUID,
         request: Request,
-        principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+        principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.RUN_READ))
+        ],
     ) -> ResearchRunView:
         active = _active_services(request, services)
         if active is None:

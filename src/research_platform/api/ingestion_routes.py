@@ -20,8 +20,8 @@ from research_platform.ingestion.membership_policy import (
 )
 from research_platform.worker.queue import IngestionQueue, IngestionRequest
 
-from .auth import require_scope
 from .errors import AppError
+from .rate_limits import RouteClass, rate_limited
 
 API_MAX_PAPERS = 20
 CollectionState = Literal["missing", "unpublished", "ready"]
@@ -151,7 +151,9 @@ def create_ingestion_router(service: IngestionAPIService | None) -> APIRouter:
         collection_id: UUID,
         body: IngestRequestBody,
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.INGEST))],
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.INGEST, RouteClass.INGEST))
+        ],
     ) -> IngestResponse:
         active = _active(request, service)
         state = await active.collection_state(collection_id)
@@ -194,7 +196,9 @@ def create_ingestion_router(service: IngestionAPIService | None) -> APIRouter:
         collection_id: UUID,
         request_id: UUID,
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.INGEST))],
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.INGEST, RouteClass.RUN_READ))
+        ],
     ) -> IngestResponse:
         active = _active(request, service)
         stored = await active.get_request(request_id)

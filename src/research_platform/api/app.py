@@ -37,8 +37,10 @@ from research_platform.services.readiness import (
 from research_platform.tools.research_tools import DiscoveryService
 
 from .auth import AuthSettings
+from .body_limit import BodySizeLimitMiddleware
 from .errors import AppError, handle_app_error, handle_unexpected_error
 from .ingestion_routes import IngestionAPIService, create_ingestion_router
+from .rate_limits import RateLimitSettings, TokenBucketLimiter
 from .research_routes import ResearchAPIServices, create_research_router
 from .routes import Phase2APIServices, create_phase2_router
 
@@ -107,10 +109,12 @@ def create_app(
     ingestion_service: IngestionAPIService | None = None,
     auth_settings: AuthSettings | None = None,
     api_key_store: ApiKeyStore | None = None,
+    rate_limit_settings: RateLimitSettings | None = None,
 ) -> FastAPI:
     """Create the HTTP application with health and Phase 2 routes."""
     settings = settings or Settings()
     auth_settings = auth_settings or AuthSettings.from_env(settings.environment)
+    rate_limit_settings = rate_limit_settings or RateLimitSettings.from_env()
     auth_settings.validate(settings.environment)
     configure_logging(settings.log_level)
     configure_tracing(
@@ -211,6 +215,11 @@ def create_app(
     app.state.phase2_services = api_services
     app.state.auth_settings = auth_settings
     app.state.api_key_store = api_key_store
+    app.state.rate_limit_settings = rate_limit_settings
+    app.state.rate_limiter = TokenBucketLimiter(rate_limit_settings)
+    app.add_middleware(
+        BodySizeLimitMiddleware, max_bytes=rate_limit_settings.max_body_bytes
+    )
     app.add_middleware(HttpMetricsMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)
