@@ -44,6 +44,10 @@ from research_platform.ingestion.indexing import (
     SnapshotIndexNotReady,
 )
 from research_platform.ingestion.snapshot_selection import SnapshotSelection
+from research_platform.observability.metrics import (
+    SEARCH_FALLBACKS,
+    SEARCH_STAGE_LATENCY,
+)
 from research_platform.search.active_profile import resolve_frozen_profile_path
 from research_platform.search.application_errors import (
     IncompatibleRetrievalProfile,
@@ -353,6 +357,20 @@ class Phase2SearchExecutor:
                 else None,
             },
         )
+        for key, stage in (
+            ("lexical_duration_ms", "lexical"),
+            ("dense_duration_ms", "dense"),
+            ("fusion_duration_ms", "fusion"),
+            ("reranker_duration_ms", "rerank"),
+        ):
+            value = stage_counts.get(key)
+            if isinstance(value, int | float):
+                SEARCH_STAGE_LATENCY.labels(stage).observe(value / 1000)
+        SEARCH_STAGE_LATENCY.labels("total").observe(perf_counter() - started)
+        if effective_mode is not request.mode:
+            SEARCH_FALLBACKS.labels(
+                str(stage_counts.get("reranker_failure_category", "unknown"))
+            ).inc()
         return response
 
     async def _profile_for_generation(

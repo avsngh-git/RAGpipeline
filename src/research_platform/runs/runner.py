@@ -39,6 +39,11 @@ from research_platform.llm.contracts import (
 )
 from research_platform.llm.recording import RecordingLLMClient
 from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
+from research_platform.observability.metrics import (
+    CLAIM_VERDICTS,
+    RUN_ACTIVE_SECONDS,
+    RUNS_FINISHED,
+)
 from research_platform.observability.request_context import bind_run_id
 from research_platform.runs.checkpointing import thread_config
 from research_platform.runs.contracts import (
@@ -310,6 +315,7 @@ class ResearchRunner:
                 RunUsage.model_construct(
                     active_seconds=stored.active_seconds, resumes=stored.resume_count
                 ),
+                count=False,
             )
             return stored.status
 
@@ -477,6 +483,8 @@ class ResearchRunner:
                 drafts=answer.drafts,
                 synthesis=answer.synthesis,
             )
+            for draft in answer.drafts:
+                CLAIM_VERDICTS.labels(draft.verdict.value).inc()
             status = RunStatus.COMPLETED
             category = None
             self._log_finished(
@@ -563,7 +571,14 @@ class ResearchRunner:
         duration_seconds: float,
         active_seconds: float,
         usage: RunUsage,
+        *,
+        count: bool = True,
     ) -> None:
+        if count:
+            RUNS_FINISHED.labels(
+                mode.value, status.value, category.value if category else "none"
+            ).inc()
+            RUN_ACTIVE_SECONDS.labels(mode.value).observe(active_seconds)
         logger.info(
             "research_run_finished",
             extra={

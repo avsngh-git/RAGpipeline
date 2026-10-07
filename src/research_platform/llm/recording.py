@@ -20,6 +20,7 @@ from research_platform.llm.contracts import (
     ToolCallResult,
 )
 from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
+from research_platform.observability.metrics import LLM_CALLS, LLM_LATENCY, LLM_TOKENS
 from research_platform.runs.llm_records import (
     LLMCallPayload,
     LLMCallRecord,
@@ -204,9 +205,16 @@ class RecordingLLMClient:
             thinking_chars=len(thinking) if thinking else None,
             error_type=error_type,
         )
-        return await self._sink.append_llm_call(
+        record_id = await self._sink.append_llm_call(
             self._run_id, record, payload if self._store_payloads else None
         )
+        LLM_CALLS.labels(kind.value, status).inc()
+        LLM_LATENCY.labels(kind.value).observe(record.duration_ms / 1000)
+        if isinstance(prompt_tokens, int):
+            LLM_TOKENS.labels(kind.value, "input").inc(prompt_tokens)
+        if isinstance(output_tokens, int):
+            LLM_TOKENS.labels(kind.value, "output").inc(output_tokens)
+        return record_id
 
 
 def _tool_names(tools: tuple[Mapping[str, object], ...]) -> list[str]:
