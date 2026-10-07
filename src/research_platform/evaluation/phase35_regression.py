@@ -454,11 +454,22 @@ async def case_generation_changes_only_at_switch() -> CaseResult:
     view = await run.store.get_run_view(run.run_id)
     names = [c.tool_name for c in run.calls()]
     mismatches: list[str] = []
-    _check(mismatches, run.search.snapshots == [SNAPSHOT, NEW_SNAPSHOT], "wrong order")
+    # The first plan's code-added search_evidence runs before the switch.
+    _check(
+        mismatches,
+        run.search.snapshots == [SNAPSHOT, SNAPSHOT, NEW_SNAPSHOT],
+        "wrong order",
+    )
     _check(
         mismatches,
         names
-        == ["search_papers", "request_ingestion", "ingestion_wait", "search_evidence"],
+        == [
+            "search_papers",
+            "request_ingestion",
+            "search_evidence",
+            "ingestion_wait",
+            "search_evidence",
+        ],
         f"unexpected tool order {names}",
     )
     _check(mismatches, view.generation == 2, "run did not switch to generation 2")

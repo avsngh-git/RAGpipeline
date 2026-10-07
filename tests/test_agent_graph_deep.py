@@ -214,7 +214,11 @@ async def test_replans_until_sufficient() -> None:
 
     assert await _runner(store, llm).run(run_id) is RunStatus.COMPLETED
     view = await store.get_run_view(run_id)
-    assert [name for _, _, name in store.appended] == ["search_papers", "get_paper"]
+    assert [name for _, _, name in store.appended] == [
+        "search_papers",
+        "search_evidence",
+        "get_paper",
+    ]
     assert view.usage.plan_rounds == 2
     assert view.usage.model_calls == 4
 
@@ -351,9 +355,10 @@ async def test_duplicate_actions_are_cached() -> None:
     store = RecordingStore()
     run_id = await _create_run(store)
     search = _call("search_papers", {"query": "retrieval"})
+    evidence = _call("search_evidence", {"query": "retrieval"})
     llm = ScriptedLLM(
         (
-            _plan(search, search),
+            _plan(search, search, evidence),
             _evaluation(sufficient=True),
             *_answer_replies(),
         ),
@@ -362,8 +367,8 @@ async def test_duplicate_actions_are_cached() -> None:
 
     assert await _runner(store, llm).run(run_id) is RunStatus.COMPLETED
     view = await store.get_run_view(run_id)
-    assert view.usage.tool_calls == 1
-    assert len(store.appended) == 2
+    assert view.usage.tool_calls == 2
+    assert len(store.appended) == 3
     assert store.appended[0][1] != store.appended[1][1]
 
 
@@ -375,6 +380,7 @@ async def test_citation_depth_rejections_are_observed_not_fatal() -> None:
         (
             _plan(_call("get_citations", {"paper_id": "W123", "limit": 10})),
             _evaluation(sufficient=True),
+            *_answer_replies(),
         ),
         identity=_IDENTITY,
     )
@@ -668,7 +674,8 @@ async def test_later_searches_use_new_generation() -> None:
     runner, search = _ingestion_runner(store, llm, _FakeQueue("succeeded", _PUBLISHED))
 
     assert await runner.run(run_id) is RunStatus.COMPLETED
-    assert search.snapshots == [_SNAPSHOT, _NEW_SNAPSHOT]
+    # The first plan's code-added search_evidence runs before the switch.
+    assert search.snapshots == [_SNAPSHOT, _SNAPSHOT, _NEW_SNAPSHOT]
 
 
 @pytest.mark.anyio
