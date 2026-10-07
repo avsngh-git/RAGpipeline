@@ -23,6 +23,11 @@ from research_platform.observability.metrics import render_metrics
 from research_platform.observability.request_context import RequestIDMiddleware
 from research_platform.observability.request_logging import RequestLoggingMiddleware
 from research_platform.observability.request_metrics import HttpMetricsMiddleware
+from research_platform.observability.tracing import (
+    TracingSettings,
+    configure_tracing,
+    shutdown_tracing,
+)
 from research_platform.services.readiness import (
     LiveDependencyChecker,
     ReadinessChecker,
@@ -102,11 +107,15 @@ def create_app(
     """Create the HTTP application with health and Phase 2 routes."""
     settings = settings or Settings()
     configure_logging(settings.log_level)
+    configure_tracing(
+        TracingSettings.from_env(settings.environment), service_name="research-api"
+    )
     dependency_checker = dependency_checker or LiveDependencyChecker(settings)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with AsyncExitStack() as stack:
+            stack.callback(shutdown_tracing)
             runtime: Any | None = None
             application.state.phase2_runtime_ready = (
                 True if api_services is not None else None
