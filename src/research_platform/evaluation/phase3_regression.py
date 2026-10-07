@@ -128,6 +128,16 @@ class RegressionResult:
     mismatches: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class CaseRun:
+    """A finished regression case with the store, run and model it used."""
+
+    result: RegressionResult
+    store: InMemoryRunStore
+    run_id: UUID
+    llm: ScriptedLLM
+
+
 class _RecordingRunStore(InMemoryRunStore):
     """Keep the store's idempotent tool persistence visible to the harness."""
 
@@ -218,6 +228,11 @@ def load_corpus(path: Path) -> FakeCorpus:
 
 async def run_case(case: RegressionCase, corpus: FakeCorpus) -> RegressionResult:
     """Run one case through the production graphs, tools, and runner."""
+    return (await run_case_detailed(case, corpus)).result
+
+
+async def run_case_detailed(case: RegressionCase, corpus: FakeCorpus) -> CaseRun:
+    """Run one case and keep its store for inspection."""
     store = _RecordingRunStore()
     search, papers, citations, related = fake_services(corpus)
     tools = ResearchTools(
@@ -292,11 +307,16 @@ async def run_case(case: RegressionCase, corpus: FakeCorpus) -> RegressionResult
     mismatches.extend(_compare(case.expect, view, tool_calls, evidence, llm))
     if llm.remaining != 0:
         mismatches.append(f"scripted LLM has {llm.remaining} unconsumed replies")
-    return RegressionResult(
-        case_id=case.case_id,
-        category=case.category,
-        passed=not mismatches,
-        mismatches=tuple(mismatches),
+    return CaseRun(
+        result=RegressionResult(
+            case_id=case.case_id,
+            category=case.category,
+            passed=not mismatches,
+            mismatches=tuple(mismatches),
+        ),
+        store=store,
+        run_id=run_id,
+        llm=llm,
     )
 
 
