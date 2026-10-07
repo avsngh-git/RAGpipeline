@@ -94,7 +94,7 @@ def test_owner_reads_own_run() -> None:
     assert asyncio.run(exercise()).status_code == 200
 
 
-def test_other_principal_gets_404_same_body_as_missing() -> None:
+def test_other_principal_gets_404() -> None:
     async def exercise() -> tuple[httpx.Response, httpx.Response]:
         keys_store, keys = await _keys()
         app = _app(InMemoryRunStore(), api_key_store=keys_store)
