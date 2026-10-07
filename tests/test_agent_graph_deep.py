@@ -713,3 +713,43 @@ async def test_full_first_plan_keeps_first_choice_and_adds_discovery() -> None:
         "search_papers",
         "discover_papers",
     ]
+
+
+@pytest.mark.anyio
+async def test_evaluate_with_thinking_is_uncapped() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (
+            _plan(_call("search_papers", {"query": "retrieval"})),
+            _evaluation(sufficient=True),
+            *_answer_replies(),
+        ),
+        identity=_IDENTITY,
+    )
+    runner = _runner(store, llm, thinking=frozenset({CallKind.PLAN, CallKind.EVALUATE}))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    evaluate = next(call for call in llm.calls if call.kind is CallKind.EVALUATE)
+    assert evaluate.think is True
+    assert evaluate.max_output_tokens is None
+
+
+@pytest.mark.anyio
+async def test_evaluate_without_thinking_keeps_its_cap() -> None:
+    store = RecordingStore()
+    run_id = await _create_run(store)
+    llm = ScriptedLLM(
+        (
+            _plan(_call("search_papers", {"query": "retrieval"})),
+            _evaluation(sufficient=True),
+            *_answer_replies(),
+        ),
+        identity=_IDENTITY,
+    )
+    runner = _runner(store, llm, thinking=frozenset({CallKind.PLAN}))
+
+    assert await runner.run(run_id) is RunStatus.COMPLETED
+    evaluate = next(call for call in llm.calls if call.kind is CallKind.EVALUATE)
+    assert evaluate.think is False
+    assert evaluate.max_output_tokens == 768
