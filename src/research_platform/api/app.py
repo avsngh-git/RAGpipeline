@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 
+from research_platform.auth.keys import ApiKeyStore, PostgresApiKeyStore
 from research_platform.config import Settings
 from research_platform.ingestion.generation_index import (
     GenerationIndexConfiguration,
@@ -35,6 +36,7 @@ from research_platform.services.readiness import (
 )
 from research_platform.tools.research_tools import DiscoveryService
 
+from .auth import AuthSettings
 from .errors import AppError, handle_app_error, handle_unexpected_error
 from .ingestion_routes import IngestionAPIService, create_ingestion_router
 from .research_routes import ResearchAPIServices, create_research_router
@@ -103,9 +105,13 @@ def create_app(
     api_services: Phase2APIServices | None = None,
     research_services: ResearchAPIServices | None = None,
     ingestion_service: IngestionAPIService | None = None,
+    auth_settings: AuthSettings | None = None,
+    api_key_store: ApiKeyStore | None = None,
 ) -> FastAPI:
     """Create the HTTP application with health and Phase 2 routes."""
     settings = settings or Settings()
+    auth_settings = auth_settings or AuthSettings.from_env(settings.environment)
+    auth_settings.validate(settings.environment)
     configure_logging(settings.log_level)
     configure_tracing(
         TracingSettings.from_env(settings.environment), service_name="research-api"
@@ -126,6 +132,7 @@ def create_app(
             application.state.phase2_services = api_services
             application.state.research_services = research_services
             application.state.ingestion_service = ingestion_service
+            application.state.api_key_store = api_key_store
 
             if api_services is None and settings.environment != "test":
                 try:
@@ -145,6 +152,10 @@ def create_app(
                         "phase2_runtime_unavailable",
                         extra={"error_type": type(error).__name__},
                     )
+
+            runtime_pool = getattr(runtime, "pool", None)
+            if api_key_store is None and runtime_pool is not None:
+                application.state.api_key_store = PostgresApiKeyStore(runtime_pool)
 
             if (
                 ingestion_service is None
@@ -198,6 +209,8 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.phase2_services = api_services
+    app.state.auth_settings = auth_settings
+    app.state.api_key_store = api_key_store
     app.add_middleware(HttpMetricsMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)

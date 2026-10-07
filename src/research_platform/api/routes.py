@@ -8,12 +8,13 @@ import json
 from asyncio import CancelledError, timeout
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol
+from typing import Annotated, Any, Protocol
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from pydantic import ValidationError
 
+from research_platform.auth.keys import Principal, Scope
 from research_platform.config import Settings
 from research_platform.ingestion.indexing import SnapshotIndexMismatch
 from research_platform.search.application_errors import (
@@ -39,6 +40,7 @@ from research_platform.search.paper_reads import (
     SnapshotPaperRead,
 )
 
+from .auth import require_scope
 from .errors import AppError
 from .schemas.papers import CitationGraphResponse, PaperReadResponse
 from .schemas.search import (
@@ -253,7 +255,9 @@ def create_phase2_router(
         description="Returns ranked papers and bounded source-linked support. Scores are ranking signals, not probabilities.",
     )
     async def search_papers(
-        body: PaperSearchRequest, request: Request
+        body: PaperSearchRequest,
+        request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
     ) -> PaperSearchResponse:
         _require_private_evidence(settings)
         active_services = _services_for_request(request, services)
@@ -300,7 +304,9 @@ def create_phase2_router(
         description="Returns bounded prose or table evidence only when trusted private-local access is enabled.",
     )
     async def search_evidence(
-        body: EvidenceSearchRequest, request: Request
+        body: EvidenceSearchRequest,
+        request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
     ) -> EvidenceSearchResponse:
         _require_private_evidence(settings)
         active_services = _services_for_request(request, services)
@@ -348,6 +354,7 @@ def create_phase2_router(
     )
     async def read_paper(
         request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
         paper_id: str = Path(pattern=r"^W[0-9]+$"),
         snapshot_id: UUID = Query(),
     ) -> PaperReadResponse:
@@ -413,6 +420,7 @@ def create_phase2_router(
     )
     async def read_references(
         request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
         paper_id: str = Path(pattern=r"^W[0-9]+$"),
         snapshot_id: UUID = Query(),
         limit: int = Query(default=20, ge=1, le=100),
@@ -430,6 +438,7 @@ def create_phase2_router(
     )
     async def read_citations(
         request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
         paper_id: str = Path(pattern=r"^W[0-9]+$"),
         snapshot_id: UUID = Query(),
         limit: int = Query(default=20, ge=1, le=100),
