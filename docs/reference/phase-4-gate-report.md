@@ -27,7 +27,7 @@ is reproduced here.
    | --- | --- | --- | --- |
    | `bb66f853-ba99-44d0-b9c4-0345fbaf834d` | deep research / insufficient evidence | evidence | 17 passages were collected and shown; synthesis declared the evidence insufficient; planner used `search_papers` without discovering papers. |
    | `2138fb5e-d591-494c-bc16-35126b200311` | deep research / insufficient evidence | verification | Three claim checks failed; tool path used `search_papers` and `search_evidence`; planner-never-discovered finding present. |
-   | `e60ea304-6d9c-46ae-8511-4b540b513025` | deep research / insufficient evidence | retrieval | Five `discover_papers` calls failed and no evidence was collected. The failures were `discovery_unavailable` in 0 ms: the P4-34 API ran without `OPENALEX_API_KEY`, so no discovery service was configured. |
+   | `e60ea304-6d9c-46ae-8511-4b540b513025` | deep research / insufficient evidence | retrieval | Five `discover_papers` calls failed and no evidence was collected. The failures were `discovery_unavailable` in 0 ms: the P4-34 API ran without `OPENALEX_API_KEY`, so no discovery service was configured. Rerun with the key (`2fd98e38-9595-437a-b457-7938a9132607`): discovery was available, but the planner chose only `search_papers`; stage verification (three drafts failed quote checks); `reproduce` exited 0. |
    | `a674580c-de86-4427-95e5-1d1a4ffab2f7` | quick / partially supported | verification | One drafted claim was rejected by the quote-to-row check and one was kept. |
    | `1a309247-9fa5-431d-b261-fcf3ea6d9369` | quick / insufficient evidence | evidence | 11 passages were collected and shown with none omitted; synthesis declared the evidence insufficient. |
 
@@ -47,8 +47,8 @@ The planning session re-ran `research-runs explain --json` and `research-runs re
 the five runs from merged `main` (`8f3e471`) against `research_phase1_review`. Stages, findings
 and draft verdicts matched the table above, and all five reproductions exited 0. Caveat: online
 discovery was not configured during the P4-34 sweep (see `e60ea304`), which limits what the
-sweep can show about discovery; the planner diagnosis below rests on runs that never attempted
-it.
+sweep can show about discovery. The rerun of `e60ea304` with the OpenAlex key set (verified working) still planned only local
+search, which supports the planner diagnosis below.
 
 ## Planner diagnosis
 
