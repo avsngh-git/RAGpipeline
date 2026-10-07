@@ -47,6 +47,12 @@ from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 import httpx
 
+
+def _auth_headers() -> dict[str, str]:
+    key = os.environ.get("RESEARCH_PLATFORM_API_KEY", "").strip()
+    return {"Authorization": f"Bearer {key}"} if key else {}
+
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "local-reference/phase3-runs/dev-tasks-v1.json"
 BUILD_RECORD = ROOT / "local-reference/phase35/leaveout-dev-build.json"
@@ -419,7 +425,9 @@ async def evaluate(args: argparse.Namespace) -> dict[str, Any]:
                 runs = await _forced_runs(tasks, hidden, output, args.run_timeout)
                 peak = gpu.peak_mib
         async with httpx.AsyncClient(
-            base_url=f"http://127.0.0.1:{args.port}", timeout=60
+            base_url=f"http://127.0.0.1:{args.port}",
+            timeout=60,
+            headers=_auth_headers(),
         ) as client:
             if not args.forced_ingestion:
                 await _wait_ready(client, 600)
