@@ -12,6 +12,8 @@ import pytest
 
 from research_platform.auth.keys import PostgresApiKeyStore, Scope, hash_api_key
 from research_platform.persistence.migrations import apply_migrations
+from research_platform.runs.contracts import ResearchMode, ResearchRequest
+from research_platform.runs.repository import RunRepository
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
 
@@ -94,6 +96,61 @@ def test_invalid_scope_rejected_by_database() -> None:
                            VALUES ('integration-test', 'abcdefgh', $1, ARRAY['invalid'])""",
                         "0" * 64,
                     )
+
+    _with_database(exercise)
+
+
+def test_create_run_persists_principal() -> None:
+    async def exercise(pool: asyncpg.Pool) -> None:
+        repo = RunRepository(pool)
+        run_id = await repo.create_run(
+            ResearchRequest(
+                question="synthetic ownership question", mode=ResearchMode.QUICK
+            ),
+            principal="integration-owner",
+        )
+        try:
+            stored = await repo.get_run(run_id)
+            assert stored.principal == "integration-owner"
+        finally:
+            await pool.execute("DELETE FROM research_runs WHERE id = $1", run_id)
+
+    _with_database(exercise)
+
+
+def test_count_active_runs() -> None:
+    async def exercise(pool: asyncpg.Pool) -> None:
+        repo = RunRepository(pool)
+        run_ids = [
+            await repo.create_run(
+                ResearchRequest(question=f"active {index}", mode=ResearchMode.QUICK),
+                principal="count-owner",
+            )
+            for index in range(3)
+        ]
+        other_id = await repo.create_run(
+            ResearchRequest(question="other principal", mode=ResearchMode.QUICK),
+            principal="other-owner",
+        )
+        try:
+            await pool.execute(
+                "UPDATE research_runs SET status = 'running' WHERE id = $1", run_ids[1]
+            )
+            await pool.execute(
+                "UPDATE research_runs SET status = 'waiting_for_ingestion' WHERE id = $1",
+                run_ids[2],
+            )
+            await pool.execute(
+                "UPDATE research_runs SET status = 'completed' WHERE id = $1",
+                run_ids[0],
+            )
+            assert await repo.count_active_runs("count-owner") == 2
+            assert await repo.count_active_runs("other-owner") == 1
+        finally:
+            await pool.execute(
+                "DELETE FROM research_runs WHERE id = ANY($1::uuid[])",
+                run_ids + [other_id],
+            )
 
     _with_database(exercise)
 

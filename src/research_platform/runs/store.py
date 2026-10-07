@@ -32,10 +32,16 @@ class RunStore(Protocol):
     """Async interface shared by the PostgreSQL and in-memory run stores."""
 
     async def create_run(
-        self, request: ResearchRequest, *, generation: int | None = None
+        self,
+        request: ResearchRequest,
+        *,
+        generation: int | None = None,
+        principal: str = "legacy-local",
     ) -> UUID: ...
 
     async def get_run(self, run_id: UUID) -> StoredRun: ...
+
+    async def count_active_runs(self, principal: str) -> int: ...
 
     async def list_runs(
         self, statuses: Sequence[RunStatus], *, limit: int = 100

@@ -67,7 +67,7 @@ def create_research_router(
     async def start_research(
         body: ResearchRequest,
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.RESEARCH))],
+        principal: Annotated[Principal, Depends(require_scope(Scope.RESEARCH))],
     ) -> ResearchRunView:
         active = _active_services(request, services)
         if active is None:
@@ -83,7 +83,7 @@ def create_research_router(
             )
 
         run_id = await active.store.create_run(
-            body, generation=active.serving.generation
+            body, generation=active.serving.generation, principal=principal.name
         )
         queued_view = await active.store.get_run_view(run_id)
         try:
@@ -110,16 +110,21 @@ def create_research_router(
     async def get_research(
         run_id: UUID,
         request: Request,
-        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+        principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
     ) -> ResearchRunView:
         active = _active_services(request, services)
         if active is None:
             raise _service_unavailable()
         try:
-            return await active.store.get_run_view(run_id)
+            stored = await active.store.get_run(run_id)
         except RunNotFound:
             raise AppError(
                 "run_not_found", "The requested research run does not exist.", 404
             ) from None
+        if stored.principal != principal.name and not principal.has(Scope.ADMIN):
+            raise AppError(
+                "run_not_found", "The requested research run does not exist.", 404
+            )
+        return await active.store.get_run_view(run_id)
 
     return router
