@@ -53,7 +53,7 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-09 (#86) | done | PR #119 | Metrics module and `/metrics`; HTTP metrics by route template |
 | P4-29 (#106) | done | PR #121 | Trivy image and secret scans; seven owner-approved exceptions expire 2026-11-06 (owner decision 4) |
 | P4-33 (#110) | reported | local branch `phase4/p4-33-security-live-report` | Three `security-live` runs recorded in the [report](../reference/phase-4-security-live-report.md); findings filed as [#139](https://github.com/avsngh-git/RAGpipeline/issues/139) and [#140](https://github.com/avsngh-git/RAGpipeline/issues/140); report awaits merge |
-| P4-34 (#111) | in progress | local branch `phase4/p4-34-instrumented-sweep` | Imported the Phase 3 baseline experiment (`49ac1320-64cc-4324-bf0c-e70a673036fc`); current sweep (`06db8676-5744-4f01-96e0-86040d147392`) paused after 29/42 items when host swap reached 4 GiB. Resume from `local-reference/experiments/06db8676-5744-4f01-96e0-86040d147392/items.jsonl`; no question text recorded here |
+| P4-34 (#111) | done | local branch `phase4/p4-34-instrumented-sweep` | Imported Phase 3 baseline `49ac1320-64cc-4324-bf0c-e70a673036fc`; resumed and completed all 42 `agent-dev` pairs in `c24d4759-aa3f-4ed6-b5b8-b54c69ae576c`; scripted regression `6e5b11ca-8a77-4f34-ba8f-bfbde713d742` passed 33/33. Candidate: answered 4, partially supported 11, insufficient evidence 27, median 176.45s, p90 284.44s; baseline: 1, 18, 23, median 16.58s, p90 32.95s. Compare: `local-reference/phase4/compare-agent-dev.md`; 42/42 pairs matched. Imported Phase 3 runs lack exact configuration rows; see report's configuration differences. No question text recorded here |
 
 ## Environment facts
 
