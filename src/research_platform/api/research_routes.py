@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
+from research_platform.auth.keys import Principal, Scope
 from research_platform.observability.request_context import get_request_id
 from research_platform.runs.contracts import (
     FailureCategory,
@@ -19,6 +21,7 @@ from research_platform.runs.repository import RunNotFound
 from research_platform.runs.runner import ServingIdentity
 from research_platform.runs.store import RunStore
 
+from .auth import require_scope
 from .errors import AppError
 
 
@@ -62,7 +65,9 @@ def create_research_router(
         summary="Start a research run",
     )
     async def start_research(
-        body: ResearchRequest, request: Request
+        body: ResearchRequest,
+        request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.RESEARCH))],
     ) -> ResearchRunView:
         active = _active_services(request, services)
         if active is None:
@@ -102,7 +107,11 @@ def create_research_router(
         response_model=ResearchRunView,
         summary="Get a research run",
     )
-    async def get_research(run_id: UUID, request: Request) -> ResearchRunView:
+    async def get_research(
+        run_id: UUID,
+        request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+    ) -> ResearchRunView:
         active = _active_services(request, services)
         if active is None:
             raise _service_unavailable()

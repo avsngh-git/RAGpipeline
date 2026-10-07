@@ -24,6 +24,18 @@ from research_platform.observability.metrics import (
     INGESTION_REQUESTS,
     REGISTRY,
 )
+from research_platform.observability.tracing import (
+    ATTR_INGESTION_PAPER_COUNT,
+    ATTR_INGESTION_REQUEST_ID,
+    ATTR_INGESTION_STATUS,
+    ATTR_RUN_ID,
+    LF_LEVEL,
+    SPAN_INGESTION_REQUEST,
+    TracingSettings,
+    configure_tracing,
+    get_tracer,
+    shutdown_tracing,
+)
 from research_platform.worker.queue import (
     IngestionQueue,
     IngestionRequest,
@@ -84,6 +96,21 @@ async def _process_request(
     request: IngestionRequest,
     worker_id: str,
 ) -> None:
+    with get_tracer().start_as_current_span(SPAN_INGESTION_REQUEST) as span:
+        span.set_attribute(ATTR_INGESTION_REQUEST_ID, str(request.id))
+        span.set_attribute(ATTR_INGESTION_PAPER_COUNT, len(request.paper_ids))
+        if request.run_id is not None:
+            span.set_attribute(ATTR_RUN_ID, str(request.run_id))
+        await _process_request_traced(queue, handler, request, worker_id, span)
+
+
+async def _process_request_traced(
+    queue: IngestionQueue,
+    handler: IngestionHandler,
+    request: IngestionRequest,
+    worker_id: str,
+    span: Any,
+) -> None:
     lease_lost = asyncio.Event()
     interval = _DEFAULT_LEASE_SECONDS / 3
 
@@ -108,6 +135,7 @@ async def _process_request(
         if heartbeat_task in done:
             error = heartbeat_task.exception()
             if error is not None:
+                span.set_attribute(ATTR_INGESTION_STATUS, "failed")
                 logger.warning(
                     "ingestion request heartbeat failed",
                     extra={
@@ -116,10 +144,14 @@ async def _process_request(
                     },
                 )
             elif lease_lost.is_set():
+                span.set_attribute(LF_LEVEL, "WARNING")
+                span.set_attribute(ATTR_INGESTION_STATUS, "lease_lost")
                 logger.warning(
                     "ingestion request lease was lost",
                     extra={"request_id": str(request.id)},
                 )
+            else:
+                span.set_attribute(ATTR_INGESTION_STATUS, "failed")
             handler_task.cancel()
             with suppress(asyncio.CancelledError):
                 await handler_task
@@ -132,6 +164,7 @@ async def _process_request(
         except Exception as error:
             status = "failed"
             result = {"error_type": type(error).__name__}
+        span.set_attribute(ATTR_INGESTION_STATUS, status)
         await queue.complete(request.id, worker_id, status=status, result=result)
         INGESTION_REQUESTS.labels(status).inc()
     finally:
@@ -280,7 +313,14 @@ async def _run_main() -> None:
 def main() -> None:
     """Start the worker and stop cleanly on SIGINT or SIGTERM."""
     configure_logging(Settings().log_level)
-    asyncio.run(_run_main())
+    settings = Settings()
+    configure_tracing(
+        TracingSettings.from_env(settings.environment), service_name="research-worker"
+    )
+    try:
+        asyncio.run(_run_main())
+    finally:
+        shutdown_tracing()
 
 
 if __name__ == "__main__":

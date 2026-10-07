@@ -48,6 +48,28 @@ from research_platform.observability.metrics import (
     SEARCH_FALLBACKS,
     SEARCH_STAGE_LATENCY,
 )
+from research_platform.observability.tracing import (
+    ATTR_SEARCH_CANDIDATES,
+    ATTR_SEARCH_EFFECTIVE_MODE,
+    ATTR_SEARCH_ELIGIBLE,
+    ATTR_SEARCH_FALLBACK,
+    ATTR_SEARCH_MODE,
+    ATTR_SEARCH_OPERATION,
+    ATTR_SEARCH_QUERY,
+    ATTR_SEARCH_RETURNED,
+    ATTR_SEARCH_TOP_IDS,
+    ATTR_SEARCH_TOP_SCORES,
+    SPAN_SEARCH,
+    SPAN_SEARCH_DENSE,
+    SPAN_SEARCH_ELIGIBILITY,
+    SPAN_SEARCH_HYDRATE,
+    SPAN_SEARCH_LEXICAL,
+    SPAN_SEARCH_RERANK,
+    SPAN_SEARCH_SELECT,
+    get_tracer,
+    set_id_attribute,
+    set_text_attribute,
+)
 from research_platform.search.active_profile import resolve_frozen_profile_path
 from research_platform.search.application_errors import (
     IncompatibleRetrievalProfile,
@@ -132,6 +154,14 @@ class SnapshotEligibility:
     @property
     def eligible_evidence_count(self) -> int:
         return sum(self.evidence_counts_by_paper.values())
+
+
+def _final_score(scores: ComponentScores) -> float | None:
+    """The score of the last stage that ranked the hit."""
+    for component in (scores.reranker, scores.fusion, scores.dense, scores.lexical):
+        if component is not None and component.score is not None:
+            return component.score
+    return None
 
 
 class SnapshotEligibilityReader:
@@ -233,145 +263,184 @@ class Phase2SearchExecutor:
         if request.snapshot_id != profile.snapshot.snapshot_id:
             profile = await self._profile_for_generation(profile, request)
 
-        eligible = await self._eligibility.read(
-            request.snapshot_id, filters=request.filters
-        )
-        stage_started = perf_counter()
-        (
-            candidates,
-            source_units,
-            upstream_truncated,
-            stage_counts,
-            effective_profile_id,
-        ) = await self._evidence_candidates(profile, request)
-        retrieval_ms = round((perf_counter() - stage_started) * 1000, 2)
-        deduplicated = deduplicate_evidence_hits(
-            candidates, source_units_by_id=source_units
-        )
-        table_ready_hits = await self._attach_table_context(
-            deduplicated.hits, source_units
-        )
-
-        effective_mode = request.mode
-        warnings: list[str] = []
-        if request.mode is RetrievalMode.RERANKED:
-            hybrid_profile_id = self._hybrid_profile.with_snapshot(
-                profile.snapshot
-            ).profile_id
-            if effective_profile_id == hybrid_profile_id:
-                effective_mode = RetrievalMode.HYBRID
-                warnings.append("reranking failed; unchanged hybrid order was returned")
-        if deduplicated.omissions:
-            warnings.append("duplicate or fully covered source units were omitted")
-        if deduplicated.unresolved_source_evidence_ids:
-            warnings.append("source coverage could not be resolved for some candidates")
-        if upstream_truncated:
-            warnings.append("candidate pools were truncated before result selection")
-
-        if request.operation is SearchOperation.EVIDENCE_SEARCH:
-            budget = select_evidence_results(
-                table_ready_hits,
-                result_limit=request.limit,
-                selection_rules=profile.selection_rules,
-                candidate_pools_truncated=upstream_truncated,
-            )
-            warnings.extend(budget.warnings)
-            omitted_count = len(deduplicated.omissions) + budget.omitted_count
-            truncated = (
-                upstream_truncated or bool(deduplicated.omissions) or budget.truncated
-            )
-            hits: tuple[Any, ...] = budget.hits
-            eligible_count = eligible.eligible_evidence_count
-        elif request.operation is SearchOperation.PAPER_SEARCH:
-            paper_candidates, paper_pool_truncated = await self._paper_candidates(
-                profile,
-                request,
-                eligible,
-                table_ready_hits,
+        with get_tracer().start_as_current_span(SPAN_SEARCH) as span:
+            span.set_attribute(ATTR_SEARCH_OPERATION, request.operation.value)
+            span.set_attribute(ATTR_SEARCH_MODE, request.mode.value)
+            set_text_attribute(span, ATTR_SEARCH_QUERY, request.query)
+            with get_tracer().start_as_current_span(SPAN_SEARCH_ELIGIBILITY):
+                eligible = await self._eligibility.read(
+                    request.snapshot_id, filters=request.filters
+                )
+            stage_started = perf_counter()
+            (
+                candidates,
+                source_units,
                 upstream_truncated,
-            )
-            page = select_paper_results(
-                paper_candidates,
-                limit=request.limit,
-                profile=profile,
-                candidate_pools_truncated=paper_pool_truncated,
-            )
-            support = apply_evidence_budgets_to_paper_support(
-                page.hits,
-                selection_rules=profile.selection_rules,
-                candidate_pools_truncated=paper_pool_truncated,
-            )
-            warnings.extend(page.warnings)
-            warnings.extend(support.selection.warnings)
-            if deduplicated.omissions:
-                warnings.append("duplicate or fully covered source units were omitted")
-            hits = support.papers
-            omitted_count = (
-                page.omitted_count
-                + support.selection.omitted_count
-                + len(deduplicated.omissions)
-            )
-            truncated = (
-                page.truncated
-                or support.selection.truncated
-                or bool(deduplicated.omissions)
-            )
-            eligible_count = eligible.eligible_paper_count
-        else:
-            raise IncompatibleRetrievalProfile("unsupported search operation")
+                stage_counts,
+                effective_profile_id,
+            ) = await self._evidence_candidates(profile, request)
+            retrieval_ms = round((perf_counter() - stage_started) * 1000, 2)
+            with get_tracer().start_as_current_span(SPAN_SEARCH_SELECT):
+                deduplicated = deduplicate_evidence_hits(
+                    candidates, source_units_by_id=source_units
+                )
+                table_ready_hits = await self._attach_table_context(
+                    deduplicated.hits, source_units
+                )
 
-        response = SearchResponse(
-            request_id=request_id,
-            snapshot_id=request.snapshot_id,
-            retrieval_profile_id=profile.profile_id,
-            effective_configuration_id=effective_profile_id,
-            requested_mode=request.mode,
-            effective_mode=effective_mode,
-            hits=hits,
-            eligible_count=eligible_count,
-            warnings=tuple(dict.fromkeys(warnings)),
-            truncated=truncated,
-            omitted_count=omitted_count,
-        )
-        logger.info(
-            "search_completed",
-            extra={
-                "request_id": request_id,
-                "snapshot_id": str(request.snapshot_id),
-                "retrieval_profile_id": profile.profile_id,
-                "effective_configuration_id": effective_profile_id,
-                "requested_mode": request.mode.value,
-                "effective_mode": effective_mode.value,
-                "operation": request.operation.value,
-                "eligible_count": eligible_count,
-                "candidate_counts": stage_counts,
-                "returned_count": len(hits),
-                "dedup_omission_count": len(deduplicated.omissions),
-                "truncated": truncated,
-                "omitted_count": omitted_count,
-                "retrieval_duration_ms": retrieval_ms,
-                "total_duration_ms": round((perf_counter() - started) * 1000, 2),
-                "fallback": effective_mode is not request.mode,
-                "failure_category": stage_counts.get("reranker_failure_category")
-                if effective_mode is not request.mode
-                else None,
-            },
-        )
-        for key, stage in (
-            ("lexical_duration_ms", "lexical"),
-            ("dense_duration_ms", "dense"),
-            ("fusion_duration_ms", "fusion"),
-            ("reranker_duration_ms", "rerank"),
-        ):
-            value = stage_counts.get(key)
-            if isinstance(value, int | float):
-                SEARCH_STAGE_LATENCY.labels(stage).observe(value / 1000)
-        SEARCH_STAGE_LATENCY.labels("total").observe(perf_counter() - started)
-        if effective_mode is not request.mode:
-            SEARCH_FALLBACKS.labels(
-                str(stage_counts.get("reranker_failure_category", "unknown"))
-            ).inc()
-        return response
+                effective_mode = request.mode
+                warnings: list[str] = []
+                if request.mode is RetrievalMode.RERANKED:
+                    hybrid_profile_id = self._hybrid_profile.with_snapshot(
+                        profile.snapshot
+                    ).profile_id
+                    if effective_profile_id == hybrid_profile_id:
+                        effective_mode = RetrievalMode.HYBRID
+                        warnings.append(
+                            "reranking failed; unchanged hybrid order was returned"
+                        )
+                if deduplicated.omissions:
+                    warnings.append(
+                        "duplicate or fully covered source units were omitted"
+                    )
+                if deduplicated.unresolved_source_evidence_ids:
+                    warnings.append(
+                        "source coverage could not be resolved for some candidates"
+                    )
+                if upstream_truncated:
+                    warnings.append(
+                        "candidate pools were truncated before result selection"
+                    )
+
+                if request.operation is SearchOperation.EVIDENCE_SEARCH:
+                    budget = select_evidence_results(
+                        table_ready_hits,
+                        result_limit=request.limit,
+                        selection_rules=profile.selection_rules,
+                        candidate_pools_truncated=upstream_truncated,
+                    )
+                    warnings.extend(budget.warnings)
+                    omitted_count = len(deduplicated.omissions) + budget.omitted_count
+                    truncated = (
+                        upstream_truncated
+                        or bool(deduplicated.omissions)
+                        or budget.truncated
+                    )
+                    hits: tuple[Any, ...] = budget.hits
+                    eligible_count = eligible.eligible_evidence_count
+                elif request.operation is SearchOperation.PAPER_SEARCH:
+                    (
+                        paper_candidates,
+                        paper_pool_truncated,
+                    ) = await self._paper_candidates(
+                        profile,
+                        request,
+                        eligible,
+                        table_ready_hits,
+                        upstream_truncated,
+                    )
+                    page = select_paper_results(
+                        paper_candidates,
+                        limit=request.limit,
+                        profile=profile,
+                        candidate_pools_truncated=paper_pool_truncated,
+                    )
+                    support = apply_evidence_budgets_to_paper_support(
+                        page.hits,
+                        selection_rules=profile.selection_rules,
+                        candidate_pools_truncated=paper_pool_truncated,
+                    )
+                    warnings.extend(page.warnings)
+                    warnings.extend(support.selection.warnings)
+                    if deduplicated.omissions:
+                        warnings.append(
+                            "duplicate or fully covered source units were omitted"
+                        )
+                    hits = support.papers
+                    omitted_count = (
+                        page.omitted_count
+                        + support.selection.omitted_count
+                        + len(deduplicated.omissions)
+                    )
+                    truncated = (
+                        page.truncated
+                        or support.selection.truncated
+                        or bool(deduplicated.omissions)
+                    )
+                    eligible_count = eligible.eligible_paper_count
+                else:
+                    raise IncompatibleRetrievalProfile("unsupported search operation")
+
+            response = SearchResponse(
+                request_id=request_id,
+                snapshot_id=request.snapshot_id,
+                retrieval_profile_id=profile.profile_id,
+                effective_configuration_id=effective_profile_id,
+                requested_mode=request.mode,
+                effective_mode=effective_mode,
+                hits=hits,
+                eligible_count=eligible_count,
+                warnings=tuple(dict.fromkeys(warnings)),
+                truncated=truncated,
+                omitted_count=omitted_count,
+            )
+            logger.info(
+                "search_completed",
+                extra={
+                    "request_id": request_id,
+                    "snapshot_id": str(request.snapshot_id),
+                    "retrieval_profile_id": profile.profile_id,
+                    "effective_configuration_id": effective_profile_id,
+                    "requested_mode": request.mode.value,
+                    "effective_mode": effective_mode.value,
+                    "operation": request.operation.value,
+                    "eligible_count": eligible_count,
+                    "candidate_counts": stage_counts,
+                    "returned_count": len(hits),
+                    "dedup_omission_count": len(deduplicated.omissions),
+                    "truncated": truncated,
+                    "omitted_count": omitted_count,
+                    "retrieval_duration_ms": retrieval_ms,
+                    "total_duration_ms": round((perf_counter() - started) * 1000, 2),
+                    "fallback": effective_mode is not request.mode,
+                    "failure_category": stage_counts.get("reranker_failure_category")
+                    if effective_mode is not request.mode
+                    else None,
+                },
+            )
+            for key, stage in (
+                ("lexical_duration_ms", "lexical"),
+                ("dense_duration_ms", "dense"),
+                ("fusion_duration_ms", "fusion"),
+                ("reranker_duration_ms", "rerank"),
+            ):
+                value = stage_counts.get(key)
+                if isinstance(value, int | float):
+                    SEARCH_STAGE_LATENCY.labels(stage).observe(value / 1000)
+            SEARCH_STAGE_LATENCY.labels("total").observe(perf_counter() - started)
+            if effective_mode is not request.mode:
+                SEARCH_FALLBACKS.labels(
+                    str(stage_counts.get("reranker_failure_category", "unknown"))
+                ).inc()
+            span.set_attribute(ATTR_SEARCH_EFFECTIVE_MODE, effective_mode.value)
+            span.set_attribute(ATTR_SEARCH_ELIGIBLE, eligible_count)
+            span.set_attribute(ATTR_SEARCH_RETURNED, len(hits))
+            span.set_attribute(ATTR_SEARCH_FALLBACK, effective_mode is not request.mode)
+            candidate_count = stage_counts.get("fused", stage_counts.get("returned", 0))
+            if isinstance(candidate_count, int):
+                span.set_attribute(ATTR_SEARCH_CANDIDATES, candidate_count)
+            top_hits = hits[:20]
+            top_ids = [
+                hit.chunk_id if isinstance(hit, EvidenceHit) else hit.paper_id
+                for hit in top_hits
+            ]
+            top_scores = [
+                score if score is not None else 0.0
+                for score in (_final_score(hit.component_scores) for hit in top_hits)
+            ]
+            set_id_attribute(span, ATTR_SEARCH_TOP_IDS, top_ids)
+            set_id_attribute(span, ATTR_SEARCH_TOP_SCORES, top_scores)
+            return response
 
     async def _profile_for_generation(
         self, profile: RetrievalProfile, request: SearchRequest
@@ -448,11 +517,12 @@ class Phase2SearchExecutor:
                     "lexical evidence profile is unavailable"
                 )
             lexical_started = perf_counter()
-            result = await retriever.search_with_stats(
-                request.query,
-                limit=profile.candidate_limits.lexical_top_k,
-                filters=request.filters,
-            )
+            with get_tracer().start_as_current_span(SPAN_SEARCH_LEXICAL):
+                result = await retriever.search_with_stats(
+                    request.query,
+                    limit=profile.candidate_limits.lexical_top_k,
+                    filters=request.filters,
+                )
             ranked = tuple(
                 (
                     hit.stable_id,
@@ -463,7 +533,8 @@ class Phase2SearchExecutor:
                 )
                 for rank, hit in enumerate(result.hits, start=1)
             )
-            hydrated, source_units = await self._hydrate(profile, ranked)
+            with get_tracer().start_as_current_span(SPAN_SEARCH_HYDRATE):
+                hydrated, source_units = await self._hydrate(profile, ranked)
             return (
                 hydrated,
                 source_units,
@@ -481,12 +552,13 @@ class Phase2SearchExecutor:
         if mode is RetrievalMode.DENSE:
             dense_started = perf_counter()
             try:
-                dense = await self._dense.search_query(
-                    profile,
-                    request.query,
-                    limit=cast(int, profile.candidate_limits.dense_top_k),
-                    filters=request.filters,
-                )
+                with get_tracer().start_as_current_span(SPAN_SEARCH_DENSE):
+                    dense = await self._dense.search_query(
+                        profile,
+                        request.query,
+                        limit=cast(int, profile.candidate_limits.dense_top_k),
+                        filters=request.filters,
+                    )
             except EmbeddingModelError as error:
                 logger.error(
                     "retrieval_component_failed",
@@ -571,7 +643,10 @@ class Phase2SearchExecutor:
                 (hit.evidence_id, hit.score, hit.component_scores)
                 for hit in hybrid.hits
             )
-            candidates, source_units = await self._hydrate(hybrid_profile, ranked_fused)
+            with get_tracer().start_as_current_span(SPAN_SEARCH_HYDRATE):
+                candidates, source_units = await self._hydrate(
+                    hybrid_profile, ranked_fused
+                )
         counts: dict[str, int | float | str] = {
             "lexical": hybrid.lexical_pool.available_count,
             "dense": hybrid.dense_pool.available_count,
@@ -590,9 +665,11 @@ class Phase2SearchExecutor:
                 profile.profile_id,
             )
         reranker_started = perf_counter()
-        outcome = await rerank_with_fallback(
-            profile, request.query, candidates, self._reranker
-        )
+        with get_tracer().start_as_current_span(SPAN_SEARCH_RERANK) as span:
+            outcome = await rerank_with_fallback(
+                profile, request.query, candidates, self._reranker
+            )
+            span.set_attribute(ATTR_SEARCH_FALLBACK, outcome.effective_mode == "hybrid")
         counts["reranker_duration_ms"] = round(
             (perf_counter() - reranker_started) * 1000, 2
         )

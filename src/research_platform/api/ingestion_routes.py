@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal, Protocol
+from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
+from research_platform.auth.keys import Principal, Scope
 from research_platform.config import DiscoverySettings
 from research_platform.ingestion.generation_index import GenerationQdrantCollection
 from research_platform.ingestion.generation_registry import GenerationRegistry
@@ -19,6 +20,7 @@ from research_platform.ingestion.membership_policy import (
 )
 from research_platform.worker.queue import IngestionQueue, IngestionRequest
 
+from .auth import require_scope
 from .errors import AppError
 
 API_MAX_PAPERS = 20
@@ -146,7 +148,10 @@ def create_ingestion_router(service: IngestionAPIService | None) -> APIRouter:
         summary="Start ingestion of papers into a collection",
     )
     async def start_ingestion(
-        collection_id: UUID, body: IngestRequestBody, request: Request
+        collection_id: UUID,
+        body: IngestRequestBody,
+        request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.INGEST))],
     ) -> IngestResponse:
         active = _active(request, service)
         state = await active.collection_state(collection_id)
@@ -186,7 +191,10 @@ def create_ingestion_router(service: IngestionAPIService | None) -> APIRouter:
         summary="Get an ingestion request",
     )
     async def get_ingestion(
-        collection_id: UUID, request_id: UUID, request: Request
+        collection_id: UUID,
+        request_id: UUID,
+        request: Request,
+        _principal: Annotated[Principal, Depends(require_scope(Scope.INGEST))],
     ) -> IngestResponse:
         active = _active(request, service)
         stored = await active.get_request(request_id)
