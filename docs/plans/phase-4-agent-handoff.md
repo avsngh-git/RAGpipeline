@@ -43,6 +43,9 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-23 (#100) | done | batch-3 PR | `retrieval-dev` suite; profile ID as a required option |
 | P4-26 (#103) | done | batch-3 PR | Bearer API-key auth; `disabled` only on loopback in development or test. The host API now needs a key or `RESEARCH_PLATFORM_AUTH_MODE=disabled` |
 | P4-32 (#109) | done | batch-3 PR | `security-live` suite (8 cases, live model, fake retrieval). Review: the violation test's claim was not grounded in its quote, so it could never detect a violation; fixed |
+| P4-17 (#94) | done | P4-17 PR | **Gate item 1 passes in CI:** 10 trace and log contract tests (required spans, one connected tree, root and generation attributes, no text in `ids` mode or logs, run records match the trace, search stage tree) |
+| P4-24 (#101) | done | PR #136 | `research-eval compare`: metric deltas, seeded paired bootstrap, configuration differences, stage counts; output confined to `local-reference/` |
+| P4-27 (#104) | done | PR #137 | Runs record their principal; another principal gets 404, `admin` reads all; evaluation scripts send `RESEARCH_PLATFORM_API_KEY`. Review: integration tests lacked `mode` and failed in CI; fixed |
 | P4-20 (#97) | done | PR #128 | Migration 025 `experiments`, `ExperimentRecord`, stores and private item writer. Agent work found unpushed in a `/tmp` worktree; pushed and reviewed |
 | P4-30 (#107) | done | PR #129 | Nine scripted §15.1 attack cases; every control held. Agent work found unpushed; review pinned observed status, outcome and tool path so cases cannot pass vacuously |
 | P4-37 (#114) | done | PR #130 | `research-maintenance retention`, dry run by default. Agent work found uncommitted in `/tmp`; rescued and reviewed |

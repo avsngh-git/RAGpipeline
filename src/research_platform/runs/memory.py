@@ -57,7 +57,11 @@ class InMemoryRunStore:
         self._synthesis: dict[UUID, SynthesisSummary] = {}
 
     async def create_run(
-        self, request: ResearchRequest, *, generation: int | None = None
+        self,
+        request: ResearchRequest,
+        *,
+        generation: int | None = None,
+        principal: str = "legacy-local",
     ) -> UUID:
         run_id = uuid4()
         self._runs[run_id] = StoredRun(
@@ -72,12 +76,24 @@ class InMemoryRunStore:
             created_at=datetime.now(UTC),
             started_at=None,
             completed_at=None,
+            principal=principal,
         )
         self.generations[run_id] = generation
         return run_id
 
     async def get_run(self, run_id: UUID) -> StoredRun:
         return self._get_run(run_id)
+
+    async def count_active_runs(self, principal: str) -> int:
+        active = {
+            RunStatus.QUEUED,
+            RunStatus.RUNNING,
+            RunStatus.WAITING_FOR_INGESTION,
+        }
+        return sum(
+            run.principal == principal and run.status in active
+            for run in self._runs.values()
+        )
 
     async def list_runs(
         self, statuses: Sequence[RunStatus], *, limit: int = 100

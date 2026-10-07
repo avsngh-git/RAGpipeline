@@ -30,6 +30,11 @@ from research_platform.evaluation.phase3_metrics import (
 from research_platform.runs.contracts import ResearchRunView
 
 
+def _auth_headers() -> dict[str, str]:
+    key = os.environ.get("RESEARCH_PLATFORM_API_KEY", "").strip()
+    return {"Authorization": f"Bearer {key}"} if key else {}
+
+
 def _canonical_root() -> Path:
     """Resolve private-data paths through the repository's shared Git metadata."""
     checkout = Path(__file__).resolve().parents[1]
@@ -904,7 +909,9 @@ async def _evaluate(
     runs: list[Phase3RunMetricsInput] = []
     contexts: list[dict[str, object]] = []
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, headers=_auth_headers()
+        ) as client:
             submitted: set[tuple[str, str]] = set()
             if resume:
                 runs, contexts, submitted = await _resume_submitted_runs(
