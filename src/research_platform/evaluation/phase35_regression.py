@@ -644,6 +644,75 @@ async def case_abstract_requests_unknown_paper() -> CaseResult:
     return CaseResult("abstract_requests_unknown_paper", tuple(mismatches))
 
 
+async def case_ingestion_targets_beyond_run_limit() -> CaseResult:
+    """Requests beyond the run paper limit are refused before queueing."""
+    discovered = tuple(
+        DiscoveredPaper(
+            paper_id=f"W50{index}",
+            openalex_id=f"W50{index}",
+            title=f"Reranking study {index}",
+            publication_year=2024,
+            abstract="Synthetic abstract.",
+            catalog_status="metadata_only",
+            similarity=0.9,
+        )
+        for index in range(1, 9)
+    )
+    discovery = FakeDiscoveryService(discovered)
+    pipeline = InMemoryIngestionPipeline({})
+    run = await _deep_run(
+        (
+            _plan(_call("discover_papers", {"query": "reranking"})),
+            _evaluation(
+                False,
+                [
+                    {
+                        "tool": "request_ingestion",
+                        "paper_ids": [paper.paper_id for paper in discovered],
+                        "reason": "gap",
+                    }
+                ],
+            ),
+            _evaluation(True),
+            _synthesis(),
+        ),
+        pipeline,
+        budgets=RunBudgets.model_validate({"max_papers_per_wait": 5}),
+        discovery=discovery,
+    )
+    requests = run.calls("request_ingestion")
+    decisions = [
+        decision
+        for call in requests
+        for decision in cast(
+            list[dict[str, object]], call.result_summary.get("decisions", [])
+        )
+    ]
+    mismatches: list[str] = []
+    _check(
+        mismatches,
+        sum(decision.get("decision") == "accepted" for decision in decisions) == 5,
+        "expected exactly five accepted papers",
+    )
+    _check(
+        mismatches,
+        [
+            decision.get("reason")
+            for decision in decisions
+            if decision.get("decision") == "refused"
+        ]
+        == ["run_paper_limit"] * 3,
+        "papers beyond the run limit were not refused",
+    )
+    _check(
+        mismatches,
+        len(pipeline.requests) == 1
+        and len(next(iter(pipeline.requests.values())).paper_ids) == 5,
+        "the queued request exceeded the run limit",
+    )
+    return CaseResult("ingestion_targets_beyond_run_limit", tuple(mismatches))
+
+
 def _synthesis() -> ScriptedReply:
     return ScriptedReply(kind=CallKind.SYNTHESIZE, content=_SYNTHESIS)
 
