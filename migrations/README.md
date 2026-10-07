@@ -56,3 +56,5 @@ configuration, component-version, hardware, metric and failure provenance; per-i
 results remain in private JSON Lines files.
 026_api_keys.sql stores API key hashes, prefixes, principals and scopes, and adds a
 principal owner to each research run (ADR-0027).
+027_draft_claim_quote_fallback.sql allows the `kept_as_quote` verdict, for a drafted
+claim that failed its checks and was replaced by its verified quote.

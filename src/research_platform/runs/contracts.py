@@ -152,6 +152,8 @@ class ClaimVerdict(StrEnum):
     """Code verification result for one drafted claim."""
 
     KEPT = "kept"
+    # The claim failed its checks but its quote passed, so the quote is the claim.
+    KEPT_AS_QUOTE = "kept_as_quote"
     UNKNOWN_HANDLE = "unknown_handle"
     NOT_SHOWN = "not_shown"
     FAILED_CHECKS = "failed_checks"
