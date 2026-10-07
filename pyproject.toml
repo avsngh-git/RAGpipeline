@@ -45,6 +45,7 @@ pdf-vlm = [
 
 [project.scripts]
 research-ingest = "research_platform.ingestion.cli:main"
+research-maintenance = "research_platform.maintenance.cli:main"
 research-runs = "research_platform.runs.cli:main"
 research-worker = "research_platform.worker.main:main"
 
