@@ -6,6 +6,8 @@ import traceback
 from datetime import datetime, timezone
 from typing import Any
 
+from opentelemetry import trace
+
 from .request_context import get_request_id, get_run_id
 
 
@@ -27,6 +29,11 @@ class JsonFormatter(logging.Formatter):
         run_id = getattr(record, "run_id", None) or get_run_id()
         if run_id is not None:
             payload["run_id"] = str(run_id)
+
+        span_context = trace.get_current_span().get_span_context()
+        if span_context.is_valid:
+            payload["trace_id"] = format(span_context.trace_id, "032x")
+            payload["span_id"] = format(span_context.span_id, "016x")
 
         safe_fields = (
             "http_method",
