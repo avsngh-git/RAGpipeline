@@ -34,6 +34,15 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-13 (#90) | done | PR #132 | Run root span, node and tool spans, persistence spans, real trace ID in provenance, trace and span IDs in logs; `run_case_detailed` in the regression harness |
 | P4-21 (#98) | done | PR #133 | `research-eval run/list/show` and the `scripted-regression` suite (33/33 in a smoke run). Agent work found uncommitted in a `/tmp` clone; rescued and reviewed |
 | P4-25 (#102) | done | PR #134 | Migration 026 `api_keys`, `research_runs.principal`, `research-keys` CLI. Agent work found unpushed in a `/tmp` clone; pushed and reviewed |
+| P4-14 (#91) | done | batch-3 PR | Generation spans for every model call (Langfuse attributes, input/output only at `full`), synthesize and verify_citations spans. Review: claim counts now recorded at every content level |
+| P4-15 (#92) | done | batch-3 PR | Search, eligibility, lexical, dense, fusion, rerank, hydrate, select and citation_lookup spans; rankings unchanged |
+| P4-16 (#93) | done | batch-3 PR | Worker request and paper spans, wait-node attributes. Review: tests imported another test module (fails under importlib mode); fixed |
+| P4-18 (#95) | done | batch-3 PR | `research-runs explain`: deterministic stages and findings; stage table unchanged from the card. Merge with P4-19 fixed a missing `return` that would have run `prune` after `explain` |
+| P4-19 (#96) | done | batch-3 PR | `research-runs reproduce`: hash recompute, rebuild, recipe; scripted re-run test |
+| P4-22 (#99) | done | batch-3 PR | `agent-dev` suite over the API, with resume and API-key header |
+| P4-23 (#100) | done | batch-3 PR | `retrieval-dev` suite; profile ID as a required option |
+| P4-26 (#103) | done | batch-3 PR | Bearer API-key auth; `disabled` only on loopback in development or test. The host API now needs a key or `RESEARCH_PLATFORM_AUTH_MODE=disabled` |
+| P4-32 (#109) | done | batch-3 PR | `security-live` suite (8 cases, live model, fake retrieval). Review: the violation test's claim was not grounded in its quote, so it could never detect a violation; fixed |
 | P4-20 (#97) | done | PR #128 | Migration 025 `experiments`, `ExperimentRecord`, stores and private item writer. Agent work found unpushed in a `/tmp` worktree; pushed and reviewed |
 | P4-30 (#107) | done | PR #129 | Nine scripted §15.1 attack cases; every control held. Agent work found unpushed; review pinned observed status, outcome and tool path so cases cannot pass vacuously |
 | P4-37 (#114) | done | PR #130 | `research-maintenance retention`, dry run by default. Agent work found uncommitted in `/tmp`; rescued and reviewed |
@@ -57,8 +66,10 @@ The [plan](phase-4-observability-security.md) and map issue
 - **Live services:** the host API serves on `127.0.0.1:8001` from the Conda environment
   `sci_research_agent`, and `research-worker` runs on the host. Research runs use the
   database `research_phase1_review`, which has migrations through 021.
-- **Agent worktrees:** agents have worked in `/tmp/ragpipeline-p4-NN` worktrees and left work
-  unpushed. `/tmp` is not persistent: push each branch as soon as it has a commit.
+- **Agent worktrees:** agents have worked in `/tmp/ragpipeline-p4-NN` clones whose `origin` is the
+  local checkout, and left work uncommitted or unpushed (and in one batch, uncommitted in the
+  main checkout on `main`). `/tmp` is not persistent: push each branch to GitHub as soon as it
+  has a commit.
 - **Private data:** Phase 4 private data goes under `local-reference/phase4/` and
   `local-reference/experiments/`, and traces under `local-reference/traces/`. `/tmp` is not
   persistent.
