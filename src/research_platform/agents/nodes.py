@@ -17,6 +17,7 @@ from research_platform.agents.prompts import format_observation
 from research_platform.agents.state import ResearchState
 from research_platform.llm.contracts import LLMClient
 from research_platform.llm.types import CallKind
+from research_platform.observability.metrics import TOOL_CALLS, TOOL_LATENCY
 from research_platform.runs.repository import EvidenceRecord, ToolCallRecord
 from research_platform.runs.store import RunStore
 from research_platform.tools.research_tools import (
@@ -95,6 +96,8 @@ async def _run_action(
     observation, ledger = await deps.tools.execute(
         action, context=effective_context(deps, state), ledger=state["ledger"]
     )
+    TOOL_CALLS.labels(observation.tool, observation.status).inc()
+    TOOL_LATENCY.labels(observation.tool).observe(observation.duration_ms / 1000)
     registry, new_refs = state["registry"].register(
         observation.evidence,
         max_passages=deps.context.budgets.max_evidence_passages,
@@ -156,6 +159,8 @@ async def record_observation(
     await deps.repository.append_tool_call(
         deps.run_id, to_tool_call_record(observation)
     )
+    TOOL_CALLS.labels(observation.tool, observation.status).inc()
+    TOOL_LATENCY.labels(observation.tool).observe(observation.duration_ms / 1000)
     ledger = state["ledger"].model_copy(update={"records": state["ledger"].records + 1})
     line = format_observation(observation, ())
     return {
