@@ -262,9 +262,9 @@ async def answer_question(
                     )
                 )
 
-            set_id_attribute(verify_span, ATTR_CLAIMS_KEPT, len(claims))
-            set_id_attribute(verify_span, ATTR_CLAIMS_REJECTED, rejected)
-            set_id_attribute(verify_span, ATTR_CLAIMS_UNSUPPORTED, unsupported)
+            verify_span.set_attribute(ATTR_CLAIMS_KEPT, len(claims))
+            verify_span.set_attribute(ATTR_CLAIMS_REJECTED, rejected)
+            verify_span.set_attribute(ATTR_CLAIMS_UNSUPPORTED, unsupported)
             set_id_attribute(
                 verify_span,
                 ATTR_CLAIMS_VERDICTS,
