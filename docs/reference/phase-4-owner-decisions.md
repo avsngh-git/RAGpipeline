@@ -131,6 +131,13 @@ Evidence available at the time:
   - **Re-examine:** in the next `agent-dev` sweep, the share of kept claims citing
     full-text passages, and answer outcomes against sweep `c24d4759`.
 
+- **Update (2026-10-07, plan policy `p4-first-plan-searches-v3`):** the code-added discovery
+  call now searches OpenAlex for the question's content words joined with `OR`, not the
+  whole question. OpenAlex `search` requires every word to match. In the rerun of
+  `2138fb5e` (`7a3517c0`), the whole question, its content words and even three of them
+  returned 0 works, while single terms from it had 52 to 21,343 matches. Discovery still
+  ranks the results by similarity to the question.
+
 ### 7. Thinking for the evaluate call (2026-10-07)
 
 - **Decision:** the default `RESEARCH_PLATFORM_LLM_THINKING` becomes

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from datetime import timedelta
 from time import perf_counter
@@ -93,8 +94,34 @@ def default_actions(question: str, filters: ResearchFilters) -> tuple[Action, ..
     )
 
 
-PLAN_POLICY: Final = "p4-first-plan-searches-v2"
+PLAN_POLICY: Final = "p4-first-plan-searches-v3"
 _DISCOVERY_MIN_YEAR: Final = 2020
+_DISCOVERY_QUERY_CHARS: Final = 300
+_QUERY_STOP_WORDS: Final = frozenset(
+    "a about an and are as at be between by can compare compared could did do does for "
+    "from how in into is it its of on or than that the their these this those to "
+    "use used using versus vs was were what when where which who why with would".split()
+)
+
+
+def discovery_query(question: str) -> str:
+    """Join the question's content words with OR, within the discovery query limit.
+
+    OpenAlex ``search`` requires every word to match, so a whole question usually
+    finds nothing. Discovery ranks the OR matches by similarity to the question.
+    """
+    words = dict.fromkeys(
+        word
+        for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", question)
+        if word.lower() not in _QUERY_STOP_WORDS
+    )
+    query = ""
+    for word in words:
+        candidate = f"{query} OR {word}" if query else word
+        if len(candidate) > _DISCOVERY_QUERY_CHARS:
+            break
+        query = candidate
+    return query or question[:_DISCOVERY_QUERY_CHARS]
 
 
 def ensure_first_plan_searches(
@@ -109,8 +136,9 @@ def ensure_first_plan_searches(
 
     The 2B planner rarely chooses either tool on its own (backlog #115), so code adds
     each one the plan lacks: search_evidence(question) always, and
-    discover_papers(question) when discovery is configured and the year filter does
-    not end before discovery's 2020 floor. The model's first action is always kept;
+    discover_papers(discovery_query(question)) when discovery is configured and the
+    year filter does not end before discovery's 2020 floor. The model's first action
+    is always kept;
     when the plan is full, its last actions make room. When only two actions are
     allowed, search_evidence comes before discovery. Nothing is added when fewer than
     two actions are allowed.
@@ -144,7 +172,7 @@ def ensure_first_plan_searches(
         required.append(
             DiscoverPapersAction(
                 tool="discover_papers",
-                query=question[:300],
+                query=discovery_query(question),
                 year_from=year_from,
                 year_to=filters.year_to,
                 limit=5,
