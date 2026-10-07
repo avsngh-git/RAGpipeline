@@ -11,6 +11,13 @@ from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 
 from research_platform.ingestion.identity import is_valid_paper_id
+from research_platform.observability.tracing import (
+    ATTR_SEARCH_RETURNED,
+    ATTR_TOOL_PAPER_IDS,
+    SPAN_CITATION_LOOKUP,
+    get_tracer,
+    set_id_attribute,
+)
 from research_platform.search.paper_reads import (
     PaperIdentityConflict,
     PaperReadStatus,
@@ -375,79 +382,88 @@ class CitationGraphReader:
         ):
             raise ValueError("cursor does not match the graph request")
 
-        async with self._pool.acquire() as connection:
-            async with connection.transaction(
-                isolation="repeatable_read", readonly=True
-            ):
-                source = await connection.fetchrow(
-                    _SOURCE_PAPER_SQL, snapshot_id, paper_id
-                )
-                if source is None:
-                    raise RuntimeError("paper graph source query returned no row")
-                if not source["snapshot_exists"]:
-                    raise SnapshotNotFound("snapshot does not exist")
-                resolved_count = source["resolved_count"]
-                if resolved_count > 1:
-                    raise PaperIdentityConflict(
-                        "public paper ID resolves to multiple local paper records"
+        with get_tracer().start_as_current_span(SPAN_CITATION_LOOKUP) as span:
+            set_id_attribute(span, ATTR_TOOL_PAPER_IDS, [paper_id])
+            async with self._pool.acquire() as connection:
+                async with connection.transaction(
+                    isolation="repeatable_read", readonly=True
+                ):
+                    source = await connection.fetchrow(
+                        _SOURCE_PAPER_SQL, snapshot_id, paper_id
                     )
-                if resolved_count == 0:
-                    return _empty_graph_page(snapshot_id, paper_id, direction, limit)
-                local_paper_id = source["local_paper_id"]
-                if not isinstance(local_paper_id, str):
-                    raise RuntimeError("resolved graph source lacks a local paper ID")
-                source_status = (
-                    PaperReadStatus.IN_SNAPSHOT
-                    if source["snapshot_paper_id"] is not None
-                    else PaperReadStatus.OUTSIDE_SNAPSHOT
-                )
-
-                if direction is CitationDirection.REFERENCES:
-                    cursor_values = _cursor_values(cursor)
-                    rows = await connection.fetch(
-                        _REFERENCES_SQL,
-                        local_paper_id,
-                        snapshot_id,
-                        *cursor_values,
-                        limit + 1,
-                    )
-                else:
-                    cursor_values = _cursor_values(cursor)
-                    rows = await connection.fetch(
-                        _CITATIONS_SQL,
-                        local_paper_id,
-                        paper_id,
-                        snapshot_id,
-                        *cursor_values,
-                        limit + 1,
+                    if source is None:
+                        raise RuntimeError("paper graph source query returned no row")
+                    if not source["snapshot_exists"]:
+                        raise SnapshotNotFound("snapshot does not exist")
+                    resolved_count = source["resolved_count"]
+                    if resolved_count > 1:
+                        raise PaperIdentityConflict(
+                            "public paper ID resolves to multiple local paper records"
+                        )
+                    if resolved_count == 0:
+                        span.set_attribute(ATTR_SEARCH_RETURNED, 0)
+                        return _empty_graph_page(
+                            snapshot_id, paper_id, direction, limit
+                        )
+                    local_paper_id = source["local_paper_id"]
+                    if not isinstance(local_paper_id, str):
+                        raise RuntimeError(
+                            "resolved graph source lacks a local paper ID"
+                        )
+                    source_status = (
+                        PaperReadStatus.IN_SNAPSHOT
+                        if source["snapshot_paper_id"] is not None
+                        else PaperReadStatus.OUTSIDE_SNAPSHOT
                     )
 
-        has_more = len(rows) > limit
-        page_rows = rows[:limit]
-        edges = tuple(_edge_from_row(row) for row in page_rows)
-        next_cursor = None
-        if has_more and page_rows:
-            last_row = page_rows[-1]
-            next_cursor = CitationGraphCursor(
+                    if direction is CitationDirection.REFERENCES:
+                        cursor_values = _cursor_values(cursor)
+                        rows = await connection.fetch(
+                            _REFERENCES_SQL,
+                            local_paper_id,
+                            snapshot_id,
+                            *cursor_values,
+                            limit + 1,
+                        )
+                    else:
+                        cursor_values = _cursor_values(cursor)
+                        rows = await connection.fetch(
+                            _CITATIONS_SQL,
+                            local_paper_id,
+                            paper_id,
+                            snapshot_id,
+                            *cursor_values,
+                            limit + 1,
+                        )
+
+            has_more = len(rows) > limit
+            page_rows = rows[:limit]
+            edges = tuple(_edge_from_row(row) for row in page_rows)
+            next_cursor = None
+            if has_more and page_rows:
+                last_row = page_rows[-1]
+                next_cursor = CitationGraphCursor(
+                    snapshot_id=snapshot_id,
+                    paper_id=paper_id,
+                    direction=direction,
+                    endpoint_kind=cast(
+                        Literal["external", "paper"], last_row["endpoint_kind"]
+                    ),
+                    endpoint_identifier=last_row["endpoint_identifier"],
+                    edge_source=last_row["edge_source"],
+                )
+            page = CitationGraphPage(
                 snapshot_id=snapshot_id,
                 paper_id=paper_id,
                 direction=direction,
-                endpoint_kind=cast(
-                    Literal["external", "paper"], last_row["endpoint_kind"]
-                ),
-                endpoint_identifier=last_row["endpoint_identifier"],
-                edge_source=last_row["edge_source"],
+                source_status=source_status,
+                limit=limit,
+                edges=edges,
+                next_cursor=next_cursor,
+                coverage_note=_coverage_note(direction),
             )
-        return CitationGraphPage(
-            snapshot_id=snapshot_id,
-            paper_id=paper_id,
-            direction=direction,
-            source_status=source_status,
-            limit=limit,
-            edges=edges,
-            next_cursor=next_cursor,
-            coverage_note=_coverage_note(direction),
-        )
+            span.set_attribute(ATTR_SEARCH_RETURNED, len(page.edges))
+            return page
 
 
 def _cursor_values(
