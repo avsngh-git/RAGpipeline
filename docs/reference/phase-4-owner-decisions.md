@@ -117,6 +117,19 @@ Evidence available at the time:
   - Measure with a new `agent-dev` sweep run with `OPENALEX_API_KEY` set: discovery calls,
     abstract evidence in answers, OpenAlex spend, and answer outcomes.
   - The rule costs one OpenAlex search per deep run against the $0.50 daily cap.
+- **Update (2026-10-07, plan policy `p4-first-plan-searches-v2`):** the owner extended the
+  rule to `search_evidence`. The first `deep_research` plan now also always includes
+  `search_evidence(question)` (limit 20), the passage search that quick mode already runs.
+  The model's first action is always kept. A full plan loses its last actions, and when
+  only two actions are allowed, `search_evidence` comes before discovery.
+  - **Evidence:** the same plan-only experiment on the 21 tasks. `search_evidence` was
+    planned in 0/21 plans with the current prompt, 1/21 with a conditional instruction
+    ("use search_evidence when the question asks for specific findings…"), and 12/21 with
+    an imperative one.
+  - **Alternatives set aside:** the imperative prompt alone (about half the runs), or
+    both prompt and rule.
+  - **Re-examine:** in the next `agent-dev` sweep, the share of kept claims citing
+    full-text passages, and answer outcomes against sweep `c24d4759`.
 
 ### 7. Thinking for the evaluate call (2026-10-07)
 
