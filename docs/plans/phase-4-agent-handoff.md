@@ -31,6 +31,9 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-10 (#87) | done | PR #126 | Domain metrics for runs, tools, model calls, search stages and the worker (port 9101) |
 | P4-11 (#88) | done | PR #127 | Prometheus and Langfuse v4 in `docker-compose.observability.yml` (used with `-f`), not in `docker-compose.yml`: Compose interpolates required `${VAR:?}` secrets in every service, which broke plain `docker compose up`. Fixed in review |
 | P4-12 (#89) | done | see PR | Tracing setup, JSONL and OTLP exporters, all 74 span and attribute names from the card. Agent work found uncommitted in a `/tmp` clone; rescued and reviewed |
+| P4-13 (#90) | done | PR #132 | Run root span, node and tool spans, persistence spans, real trace ID in provenance, trace and span IDs in logs; `run_case_detailed` in the regression harness |
+| P4-21 (#98) | done | PR #133 | `research-eval run/list/show` and the `scripted-regression` suite (33/33 in a smoke run). Agent work found uncommitted in a `/tmp` clone; rescued and reviewed |
+| P4-25 (#102) | done | PR #134 | Migration 026 `api_keys`, `research_runs.principal`, `research-keys` CLI. Agent work found unpushed in a `/tmp` clone; pushed and reviewed |
 | P4-20 (#97) | done | PR #128 | Migration 025 `experiments`, `ExperimentRecord`, stores and private item writer. Agent work found unpushed in a `/tmp` worktree; pushed and reviewed |
 | P4-30 (#107) | done | PR #129 | Nine scripted §15.1 attack cases; every control held. Agent work found unpushed; review pinned observed status, outcome and tool path so cases cannot pass vacuously |
 | P4-37 (#114) | done | PR #130 | `research-maintenance retention`, dry run by default. Agent work found uncommitted in `/tmp`; rescued and reviewed |
