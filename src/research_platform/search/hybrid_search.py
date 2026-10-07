@@ -8,6 +8,13 @@ from typing import Literal, Protocol
 from uuid import UUID
 
 from research_platform.ingestion.indexing import ReadySnapshotIndex
+from research_platform.observability.tracing import (
+    ATTR_SEARCH_CANDIDATES,
+    SPAN_SEARCH_DENSE,
+    SPAN_SEARCH_FUSION,
+    SPAN_SEARCH_LEXICAL,
+    get_tracer,
+)
 from research_platform.search.contracts import (
     DEFAULT_SEARCH_LIMITS,
     SearchFilters,
@@ -244,70 +251,76 @@ class HybridEvidenceSearch:
             raise HybridProfileMismatch(
                 "lexical artifact candidate limit differs from the profile"
             )
-        lexical_started = perf_counter()
-        try:
-            lexical_result = await self._lexical.search_with_stats(
-                query, limit=lexical_limit, filters=filters
-            )
-            if lexical_result.applied_filters != filters:
-                raise HybridProfileMismatch(
-                    "lexical branch did not apply requested filters"
+        with get_tracer().start_as_current_span(SPAN_SEARCH_LEXICAL) as span:
+            lexical_started = perf_counter()
+            try:
+                lexical_result = await self._lexical.search_with_stats(
+                    query, limit=lexical_limit, filters=filters
                 )
-            if lexical_result.limit != lexical_limit:
-                raise HybridProfileMismatch(
-                    "lexical results do not report the requested candidate limit"
-                )
-            if len(lexical_result.hits) != min(
-                lexical_result.available_count, lexical_limit
-            ):
-                raise HybridProfileMismatch(
-                    "lexical returned count differs from its exact pool stats"
-                )
-        except Exception as cause:
-            raise _hybrid_failure("lexical", profile, cause) from cause
-        lexical_duration_ms = (perf_counter() - lexical_started) * 1000
-        dense_started = perf_counter()
-        try:
-            if not evaluation and ready_index is not None:
-                dense_result = await self._dense.search_hybrid_component_query(
-                    profile,
-                    query,
+                if lexical_result.applied_filters != filters:
+                    raise HybridProfileMismatch(
+                        "lexical branch did not apply requested filters"
+                    )
+                if lexical_result.limit != lexical_limit:
+                    raise HybridProfileMismatch(
+                        "lexical results do not report the requested candidate limit"
+                    )
+                if len(lexical_result.hits) != min(
+                    lexical_result.available_count, lexical_limit
+                ):
+                    raise HybridProfileMismatch(
+                        "lexical returned count differs from its exact pool stats"
+                    )
+            except Exception as cause:
+                raise _hybrid_failure("lexical", profile, cause) from cause
+            lexical_duration_ms = (perf_counter() - lexical_started) * 1000
+            span.set_attribute(ATTR_SEARCH_CANDIDATES, lexical_result.available_count)
+        with get_tracer().start_as_current_span(SPAN_SEARCH_DENSE) as span:
+            dense_started = perf_counter()
+            try:
+                if not evaluation and ready_index is not None:
+                    dense_result = await self._dense.search_hybrid_component_query(
+                        profile,
+                        query,
+                        limit=dense_limit,
+                        filters=filters,
+                        ready_index=ready_index,
+                    )
+                else:
+                    dense_method = (
+                        self._dense.evaluate_hybrid_component_query
+                        if evaluation
+                        else self._dense.search_hybrid_component_query
+                    )
+                    dense_result = await dense_method(
+                        profile, query, limit=dense_limit, filters=filters
+                    )
+                _validate_dense_branch_response(
+                    dense_result,
+                    profile=profile,
                     limit=dense_limit,
                     filters=filters,
-                    ready_index=ready_index,
                 )
-            else:
-                dense_method = (
-                    self._dense.evaluate_hybrid_component_query
-                    if evaluation
-                    else self._dense.search_hybrid_component_query
-                )
-                dense_result = await dense_method(
-                    profile, query, limit=dense_limit, filters=filters
-                )
-            _validate_dense_branch_response(
-                dense_result,
-                profile=profile,
-                limit=dense_limit,
-                filters=filters,
-            )
-        except Exception as cause:
-            raise _hybrid_failure("dense", profile, cause) from cause
-        dense_duration_ms = (perf_counter() - dense_started) * 1000
+            except Exception as cause:
+                raise _hybrid_failure("dense", profile, cause) from cause
+            dense_duration_ms = (perf_counter() - dense_started) * 1000
+            span.set_attribute(ATTR_SEARCH_CANDIDATES, dense_result.candidate_count)
         if lexical_result.eligible_count != dense_result.eligible_count:
             raise HybridProfileMismatch(
                 "lexical and dense branches resolved different eligible record counts"
             )
-        fusion_started = perf_counter()
-        try:
-            fused = reciprocal_rank_fusion(
-                lexical_result.hits,
-                dense_result.hydrated_hits,
-                settings=profile.fusion,
-            )
-        except Exception as cause:
-            raise _hybrid_failure("fusion", profile, cause) from cause
-        fusion_duration_ms = (perf_counter() - fusion_started) * 1000
+        with get_tracer().start_as_current_span(SPAN_SEARCH_FUSION) as span:
+            fusion_started = perf_counter()
+            try:
+                fused = reciprocal_rank_fusion(
+                    lexical_result.hits,
+                    dense_result.hydrated_hits,
+                    settings=profile.fusion,
+                )
+            except Exception as cause:
+                raise _hybrid_failure("fusion", profile, cause) from cause
+            fusion_duration_ms = (perf_counter() - fusion_started) * 1000
+            span.set_attribute(ATTR_SEARCH_CANDIDATES, len(fused))
         returned = fused[:fused_limit]
         return HybridEvidenceSearchResponse(
             snapshot_id=profile.snapshot.snapshot_id,
