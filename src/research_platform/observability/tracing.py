@@ -8,14 +8,14 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, TypeAlias
+from typing import Any, Final, TypeAlias
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import NoOpTracerProvider, Span, Tracer
+from opentelemetry.trace import NoOpTracerProvider, Span, Status, StatusCode, Tracer
 
 from research_platform.observability.content import (
     TraceContent,
@@ -214,9 +214,60 @@ def shutdown_tracing() -> None:
         provider.shutdown()
 
 
-def get_tracer() -> Tracer:
+# An exception's message can hold prompt, model output or passage text (for example a
+# pydantic error's input_value), so spans record only its type unless content is FULL.
+ATTR_ERROR_TYPE: Final = "error.type"
+ATTR_ERROR_MESSAGE: Final = "research.error.message"
+
+
+class PrivateTracer:
+    """A tracer whose spans store exception text only at content FULL.
+
+    OpenTelemetry's defaults (``record_exception`` and ``set_status_on_exception``)
+    store the exception message and stack trace as a span event and status
+    description at every content level. These spans instead set an ERROR status with
+    no description and ``error.type``, plus the message at FULL. A caller that passes
+    ``set_status_on_exception`` handles errors itself and is left alone.
+    """
+
+    def __init__(self, inner: Tracer) -> None:
+        self._inner = inner
+
+    @contextmanager
+    def start_as_current_span(
+        self,
+        name: str,
+        *,
+        record_exception: bool = False,
+        set_status_on_exception: bool | None = None,
+        **kwargs: Any,
+    ) -> Iterator[Span]:
+        mark_errors = set_status_on_exception is None
+        with self._inner.start_as_current_span(
+            name,
+            record_exception=record_exception,
+            set_status_on_exception=bool(set_status_on_exception),
+            **kwargs,
+        ) as span:
+            try:
+                yield span
+            except BaseException as error:
+                if mark_errors and not isinstance(error, GeneratorExit):
+                    mark_span_error(span, error)
+                raise
+
+
+def mark_span_error(span: Span, error: BaseException) -> None:
+    """Set ERROR status and the error type; the message only at content FULL."""
+    span.set_status(Status(StatusCode.ERROR))
+    span.set_attribute(ATTR_ERROR_TYPE, type(error).__qualname__)
+    if _content is TraceContent.FULL:
+        span.set_attribute(ATTR_ERROR_MESSAGE, str(error)[:100_000])
+
+
+def get_tracer() -> PrivateTracer:
     """The tracer to use at call time; a no-op tracer when tracing is off."""
-    return (_provider or NoOpTracerProvider()).get_tracer(TRACER_NAME)
+    return PrivateTracer((_provider or NoOpTracerProvider()).get_tracer(TRACER_NAME))
 
 
 def trace_content() -> TraceContent:
