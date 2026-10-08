@@ -42,6 +42,21 @@ Two related fixes from the same day came from the development sweep, not this re
 
 ## Need a re-index and re-evaluation (items 10–12)
 
+Status on 2026-10-08:
+- **Item 10 (PR #165):** fixed with no re-index.
+  - **Measured effect:** with the same index, dense top-10 results were identical for
+    21/21 agent development questions, and top-50 results shared 49.95 of 50.
+  - **No rebuild needed:** stored vectors are equally close to fp16 and fp32 encodings.
+- **Item 12 (PR #165):** fixed.
+- **Item 11:**
+  - **New extractions (PR #166):** they no longer emit figure text.
+  - **The existing corpus is unchanged and needs an owner decision.**
+    - In the active snapshot, 14,622 of 44,277 indexed chunks (33%) are figure fragments,
+      averaging 14 characters.
+    - 1,520 of the 6,070 text sections cited in Phase 2 source alignments are such
+      fragments, for example chart values and legend entries. Removing figure text from
+      the index would make that judged evidence unreachable.
+
 10. **The gte-modernbert "fp32" profile runs in fp16.** transformers 5.x loads the dtype
     from `config.json`, which says `float16`, when none is passed (`embeddings.py:404-415`).
     The measured Phase 2 v10 vectors were therefore probably fp16. Relabel first. Forcing
