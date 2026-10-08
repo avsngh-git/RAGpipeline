@@ -369,3 +369,60 @@ def test_slow_model_load_occupies_bounded_query_worker() -> None:
     finally:
         embedder.release_load.set()
         embedder.close()
+
+
+class _RecordingSentenceTransformer:
+    calls: list[dict[str, object]] = []
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        type(self).calls.append({"args": args, **kwargs})
+        self.tokenizer = object()
+        self.max_seq_length = 0
+
+
+def _load_with_fake_libraries(
+    monkeypatch: pytest.MonkeyPatch, *, precision: str, cuda: bool
+) -> dict[str, object]:
+    import importlib
+    from types import SimpleNamespace
+
+    fake_torch = SimpleNamespace(
+        float16="float16",
+        float32="float32",
+        cuda=SimpleNamespace(is_available=lambda: cuda),
+    )
+    fake_st = SimpleNamespace(SentenceTransformer=_RecordingSentenceTransformer)
+    real_import = importlib.import_module
+
+    def fake_import(name: str, *args: object, **kwargs: object) -> object:
+        if name == "torch":
+            return fake_torch
+        if name == "sentence_transformers":
+            return fake_st
+        return real_import(name, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(importlib, "import_module", fake_import)
+    _RecordingSentenceTransformer.calls = []
+    embedder = GTEModernBertBaseEmbedder(precision=precision)  # type: ignore[arg-type]
+    embedder._ensure_model()
+    return _RecordingSentenceTransformer.calls[0]
+
+
+@pytest.mark.parametrize(
+    ("precision", "dtype"), [("fp32", "float32"), ("fp16", "float16")]
+)
+def test_model_loads_in_the_declared_precision(
+    monkeypatch: pytest.MonkeyPatch, precision: str, dtype: str
+) -> None:
+    call = _load_with_fake_libraries(monkeypatch, precision=precision, cuda=True)
+
+    assert call["model_kwargs"] == {"dtype": dtype}
+    assert call["local_files_only"] is True
+
+
+def test_fp16_without_cuda_is_refused_before_loading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(Exception, match="fp16 embedding requires CUDA"):
+        _load_with_fake_libraries(monkeypatch, precision="fp16", cuda=False)
+    assert _RecordingSentenceTransformer.calls == []

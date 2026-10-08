@@ -400,18 +400,24 @@ class _SentenceTransformerEmbedder:
             device = self.device
             if device == "auto":
                 device = "cuda" if torch.cuda.is_available() else "cpu"
+            if self.precision == "fp16" and device != "cuda":
+                raise EmbeddingModelError("fp16 embedding requires CUDA")
             try:
+                # Pass the dtype explicitly: transformers 5 otherwise loads the dtype
+                # in the model's config.json, which for gte-modernbert is float16, so
+                # "fp32" silently ran in fp16.
                 model = sentence_transformer(
                     self._profile.model,
                     revision=self._profile.revision,
                     device=device,
                     local_files_only=True,
                     trust_remote_code=False,
+                    model_kwargs={
+                        "dtype": torch.float16
+                        if self.precision == "fp16"
+                        else torch.float32
+                    },
                 )
-                if self.precision == "fp16":
-                    if device != "cuda":
-                        raise EmbeddingModelError("fp16 embedding requires CUDA")
-                    model.half()
                 model.max_seq_length = self._profile.maximum_input_tokens
             except Exception:
                 raise EmbeddingModelError(
