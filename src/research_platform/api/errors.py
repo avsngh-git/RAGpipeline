@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from research_platform.observability.request_context import (
     REQUEST_ID_HEADER,
@@ -75,6 +76,32 @@ async def handle_app_error(_request: Request, exc: Exception) -> JSONResponse:
         status_code=exc.status_code,
         content=response.model_dump(),
         headers=headers or None,
+    )
+
+
+# Codes for errors raised by Starlette and FastAPI themselves (unknown routes, wrong
+# methods, the body limit), so every handled error uses the same envelope.
+_HTTP_ERROR_CODES: dict[int, tuple[str, str]] = {
+    400: ("invalid_request", "The request could not be parsed."),
+    404: ("not_found", "The requested resource was not found."),
+    405: ("method_not_allowed", "The method is not allowed for this resource."),
+    413: ("request_too_large", "The request body is too large."),
+}
+
+
+async def handle_http_error(request: Request, exc: Exception) -> JSONResponse:
+    """Wrap a Starlette or FastAPI HTTPException in the error envelope.
+
+    Its own detail text is not exposed; its headers (for example ``Allow``) are kept.
+    """
+    if not isinstance(exc, StarletteHTTPException):
+        raise RuntimeError("handle_http_error received an unexpected exception")
+    code, message = _HTTP_ERROR_CODES.get(
+        exc.status_code, ("http_error", "The request could not be completed.")
+    )
+    return await handle_app_error(
+        request,
+        AppError(code, message, exc.status_code, headers=exc.headers or None),
     )
 
 

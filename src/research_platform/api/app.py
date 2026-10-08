@@ -10,6 +10,7 @@ import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from research_platform.auth.keys import ApiKeyStore, PostgresApiKeyStore
 from research_platform.config import Settings
@@ -38,7 +39,12 @@ from research_platform.tools.research_tools import DiscoveryService
 
 from .auth import AuthSettings
 from .body_limit import BodySizeLimitMiddleware
-from .errors import AppError, handle_app_error, handle_unexpected_error
+from .errors import (
+    AppError,
+    handle_app_error,
+    handle_http_error,
+    handle_unexpected_error,
+)
 from .ingestion_routes import IngestionAPIService, create_ingestion_router
 from .rate_limits import RateLimitSettings, TokenBucketLimiter
 from .research_routes import ResearchAPIServices, create_research_router
@@ -254,6 +260,7 @@ def create_app(
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)
     app.add_exception_handler(AppError, handle_app_error)
+    app.add_exception_handler(StarletteHTTPException, handle_http_error)
     app.add_exception_handler(Exception, handle_unexpected_error)
 
     async def handle_validation_error(request: Request, _exc: Exception) -> Response:

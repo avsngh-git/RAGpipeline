@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import json
 
+from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
-class _BodyTooLarge(Exception):
-    pass
+class _BodyTooLarge(HTTPException):
+    """Raised while reading a streamed body over the limit.
+
+    FastAPI re-raises HTTPException from its body parsing but turns any other
+    exception into a 400, so this must be an HTTPException to stay a 413.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(status_code=413)
 
 
 class BodySizeLimitMiddleware:
