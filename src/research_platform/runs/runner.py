@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
+import importlib.util
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
@@ -106,6 +109,32 @@ class ServingIdentity:
     generation_configuration_id: str | None = None
 
 
+_TORCH_VERSION_LINE: Final = re.compile(r"^__version__\s*=\s*['\"]([^'\"]+)['\"]", re.M)
+
+
+def torch_version() -> str | None:
+    """The installed PyTorch build, recorded because results can differ across
+    PyTorch releases; ``None`` when PyTorch is not installed.
+
+    It is read from ``torch/version.py`` without importing torch, so the API and the
+    ``reproduce`` CLI record the same value, and it keeps the CUDA label
+    (``2.14.0+cu130``) that the package metadata drops.
+    """
+    spec = importlib.util.find_spec("torch")
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    for location in spec.submodule_search_locations:
+        version_file = Path(location) / "version.py"
+        if version_file.is_file():
+            match = _TORCH_VERSION_LINE.search(version_file.read_text(encoding="utf-8"))
+            if match is not None:
+                return match.group(1)
+    try:
+        return str(importlib.metadata.version("torch"))
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
 def load_serving_identity(path: Path | None = None) -> ServingIdentity:
     """Load the effective frozen serving profile identity."""
     profile_path = resolve_frozen_profile_path(path)
@@ -183,6 +212,7 @@ def build_effective_configuration(
         "tool_schema_digest": schema_digest,
         "decoding": decoding.model_dump(mode="json") if decoding is not None else None,
         "code_revision": code_revision,
+        "torch_version": torch_version(),
     }
     if serving.generation is not None:
         effective_configuration["generation"] = serving.generation
