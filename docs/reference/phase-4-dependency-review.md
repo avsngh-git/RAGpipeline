@@ -49,13 +49,16 @@ Status on 2026-10-08:
   - **No rebuild needed:** stored vectors are equally close to fp16 and fp32 encodings.
 - **Item 12 (PR #165):** fixed.
 - **Item 11:**
-  - **New extractions (PR #166):** they no longer emit figure text.
-  - **The existing corpus is unchanged and needs an owner decision.**
+  - **New extractions (PR #166):** figure text is kept and labelled `Figure text`
+    (owner decision 12).
+  - **The existing corpus is unchanged.**
     - In the active snapshot, 14,622 of 44,277 indexed chunks (33%) are figure fragments,
       averaging 14 characters.
     - 1,520 of the 6,070 text sections cited in Phase 2 source alignments are such
       fragments, for example chart values and legend entries. Removing figure text from
       the index would make that judged evidence unreachable.
+  - **Why it stays:** removing those fragments would lose judged evidence. Grouping each
+    figure's fragments into one evidence unit is a later, measured step.
 
 10. **The gte-modernbert "fp32" profile runs in fp16.** transformers 5.x loads the dtype
     from `config.json`, which says `float16`, when none is passed (`embeddings.py:404-415`).
