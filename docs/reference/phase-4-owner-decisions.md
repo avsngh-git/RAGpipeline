@@ -229,6 +229,23 @@ Evidence available at the time:
   a claim is kept.
 - **Re-examine:** measure it in the `agent-dev` sweep after sweep 2.
 
+### 12. Figure text is kept and labelled (2026-10-08)
+
+- **Decision:** text inside figures (chart values, axis ticks, legend entries, panel
+  labels) stays evidence, but is labelled with the heading `Figure text` instead of passing
+  as body text. This applies to new extractions (PR #166). The existing index is unchanged.
+- **Evidence:**
+  - In the active snapshot, 14,622 of 44,277 indexed chunks (33%) are figure fragments,
+    averaging 14 characters.
+  - Phase 2 judges cited such fragments in 1,520 of the 6,070 text sections in the source
+    alignments. Dropping them would make judged evidence unreachable.
+- **Alternatives set aside:**
+  - Dropping figure text everywhere, which needs re-scoring and probably fresh judgments.
+  - Dropping it for new papers only, which treats old and new papers inconsistently.
+- **Re-examine:** grouping each figure's fragments into one evidence unit with its caption,
+  measured on development questions, since the 14-character fragments are weak retrieval
+  units.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
