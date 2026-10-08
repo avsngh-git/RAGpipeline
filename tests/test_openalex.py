@@ -13,6 +13,7 @@ from research_platform.ingestion.config import (
 from research_platform.ingestion.openalex import (
     DiscoveryPage,
     OpenAlexClient,
+    OpenAlexMoved,
     OpenAlexNotFound,
     OpenAlexRequestError,
     OpenAlexResponseError,
@@ -484,3 +485,81 @@ def test_reconstructs_openalex_abstract_from_word_positions() -> None:
 def test_missing_or_empty_openalex_abstract_is_none() -> None:
     assert abstract_from_openalex_metadata({}) is None
     assert abstract_from_openalex_metadata({"abstract_inverted_index": {}}) is None
+
+
+def _merge_responder(
+    requests: list[httpx.Request], *, location: str, status: int = 301
+):
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/works/W111":
+            return httpx.Response(status, headers={"location": location})
+        return httpx.Response(200, json=_work("W222"))
+
+    return respond
+
+
+def _lookup(respond, *, follow_merge: bool) -> OpenAlexWork:
+    async def exercise() -> OpenAlexWork:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            client = OpenAlexClient(
+                _config(), "test-secret", http, sleep=_no_sleep, clock=lambda: 0.0
+            )
+            return await client.get_work_metadata("W111", follow_merge=follow_merge)
+
+    return asyncio.run(exercise())
+
+
+def test_merged_work_raises_moved_with_the_new_id() -> None:
+    requests: list[httpx.Request] = []
+    respond = _merge_responder(
+        requests, location="https://api.openalex.org/works/W222?select=id"
+    )
+
+    with pytest.raises(OpenAlexMoved) as moved:
+        _lookup(respond, follow_merge=False)
+
+    assert (moved.value.old_id, moved.value.new_id) == ("W111", "W222")
+    assert len(requests) == 1
+
+
+def test_follow_merge_fetches_the_new_work_once() -> None:
+    requests: list[httpx.Request] = []
+    respond = _merge_responder(requests, location="https://openalex.org/W222")
+
+    work = _lookup(respond, follow_merge=True)
+
+    assert work.openalex_id == "W222"
+    assert [request.url.path for request in requests] == ["/works/W111", "/works/W222"]
+
+
+@pytest.mark.parametrize(
+    ("status", "location"),
+    [(302, "https://api.openalex.org/works/W222"), (301, "https://example.org/W222")],
+)
+def test_other_redirects_stay_errors(status: int, location: str) -> None:
+    respond = _merge_responder([], location=location, status=status)
+
+    with pytest.raises(OpenAlexRequestError) as error:
+        _lookup(respond, follow_merge=True)
+
+    assert not isinstance(error.value, OpenAlexMoved)
+
+
+def test_header_cost_is_converted_from_credits_to_dollars() -> None:
+    def respond(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"X-RateLimit-Credits-Used": "10"},
+            json={"meta": {"count": 0, "next_cursor": None}, "results": []},
+        )
+
+    async def exercise() -> float:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            client = OpenAlexClient(
+                _config(), "test-secret", http, sleep=_no_sleep, clock=lambda: 0.0
+            )
+            page = await client.search_page("hybrid retrieval")
+            return page.api_cost_usd
+
+    assert asyncio.run(exercise()) == pytest.approx(0.001)

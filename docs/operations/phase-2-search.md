@@ -162,6 +162,17 @@ Code decides every proposed paper (`online-membership-v1`) and records it in
   `deep_research` run waits at most `max_ingestion_wait_seconds` (900) for its request,
   outside its active-time budget, then switches once to the newly published generation.
 - **OpenAlex key:** discovery and OpenAlex content downloads need `OPENALEX_API_KEY`.
+- **Merged OpenAlex works (changed 2026-10-08):** OpenAlex answers a merged work's old ID
+  with a 301 redirect to the new one. The client turns it into `OpenAlexMoved` (old ID, new
+  ID), where it previously failed with "unexpected redirect".
+  - **Citation enrichment** follows the redirect once and stores the new work's metadata
+    under the cited ID, with `merged_from` set to that ID.
+  - **Curated lookups** (corpus membership metadata and configured older-paper exceptions)
+    stop with a message naming the new ID, since the curated list needs updating.
+- **Cost from headers (changed 2026-10-08):** when a response has no `meta.cost_usd`, the
+  cost comes from `X-RateLimit-Credits-Used`, which counts credits of $0.0001 each. It was
+  previously read as dollars. Searches report `meta.cost_usd`, so the spend ledger was
+  unaffected.
 - **Worker:** a separate process in the host Conda environment, one request at a time:
 
   ```bash
