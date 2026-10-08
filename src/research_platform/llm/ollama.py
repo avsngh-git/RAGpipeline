@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any, TypeVar
 
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from research_platform.config import Settings
+from research_platform.config import DEFAULT_LLM_SAMPLING, Settings
 from research_platform.llm.contracts import (
     LLMInvalidOutput,
     LLMRequestRejected,
@@ -32,7 +33,10 @@ def decoding_settings(settings: Settings) -> DecodingSettings:
         seed=settings.llm_seed,
         context_tokens=settings.llm_context_tokens,
         timeout_seconds=settings.llm_timeout_seconds,
-        temperature=None,
+        temperature=float(DEFAULT_LLM_SAMPLING["temperature"]),
+        top_k=int(DEFAULT_LLM_SAMPLING["top_k"]),
+        top_p=float(DEFAULT_LLM_SAMPLING["top_p"]),
+        presence_penalty=float(DEFAULT_LLM_SAMPLING["presence_penalty"]),
     )
 
 
@@ -48,8 +52,10 @@ class OllamaClient:
         context_tokens: int,
         timeout_seconds: float,
         seed: int,
+        sampling: Mapping[str, float | int] | None = None,
     ) -> None:
         self._http = http
+        self._sampling = dict(sampling or {})
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._context_tokens = context_tokens
@@ -68,6 +74,7 @@ class OllamaClient:
             context_tokens=settings.llm_context_tokens,
             timeout_seconds=settings.llm_timeout_seconds,
             seed=settings.llm_seed,
+            sampling=decoding_settings(settings).sampling_options(),
         )
 
     async def generate(self, call: StructuredCall[T]) -> StructuredResult[T]:
@@ -102,6 +109,7 @@ class OllamaClient:
                                 else call.max_output_tokens
                             ),
                             "seed": self._seed + call.seed_offset,
+                            **self._sampling,
                         },
                     },
                 )
@@ -204,6 +212,7 @@ class OllamaClient:
                             "num_ctx": self._context_tokens,
                             "num_predict": request.max_output_tokens,
                             "seed": self._seed,
+                            **self._sampling,
                         },
                     },
                 )

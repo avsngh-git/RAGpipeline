@@ -279,6 +279,7 @@ class RecordingLLMClient:
                 "num_ctx": self._decoding.context_tokens,
                 "seed": self._decoding.seed + _seed_offset(options),
                 "temperature": self._decoding.temperature,
+                **self._decoding.sampling_options(),
             }
         record = LLMCallRecord(
             kind=kind,
