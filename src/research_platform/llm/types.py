@@ -24,6 +24,19 @@ class DecodingSettings(BaseModel):
     context_tokens: int = Field(ge=512)
     timeout_seconds: float = Field(gt=0)
     temperature: float | None = None
+    top_k: int | None = Field(None, ge=1)
+    top_p: float | None = Field(None, gt=0, le=1)
+    presence_penalty: float | None = None
+
+    def sampling_options(self) -> dict[str, float | int]:
+        """The sampling options to send, leaving out any not set."""
+        values = {
+            "temperature": self.temperature,
+            "top_k": self.top_k,
+            "top_p": self.top_p,
+            "presence_penalty": self.presence_penalty,
+        }
+        return {name: value for name, value in values.items() if value is not None}
 
 
 class ModelIdentity(BaseModel):

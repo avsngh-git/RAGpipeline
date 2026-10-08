@@ -50,7 +50,9 @@ services:
     ports:
       - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     environment:
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-16384}
+      # The research API sends num_ctx with every call (RESEARCH_PLATFORM_LLM_CONTEXT_TOKENS,
+      # default 32768), which overrides this server default; keep the two equal.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-32768}
       OLLAMA_FLASH_ATTENTION: "1"
       OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-f16}
       OLLAMA_MAX_LOADED_MODELS: "1"

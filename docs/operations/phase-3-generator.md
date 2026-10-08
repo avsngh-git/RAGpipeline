@@ -174,6 +174,22 @@ call timeout and a 1,800-second run budget. A view's claims each carry the `quot
 code verified against the cited passage; apply migration 017 (`scripts/migrate.py`) to the
 serving database before running this version.
 
+Changes on 2026-10-08:
+- **Sampling is sent with every call and recorded in `llm_calls.options`:** temperature 1,
+  top_k 20, top_p 0.95 and presence penalty 1.5 (`DEFAULT_LLM_SAMPLING` in `config.py`).
+  - **These are the imported model file's own `PARAMETER` values,** so sampling is unchanged.
+    A live check with a fixed seed gave identical output with and without them.
+  - **Before,** no sampling was sent, so the model file decided it, and runs recorded
+    `temperature: None`.
+  - **Effect on comparisons:** the run configuration hash includes them, so runs from before
+    this change show a configuration difference in `research-eval compare`.
+- **One context length:** the API sends `num_ctx` (`RESEARCH_PLATFORM_LLM_CONTEXT_TOKENS`,
+  default 32,768) with every call, which overrides Ollama's `OLLAMA_CONTEXT_LENGTH`.
+  - **Compose's default is now also 32,768,** so other clients get the same context. It was
+    16,384, which the API silently overrode.
+  - **Memory:** `ollama ps` shows the model at 1.8 GB, 100% on the GPU at this length. The
+    GPU-sharing table above was measured at 16,384 tokens.
+
 One worker executes one run at a time. Runs left queued or running by a process restart
 are resumed at startup from their PostgreSQL records and LangGraph checkpoints. A changed
 effective configuration or exhausted resume budget fails the run with a recorded category.
