@@ -21,6 +21,7 @@ from research_platform.llm.contracts import (
 )
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     AnswerOutcome,
     FailureCategory,
@@ -148,7 +149,7 @@ def _runner(
             repository=store,
             tools=tools,
             llm=llm,
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(_SNAPSHOT, _PROFILE),
             thinking=thinking,
             code_revision="test-revision",
@@ -553,7 +554,7 @@ def _ingestion_runner(
             repository=store,
             tools=tools,
             llm=llm,
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(_SNAPSHOT, _PROFILE, generation=1),
             thinking=frozenset(),
             code_revision="test-revision",

@@ -180,6 +180,22 @@ effective configuration or exhausted resume budget fails the run with a recorded
 The process can remain live when Ollama is unavailable; affected runs finish with a
 `model_unavailable` failure.
 
+LangGraph rebuilds only allow-listed classes from a checkpoint. Any other class is logged
+("Deserializing unregistered type …") and comes back as raw data
+([GHSA-g48c-2wqr-h844](https://github.com/advisories/GHSA-g48c-2wqr-h844)).
+
+Changes on 2026-10-08:
+- **One serializer everywhere.** Every checkpointer uses `checkpoint_serializer()`, with
+  the allow-list in `runs/checkpointing.py`: production's PostgreSQL saver, the scripted
+  regression, security and evaluation suites, and the tests. The scripted suites previously
+  used LangGraph's default serializer, which only warned, so they did not restore
+  checkpoints the way production does.
+- **The allow-list is exactly the 11 types the run state can hold.** 13 types the state
+  never held were removed; git history shows it never stored them.
+- **A test keeps it that way:** `tests/test_checkpoint_allowlist.py` fails if a new state
+  field type is missing from the list. A missing type would otherwise resume as raw data
+  and fail the run later.
+
 The pruning command permanently removes completed or failed runs older than the selected
 age, including their stored run data and LangGraph checkpoints. Review and retain any run
 needed for recovery or analysis before pruning. A project-wide disposable-run retention
