@@ -177,6 +177,16 @@ Code decides every proposed paper (`online-membership-v1`) and records it in
   (`policy:online-ingestion-v1`) and builds, verifies and publishes the next generation.
   Papers without a permitted route stay metadata-only; a paper whose extraction needs a
   manual flagged-table review is refused (`validation:flagged_table_review_pending`).
+- **Figure text (changed 2026-10-08):** extraction no longer turns text inside pictures
+  (axis ticks, legends, panel labels, figure OCR) into body sections. Figure captions are
+  still kept.
+  - **Before,** `traverse_pictures=True` emitted that text despite the declared
+    `figure_interpretation: caption-only`.
+  - **Identifying new extractions:** their configuration carries
+    `picture_children: excluded`, so they have new configuration and extraction IDs.
+  - **The existing corpus is unchanged.** In snapshot `4b11fab3`, 14,622 of 44,277 indexed
+    chunks (33%) are such figure fragments, averaging 14 characters. Removing them needs a
+    new generation; see the dependency review.
 - **Docling** is the repository's pinned `pdf` extra. Install it without changing the CUDA
   PyTorch build: install `torchvision` from the PyTorch index matching the installed
   `torch`, then the `pdf` pins with a constraints file that holds `torch`, `numpy` and

@@ -87,6 +87,9 @@ class DoclingPdfConfig:
             ),
             "remote_services_enabled": False,
             "figure_interpretation": "caption-only; source PDF retained",
+            # Added 2026-10-08. Extractions without this field emitted picture
+            # children as body sections despite the caption-only setting above.
+            "picture_children": "excluded",
         }
 
     @property
@@ -174,8 +177,10 @@ class DoclingPdfExtractor:
         heading_path: tuple[str, ...] = ()
         current_heading_section: int | None = None
 
+        # Picture children (axis labels, legends, figure OCR) are not body text;
+        # without traverse_pictures Docling still yields the picture and its captions.
         for item, _tree_depth in document.iterate_items(
-            with_groups=True, traverse_pictures=True
+            with_groups=True, traverse_pictures=False
         ):
             label = _label(item)
             if label in {"page_header", "page_footer"}:

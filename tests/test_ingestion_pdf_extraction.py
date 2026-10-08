@@ -104,11 +104,20 @@ class _FakeDocument:
             ),
             SimpleNamespace(label="formula", text="x = y", prov=_located()),
         ]
+        # Text inside the picture (axis ticks, legend), after it as in Docling.
+        self.picture_children = [
+            SimpleNamespace(label="text", text="0.4", prov=_located()),
+            SimpleNamespace(label="text", text="Recall", prov=_located()),
+        ]
 
     def iterate_items(self, *, with_groups: bool, traverse_pictures: bool):
+        """Yield like docling-core: picture children only with traverse_pictures."""
         assert with_groups is True
-        assert traverse_pictures is True
-        return ((item, 1) for item in self.items)
+        for item in self.items:
+            yield item, 1
+            if item.label == "picture" and traverse_pictures:
+                for child in self.picture_children:
+                    yield child, 2
 
 
 def test_docling_output_maps_headings_tables_and_locations() -> None:
@@ -119,6 +128,7 @@ def test_docling_output_maps_headings_tables_and_locations() -> None:
     )
 
     assert extraction.status == "completed"
+    # Picture children ("0.4", "Recall") are not body text; the caption is kept.
     assert [section.text for section in extraction.sections] == [
         "Results",
         "Dense and hybrid results.",
