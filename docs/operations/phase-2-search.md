@@ -33,6 +33,30 @@ or typed inference failure returns the complete unchanged hybrid pool. The model
 512-token pair budget, corpus and acceptance thresholds remain unchanged. The accepted
 Phase 1 collection remains separate.
 
+## Model precision (changed 2026-10-08)
+
+- **Embedders load in the precision they declare.** transformers 5 loads the dtype in a
+  model's `config.json` when none is passed.
+  - **For gte-modernbert** that file says `float16`, so the default `fp32` embedder
+    actually ran in fp16 for queries, for generation builds and in the ingestion worker.
+  - **The fix:** the embedder now passes `dtype` explicitly, float32 for `fp32`. An `fp16`
+    embedder loads in float16 directly instead of calling `.half()` after loading. `fp16`
+    still requires CUDA.
+- **Measured effect, on the 21 agent development questions, with the same index:**
+  - fp16 and fp32 query embeddings agree to a cosine of at least 0.9996.
+  - Dense top-10 results are identical for all 21 questions, in the same order for 19.
+  - Top-50 results share 49.95 of 50 on average.
+  - `retrieval-dev` on the v13 development set scored the same before and after
+    (experiments `4e96dba5…` and `a64c8f14…`). Only 2 of its questions had scorable
+    judgments.
+- **The index was not rebuilt.** Stored passage vectors are equally close to fp16 and
+  fp32 encodings (cosine 0.999998), so neither precision can be shown to have built it,
+  and the difference is negligible.
+- **A half-precision reranker refuses CPU.** The active Ettin profile reranks in fp16.
+  When no GPU is available, the reranker now raises `RerankerDeviceUnavailable`, and
+  search returns the unchanged hybrid order, as for other typed reranker failures.
+  Before, it reranked in fp16 on CPU, a numeric path the profile was never measured on.
+
 ## Small checks
 
 Create the regular project environment and install the package using the steps in the
