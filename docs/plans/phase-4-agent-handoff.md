@@ -57,6 +57,12 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-33 (#110) | reported | local branch `phase4/p4-33-security-live-report` | Three `security-live` runs recorded in the [report](../reference/phase-4-security-live-report.md); findings filed as [#139](https://github.com/avsngh-git/RAGpipeline/issues/139) and [#140](https://github.com/avsngh-git/RAGpipeline/issues/140); report awaits merge |
 | P4-34 (#111) | done | P4-34 PR | Imported Phase 3 baseline `49ac1320-64cc-4324-bf0c-e70a673036fc`; resumed and completed all 42 `agent-dev` pairs in `c24d4759-aa3f-4ed6-b5b8-b54c69ae576c`; scripted regression `6e5b11ca-8a77-4f34-ba8f-bfbde713d742` passed 33/33. Candidate: answered 4, partially supported 11, insufficient evidence 27, median 176.45s, p90 284.44s; baseline: 1, 18, 23, median 16.58s, p90 32.95s. Compare: `local-reference/phase4/compare-agent-dev.md`; 42/42 pairs matched. Imported Phase 3 runs lack exact configuration rows; see report's configuration differences. Caveats (review): the baseline's stage counts (41 `generation`) are an artifact of Phase 3 runs having no drafted-claim records, and its configuration differences are inflated by the legacy provenance format; only the candidate's stages (none 4, evidence 17, verification 20, retrieval 1) are meaningful. No question text recorded here |
 
+## Dependency review (2026-10-08)
+
+The owner asked for every dependency's use to be checked against its documentation. The
+findings, the fixes made (items 1–9, PRs #158–#163) and the open items are in the
+[dependency review](../reference/phase-4-dependency-review.md).
+
 ## Environment facts
 
 - **Machine:** the WSL VM has 11 GiB of RAM (about 6.7 GiB available with the usual
