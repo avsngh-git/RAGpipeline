@@ -96,6 +96,29 @@ reranking 16 pairs took 1.2 s either way. On CPU the same rerank took 183–216 
 research runs keep retrieval on the GPU (`RESEARCH_PLATFORM_MODEL_DEVICE=auto` or `cuda`).
 The 4B text-only model needs 3,343 MiB by itself and does not fit beside retrieval.
 
+## Host memory: llama-server prompt cache
+
+Ollama 0.35.0 runs the model in llama.cpp's `llama-server`. When a request replaces the
+previous prompt, llama-server saves that prompt's state to host RAM so a later prompt with
+the same start can reuse it. llama.cpp's `--cache-ram` limit for this cache defaults to
+8,192 MiB, and Ollama passes no `--cache-ram` flag and offers no setting.
+
+The cache is invisible to `ollama ps` and to Ollama's own memory checks, which count a
+fully GPU-loaded model as using GPU memory only.
+
+- **What happened (2026-10-08, sweep `7b73c3fc`):** the cache reached about 6.8 GiB. Twice,
+  the kernel's out-of-memory killer stopped `llama-server` while it held 6.0–6.5 GB, and
+  the affected runs failed with `model_unavailable`. Plan, evaluate and synthesis prompts
+  rarely share a start, so the cache filled quickly and seldom helped.
+- **The setting:** Compose sets `LLAMA_ARG_CACHE_RAM` (default `1024` MiB). llama.cpp reads
+  it in place of `--cache-ram`, and the server process inherits the container's
+  environment. `0` turns the cache off.
+- **How to check:** after restarting Ollama, its log reports
+  `cache state: … (limits: 1024.000 MiB, …)`.
+- **Upgrades:** the variable is undocumented in Ollama. Re-check it on each upgrade, and
+  switch to `OLLAMA_CACHE_RAM` if [ollama#18265](https://github.com/ollama/ollama/issues/18265)
+  is released.
+
 ## Fitness check
 
 The P3-04 fitness set contains 15 synthetic prompts and invented results; it does not
