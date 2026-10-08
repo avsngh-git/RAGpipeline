@@ -207,6 +207,21 @@ Code decides every proposed paper (`online-membership-v1`) and records it in
   (`policy:online-ingestion-v1`) and builds, verifies and publishes the next generation.
   Papers without a permitted route stay metadata-only; a paper whose extraction needs a
   manual flagged-table review is refused (`validation:flagged_table_review_pending`).
+- **Figure text (changed 2026-10-08, owner decision):** text inside a picture (axis ticks,
+  legend entries, panel labels, figure OCR) is kept as evidence and labelled with the
+  heading `Figure text` under its section. It does not change the document's heading
+  path, even when Docling labels a large figure label as a section header. Captions keep
+  their `Figure caption` heading.
+  - **Before,** this text became unlabelled body sections.
+  - **Why it is kept:** Phase 2 judges cited it as evidence: 1,520 of the 6,070 text
+    sections in the source alignments are figure fragments, such as chart values.
+  - **Identifying new extractions:** their configuration carries
+    `picture_children: labelled-figure-text`, so they have new configuration and
+    extraction IDs.
+  - **The existing corpus is unchanged.** Its 14,622 figure fragments (33% of indexed
+    chunks, averaging 14 characters) stay indexed without the label, so the Phase 2
+    judgments and scores remain valid. Grouping fragments per figure would be a later,
+    measured change.
 - **Docling** is the repository's pinned `pdf` extra. Install it without changing the CUDA
   PyTorch build: install `torchvision` from the PyTorch index matching the installed
   `torch`, then the `pdf` pins with a constraints file that holds `torch`, `numpy` and
