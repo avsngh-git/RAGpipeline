@@ -30,6 +30,7 @@ from research_platform.ingestion.membership_policy import PolicyResult
 from research_platform.ingestion.online_ingestion import PaperIngestOutcome
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     ResearchFilters,
     ResearchMode,
@@ -302,7 +303,7 @@ async def _deep_run(
                 ingestion=pipeline,
             ),
             llm=ScriptedLLM(tuple(replies), identity=_IDENTITY),
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(SNAPSHOT, _PROFILE, generation=1),
             thinking=frozenset(),
             code_revision="synthetic-phase35-regression-v1",

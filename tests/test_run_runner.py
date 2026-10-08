@@ -22,6 +22,7 @@ from research_platform.llm.contracts import (
 )
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     AnswerOutcome,
     FailureCategory,
@@ -157,7 +158,7 @@ def _runner(
         repository=store,
         tools=tools,
         llm=llm,
-        checkpointer=InMemorySaver(),
+        checkpointer=InMemorySaver(serde=checkpoint_serializer()),
         serving=ServingIdentity(_SNAPSHOT, _PROFILE),
         thinking=frozenset(),
         code_revision="test-revision",
@@ -588,7 +589,7 @@ async def test_wait_time_not_counted_as_active() -> None:
             repository=store,
             tools=tools,
             llm=llm,
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(_SNAPSHOT, _PROFILE, generation=1),
             thinking=frozenset(),
             code_revision="test-revision",
@@ -627,7 +628,7 @@ async def test_new_run_pins_generation_published_at_start() -> None:
                 search=search, papers=papers, citations=citations, related=related
             ),
             llm=ScriptedLLM(_SUCCESS, identity=_IDENTITY),
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(_SNAPSHOT, _PROFILE, generation=1),
             thinking=frozenset(),
             code_revision="test-revision",

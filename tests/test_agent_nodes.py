@@ -22,6 +22,7 @@ from research_platform.agents.nodes import (
 from research_platform.agents.state import initial_state
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     AnswerOutcome,
     ResearchFilters,
@@ -324,7 +325,9 @@ async def test_quick_graph_runs_three_nodes_in_order() -> None:
     llm = ScriptedLLM(_SUCCESS_SCRIPT)
     deps, _, _ = _deps(store=store, llm=llm)
     deps = await _bind_run(deps, store, "retrieval")
-    graph = build_quick_graph(deps).compile(checkpointer=InMemorySaver())
+    graph = build_quick_graph(deps).compile(
+        checkpointer=InMemorySaver(serde=checkpoint_serializer())
+    )
 
     result = await graph.ainvoke(
         initial_state("retrieval"), {"configurable": {"thread_id": str(deps.run_id)}}
@@ -343,7 +346,9 @@ async def test_quick_graph_runs_three_nodes_in_order() -> None:
 async def test_quick_graph_failed_search_raises_tool_step_failed() -> None:
     deps, store, _ = _deps(corpus=_corpus(failing=True))
     deps = await _bind_run(deps, store, "retrieval")
-    graph = build_quick_graph(deps).compile(checkpointer=InMemorySaver())
+    graph = build_quick_graph(deps).compile(
+        checkpointer=InMemorySaver(serde=checkpoint_serializer())
+    )
 
     with pytest.raises(ToolStepFailed, match="retrieval_error"):
         await graph.ainvoke(
@@ -360,7 +365,9 @@ async def test_quick_graph_rejected_search_still_answers() -> None:
     deps = await _bind_run(deps, store, "retrieval")
     state = initial_state("retrieval")
     state["ledger"] = ToolLedger(tool_calls_used=1)
-    graph = build_quick_graph(deps).compile(checkpointer=InMemorySaver())
+    graph = build_quick_graph(deps).compile(
+        checkpointer=InMemorySaver(serde=checkpoint_serializer())
+    )
 
     result = await graph.ainvoke(
         state, {"configurable": {"thread_id": str(deps.run_id)}}

@@ -15,6 +15,7 @@ from research_platform.evaluation.phase3_regression import (
 )
 from research_platform.llm.scripted import ScriptedLLM
 from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import ResearchMode, ResearchRequest, RunBudgets
 from research_platform.runs.memory import InMemoryRunStore
 from research_platform.runs.reproduce import (
@@ -85,7 +86,7 @@ async def test_scripted_rerun_follows_same_tool_path() -> None:
             repository=rerun_store,
             tools=tools,
             llm=ScriptedLLM(case.replies, identity=inputs.model),
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(
                 snapshot_id=inputs.serving.snapshot_id,
                 retrieval_profile_id=inputs.serving.retrieval_profile_id,
