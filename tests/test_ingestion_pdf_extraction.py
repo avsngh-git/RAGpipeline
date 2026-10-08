@@ -104,9 +104,13 @@ class _FakeDocument:
             ),
             SimpleNamespace(label="formula", text="x = y", prov=_located()),
         ]
-        # Text inside the picture (axis ticks, legend), after it as in Docling.
+        # Text inside the picture (axis ticks, a large label Docling calls a header,
+        # a legend), yielded after it at a greater depth as in Docling.
         self.picture_children = [
             SimpleNamespace(label="text", text="0.4", prov=_located()),
+            SimpleNamespace(
+                label="section_header", text="Panel A", level=1, prov=_located()
+            ),
             SimpleNamespace(label="text", text="Recall", prov=_located()),
         ]
 
@@ -128,15 +132,23 @@ def test_docling_output_maps_headings_tables_and_locations() -> None:
     )
 
     assert extraction.status == "completed"
-    # Picture children ("0.4", "Recall") are not body text; the caption is kept.
+    # Text inside the picture is kept, labelled "Figure text", and does not change
+    # the document's heading path.
     assert [section.text for section in extraction.sections] == [
         "Results",
         "Dense and hybrid results.",
         "Figure caption preserved.",
+        "0.4",
+        "Panel A",
+        "Recall",
         "x = y",
     ]
     assert extraction.sections[1].heading_path == ("Results",)
-    assert extraction.sections[3].heading_path == ("Results", "Equation")
+    assert extraction.sections[2].heading_path == ("Results", "Figure caption")
+    assert [section.heading_path for section in extraction.sections[3:6]] == [
+        ("Results", "Figure text")
+    ] * 3
+    assert extraction.sections[6].heading_path == ("Results", "Equation")
     assert extraction.sections[0].source_location.page_index_zero_based == 2
     assert extraction.sections[0].source_location.bounding_box == pytest.approx(
         (0.1, 0.1, 0.7, 0.4)
