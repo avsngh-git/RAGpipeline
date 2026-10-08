@@ -1,5 +1,6 @@
 """Offline loading and error classification for pinned cross-encoder models."""
 
+import dataclasses
 from types import SimpleNamespace
 from typing import Any
 
@@ -136,9 +137,7 @@ def test_pinned_loader_is_offline_revision_pinned_and_returns_raw_logits(
     assert model_kwargs["trust_remote_code"] is False
     assert model_kwargs["max_length"] == 512
     assert model_kwargs["device"] == "cpu"
-    assert model_kwargs["model_kwargs"] == {
-        "torch_dtype": dependencies["torch"].float32
-    }
+    assert model_kwargs["model_kwargs"] == {"dtype": dependencies["torch"].float32}
     pairs, predict_kwargs = model.calls[0]
     assert pairs == [("exact query", "stored evidence")]
     assert predict_kwargs["batch_size"] == 1
@@ -266,3 +265,34 @@ def test_minilm_still_requires_the_512_token_budget() -> None:
         validate_supported_reranker_identity(
             replace(_identity(), maximum_input_tokens=1024)
         )
+
+
+@pytest.mark.parametrize("device", ["auto", "cpu"])
+def test_half_precision_reranker_refuses_cpu(
+    monkeypatch: pytest.MonkeyPatch, device: str
+) -> None:
+    _mock_libraries(
+        monkeypatch,
+        tokenizer=FakeTokenizer(),
+        model=FakeModel(),
+        cuda_available=False,
+    )
+    identity = dataclasses.replace(_identity(), precision="fp16")
+    scorer = PinnedSentenceTransformersReranker(identity, device=device)
+
+    with pytest.raises(RerankerDeviceUnavailable, match="fp16 reranking requires CUDA"):
+        scorer.count_pair("query", "evidence")
+
+
+def test_full_precision_reranker_still_runs_on_cpu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_libraries(
+        monkeypatch,
+        tokenizer=FakeTokenizer(),
+        model=FakeModel(),
+        cuda_available=False,
+    )
+    scorer = PinnedSentenceTransformersReranker(_identity(), device="auto")
+
+    assert scorer.count_pair("query", "evidence") > 0
