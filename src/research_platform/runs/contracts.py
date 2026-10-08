@@ -88,6 +88,8 @@ class RunBudgets(_ContractModel):
     max_resumes: int = Field(2, ge=0, le=5)
     max_papers_per_wait: int = Field(5, ge=1, le=20)
     max_ingestion_wait_seconds: float = Field(900.0, gt=0, le=3600)
+    # Synthesis calls, each with the next seed, until one keeps a verified claim.
+    max_synthesis_attempts: int = Field(3, ge=1, le=5)
 
 
 class ResearchFilters(_ContractModel):
@@ -180,6 +182,8 @@ class SynthesisSummary(_ContractModel):
     packed_handles: tuple[str, ...] = ()
     omitted_handles: tuple[str, ...] = ()
     drafted: int = Field(0, ge=0)
+    # Synthesis calls made; the summary describes the last one.
+    attempts: int = Field(1, ge=1)
 
 
 class PaperSummary(_ContractModel):

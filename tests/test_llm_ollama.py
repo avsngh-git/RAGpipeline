@@ -1,6 +1,7 @@
 """Offline tests for the Ollama model adapter."""
 
 import asyncio
+import dataclasses
 import json
 import logging
 
@@ -404,3 +405,22 @@ def test_log_event_has_no_message_content(caplog) -> None:
     assert private_prompt not in caplog.text
     assert private_reply not in caplog.text
     assert private_thinking not in caplog.text
+
+
+def test_seed_offset_is_added_to_the_configured_seed() -> None:
+    captured: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={"message": {"content": '{"answer":"ok"}'}, "eval_count": 3},
+        )
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            await _adapter(http).generate(dataclasses.replace(_call(), seed_offset=2))
+
+    asyncio.run(exercise())
+
+    assert json.loads(captured[0].read())["options"]["seed"] == 19

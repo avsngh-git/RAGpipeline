@@ -373,7 +373,10 @@ def _load_case(value: object) -> RegressionCase:
     category = _required_string(value, "category")
     try:
         request = ResearchRequest.model_validate(value.get("request"))
-        budgets = RunBudgets.model_validate(value.get("budgets", {}))
+        # A case scripts one synthesis reply unless its budgets allow more attempts.
+        budgets = RunBudgets.model_validate(
+            {"max_synthesis_attempts": 1, **value.get("budgets", {})}
+        )
     except (TypeError, ValueError) as exc:
         raise ValueError(f"case {case_id} has invalid request or budgets") from exc
     replies_raw = value.get("replies")

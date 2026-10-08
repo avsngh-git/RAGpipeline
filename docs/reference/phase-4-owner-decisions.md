@@ -210,6 +210,25 @@ Evidence available at the time:
   one dropped a citation from inside its quote. So the fallback did not apply. With fixed
   seeds, one question is one sample; the next `agent-dev` sweep measures the effect.
 
+### 11. Synthesis retries with the next seed (2026-10-08)
+
+- **Decision:** the owner chose to use sampling randomness deliberately instead of removing
+  the fixed seed. When a synthesis attempt keeps no verified claim, synthesis runs again with
+  the next seed (configured seed + 1, + 2, …), up to the new run budget
+  `max_synthesis_attempts` (default 3, range 1–5).
+- **How it works:**
+  - Verification is deterministic, so an extra sample can only add verified claims.
+  - Each call records its actual seed, so runs stay reproducible with `reproduce`.
+  - The synthesis summary records the number of attempts and describes the last one.
+- **Alternatives set aside:** removing the seed. Each run would become a new draw with the
+  same average quality, and exact replay and low-noise sweep comparisons would be lost.
+- **Cost:** about 2–4 minutes per extra attempt, only on runs that would otherwise keep
+  nothing.
+- **Tests:** scripted regression and security cases default to one attempt, since each
+  scripts one synthesis reply. New tests cover retries, the attempt limit, and no retry once
+  a claim is kept.
+- **Re-examine:** measure it in the `agent-dev` sweep after sweep 2.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
