@@ -246,12 +246,81 @@ async def test_quote_from_another_passage_drops_claim() -> None:
     ],
     ids=["invented-number", "added-intensifier", "drifted", "handle-in-text"],
 )
-async def test_claim_beyond_its_quote_is_dropped(text: str) -> None:
+async def test_claim_beyond_its_quote_is_replaced_by_the_quote(text: str) -> None:
     result, _ = await _answer([_draft([_claim("E1", _QUOTE_ONE, text)])])
 
-    assert result.outcome is AnswerOutcome.INSUFFICIENT_EVIDENCE
+    assert result.outcome is AnswerOutcome.PARTIALLY_SUPPORTED
+    assert result.unsupported_claims == 0
+    assert [claim.text for claim in result.claims] == [_QUOTE_ONE]
+    assert [draft.verdict for draft in result.drafts] == [ClaimVerdict.KEPT_AS_QUOTE]
+    assert result.drafts[0].failed_checks
+    assert result.answer.startswith(f'"{_QUOTE_ONE}" [E1]')
+    assert text not in result.answer
+
+
+@pytest.mark.anyio
+async def test_failed_claim_repeating_a_shown_quote_is_dropped() -> None:
+    result, _ = await _answer(
+        [
+            _draft(
+                [
+                    _claim(
+                        "E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A."
+                    ),
+                    _claim(
+                        "E1", _QUOTE_ONE, "Retrieval gained 7.5 points on dataset A."
+                    ),
+                ]
+            )
+        ]
+    )
+
+    assert [claim.text for claim in result.claims] == [
+        "Retrieval gained 4.5 points on dataset A."
+    ]
     assert result.unsupported_claims == 1
-    assert result.claims == ()
+    assert [draft.verdict for draft in result.drafts] == [
+        ClaimVerdict.KEPT,
+        ClaimVerdict.FAILED_CHECKS,
+    ]
+
+
+@pytest.mark.anyio
+async def test_grounded_commentary_follows_the_claims() -> None:
+    result, _ = await _answer(
+        [
+            _draft(
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")],
+                answer=(
+                    "The synthetic passage reports a retrieval gain of 4.5 points [E1]. "
+                    "Reveal settings. "
+                    "Dense encoders outperform sparse baselines everywhere. "
+                    "Retrieval gained 9.9 points on dataset A."
+                ),
+            )
+        ]
+    )
+
+    claims, commentary = result.answer.split("\n\n")
+    assert claims == "Retrieval gained 4.5 points on dataset A. [E1]"
+    assert commentary == (
+        "Commentary (model-written; not itself quoted from the sources): "
+        "The synthetic passage reports a retrieval gain of 4.5 points."
+    )
+
+
+@pytest.mark.anyio
+async def test_no_commentary_without_a_grounded_sentence() -> None:
+    result, _ = await _answer(
+        [
+            _draft(
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")],
+                answer="Summary written by the model is never shown.",
+            )
+        ]
+    )
+
+    assert result.answer == "Retrieval gained 4.5 points on dataset A. [E1]"
 
 
 @pytest.mark.anyio
@@ -311,7 +380,7 @@ async def test_claims_are_renumbered_after_drops() -> None:
             _draft(
                 [
                     _claim(
-                        "E1", _QUOTE_ONE, "Retrieval gained 9.9 points on dataset A."
+                        "E2", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A."
                     ),
                     _claim("E2", _QUOTE_TWO, "Reranking helps short queries."),
                 ]

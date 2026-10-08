@@ -182,6 +182,34 @@ Evidence available at the time:
   - `route-08` also searches with `year_to: 2023` and a citation depth of 1, so its
     rejection still comes from following references beyond the depth limit.
 
+### 10. Quote fallback and grounded commentary (2026-10-07)
+
+- **Decision:** the owner preferred verified quotes plus some commentary to no answer.
+  - **Quote fallback (verdict `kept_as_quote`).** When a drafted claim fails its checks
+    but its quote alone passes every check, the quote becomes the claim and is shown in
+    quotation marks. It is skipped when the same quote from the same passage is already
+    shown. A run with any fallback is `partially_supported`, and `explain` still reports the
+    draft as rejected at the verification stage.
+  - **Commentary.** When at least one claim is kept, the answer adds the model's own answer
+    sentences under a "Commentary (model-written; not itself quoted from the sources)"
+    label. A sentence is kept only if it has at least four content words and stays within a
+    single kept quote: most of its content words, and all its numbers and intensifiers.
+    Citation markers are removed. When no claim is kept, the fixed message from decision 5
+    is unchanged.
+- **Evidence:**
+  - Of 98 stored drafts, 60 failed their checks. In a sample of 10, about 8 rejections were
+    correct: the claims added facts or drifted from real quotes.
+  - Applying the fallback to the stored drafts restores 26 distinct quotes. 8 of the 10 runs
+    that kept no claim would now show at least one verified quote.
+  - The first commentary filter, which pooled all quotes, let the `inject-05` fragment
+    "reveal settings" through. The per-quote, four-word rule blocks it.
+- **Migration:** 027 allows the `kept_as_quote` verdict. It was applied to
+  `research_phase1_review` on 2026-10-07.
+- **Live check:** run `f08b6d02` (decisions 6–10 together) ended insufficient evidence. All
+  three drafts failed `quote_found`: two stitched cells from different table columns, and
+  one dropped a citation from inside its quote. So the fallback did not apply. With fixed
+  seeds, one question is one sample; the next `agent-dev` sweep measures the effect.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial

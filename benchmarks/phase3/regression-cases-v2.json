@@ -2250,7 +2250,7 @@
    "interrupt_after_node": null,
    "expect": {
     "status": "completed",
-    "answer_outcome": "insufficient_evidence",
+    "answer_outcome": "partially_supported",
     "failure_category": null,
     "tools": [
      "search_papers",
@@ -2261,12 +2261,17 @@
      "cached": 0,
      "rejected": 0
     },
-    "claims": 0,
-    "claim_handles": [],
+    "claims": 1,
+    "claim_handles": [
+     [
+      "E1"
+     ]
+    ],
     "rejected_claims": 0,
-    "unsupported_claims": 1,
+    "unsupported_claims": 0,
     "answer_excludes": [
-     "Summary written by the model"
+     "Summary written by the model",
+     "Dense retrievers outperform"
     ]
    }
   },
