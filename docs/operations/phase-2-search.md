@@ -33,6 +33,25 @@ or typed inference failure returns the complete unchanged hybrid pool. The model
 512-token pair budget, corpus and acceptance thresholds remain unchanged. The accepted
 Phase 1 collection remains separate.
 
+## API error responses
+
+Every handled error uses one envelope: `{"error": {"code", "message", "request_id"}}`.
+
+Since 2026-10-08, errors raised by FastAPI or Starlette themselves use it too, with the
+exception's own detail text not exposed:
+- `404 not_found`
+- `405 method_not_allowed`, keeping the `Allow` header
+- `413 request_too_large`
+- `400 invalid_request`
+
+Before this, 404 and 405 returned FastAPI's bare `{"detail": …}`.
+
+The 64 KiB body limit returns 413 both when `Content-Length` is too large and when a
+body sent without that header (in chunks) goes over the limit while being read. FastAPI
+0.141.1 turns any exception raised while parsing a model-bound body into
+`400 "There was an error parsing the body"` unless it is an `HTTPException`. So the limit
+raises a 413 `HTTPException`; until 2026-10-08 such bodies got that 400.
+
 ## Small checks
 
 Create the regular project environment and install the package using the steps in the
