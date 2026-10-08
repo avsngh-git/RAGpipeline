@@ -4,7 +4,7 @@ import json
 import logging
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import TYPE_CHECKING, Any, AsyncIterator, Literal
+from typing import TYPE_CHECKING, Any, AsyncIterator, Final, Literal
 
 import httpx
 from fastapi import FastAPI, Request, Response
@@ -47,6 +47,8 @@ from .routes import Phase2APIServices, create_phase2_router
 logger = logging.getLogger("research_platform.api")
 
 if TYPE_CHECKING:
+    from research_platform.config import DiscoverySettings
+    from research_platform.ingestion.config import DiscoveryConfig
     from research_platform.search.paper_similarity import PaperSimilarityReader
 
 
@@ -69,6 +71,34 @@ class _DiscoveryEmbedder:
         self, texts: Sequence[str]
     ) -> tuple[tuple[SparseVector, tuple[str, ...]], ...]:
         return await self._sparse.encode_papers(texts)
+
+
+# One OpenAlex client serves every run for the life of the API process. Its total
+# request limit must therefore not be the per-run limit: the spend ledger enforces
+# the per-run and daily limits. This ceiling only stops a runaway process.
+_API_OPENALEX_REQUEST_CEILING: Final = 1_000_000
+
+
+def api_discovery_config(settings: "DiscoverySettings") -> "DiscoveryConfig":
+    """OpenAlex client configuration for the API's online discovery."""
+    from research_platform.ingestion.config import (
+        DiscoveryConfig,
+        DiscoveryLimits,
+        YearRange,
+    )
+
+    return DiscoveryConfig(
+        queries=("deep research",),
+        year_range=YearRange(start_year=2020, end_year=2100),
+        limits=DiscoveryLimits(
+            per_page=settings.results_per_request,
+            max_pages_per_query=settings.max_search_requests_per_run,
+            max_total_requests=_API_OPENALEX_REQUEST_CEILING,
+            max_retries=2,
+            timeout_seconds=15.0,
+            minimum_request_interval_seconds=1.0,
+        ),
+    )
 
 
 async def _build_discovery_embedder(
@@ -442,11 +472,6 @@ async def _build_discovery_service(
     from research_platform.config import DiscoverySettings
     from research_platform.discovery.online import OnlineDiscovery, SpendLedger
     from research_platform.ingestion.catalog import CatalogRepository
-    from research_platform.ingestion.config import (
-        DiscoveryConfig,
-        DiscoveryLimits,
-        YearRange,
-    )
     from research_platform.ingestion.generation_index import (
         GenerationIndexConfiguration,
         GenerationQdrantCollection,
@@ -463,18 +488,7 @@ async def _build_discovery_service(
         runtime.embedder, runtime.pool, configuration
     )
     discovery_settings = DiscoverySettings()
-    discovery_configuration = DiscoveryConfig(
-        queries=("deep research",),
-        year_range=YearRange(start_year=2020, end_year=2100),
-        limits=DiscoveryLimits(
-            per_page=discovery_settings.results_per_request,
-            max_pages_per_query=discovery_settings.max_search_requests_per_run,
-            max_total_requests=discovery_settings.max_search_requests_per_run,
-            max_retries=2,
-            timeout_seconds=15.0,
-            minimum_request_interval_seconds=1.0,
-        ),
-    )
+    discovery_configuration = api_discovery_config(discovery_settings)
     openalex_http = await stack.enter_async_context(
         httpx.AsyncClient(
             base_url=OPENALEX_API_BASE,
