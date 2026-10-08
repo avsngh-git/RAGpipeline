@@ -9,10 +9,7 @@ from research_platform.agents.actions import (
     SearchEvidenceAction,
     SearchPapersAction,
 )
-from research_platform.agents.graph_deep import (
-    discovery_query,
-    ensure_first_plan_searches,
-)
+from research_platform.agents.graph_deep import ensure_first_plan_searches
 from research_platform.runs.contracts import ResearchFilters
 
 _QUESTION = "synthetic question about reranking"
@@ -59,7 +56,7 @@ def test_evidence_and_discovery_appended_when_missing() -> None:
     assert isinstance(evidence, SearchEvidenceAction)
     assert (evidence.query, evidence.limit, evidence.paper_ids) == (_QUESTION, 20, ())
     assert isinstance(discover, DiscoverPapersAction)
-    assert discover.query == "synthetic OR question OR reranking"
+    assert discover.query == _QUESTION
 
 
 def test_only_evidence_appended_without_discovery() -> None:
@@ -133,27 +130,3 @@ def test_long_question_is_truncated_to_each_query_limit() -> None:
     assert len(evidence.query) == 500
     assert isinstance(discover, DiscoverPapersAction)
     assert len(discover.query) == 300
-
-
-def test_discovery_query_joins_content_words_with_or() -> None:
-    question = "How does ListT5 compare with the TREC-COVID and FiQA baselines?"
-
-    assert discovery_query(question) == "ListT5 OR TREC-COVID OR FiQA OR baselines"
-
-
-def test_discovery_query_drops_repeated_words() -> None:
-    assert discovery_query("reranking or Reranking reranking") == (
-        "reranking OR Reranking"
-    )
-
-
-def test_discovery_query_stops_at_the_query_limit() -> None:
-    query = discovery_query(" ".join(f"term{n}" for n in range(200)))
-
-    assert len(query) <= 300
-    assert query.startswith("term0 OR term1 OR ")
-    assert not query.endswith(" OR")
-
-
-def test_discovery_query_falls_back_to_the_question() -> None:
-    assert discovery_query("what is the") == "what is the"

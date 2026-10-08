@@ -138,6 +138,17 @@ Evidence available at the time:
   returned 0 works, while single terms from it had 52 to 21,343 matches. Discovery still
   ranks the results by similarity to the question.
 
+- **Update (2026-10-07, plan policy `p4-first-plan-searches-v4`):** discovery uses OpenAlex
+  semantic search (`search.semantic`, same price as keyword search, $1 per 1,000 calls), and
+  the code-added call sends the whole question again. Per the OpenAlex documentation,
+  keyword `search` ANDs every word, and the v3 OR query returned off-topic works (face-image
+  quality papers matching "FiQA"). Semantic search on the same question returned ListT5,
+  RankT5 and other listwise rerankers. Semantic search allows one page of at most 50 results,
+  one request per second, and no `primary_topic.field.id` filter, so the field is checked on
+  each work in code; `has_abstract:true` is requested. Validation run `c6d3c452`: discovery
+  returned 5 relevant papers (three are OpenAlex duplicates of ListT5, one already ingested);
+  outcome unchanged (partially supported, 1 kept claim).
+
 ### 7. Thinking for the evaluate call (2026-10-07)
 
 - **Decision:** the default `RESEARCH_PLATFORM_LLM_THINKING` becomes

@@ -18,6 +18,9 @@ from research_platform.ingestion.config import DiscoveryConfig
 
 OPENALEX_API_BASE = "https://api.openalex.org"
 _OPENALEX_ID_PATTERN = re.compile(r"^W[0-9]+$")
+# OpenAlex semantic search limits: one page of at most 50 results, 2,000 input chars.
+SEMANTIC_MAX_RESULTS = 50
+SEMANTIC_MAX_QUERY_CHARS = 2000
 _SELECT_FIELDS = ",".join(
     (
         "id",
@@ -285,6 +288,39 @@ class OpenAlexClient:
             "cursor": cursor,
             "select": _SELECT_FIELDS,
             "corpus": "all",
+        }
+        payload, response = await self._get_json("/works", params)
+        return self._parse_page(payload, response)
+
+    async def semantic_search(
+        self, query: str, *, extra_filter: str | None = None
+    ) -> OpenAlexPage:
+        """Fetch the Works whose title and abstract are closest in meaning to a query.
+
+        Unlike ``search``, which requires every word to match, ``search.semantic``
+        compares embeddings, so a whole question can be the query. It returns one page
+        of at most 50 results, has no cursor paging, allows one request per second,
+        and does not support the ``primary_topic.field.id`` filter; the caller checks
+        the field. See https://help.openalex.org/api/semantic-search/.
+        """
+        if not query.strip():
+            raise ValueError("semantic search needs a non-empty query")
+        year_range = self._config.year_range
+        filters = [
+            (
+                f"publication_year:{year_range.start_year}-{year_range.end_year},"
+                f"language:{self._config.language}"
+            )
+        ]
+        if extra_filter is not None:
+            if not isinstance(extra_filter, str) or not extra_filter.strip():
+                raise ValueError("extra_filter must be non-empty text when provided")
+            filters.append(extra_filter.strip())
+        params = {
+            "search.semantic": query[:SEMANTIC_MAX_QUERY_CHARS],
+            "filter": ",".join(filters),
+            "per_page": str(min(self._config.limits.per_page, SEMANTIC_MAX_RESULTS)),
+            "select": f"{_SELECT_FIELDS},primary_topic",
         }
         payload, response = await self._get_json("/works", params)
         return self._parse_page(payload, response)
