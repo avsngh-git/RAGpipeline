@@ -31,6 +31,9 @@ pdf = [
     "rapidocr==3.9.2",
 ]
 embeddings = [
+    # CUDA build from https://download.pytorch.org/whl/cu130; "==2.14.0" also matches
+    # the "+cu130" local version.
+    "torch==2.14.0",
     "sentence-transformers==6.1.0",
     "transformers==5.17.0",
 ]

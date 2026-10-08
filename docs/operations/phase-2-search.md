@@ -293,16 +293,40 @@ ID is `sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449`.
 
 The base Conda environment pins NumPy 2.5.3 for BM25S; the exact Linux lock
 contains NumPy and its BLAS libraries. Ordinary CI omits model weights and the optional
-inference runtime. The `embeddings` extra pins `sentence-transformers==6.1.0` and
-`transformers==5.17.0`. In an operator environment, install PyTorch for the host first,
-then install the project extra and verify its dependencies. In WSL, verify CUDA
-from the same Conda environment used to run the API:
+inference runtime.
+
+The `embeddings` extra pins `torch==2.14.0`, `sentence-transformers==6.1.0` and
+`transformers==5.17.0`. The PyTorch pin was added on 2026-10-08; until then PyTorch was
+pinned nowhere.
+
+In an operator environment, install the pinned PyTorch build for the host first, then
+install the project extra and verify its dependencies. The CUDA 13.0 build used here
+comes from the PyTorch index, and `==2.14.0` also matches its `+cu130` label. In WSL,
+verify CUDA from the same Conda environment used to run the API:
 
 ```bash
+conda run -n sci_research_agent python -m pip install 'torch==2.14.0' \
+  --index-url https://download.pytorch.org/whl/cu130
 conda run -n sci_research_agent python -m pip install '.[embeddings]'
 conda run -n sci_research_agent python -m pip check
 conda run -n sci_research_agent python -c 'import torch; print(torch.cuda.is_available())'
 ```
+
+Each research run records the installed build as `torch_version` in its effective
+configuration, for example `2.14.0+cu130`. PyTorch does not guarantee identical results
+across releases or platforms.
+- **How it is read:** from `torch/version.py`, without importing torch, so the API and
+  `research-runs reproduce` record the same value. The package metadata drops the CUDA
+  label.
+- **Effect on `reproduce`:** runs from before 2026-10-08 lack the field, so it reports
+  `torch_version` as a difference for them.
+
+On 2026-10-08 a stale `torch-2.12.0+cpu.dist-info` folder left by an earlier install was
+moved out of the `sci_research_agent` environment, to `local-reference/env-backup/`.
+- **Why it was moved, not uninstalled:** `pip uninstall` would have deleted files the
+  installed 2.14.0 build shares with it.
+- **Checked afterwards:** `pip check` reported no broken requirements, and torch imported
+  with CUDA available.
 
 The profiles pin E5-small-v2 at revision
 `e8b23a92af33fd81c865283d505f8f058a570cc8` and MiniLM at revision
