@@ -92,7 +92,8 @@ def _deps(
         search=search, papers=papers, citations=citations, related=related
     )
     run_id = uuid4()
-    selected_budgets = budgets or RunBudgets()
+    # One scripted synthesis reply, so one attempt.
+    selected_budgets = budgets or RunBudgets(max_synthesis_attempts=1)
     context = ToolContext(
         run_id=run_id,
         snapshot_id=_SNAPSHOT,

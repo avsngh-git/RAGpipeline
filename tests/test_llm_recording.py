@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from uuid import UUID
 
 import pytest
@@ -164,3 +165,17 @@ async def test_decoding_options_recorded() -> None:
     assert options["seed"] == 7
     assert options["num_ctx"] == 4096
     assert options["temperature"] is None
+
+
+@pytest.mark.anyio
+async def test_recorded_seed_includes_the_call_seed_offset() -> None:
+    store, run_id, client = await _setup(
+        (ScriptedReply(kind=CallKind.SYNTHESIZE, content='{"value": "ok"}'),),
+        decoding=DecodingSettings(seed=7, context_tokens=4096, timeout_seconds=30),
+    )
+
+    await client.generate(dataclasses.replace(_structured(), seed_offset=2))
+
+    options = (await store.list_llm_calls(run_id))[0].record.options
+    assert options["seed"] == 9
+    assert options["seed_offset"] == 2

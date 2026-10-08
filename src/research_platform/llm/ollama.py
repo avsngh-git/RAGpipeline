@@ -101,7 +101,7 @@ class OllamaClient:
                                 if call.max_output_tokens is None
                                 else call.max_output_tokens
                             ),
-                            "seed": self._seed,
+                            "seed": self._seed + call.seed_offset,
                         },
                     },
                 )

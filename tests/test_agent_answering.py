@@ -95,7 +95,8 @@ async def _answer(
         question="Synthetic research question?",
         registry=registry,
         texts=texts,
-        budgets=budgets or RunBudgets(),
+        # Tests script one synthesis reply unless they pass budgets allowing more.
+        budgets=budgets or RunBudgets(max_synthesis_attempts=1),
         thinking=thinking,
     )
     return result, llm
@@ -164,7 +165,7 @@ async def test_known_but_omitted_handle_is_rejected() -> None:
         [_draft([_claim("E2", _QUOTE_TWO, "Reranking helps short queries.")])],
         registry=registry,
         texts=texts,
-        budgets=RunBudgets(max_synthesis_tokens=500),
+        budgets=RunBudgets(max_synthesis_tokens=500, max_synthesis_attempts=1),
     )
 
     assert "E2" in registry.handles()
@@ -497,7 +498,7 @@ async def test_drafts_record_not_shown_handle() -> None:
         [_draft([_claim("E2", _QUOTE_TWO, "Reranking helps short queries.")])],
         registry=registry,
         texts=texts,
-        budgets=RunBudgets(max_synthesis_tokens=500),
+        budgets=RunBudgets(max_synthesis_tokens=500, max_synthesis_attempts=1),
     )
 
     assert [draft.verdict for draft in result.drafts] == [ClaimVerdict.NOT_SHOWN]
@@ -552,3 +553,58 @@ async def test_synthesis_summary_records_declared_insufficient() -> None:
     assert result.synthesis.model_declared_insufficient is True
     assert result.synthesis.drafted == 0
     assert result.synthesis.packed_handles == ("E1", "E2", "E3")
+
+
+@pytest.mark.anyio
+async def test_synthesis_retries_with_the_next_seed_until_a_claim_is_kept() -> None:
+    result, llm = await _answer(
+        [
+            _draft([_claim("E1", "a quote no passage contains at all", "Invented.")]),
+            _draft([], answer="Nothing.", insufficient=True),
+            _draft(
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")]
+            ),
+        ],
+        budgets=RunBudgets(max_synthesis_attempts=3),
+    )
+
+    assert [call.seed_offset for call in llm.calls] == [0, 1, 2]
+    assert [claim.text for claim in result.claims] == [
+        "Retrieval gained 4.5 points on dataset A."
+    ]
+    assert result.outcome is AnswerOutcome.ANSWERED
+    assert result.model_calls == 3
+    assert result.synthesis is not None
+    assert result.synthesis.attempts == 3
+
+
+@pytest.mark.anyio
+async def test_synthesis_stops_after_its_attempt_budget() -> None:
+    result, llm = await _answer(
+        [
+            _draft([], answer="Nothing.", insufficient=True),
+            _draft([], answer="Nothing.", insufficient=True),
+        ],
+        budgets=RunBudgets(max_synthesis_attempts=2),
+    )
+
+    assert [call.seed_offset for call in llm.calls] == [0, 1]
+    assert result.outcome is AnswerOutcome.INSUFFICIENT_EVIDENCE
+    assert result.model_calls == 2
+    assert result.synthesis is not None
+    assert result.synthesis.attempts == 2
+
+
+@pytest.mark.anyio
+async def test_no_retry_once_a_claim_is_kept() -> None:
+    result, llm = await _answer(
+        [
+            _draft(
+                [_claim("E1", _QUOTE_ONE, "Retrieval gained 4.5 points on dataset A.")]
+            )
+        ],
+        budgets=RunBudgets(max_synthesis_attempts=3),
+    )
+
+    assert len(llm.calls) == 1
+    assert result.model_calls == 1

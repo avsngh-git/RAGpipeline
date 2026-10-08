@@ -31,10 +31,15 @@ class StructuredCall(Generic[T]):
     # call is still bounded by the client timeout and the run's wall-clock budget.
     max_output_tokens: int | None = 2048
     max_repair_attempts: int = 2
+    # Added to the client's configured seed, so a retried call samples differently
+    # while staying reproducible.
+    seed_offset: int = 0
 
     def __post_init__(self) -> None:
         if not self.messages:
             raise ValueError("messages must contain at least one message")
+        if not 0 <= self.seed_offset <= 100:
+            raise ValueError("seed_offset must be between 0 and 100")
         if (
             self.max_output_tokens is not None
             and not 1 <= self.max_output_tokens <= 32768

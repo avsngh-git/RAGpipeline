@@ -39,6 +39,7 @@ def test_budgets_defaults_match_adr() -> None:
         "max_resumes": 2,
         "max_papers_per_wait": 5,
         "max_ingestion_wait_seconds": 900.0,
+        "max_synthesis_attempts": 3,
     }
 
 
@@ -52,6 +53,8 @@ def test_budgets_defaults_match_adr() -> None:
         ("max_evidence_passages", 0),
         ("max_synthesis_tokens", 499),
         ("max_model_retries", 6),
+        ("max_synthesis_attempts", 0),
+        ("max_synthesis_attempts", 6),
         ("max_active_seconds", 0),
         ("max_resumes", 6),
     ],

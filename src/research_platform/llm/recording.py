@@ -91,6 +91,7 @@ class RecordingLLMClient:
                 -1 if call.max_output_tokens is None else call.max_output_tokens
             ),
             "max_repair_attempts": call.max_repair_attempts,
+            "seed_offset": call.seed_offset,
         }
         started = time.perf_counter()
         with get_tracer().start_as_current_span(
@@ -276,7 +277,7 @@ class RecordingLLMClient:
         if self._decoding is not None:
             options = options | {
                 "num_ctx": self._decoding.context_tokens,
-                "seed": self._decoding.seed,
+                "seed": self._decoding.seed + _seed_offset(options),
                 "temperature": self._decoding.temperature,
             }
         record = LLMCallRecord(
@@ -331,3 +332,8 @@ def _tool_names(tools: tuple[Mapping[str, object], ...]) -> list[str]:
             if isinstance(name, str):
                 names.append(name)
     return names
+
+
+def _seed_offset(options: dict[str, object]) -> int:
+    offset = options.get("seed_offset", 0)
+    return offset if isinstance(offset, int) else 0

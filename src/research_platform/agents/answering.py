@@ -7,10 +7,12 @@ import re
 from collections.abc import Mapping
 from typing import Annotated
 
+from opentelemetry.trace import Span
 from pydantic import BaseModel, ConfigDict, Field
 
 from research_platform.agents.evidence import (
     EvidenceRegistry,
+    PackedEvidence,
     neutralize,
     pack_evidence,
 )
@@ -28,6 +30,7 @@ from research_platform.observability.tracing import (
     ATTR_CLAIMS_REJECTED,
     ATTR_CLAIMS_UNSUPPORTED,
     ATTR_CLAIMS_VERDICTS,
+    ATTR_SYNTHESIS_ATTEMPTS,
     SPAN_SYNTHESIZE,
     SPAN_VERIFY,
     get_tracer,
@@ -199,6 +202,10 @@ async def answer_question(
     returned answer text lists the kept claims, then labelled commentary: the model's
     answer sentences that stay within the kept quotes. When no claim is kept, it is a
     fixed message.
+
+    When an attempt keeps no claim, synthesis runs again with the next seed, up to
+    ``budgets.max_synthesis_attempts`` calls. Verification is deterministic, so a new
+    sample can only add verified claims; each call records its seed.
     """
     with get_tracer().start_as_current_span(SPAN_SYNTHESIZE) as synth_span:
         packed = pack_evidence(
@@ -215,159 +222,199 @@ async def answer_question(
             )
 
         think = CallKind.SYNTHESIZE in thinking
-        synthesis = await llm.generate(
-            StructuredCall(
-                kind=CallKind.SYNTHESIZE,
-                messages=synthesize_messages(question=question, packed=packed),
-                output_model=DraftAnswer,
+        result: VerifiedAnswer | None = None
+        attempts = 0
+        while attempts < budgets.max_synthesis_attempts and (
+            result is None or not result.claims
+        ):
+            result = await _synthesize_once(
+                llm,
+                question=question,
+                packed=packed,
+                registry=registry,
+                texts=texts,
+                budgets=budgets,
                 think=think,
-                max_output_tokens=None if think else _SYNTHESIS_OUTPUT_TOKENS,
-                max_repair_attempts=budgets.max_model_retries,
+                seed_offset=attempts,
+                synth_span=synth_span,
             )
+            attempts += 1
+        assert result is not None
+        synth_span.set_attribute(ATTR_SYNTHESIS_ATTEMPTS, attempts)
+        summary = (
+            result.synthesis.model_copy(update={"attempts": attempts})
+            if result.synthesis is not None
+            else None
         )
-        draft = synthesis.value
-        synth_span.set_attribute(ATTR_CLAIMS_DRAFTED, len(draft.claims))
-        summary = SynthesisSummary(
-            model_declared_insufficient=draft.insufficient_evidence,
-            relevant_handles=draft.relevant_handles,
-            packed_handles=packed.included,
-            omitted_handles=packed.omitted,
-            drafted=len(draft.claims),
-        )
-        if draft.insufficient_evidence or not draft.claims:
-            return VerifiedAnswer(
-                answer=_INSUFFICIENT_ANSWER,
-                outcome=AnswerOutcome.INSUFFICIENT_EVIDENCE,
-                claims=(),
-                rejected_claims=0,
-                unsupported_claims=0,
-                model_calls=1,
-                synthesis=summary,
-            )
+        return result.model_copy(update={"model_calls": attempts, "synthesis": summary})
 
-        with get_tracer().start_as_current_span(SPAN_VERIFY) as verify_span:
-            shown = frozenset(packed.included)
-            claims: list[ClaimResult] = []
-            outcomes: list[DraftClaimOutcome] = []
-            rejected = 0
-            unsupported = 0
-            quoted = 0
-            for ordinal, draft_claim in enumerate(draft.claims, start=1):
-                ref = registry.resolve(draft_claim.handle)
-                if ref is None:
-                    rejected += 1
-                    outcomes.append(
-                        _draft_outcome(
-                            ordinal, draft_claim, ClaimVerdict.UNKNOWN_HANDLE
-                        )
+
+async def _synthesize_once(
+    llm: LLMClient,
+    *,
+    question: str,
+    packed: PackedEvidence,
+    registry: EvidenceRegistry,
+    texts: Mapping[str, str],
+    budgets: RunBudgets,
+    think: bool,
+    seed_offset: int,
+    synth_span: Span,
+) -> VerifiedAnswer:
+    """One synthesis call with the given seed offset, then claim verification."""
+    synthesis = await llm.generate(
+        StructuredCall(
+            kind=CallKind.SYNTHESIZE,
+            messages=synthesize_messages(question=question, packed=packed),
+            output_model=DraftAnswer,
+            think=think,
+            max_output_tokens=None if think else _SYNTHESIS_OUTPUT_TOKENS,
+            max_repair_attempts=budgets.max_model_retries,
+            seed_offset=seed_offset,
+        )
+    )
+    draft = synthesis.value
+    synth_span.set_attribute(ATTR_CLAIMS_DRAFTED, len(draft.claims))
+    summary = SynthesisSummary(
+        model_declared_insufficient=draft.insufficient_evidence,
+        relevant_handles=draft.relevant_handles,
+        packed_handles=packed.included,
+        omitted_handles=packed.omitted,
+        drafted=len(draft.claims),
+        attempts=seed_offset + 1,
+    )
+    if draft.insufficient_evidence or not draft.claims:
+        return VerifiedAnswer(
+            answer=_INSUFFICIENT_ANSWER,
+            outcome=AnswerOutcome.INSUFFICIENT_EVIDENCE,
+            claims=(),
+            rejected_claims=0,
+            unsupported_claims=0,
+            model_calls=1,
+            synthesis=summary,
+        )
+
+    with get_tracer().start_as_current_span(SPAN_VERIFY) as verify_span:
+        shown = frozenset(packed.included)
+        claims: list[ClaimResult] = []
+        outcomes: list[DraftClaimOutcome] = []
+        rejected = 0
+        unsupported = 0
+        quoted = 0
+        for ordinal, draft_claim in enumerate(draft.claims, start=1):
+            ref = registry.resolve(draft_claim.handle)
+            if ref is None:
+                rejected += 1
+                outcomes.append(
+                    _draft_outcome(ordinal, draft_claim, ClaimVerdict.UNKNOWN_HANDLE)
+                )
+                continue
+            if draft_claim.handle not in shown:
+                rejected += 1
+                outcomes.append(
+                    _draft_outcome(
+                        ordinal,
+                        draft_claim,
+                        ClaimVerdict.NOT_SHOWN,
+                        chunk_id=ref.chunk_id,
+                        paper_id=ref.paper_id,
                     )
-                    continue
-                if draft_claim.handle not in shown:
-                    rejected += 1
+                )
+                continue
+            passage = neutralize(texts.get(ref.chunk_id, ""))
+            checks = verify_claim(draft_claim.text, draft_claim.quote, passage)
+            claim_text = draft_claim.text
+            if not checks.passed:
+                failed = tuple(
+                    check.name
+                    for check in dataclasses.fields(checks)
+                    if not getattr(checks, check.name)
+                )
+                fallback = _quote_as_claim(draft_claim.quote, passage)
+                already_shown = any(
+                    claim.quote == draft_claim.quote
+                    and claim.evidence[0].chunk_id == ref.chunk_id
+                    for claim in claims
+                )
+                if fallback is None or already_shown:
+                    unsupported += 1
                     outcomes.append(
                         _draft_outcome(
                             ordinal,
                             draft_claim,
-                            ClaimVerdict.NOT_SHOWN,
-                            chunk_id=ref.chunk_id,
-                            paper_id=ref.paper_id,
-                        )
-                    )
-                    continue
-                passage = neutralize(texts.get(ref.chunk_id, ""))
-                checks = verify_claim(draft_claim.text, draft_claim.quote, passage)
-                claim_text = draft_claim.text
-                if not checks.passed:
-                    failed = tuple(
-                        check.name
-                        for check in dataclasses.fields(checks)
-                        if not getattr(checks, check.name)
-                    )
-                    fallback = _quote_as_claim(draft_claim.quote, passage)
-                    already_shown = any(
-                        claim.quote == draft_claim.quote
-                        and claim.evidence[0].chunk_id == ref.chunk_id
-                        for claim in claims
-                    )
-                    if fallback is None or already_shown:
-                        unsupported += 1
-                        outcomes.append(
-                            _draft_outcome(
-                                ordinal,
-                                draft_claim,
-                                ClaimVerdict.FAILED_CHECKS,
-                                failed_checks=failed,
-                                chunk_id=ref.chunk_id,
-                                paper_id=ref.paper_id,
-                            )
-                        )
-                        continue
-                    quoted += 1
-                    claim_text = fallback
-                    outcomes.append(
-                        _draft_outcome(
-                            ordinal,
-                            draft_claim,
-                            ClaimVerdict.KEPT_AS_QUOTE,
+                            ClaimVerdict.FAILED_CHECKS,
                             failed_checks=failed,
                             chunk_id=ref.chunk_id,
                             paper_id=ref.paper_id,
                         )
                     )
-                else:
-                    outcomes.append(
-                        _draft_outcome(
-                            ordinal,
-                            draft_claim,
-                            ClaimVerdict.KEPT,
-                            chunk_id=ref.chunk_id,
-                            paper_id=ref.paper_id,
-                        )
-                    )
-                claims.append(
-                    ClaimResult(
-                        claim_id=f"claim-{len(claims) + 1}",
-                        text=claim_text,
-                        quote=draft_claim.quote,
-                        evidence=(
-                            EvidenceCitation(
-                                handle=ref.handle,
-                                chunk_id=ref.chunk_id,
-                                paper_id=ref.paper_id,
-                            ),
-                        ),
-                        support=SupportLabel.SUPPORTED,
+                    continue
+                quoted += 1
+                claim_text = fallback
+                outcomes.append(
+                    _draft_outcome(
+                        ordinal,
+                        draft_claim,
+                        ClaimVerdict.KEPT_AS_QUOTE,
+                        failed_checks=failed,
+                        chunk_id=ref.chunk_id,
+                        paper_id=ref.paper_id,
                     )
                 )
+            else:
+                outcomes.append(
+                    _draft_outcome(
+                        ordinal,
+                        draft_claim,
+                        ClaimVerdict.KEPT,
+                        chunk_id=ref.chunk_id,
+                        paper_id=ref.paper_id,
+                    )
+                )
+            claims.append(
+                ClaimResult(
+                    claim_id=f"claim-{len(claims) + 1}",
+                    text=claim_text,
+                    quote=draft_claim.quote,
+                    evidence=(
+                        EvidenceCitation(
+                            handle=ref.handle,
+                            chunk_id=ref.chunk_id,
+                            paper_id=ref.paper_id,
+                        ),
+                    ),
+                    support=SupportLabel.SUPPORTED,
+                )
+            )
 
-            verify_span.set_attribute(ATTR_CLAIMS_KEPT, len(claims))
-            verify_span.set_attribute(ATTR_CLAIMS_REJECTED, rejected)
-            verify_span.set_attribute(ATTR_CLAIMS_UNSUPPORTED, unsupported)
-            set_id_attribute(
-                verify_span,
-                ATTR_CLAIMS_VERDICTS,
-                [outcome.verdict.value for outcome in outcomes],
-            )
-            answer = _render_verified_claims(claims)
-            commentary = grounded_commentary(draft.answer, claims) if claims else ""
-            if commentary:
-                answer = f"{answer}\n\n{_COMMENTARY_LABEL} {commentary}"
-            return VerifiedAnswer(
-                answer=answer,
-                outcome=decide_outcome(
-                    insufficient=False,
-                    kept=len(claims),
-                    rejected=rejected,
-                    unsupported=unsupported,
-                    quoted=quoted,
-                ),
-                claims=tuple(claims),
-                rejected_claims=rejected,
-                unsupported_claims=unsupported,
-                model_calls=1,
-                drafts=tuple(outcomes),
-                synthesis=summary,
-            )
+        verify_span.set_attribute(ATTR_CLAIMS_KEPT, len(claims))
+        verify_span.set_attribute(ATTR_CLAIMS_REJECTED, rejected)
+        verify_span.set_attribute(ATTR_CLAIMS_UNSUPPORTED, unsupported)
+        set_id_attribute(
+            verify_span,
+            ATTR_CLAIMS_VERDICTS,
+            [outcome.verdict.value for outcome in outcomes],
+        )
+        answer = _render_verified_claims(claims)
+        commentary = grounded_commentary(draft.answer, claims) if claims else ""
+        if commentary:
+            answer = f"{answer}\n\n{_COMMENTARY_LABEL} {commentary}"
+        return VerifiedAnswer(
+            answer=answer,
+            outcome=decide_outcome(
+                insufficient=False,
+                kept=len(claims),
+                rejected=rejected,
+                unsupported=unsupported,
+                quoted=quoted,
+            ),
+            claims=tuple(claims),
+            rejected_claims=rejected,
+            unsupported_claims=unsupported,
+            model_calls=1,
+            drafts=tuple(outcomes),
+            synthesis=summary,
+        )
 
 
 def _draft_outcome(
