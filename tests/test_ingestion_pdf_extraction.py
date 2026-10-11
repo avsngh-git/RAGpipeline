@@ -104,11 +104,24 @@ class _FakeDocument:
             ),
             SimpleNamespace(label="formula", text="x = y", prov=_located()),
         ]
+        # Text inside the picture (axis ticks, a large label Docling calls a header,
+        # a legend), yielded after it at a greater depth as in Docling.
+        self.picture_children = [
+            SimpleNamespace(label="text", text="0.4", prov=_located()),
+            SimpleNamespace(
+                label="section_header", text="Panel A", level=1, prov=_located()
+            ),
+            SimpleNamespace(label="text", text="Recall", prov=_located()),
+        ]
 
     def iterate_items(self, *, with_groups: bool, traverse_pictures: bool):
+        """Yield like docling-core: picture children only with traverse_pictures."""
         assert with_groups is True
-        assert traverse_pictures is True
-        return ((item, 1) for item in self.items)
+        for item in self.items:
+            yield item, 1
+            if item.label == "picture" and traverse_pictures:
+                for child in self.picture_children:
+                    yield child, 2
 
 
 def test_docling_output_maps_headings_tables_and_locations() -> None:
@@ -119,14 +132,23 @@ def test_docling_output_maps_headings_tables_and_locations() -> None:
     )
 
     assert extraction.status == "completed"
+    # Text inside the picture is kept, labelled "Figure text", and does not change
+    # the document's heading path.
     assert [section.text for section in extraction.sections] == [
         "Results",
         "Dense and hybrid results.",
         "Figure caption preserved.",
+        "0.4",
+        "Panel A",
+        "Recall",
         "x = y",
     ]
     assert extraction.sections[1].heading_path == ("Results",)
-    assert extraction.sections[3].heading_path == ("Results", "Equation")
+    assert extraction.sections[2].heading_path == ("Results", "Figure caption")
+    assert [section.heading_path for section in extraction.sections[3:6]] == [
+        ("Results", "Figure text")
+    ] * 3
+    assert extraction.sections[6].heading_path == ("Results", "Equation")
     assert extraction.sections[0].source_location.page_index_zero_based == 2
     assert extraction.sections[0].source_location.bounding_box == pytest.approx(
         (0.1, 0.1, 0.7, 0.4)

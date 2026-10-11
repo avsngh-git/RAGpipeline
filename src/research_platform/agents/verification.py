@@ -85,6 +85,22 @@ def verify_claim(text: str, quote: str, passage: str) -> ClaimChecks:
     )
 
 
+def supported_by(text: str, source: str) -> bool:
+    """Whether a sentence stays within a source: its words, numbers and intensifiers.
+
+    These are the claim-side checks of ``verify_claim``; ``source`` is already verified
+    text, so it is not looked up in a passage.
+    """
+    text_words = normalize(text).split()
+    source_words = set(normalize(source).split())
+    return (
+        content_overlap(text, source) >= _MIN_OVERLAP
+        and _numbers(text) <= _numbers(source)
+        and {w for w in text_words if w in _INTENSIFIERS} <= source_words
+        and _HANDLE.search(text) is None
+    )
+
+
 def normalize(text: str) -> str:
     """Lowercase, rejoin hyphenated line breaks and reduce punctuation to spaces.
 
@@ -97,13 +113,14 @@ def normalize(text: str) -> str:
 
 def content_overlap(text: str, quote: str) -> float:
     """Fraction of the claim's content words that occur in the quote."""
-    words = _content_words(text)
+    words = content_words(text)
     if not words:
         return 0.0
-    return len(words & _content_words(quote)) / len(words)
+    return len(words & content_words(quote)) / len(words)
 
 
-def _content_words(text: str) -> set[str]:
+def content_words(text: str) -> set[str]:
+    """The text's normalized words, without stopwords and single characters."""
     return {
         word
         for word in normalize(text).split()

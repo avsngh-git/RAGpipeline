@@ -21,6 +21,7 @@ from research_platform.llm.contracts import (
 )
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     AnswerOutcome,
     FailureCategory,
@@ -148,7 +149,7 @@ def _runner(
             repository=store,
             tools=tools,
             llm=llm,
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(_SNAPSHOT, _PROFILE),
             thinking=thinking,
             code_revision="test-revision",
@@ -354,11 +355,11 @@ async def test_evaluate_excludes_mismatched_stored_evidence() -> None:
 async def test_duplicate_actions_are_cached() -> None:
     store = RecordingStore()
     run_id = await _create_run(store)
-    search = _call("search_papers", {"query": "retrieval"})
-    evidence = _call("search_evidence", {"query": "retrieval"})
+    # Differs from the run question, so it is not a repeat of a base search.
+    search = _call("search_papers", {"query": "dense retrieval"})
     llm = ScriptedLLM(
         (
-            _plan(search, search, evidence),
+            _plan(search, search),
             _evaluation(sufficient=True),
             *_answer_replies(),
         ),
@@ -367,9 +368,9 @@ async def test_duplicate_actions_are_cached() -> None:
 
     assert await _runner(store, llm).run(run_id) is RunStatus.COMPLETED
     view = await store.get_run_view(run_id)
-    assert view.usage.tool_calls == 2
-    assert len(store.appended) == 3
-    assert store.appended[0][1] != store.appended[1][1]
+    assert view.usage.tool_calls == 3
+    assert len(store.appended) == 4
+    assert store.appended[2][1] != store.appended[3][1]
 
 
 @pytest.mark.anyio
@@ -389,7 +390,11 @@ async def test_citation_depth_rejections_are_observed_not_fatal() -> None:
         await _runner(store, llm, budgets=_budgets(max_citation_depth=0)).run(run_id)
         is RunStatus.COMPLETED
     )
-    assert store.appended[0][2] == "get_citations"
+    assert [name for _, _, name in store.appended] == [
+        "search_papers",
+        "search_evidence",
+        "get_citations",
+    ]
 
 
 @pytest.mark.anyio
@@ -549,7 +554,7 @@ def _ingestion_runner(
             repository=store,
             tools=tools,
             llm=llm,
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=ServingIdentity(_SNAPSHOT, _PROFILE, generation=1),
             thinking=frozenset(),
             code_revision="test-revision",
@@ -699,7 +704,7 @@ async def test_first_plan_adds_discovery_when_configured() -> None:
 
 
 @pytest.mark.anyio
-async def test_full_first_plan_keeps_first_choice_and_adds_discovery() -> None:
+async def test_two_action_first_plan_is_the_whole_question_searches() -> None:
     from research_platform.tools.fakes import FakeDiscoveryService
 
     store = RecordingStore()
@@ -718,7 +723,7 @@ async def test_full_first_plan_keeps_first_choice_and_adds_discovery() -> None:
     assert await runner.run(run_id) is RunStatus.COMPLETED
     assert [name for _, _, name in store.appended] == [
         "search_papers",
-        "discover_papers",
+        "search_evidence",
     ]
 
 

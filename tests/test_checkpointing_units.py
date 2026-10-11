@@ -35,7 +35,7 @@ def test_verified_answer_with_drafts_round_trips_through_checkpoint_serializer(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     from research_platform.agents.answering import VerifiedAnswer
-    from research_platform.runs.checkpointing import _serializer
+    from research_platform.runs.checkpointing import checkpoint_serializer
     from research_platform.runs.contracts import (
         AnswerOutcome,
         ClaimVerdict,
@@ -69,7 +69,7 @@ def test_verified_answer_with_drafts_round_trips_through_checkpoint_serializer(
             drafted=1,
         ),
     )
-    serializer = _serializer()
+    serializer = checkpoint_serializer()
 
     with caplog.at_level(logging.WARNING):
         restored = serializer.loads_typed(serializer.dumps_typed(answer))

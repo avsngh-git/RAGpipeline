@@ -174,11 +174,43 @@ call timeout and a 1,800-second run budget. A view's claims each carry the `quot
 code verified against the cited passage; apply migration 017 (`scripts/migrate.py`) to the
 serving database before running this version.
 
+Changes on 2026-10-08:
+- **Sampling is sent with every call and recorded in `llm_calls.options`:** temperature 1,
+  top_k 20, top_p 0.95 and presence penalty 1.5 (`DEFAULT_LLM_SAMPLING` in `config.py`).
+  - **These are the imported model file's own `PARAMETER` values,** so sampling is unchanged.
+    A live check with a fixed seed gave identical output with and without them.
+  - **Before,** no sampling was sent, so the model file decided it, and runs recorded
+    `temperature: None`.
+  - **Effect on comparisons:** the run configuration hash includes them, so runs from before
+    this change show a configuration difference in `research-eval compare`.
+- **One context length:** the API sends `num_ctx` (`RESEARCH_PLATFORM_LLM_CONTEXT_TOKENS`,
+  default 32,768) with every call, which overrides Ollama's `OLLAMA_CONTEXT_LENGTH`.
+  - **Compose's default is now also 32,768,** so other clients get the same context. It was
+    16,384, which the API silently overrode.
+  - **Memory:** `ollama ps` shows the model at 1.8 GB, 100% on the GPU at this length. The
+    GPU-sharing table above was measured at 16,384 tokens.
+
 One worker executes one run at a time. Runs left queued or running by a process restart
 are resumed at startup from their PostgreSQL records and LangGraph checkpoints. A changed
 effective configuration or exhausted resume budget fails the run with a recorded category.
 The process can remain live when Ollama is unavailable; affected runs finish with a
 `model_unavailable` failure.
+
+LangGraph rebuilds only allow-listed classes from a checkpoint. Any other class is logged
+("Deserializing unregistered type …") and comes back as raw data
+([GHSA-g48c-2wqr-h844](https://github.com/advisories/GHSA-g48c-2wqr-h844)).
+
+Changes on 2026-10-08:
+- **One serializer everywhere.** Every checkpointer uses `checkpoint_serializer()`, with
+  the allow-list in `runs/checkpointing.py`: production's PostgreSQL saver, the scripted
+  regression, security and evaluation suites, and the tests. The scripted suites previously
+  used LangGraph's default serializer, which only warned, so they did not restore
+  checkpoints the way production does.
+- **The allow-list is exactly the 11 types the run state can hold.** 13 types the state
+  never held were removed; git history shows it never stored them.
+- **A test keeps it that way:** `tests/test_checkpoint_allowlist.py` fails if a new state
+  field type is missing from the list. A missing type would otherwise resume as raw data
+  and fail the run later.
 
 The pruning command permanently removes completed or failed runs older than the selected
 age, including their stored run data and LangGraph checkpoints. Review and retain any run

@@ -126,7 +126,7 @@ async def enrich_unresolved_citations(
     requests_before = client.requests_used
     for target in targets:
         try:
-            work = await client.get_work_metadata(target.identifier)
+            work = await client.get_work_metadata(target.identifier, follow_merge=True)
         except OpenAlexNotFound:
             stored = await repository.record_result(
                 target,
@@ -140,12 +140,15 @@ async def enrich_unresolved_citations(
         except OpenAlexRequestError:
             # Earlier successful lookups remain checkpointed; a later invocation resumes.
             raise
-        if work.openalex_id != target.identifier.removeprefix("https://openalex.org/"):
-            raise ValueError("metadata provider returned a different citation endpoint")
+        requested_id = target.identifier.removeprefix("https://openalex.org/")
+        metadata = dict(work.metadata)
+        if work.openalex_id != requested_id:
+            # OpenAlex merged the cited work into this one; keep the cited ID.
+            metadata["merged_from"] = requested_id
         stored = await repository.record_result(
             target,
             "found",
-            dict(work.metadata),
+            metadata,
             client.configuration_id,
             code_revision,
         )

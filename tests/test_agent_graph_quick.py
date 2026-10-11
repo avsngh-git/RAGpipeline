@@ -13,6 +13,7 @@ from research_platform.agents.nodes import NodeDependencies
 from research_platform.agents.state import initial_state
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     UNINGESTED_SIMILARITY_THRESHOLD,
     AnswerOutcome,
@@ -164,7 +165,9 @@ async def _dependencies(
 @pytest.mark.anyio
 async def test_quick_run_records_uningested_candidates() -> None:
     deps, store, similarity, llm = await _dependencies()
-    graph = build_quick_graph(deps).compile(checkpointer=InMemorySaver())
+    graph = build_quick_graph(deps).compile(
+        checkpointer=InMemorySaver(serde=checkpoint_serializer())
+    )
 
     result = await graph.ainvoke(
         initial_state(_QUESTION),
@@ -217,7 +220,9 @@ async def test_uningested_failure_does_not_fail_run(
     deps, store, similarity, llm = await _dependencies(
         store=store, similarity=similarity
     )
-    graph = build_quick_graph(deps).compile(checkpointer=InMemorySaver())
+    graph = build_quick_graph(deps).compile(
+        checkpointer=InMemorySaver(serde=checkpoint_serializer())
+    )
 
     with caplog.at_level("ERROR", logger="research_platform.agents.graph_quick"):
         result = await graph.ainvoke(

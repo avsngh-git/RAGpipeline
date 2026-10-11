@@ -26,6 +26,7 @@ from research_platform.llm.contracts import (
 )
 from research_platform.llm.scripted import ScriptedLLM, ScriptedReply
 from research_platform.llm.types import CallKind, ModelIdentity
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     ResearchMode,
     ResearchRequest,
@@ -158,7 +159,7 @@ class _CancelAtCheckpointSaver(InMemorySaver):
     """Cancel the outer runner immediately after a named node checkpoint."""
 
     def __init__(self, node_name: str) -> None:
-        super().__init__()
+        super().__init__(serde=checkpoint_serializer())
         self.node_name = node_name
         self.target_step = {"execute": 2, "answer": 4}[node_name]
         self.runner_task: asyncio.Task[RunStatus] | None = None
@@ -245,7 +246,7 @@ async def run_case_detailed(case: RegressionCase, corpus: FakeCorpus) -> CaseRun
     saver: InMemorySaver = (
         _CancelAtCheckpointSaver(case.interrupt_after_node)
         if case.interrupt_after_node is not None
-        else InMemorySaver()
+        else InMemorySaver(serde=checkpoint_serializer())
     )
     graphs: dict[ResearchMode, GraphBuilder] = {
         ResearchMode.QUICK: build_quick_graph,
@@ -373,7 +374,10 @@ def _load_case(value: object) -> RegressionCase:
     category = _required_string(value, "category")
     try:
         request = ResearchRequest.model_validate(value.get("request"))
-        budgets = RunBudgets.model_validate(value.get("budgets", {}))
+        # A case scripts one synthesis reply unless its budgets allow more attempts.
+        budgets = RunBudgets.model_validate(
+            {"max_synthesis_attempts": 1, **value.get("budgets", {})}
+        )
     except (TypeError, ValueError) as exc:
         raise ValueError(f"case {case_id} has invalid request or budgets") from exc
     replies_raw = value.get("replies")

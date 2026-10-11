@@ -19,6 +19,15 @@ DEFAULT_LLM_MODEL: Final = "qwen3.5-2b-text:q4_k_m"
 DEFAULT_LLM_TIMEOUT_SECONDS: Final = 1200.0
 DEFAULT_LLM_CONTEXT_TOKENS: Final = 32768
 DEFAULT_LLM_SEED: Final = 20261001
+# Sampling sent with every model call. These are the imported Qwen3.5 model file's own
+# PARAMETER values, sent explicitly so the request, not the model file, decides them
+# and each call records what it used.
+DEFAULT_LLM_SAMPLING: Final = {
+    "temperature": 1.0,
+    "top_k": 20,
+    "top_p": 0.95,
+    "presence_penalty": 1.5,
+}
 _ALLOWED_EVIDENCE_ACCESS_PROFILES: Final = frozenset(
     {"disabled", "trusted_private_local"}
 )

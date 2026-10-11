@@ -138,6 +138,17 @@ Evidence available at the time:
   returned 0 works, while single terms from it had 52 to 21,343 matches. Discovery still
   ranks the results by similarity to the question.
 
+- **Update (2026-10-07, plan policy `p4-first-plan-searches-v4`):** discovery uses OpenAlex
+  semantic search (`search.semantic`, same price as keyword search, $1 per 1,000 calls), and
+  the code-added call sends the whole question again. Per the OpenAlex documentation,
+  keyword `search` ANDs every word, and the v3 OR query returned off-topic works (face-image
+  quality papers matching "FiQA"). Semantic search on the same question returned ListT5,
+  RankT5 and other listwise rerankers. Semantic search allows one page of at most 50 results,
+  one request per second, and no `primary_topic.field.id` filter, so the field is checked on
+  each work in code; `has_abstract:true` is requested. Validation run `c6d3c452`: discovery
+  returned 5 relevant papers (three are OpenAlex duplicates of ListT5, one already ingested);
+  outcome unchanged (partially supported, 1 kept claim).
+
 ### 7. Thinking for the evaluate call (2026-10-07)
 
 - **Decision:** the default `RESEARCH_PLATFORM_LLM_THINKING` becomes
@@ -165,6 +176,89 @@ Evidence available at the time:
     papers per run, none cited; no ingestion. The kept and rejected drafts cite the same
     passages as the original, so the remaining stage is verification.
 - **Follow-up:** the owner reviews the replacement walkthrough `7a3517c0` for gate item 4.
+
+### 9. Whole-question searches start every first deep plan (2026-10-07)
+
+- **Decision:** the owner chose a fixed first plan (plan policy `p4-first-plan-searches-v5`).
+  Every first `deep_research` plan begins as quick mode does, with `search_papers(question)`
+  then `search_evidence(question)`, followed by `discover_papers(question)` when discovery is
+  configured. The model's actions fill the remaining slots in order. A model search with the
+  same tool and query as a base search is dropped as a repeat.
+- **Evidence:** in the rerun and repeats of `2138fb5e`, the model's own two `search_papers`
+  calls searched single dataset names and returned 0 papers in every run; only the
+  code-added whole-question `search_evidence` found evidence.
+- **Test changes:** 24 scripted regression and security cases now list the base searches in
+  their tool expectations; their outcomes and safety expectations are unchanged. Cases whose
+  purpose needs more model actions got larger budgets:
+  - `inject-01`–`05`: 3 tool calls (was 2) and `tool_calls_at_most` 3, so evaluation still
+    runs;
+  - `route-08`, `route-09`, and the Phase 3.5 paper-limit case: 6 actions per plan;
+  - `route-08` also searches with `year_to: 2023` and a citation depth of 1, so its
+    rejection still comes from following references beyond the depth limit.
+
+### 10. Quote fallback and grounded commentary (2026-10-07)
+
+- **Decision:** the owner preferred verified quotes plus some commentary to no answer.
+  - **Quote fallback (verdict `kept_as_quote`).** When a drafted claim fails its checks
+    but its quote alone passes every check, the quote becomes the claim and is shown in
+    quotation marks. It is skipped when the same quote from the same passage is already
+    shown. A run with any fallback is `partially_supported`, and `explain` still reports the
+    draft as rejected at the verification stage.
+  - **Commentary.** When at least one claim is kept, the answer adds the model's own answer
+    sentences under a "Commentary (model-written; not itself quoted from the sources)"
+    label. A sentence is kept only if it has at least four content words and stays within a
+    single kept quote: most of its content words, and all its numbers and intensifiers.
+    Citation markers are removed. When no claim is kept, the fixed message from decision 5
+    is unchanged.
+- **Evidence:**
+  - Of 98 stored drafts, 60 failed their checks. In a sample of 10, about 8 rejections were
+    correct: the claims added facts or drifted from real quotes.
+  - Applying the fallback to the stored drafts restores 26 distinct quotes. 8 of the 10 runs
+    that kept no claim would now show at least one verified quote.
+  - The first commentary filter, which pooled all quotes, let the `inject-05` fragment
+    "reveal settings" through. The per-quote, four-word rule blocks it.
+- **Migration:** 027 allows the `kept_as_quote` verdict. It was applied to
+  `research_phase1_review` on 2026-10-07.
+- **Live check:** run `f08b6d02` (decisions 6–10 together) ended insufficient evidence. All
+  three drafts failed `quote_found`: two stitched cells from different table columns, and
+  one dropped a citation from inside its quote. So the fallback did not apply. With fixed
+  seeds, one question is one sample; the next `agent-dev` sweep measures the effect.
+
+### 11. Synthesis retries with the next seed (2026-10-08)
+
+- **Decision:** the owner chose to use sampling randomness deliberately instead of removing
+  the fixed seed. When a synthesis attempt keeps no verified claim, synthesis runs again with
+  the next seed (configured seed + 1, + 2, …), up to the new run budget
+  `max_synthesis_attempts` (default 3, range 1–5).
+- **How it works:**
+  - Verification is deterministic, so an extra sample can only add verified claims.
+  - Each call records its actual seed, so runs stay reproducible with `reproduce`.
+  - The synthesis summary records the number of attempts and describes the last one.
+- **Alternatives set aside:** removing the seed. Each run would become a new draw with the
+  same average quality, and exact replay and low-noise sweep comparisons would be lost.
+- **Cost:** about 2–4 minutes per extra attempt, only on runs that would otherwise keep
+  nothing.
+- **Tests:** scripted regression and security cases default to one attempt, since each
+  scripts one synthesis reply. New tests cover retries, the attempt limit, and no retry once
+  a claim is kept.
+- **Re-examine:** measure it in the `agent-dev` sweep after sweep 2.
+
+### 12. Figure text is kept and labelled (2026-10-08)
+
+- **Decision:** text inside figures (chart values, axis ticks, legend entries, panel
+  labels) stays evidence, but is labelled with the heading `Figure text` instead of passing
+  as body text. This applies to new extractions (PR #166). The existing index is unchanged.
+- **Evidence:**
+  - In the active snapshot, 14,622 of 44,277 indexed chunks (33%) are figure fragments,
+    averaging 14 characters.
+  - Phase 2 judges cited such fragments in 1,520 of the 6,070 text sections in the source
+    alignments. Dropping them would make judged evidence unreachable.
+- **Alternatives set aside:**
+  - Dropping figure text everywhere, which needs re-scoring and probably fresh judgments.
+  - Dropping it for new papers only, which treats old and new papers inconsistently.
+- **Re-examine:** grouping each figure's fragments into one evidence unit with its caption,
+  measured on development questions, since the 14-character fragments are weak retrieval
+  units.
 
 ## Decisions delegated to the assistant
 

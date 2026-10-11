@@ -30,6 +30,7 @@ from research_platform.ingestion.provenance import code_revision
 from research_platform.llm.contracts import LLMClient
 from research_platform.llm.ollama import OllamaClient, decoding_settings
 from research_platform.llm.types import DecodingSettings
+from research_platform.runs.checkpointing import checkpoint_serializer
 from research_platform.runs.contracts import (
     ResearchFilters,
     ResearchMode,
@@ -197,7 +198,7 @@ async def _run_case(
             repository=store,
             tools=tools,
             llm=llm,
-            checkpointer=InMemorySaver(),
+            checkpointer=InMemorySaver(serde=checkpoint_serializer()),
             serving=serving,
             thinking=settings.llm_thinking,
             decoding=decoding,

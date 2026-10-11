@@ -1,6 +1,7 @@
 """Offline tests for the Ollama model adapter."""
 
 import asyncio
+import dataclasses
 import json
 import logging
 
@@ -404,3 +405,78 @@ def test_log_event_has_no_message_content(caplog) -> None:
     assert private_prompt not in caplog.text
     assert private_reply not in caplog.text
     assert private_thinking not in caplog.text
+
+
+def test_seed_offset_is_added_to_the_configured_seed() -> None:
+    captured: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={"message": {"content": '{"answer":"ok"}'}, "eval_count": 3},
+        )
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            await _adapter(http).generate(dataclasses.replace(_call(), seed_offset=2))
+
+    asyncio.run(exercise())
+
+    assert json.loads(captured[0].read())["options"]["seed"] == 19
+
+
+def test_sampling_options_are_sent_with_every_call() -> None:
+    captured: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={"message": {"content": '{"answer":"ok"}'}, "eval_count": 3},
+        )
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            client = OllamaClient(
+                http,
+                base_url="http://ollama.test/",
+                model="local-model:v1",
+                context_tokens=8192,
+                timeout_seconds=12.5,
+                seed=17,
+                sampling={"temperature": 1.0, "top_k": 20},
+            )
+            await client.generate(_call())
+
+    asyncio.run(exercise())
+
+    options = json.loads(captured[0].read())["options"]
+    assert options == {
+        "num_ctx": 8192,
+        "num_predict": 2048,
+        "seed": 17,
+        "temperature": 1.0,
+        "top_k": 20,
+    }
+
+
+def test_default_sampling_matches_the_model_file() -> None:
+    from research_platform.config import Settings
+    from research_platform.llm.ollama import decoding_settings
+
+    decoding = decoding_settings(
+        Settings(
+            environment="test",
+            database_url="postgresql://test:test@localhost:5432/research_test",
+            qdrant_url="http://localhost:26333",
+        )
+    )
+
+    # PARAMETER values of the imported qwen3.5-2b-text:q4_k_m model file.
+    assert decoding.sampling_options() == {
+        "temperature": 1.0,
+        "top_k": 20,
+        "top_p": 0.95,
+        "presence_penalty": 1.5,
+    }

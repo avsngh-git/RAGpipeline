@@ -33,6 +33,25 @@ or typed inference failure returns the complete unchanged hybrid pool. The model
 512-token pair budget, corpus and acceptance thresholds remain unchanged. The accepted
 Phase 1 collection remains separate.
 
+## API error responses
+
+Every handled error uses one envelope: `{"error": {"code", "message", "request_id"}}`.
+
+Since 2026-10-08, errors raised by FastAPI or Starlette themselves use it too, with the
+exception's own detail text not exposed:
+- `404 not_found`
+- `405 method_not_allowed`, keeping the `Allow` header
+- `413 request_too_large`
+- `400 invalid_request`
+
+Before this, 404 and 405 returned FastAPI's bare `{"detail": …}`.
+
+The 64 KiB body limit returns 413 both when `Content-Length` is too large and when a
+body sent without that header (in chunks) goes over the limit while being read. FastAPI
+0.141.1 turns any exception raised while parsing a model-bound body into
+`400 "There was an error parsing the body"` unless it is an `HTTPException`. So the limit
+raises a 413 `HTTPException`; until 2026-10-08 such bodies got that 400.
+
 ## Small checks
 
 Create the regular project environment and install the package using the steps in the
@@ -162,6 +181,17 @@ Code decides every proposed paper (`online-membership-v1`) and records it in
   `deep_research` run waits at most `max_ingestion_wait_seconds` (900) for its request,
   outside its active-time budget, then switches once to the newly published generation.
 - **OpenAlex key:** discovery and OpenAlex content downloads need `OPENALEX_API_KEY`.
+- **Merged OpenAlex works (changed 2026-10-08):** OpenAlex answers a merged work's old ID
+  with a 301 redirect to the new one. The client turns it into `OpenAlexMoved` (old ID, new
+  ID), where it previously failed with "unexpected redirect".
+  - **Citation enrichment** follows the redirect once and stores the new work's metadata
+    under the cited ID, with `merged_from` set to that ID.
+  - **Curated lookups** (corpus membership metadata and configured older-paper exceptions)
+    stop with a message naming the new ID, since the curated list needs updating.
+- **Cost from headers (changed 2026-10-08):** when a response has no `meta.cost_usd`, the
+  cost comes from `X-RateLimit-Credits-Used`, which counts credits of $0.0001 each. It was
+  previously read as dollars. Searches report `meta.cost_usd`, so the spend ledger was
+  unaffected.
 - **Worker:** a separate process in the host Conda environment, one request at a time:
 
   ```bash
@@ -177,6 +207,21 @@ Code decides every proposed paper (`online-membership-v1`) and records it in
   (`policy:online-ingestion-v1`) and builds, verifies and publishes the next generation.
   Papers without a permitted route stay metadata-only; a paper whose extraction needs a
   manual flagged-table review is refused (`validation:flagged_table_review_pending`).
+- **Figure text (changed 2026-10-08, owner decision):** text inside a picture (axis ticks,
+  legend entries, panel labels, figure OCR) is kept as evidence and labelled with the
+  heading `Figure text` under its section. It does not change the document's heading
+  path, even when Docling labels a large figure label as a section header. Captions keep
+  their `Figure caption` heading.
+  - **Before,** this text became unlabelled body sections.
+  - **Why it is kept:** Phase 2 judges cited it as evidence: 1,520 of the 6,070 text
+    sections in the source alignments are figure fragments, such as chart values.
+  - **Identifying new extractions:** their configuration carries
+    `picture_children: labelled-figure-text`, so they have new configuration and
+    extraction IDs.
+  - **The existing corpus is unchanged.** Its 14,622 figure fragments (33% of indexed
+    chunks, averaging 14 characters) stay indexed without the label, so the Phase 2
+    judgments and scores remain valid. Grouping fragments per figure would be a later,
+    measured change.
 - **Docling** is the repository's pinned `pdf` extra. Install it without changing the CUDA
   PyTorch build: install `torchvision` from the PyTorch index matching the installed
   `torch`, then the `pdf` pins with a constraints file that holds `torch`, `numpy` and
@@ -289,20 +334,68 @@ content, titles, paper IDs, or evidence IDs. Both routes should return HTTP 200,
 `ranked_candidates`, `reranked`, and at least one reranker score. The frozen profile v10
 ID is `sha256:52a152db9fb350c91810353650864eaffef0b3fe148fde9781956373d3fe5449`.
 
+## Model precision (changed 2026-10-08)
+
+- **Embedders load in the precision they declare.** transformers 5 loads the dtype in a
+  model's `config.json` when none is passed.
+  - **For gte-modernbert** that file says `float16`, so the default `fp32` embedder
+    actually ran in fp16 for queries, for generation builds and in the ingestion worker.
+  - **The fix:** the embedder now passes `dtype` explicitly, float32 for `fp32`. An `fp16`
+    embedder loads in float16 directly instead of calling `.half()` after loading. `fp16`
+    still requires CUDA.
+- **Measured effect, on the 21 agent development questions, with the same index:**
+  - fp16 and fp32 query embeddings agree to a cosine of at least 0.9996.
+  - Dense top-10 results are identical for all 21 questions, in the same order for 19.
+  - Top-50 results share 49.95 of 50 on average.
+  - `retrieval-dev` on the v13 development set scored the same before and after
+    (experiments `4e96dba5…` and `a64c8f14…`). Only 2 of its questions had scorable
+    judgments.
+- **The index was not rebuilt.** Stored passage vectors are equally close to fp16 and
+  fp32 encodings (cosine 0.999998), so neither precision can be shown to have built it,
+  and the difference is negligible.
+- **A half-precision reranker refuses CPU.** The active Ettin profile reranks in fp16.
+  When no GPU is available, the reranker now raises `RerankerDeviceUnavailable`, and
+  search returns the unchanged hybrid order, as for other typed reranker failures.
+  Before, it reranked in fp16 on CPU, a numeric path the profile was never measured on.
+
 ## Prepare optional local models
 
 The base Conda environment pins NumPy 2.5.3 for BM25S; the exact Linux lock
 contains NumPy and its BLAS libraries. Ordinary CI omits model weights and the optional
-inference runtime. The `embeddings` extra pins `sentence-transformers==6.1.0` and
-`transformers==5.17.0`. In an operator environment, install PyTorch for the host first,
-then install the project extra and verify its dependencies. In WSL, verify CUDA
-from the same Conda environment used to run the API:
+inference runtime.
+
+The `embeddings` extra pins `torch==2.14.0`, `sentence-transformers==6.1.0` and
+`transformers==5.17.0`. The PyTorch pin was added on 2026-10-08; until then PyTorch was
+pinned nowhere.
+
+In an operator environment, install the pinned PyTorch build for the host first, then
+install the project extra and verify its dependencies. The CUDA 13.0 build used here
+comes from the PyTorch index, and `==2.14.0` also matches its `+cu130` label. In WSL,
+verify CUDA from the same Conda environment used to run the API:
 
 ```bash
+conda run -n sci_research_agent python -m pip install 'torch==2.14.0' \
+  --index-url https://download.pytorch.org/whl/cu130
 conda run -n sci_research_agent python -m pip install '.[embeddings]'
 conda run -n sci_research_agent python -m pip check
 conda run -n sci_research_agent python -c 'import torch; print(torch.cuda.is_available())'
 ```
+
+Each research run records the installed build as `torch_version` in its effective
+configuration, for example `2.14.0+cu130`. PyTorch does not guarantee identical results
+across releases or platforms.
+- **How it is read:** from `torch/version.py`, without importing torch, so the API and
+  `research-runs reproduce` record the same value. The package metadata drops the CUDA
+  label.
+- **Effect on `reproduce`:** runs from before 2026-10-08 lack the field, so it reports
+  `torch_version` as a difference for them.
+
+On 2026-10-08 a stale `torch-2.12.0+cpu.dist-info` folder left by an earlier install was
+moved out of the `sci_research_agent` environment, to `local-reference/env-backup/`.
+- **Why it was moved, not uninstalled:** `pip uninstall` would have deleted files the
+  installed 2.14.0 build shares with it.
+- **Checked afterwards:** `pip check` reported no broken requirements, and torch imported
+  with CUDA available.
 
 The profiles pin E5-small-v2 at revision
 `e8b23a92af33fd81c865283d505f8f058a570cc8` and MiniLM at revision

@@ -1,14 +1,15 @@
 """Budgeted online discovery of recent, English OpenAlex works.
 
-Field filters use OpenAlex's ``primary_topic.field.id`` path. OpenAlex combines
-comma-separated filters with AND and pipe-separated values with OR; see
-https://help.openalex.org/data/fields/ and
+Discovery uses OpenAlex semantic search, which matches a whole question by meaning;
+keyword ``search`` requires every word and finds nothing for most questions. Semantic
+search does not support the ``primary_topic.field.id`` filter, so the field is checked
+here on each work. See https://help.openalex.org/api/semantic-search/ and
 https://help.openalex.org/api/filtering/.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -234,25 +235,17 @@ class OnlineDiscovery:
         if last_year < first_year:
             return ()
 
-        extra_filter = ",".join(
-            (
-                f"publication_year:{first_year}-{last_year}",
-                "primary_topic.field.id:"
-                + "|".join(
-                    field_id.removeprefix("fields/")
-                    for field_id in self.settings.openalex_field_ids
-                ),
-            )
-        )
         search_query = openalex_search_query(query)
         if not search_query:
             return ()
-        works = await self._search_works(
+        works = await self._semantic_works(
             run_id=run_id,
             query=search_query,
-            extra_filter=extra_filter,
-            limit=self.settings.results_per_request,
+            extra_filter=f"publication_year:{first_year}-{last_year},has_abstract:true",
         )
+        works = tuple(work for work in works if self._in_configured_field(work))[
+            : self.settings.results_per_request
+        ]
         if not works:
             return ()
 
@@ -385,20 +378,16 @@ class OnlineDiscovery:
             )
         return tuple(discovered)
 
-    async def _search_works(
+    async def _semantic_works(
         self,
         *,
         run_id: UUID | None,
         query: str,
         extra_filter: str,
-        limit: int,
     ) -> tuple[OpenAlexWork, ...]:
-        reserved_attempts = 0
+        """Run one semantic search; the ledger charges each attempt, retries included."""
 
         async def reserve_request() -> None:
-            nonlocal reserved_attempts
-            if reserved_attempts >= self.settings.max_search_requests_per_run:
-                raise DiscoveryBudgetExceeded("run_search_limit")
             await self.ledger.reserve(
                 run_id=run_id,
                 kind="search_request",
@@ -406,27 +395,22 @@ class OnlineDiscovery:
                 run_limit=self.settings.max_search_requests_per_run,
                 daily_cap_usd=self.settings.daily_spend_cap_usd,
             )
-            reserved_attempts += 1
 
-        cursor = "*"
-        seen: set[str] = set()
-        results: list[OpenAlexWork] = []
-        while True:
-            with self.openalex.request_reservation_scope(reserve_request):
-                page = await self.openalex.search_page(
-                    query, cursor, extra_filter=extra_filter
-                )
-            for work in page.results:
-                if work.openalex_id in seen:
-                    continue
-                seen.add(work.openalex_id)
-                results.append(work)
-                if len(results) >= limit:
-                    break
-            if len(results) >= limit or page.next_cursor is None:
-                break
-            cursor = page.next_cursor
-        return tuple(results)
+        with self.openalex.request_reservation_scope(reserve_request):
+            page = await self.openalex.semantic_search(query, extra_filter=extra_filter)
+        return page.results
+
+    def _in_configured_field(self, work: OpenAlexWork) -> bool:
+        """Keep works whose primary topic is in a configured OpenAlex field."""
+        topic = work.metadata.get("primary_topic")
+        field = topic.get("field") if isinstance(topic, Mapping) else None
+        field_id = field.get("id") if isinstance(field, Mapping) else None
+        if not isinstance(field_id, str):
+            return False
+        return field_id.removeprefix("https://openalex.org/") in {
+            configured if configured.startswith("fields/") else f"fields/{configured}"
+            for configured in self.settings.openalex_field_ids
+        }
 
 
 def _require_text(value: object, name: str) -> None:

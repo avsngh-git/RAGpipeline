@@ -14,22 +14,18 @@ import pytest
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
-from research_platform.api.schemas.search import SearchFiltersModel
 from research_platform.persistence.migrations import apply_migrations
 from research_platform.runs.checkpointing import (
     delete_run_checkpoints,
     open_checkpointer,
     thread_config,
 )
+from research_platform.runs.contracts import SynthesisSummary
 
-try:
-    from research_platform.runs.contracts import RunBudgets as _CheckpointModel
-except ModuleNotFoundError as error:
-    if error.name != "research_platform.runs.contracts":
-        raise
-    _CHECKPOINT_MODEL: BaseModel = SearchFiltersModel(year_from=2022)
-else:
-    _CHECKPOINT_MODEL = _CheckpointModel(max_tool_calls=3)
+# A model the research state really stores, so it is on the checkpoint allow-list.
+_CHECKPOINT_MODEL: BaseModel = SynthesisSummary(
+    model_declared_insufficient=False, drafted=2, attempts=1
+)
 
 TEST_DATABASE_URL = os.environ.get("RESEARCH_PLATFORM_TEST_DATABASE_URL")
 

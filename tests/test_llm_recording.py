@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from uuid import UUID
 
 import pytest
@@ -164,3 +165,39 @@ async def test_decoding_options_recorded() -> None:
     assert options["seed"] == 7
     assert options["num_ctx"] == 4096
     assert options["temperature"] is None
+
+
+@pytest.mark.anyio
+async def test_sampling_options_are_recorded() -> None:
+    store, run_id, client = await _setup(
+        (ScriptedReply(kind=CallKind.SYNTHESIZE, content='{"value": "ok"}'),),
+        decoding=DecodingSettings(
+            seed=7,
+            context_tokens=4096,
+            timeout_seconds=30,
+            temperature=1.0,
+            top_k=20,
+            top_p=0.95,
+            presence_penalty=1.5,
+        ),
+    )
+
+    await client.generate(_structured())
+
+    options = (await store.list_llm_calls(run_id))[0].record.options
+    assert (options["temperature"], options["top_k"]) == (1.0, 20)
+    assert (options["top_p"], options["presence_penalty"]) == (0.95, 1.5)
+
+
+@pytest.mark.anyio
+async def test_recorded_seed_includes_the_call_seed_offset() -> None:
+    store, run_id, client = await _setup(
+        (ScriptedReply(kind=CallKind.SYNTHESIZE, content='{"value": "ok"}'),),
+        decoding=DecodingSettings(seed=7, context_tokens=4096, timeout_seconds=30),
+    )
+
+    await client.generate(dataclasses.replace(_structured(), seed_offset=2))
+
+    options = (await store.list_llm_calls(run_id))[0].record.options
+    assert options["seed"] == 9
+    assert options["seed_offset"] == 2

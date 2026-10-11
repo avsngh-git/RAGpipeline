@@ -165,7 +165,7 @@ class PinnedSentenceTransformersReranker:
                 device=device,
                 max_length=self.identity.maximum_input_tokens,
                 model_kwargs={
-                    "torch_dtype": getattr(
+                    "dtype": getattr(
                         torch,
                         {"fp32": "float32", "fp16": "float16", "bf16": "bfloat16"}[
                             self.identity.precision
@@ -185,11 +185,19 @@ class PinnedSentenceTransformersReranker:
             raise RerankerDeviceUnavailable(
                 "CUDA was requested but is unavailable in this runtime"
             )
-        return (
+        device = (
             "cuda"
             if self.device == "auto" and cuda_available
             else ("cpu" if self.device == "auto" else self.device)
         )
+        if device == "cpu" and self.identity.precision != "fp32":
+            # Half precision is a GPU speed setting; the frozen profile was measured
+            # on CUDA. Refusing here lets search fall back to the unchanged hybrid
+            # order instead of reranking with a different numeric path.
+            raise RerankerDeviceUnavailable(
+                f"{self.identity.precision} reranking requires CUDA"
+            )
+        return device
 
 
 def validate_supported_reranker_identity(identity: RerankerIdentity) -> None:

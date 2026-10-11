@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from datetime import timedelta
 from time import perf_counter
@@ -18,6 +17,7 @@ from research_platform.agents.actions import (
     DiscoverPapersAction,
     RequestIngestionAction,
     SearchEvidenceAction,
+    SearchPapersAction,
     SufficiencyDecision,
 )
 from research_platform.agents.evidence import pack_evidence
@@ -94,34 +94,8 @@ def default_actions(question: str, filters: ResearchFilters) -> tuple[Action, ..
     )
 
 
-PLAN_POLICY: Final = "p4-first-plan-searches-v3"
+PLAN_POLICY: Final = "p4-first-plan-searches-v5"
 _DISCOVERY_MIN_YEAR: Final = 2020
-_DISCOVERY_QUERY_CHARS: Final = 300
-_QUERY_STOP_WORDS: Final = frozenset(
-    "a about an and are as at be between by can compare compared could did do does for "
-    "from how in into is it its of on or than that the their these this those to "
-    "use used using versus vs was were what when where which who why with would".split()
-)
-
-
-def discovery_query(question: str) -> str:
-    """Join the question's content words with OR, within the discovery query limit.
-
-    OpenAlex ``search`` requires every word to match, so a whole question usually
-    finds nothing. Discovery ranks the OR matches by similarity to the question.
-    """
-    words = dict.fromkeys(
-        word
-        for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", question)
-        if word.lower() not in _QUERY_STOP_WORDS
-    )
-    query = ""
-    for word in words:
-        candidate = f"{query} OR {word}" if query else word
-        if len(candidate) > _DISCOVERY_QUERY_CHARS:
-            break
-        query = candidate
-    return query or question[:_DISCOVERY_QUERY_CHARS]
 
 
 def ensure_first_plan_searches(
@@ -132,36 +106,36 @@ def ensure_first_plan_searches(
     max_actions: int,
     discovery: bool,
 ) -> tuple[Action, ...]:
-    """Add search_evidence, and discover_papers when configured, to the first plan.
+    """Start the first plan with whole-question searches, then the model's actions.
 
-    The 2B planner rarely chooses either tool on its own (backlog #115), so code adds
-    each one the plan lacks: search_evidence(question) always, and
-    discover_papers(discovery_query(question)) when discovery is configured and the
-    year filter does not end before discovery's 2020 floor. The model's first action
-    is always kept;
-    when the plan is full, its last actions make room. When only two actions are
-    allowed, search_evidence comes before discovery. Nothing is added when fewer than
-    two actions are allowed.
+    The 2B planner rarely chooses search_evidence or discovery, and often searches
+    for a single term that finds nothing (backlog #115). So the first plan always
+    begins as quick mode does, with search_papers(question) then
+    search_evidence(question), followed by discover_papers(question) when discovery is
+    configured and the year filter does not end before discovery's 2020 floor.
+    Discovery searches OpenAlex by meaning, so the whole question is the query. The
+    model's actions fill the remaining slots in order; a model search with the same
+    tool and query as a base search is dropped as a repeat.
     """
-    planned = tuple(actions)
-    if max_actions < 2 or not planned:
-        return planned
-    required: list[Action] = []
-    if not any(isinstance(action, SearchEvidenceAction) for action in planned):
-        required.append(
-            SearchEvidenceAction(
-                tool="search_evidence",
-                query=question[:500],
-                paper_ids=(),
-                year_from=None,
-                year_to=None,
-                limit=20,
-            )
-        )
-    if (
-        discovery
-        and not any(isinstance(action, DiscoverPapersAction) for action in planned)
-        and (filters.year_to is None or filters.year_to >= _DISCOVERY_MIN_YEAR)
+    base: list[Action] = [
+        SearchPapersAction(
+            tool="search_papers",
+            query=question[:500],
+            year_from=filters.year_from,
+            year_to=filters.year_to,
+            limit=10,
+        ),
+        SearchEvidenceAction(
+            tool="search_evidence",
+            query=question[:500],
+            paper_ids=(),
+            year_from=None,
+            year_to=None,
+            limit=20,
+        ),
+    ]
+    if discovery and (
+        filters.year_to is None or filters.year_to >= _DISCOVERY_MIN_YEAR
     ):
         year_from = (
             filters.year_from
@@ -169,17 +143,30 @@ def ensure_first_plan_searches(
             and filters.year_from >= _DISCOVERY_MIN_YEAR
             else None
         )
-        required.append(
+        base.append(
             DiscoverPapersAction(
                 tool="discover_papers",
-                query=discovery_query(question),
+                query=question[:300],
                 year_from=year_from,
                 year_to=filters.year_to,
                 limit=5,
             )
         )
-    kept = planned[: max(1, max_actions - len(required))]
-    return (*kept, *required[: max_actions - len(kept)])
+    base_searches = {(action.tool, _search_query(action)) for action in base}
+    extra = [
+        action
+        for action in actions
+        if (action.tool, _search_query(action)) not in base_searches
+    ]
+    return tuple([*base, *extra][: max(0, max_actions)])
+
+
+def _search_query(action: Action) -> str | None:
+    if isinstance(
+        action, (SearchPapersAction, SearchEvidenceAction, DiscoverPapersAction)
+    ):
+        return action.query
+    return None
 
 
 def build_deep_graph(

@@ -87,6 +87,9 @@ class DoclingPdfConfig:
             ),
             "remote_services_enabled": False,
             "figure_interpretation": "caption-only; source PDF retained",
+            # Added 2026-10-08. Extractions without this field emitted text inside
+            # pictures as unlabelled body sections.
+            "picture_children": "labelled-figure-text",
         }
 
     @property
@@ -174,13 +177,20 @@ class DoclingPdfExtractor:
         heading_path: tuple[str, ...] = ()
         current_heading_section: int | None = None
 
-        for item, _tree_depth in document.iterate_items(
+        # Text inside a picture (axis ticks, legends, panel labels, figure OCR) is
+        # kept as evidence but labelled "Figure text": Docling yields a picture's
+        # descendants right after it at a greater tree depth.
+        picture_depth: int | None = None
+        for item, tree_depth in document.iterate_items(
             with_groups=True, traverse_pictures=True
         ):
+            if picture_depth is not None and tree_depth <= picture_depth:
+                picture_depth = None
+            inside_picture = picture_depth is not None
             label = _label(item)
             if label in {"page_header", "page_footer"}:
                 continue
-            if label == "section_header":
+            if label == "section_header" and not inside_picture:
                 heading_path = _updated_heading_path(heading_path, item)
                 text = _text(item)
                 if text:
@@ -205,6 +215,8 @@ class DoclingPdfExtractor:
                 )
                 continue
             if label in {"picture", "figure"}:
+                if picture_depth is None:
+                    picture_depth = tree_depth
                 caption = _caption_text(item, document)
                 if caption:
                     sections.append(
@@ -224,7 +236,9 @@ class DoclingPdfExtractor:
             text = _text(item)
             if text:
                 item_heading_path = heading_path
-                if label in {"formula", "equation"}:
+                if inside_picture:
+                    item_heading_path += ("Figure text",)
+                elif label in {"formula", "equation"}:
                     item_heading_path += ("Equation",)
                 sections.append(
                     ExtractedSection(

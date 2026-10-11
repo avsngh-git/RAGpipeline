@@ -18,6 +18,15 @@ from research_platform.ingestion.config import DiscoveryConfig
 
 OPENALEX_API_BASE = "https://api.openalex.org"
 _OPENALEX_ID_PATTERN = re.compile(r"^W[0-9]+$")
+_MOVED_WORK_LOCATION = re.compile(
+    r"^(?:https://api\.openalex\.org/works/|https://openalex\.org/|/works/)(W[0-9]+)(?:[?#].*)?$"
+)
+# The X-RateLimit-Credits-Used header counts credits; one credit is $0.0001
+# (https://help.openalex.org/access/example-costs/).
+_USD_PER_CREDIT = 0.0001
+# OpenAlex semantic search limits: one page of at most 50 results, 2,000 input chars.
+SEMANTIC_MAX_RESULTS = 50
+SEMANTIC_MAX_QUERY_CHARS = 2000
 _SELECT_FIELDS = ",".join(
     (
         "id",
@@ -45,6 +54,19 @@ class OpenAlexRequestError(RuntimeError):
 
 class OpenAlexNotFound(OpenAlexRequestError):
     """OpenAlex has no work record for a requested identifier."""
+
+
+class OpenAlexMoved(OpenAlexRequestError):
+    """OpenAlex merged the requested work into another; ``new_id`` is the target.
+
+    OpenAlex answers an old ID of merged works with a 301 redirect to the new one
+    (https://help.openalex.org/api/get-single-entities/).
+    """
+
+    def __init__(self, old_id: str, new_id: str) -> None:
+        super().__init__(f"OpenAlex work {old_id} was merged into {new_id}")
+        self.old_id = old_id
+        self.new_id = new_id
 
 
 class OpenAlexResponseError(ValueError):
@@ -240,14 +262,28 @@ class OpenAlexClient:
         finally:
             self._scoped_reservation.reset(token)
 
-    async def get_work_metadata(self, openalex_id: str) -> OpenAlexWork:
-        """Fetch one work by ID for bounded unresolved-citation enrichment."""
+    async def get_work_metadata(
+        self, openalex_id: str, *, follow_merge: bool = False
+    ) -> OpenAlexWork:
+        """Fetch one work by ID for bounded unresolved-citation enrichment.
+
+        A merged work raises ``OpenAlexMoved`` unless ``follow_merge`` is set; then the
+        new ID is fetched once and that work is returned.
+        """
         normalized_id = openalex_id.removeprefix("https://openalex.org/")
         if not _OPENALEX_ID_PATTERN.fullmatch(normalized_id):
             raise ValueError("OpenAlex work IDs must look like W123")
-        payload, _response = await self._get_json(
-            f"/works/{normalized_id}", {"select": _SELECT_FIELDS}
-        )
+        try:
+            payload, _response = await self._get_json(
+                f"/works/{normalized_id}", {"select": _SELECT_FIELDS}
+            )
+        except OpenAlexMoved as moved:
+            if not follow_merge:
+                raise
+            normalized_id = moved.new_id
+            payload, _response = await self._get_json(
+                f"/works/{normalized_id}", {"select": _SELECT_FIELDS}
+            )
         work = OpenAlexWork.from_payload(payload)
         if work.openalex_id != normalized_id:
             raise OpenAlexResponseError("OpenAlex returned a different work ID")
@@ -289,6 +325,39 @@ class OpenAlexClient:
         payload, response = await self._get_json("/works", params)
         return self._parse_page(payload, response)
 
+    async def semantic_search(
+        self, query: str, *, extra_filter: str | None = None
+    ) -> OpenAlexPage:
+        """Fetch the Works whose title and abstract are closest in meaning to a query.
+
+        Unlike ``search``, which requires every word to match, ``search.semantic``
+        compares embeddings, so a whole question can be the query. It returns one page
+        of at most 50 results, has no cursor paging, allows one request per second,
+        and does not support the ``primary_topic.field.id`` filter; the caller checks
+        the field. See https://help.openalex.org/api/semantic-search/.
+        """
+        if not query.strip():
+            raise ValueError("semantic search needs a non-empty query")
+        year_range = self._config.year_range
+        filters = [
+            (
+                f"publication_year:{year_range.start_year}-{year_range.end_year},"
+                f"language:{self._config.language}"
+            )
+        ]
+        if extra_filter is not None:
+            if not isinstance(extra_filter, str) or not extra_filter.strip():
+                raise ValueError("extra_filter must be non-empty text when provided")
+            filters.append(extra_filter.strip())
+        params = {
+            "search.semantic": query[:SEMANTIC_MAX_QUERY_CHARS],
+            "filter": ",".join(filters),
+            "per_page": str(min(self._config.limits.per_page, SEMANTIC_MAX_RESULTS)),
+            "select": f"{_SELECT_FIELDS},primary_topic",
+        }
+        payload, response = await self._get_json("/works", params)
+        return self._parse_page(payload, response)
+
     async def get_older_exception(
         self, openalex_id: str, query_index: int
     ) -> DiscoveryPage:
@@ -305,11 +374,7 @@ class OpenAlexClient:
             "lookup": "explicit_older_paper_exception",
             "openalex_id": normalized_id,
         }
-        cost_value = response.headers.get("X-RateLimit-Credits-Used", "0")
-        try:
-            api_cost = float(cost_value)
-        except ValueError:
-            api_cost = 0.0
+        api_cost = _header_cost_usd(response)
         return DiscoveryPage(
             query_index=query_index,
             query=f"older_exception:{normalized_id}",
@@ -415,6 +480,9 @@ class OpenAlexClient:
                     "OpenAlex has no work record for this identifier"
                 )
             if 300 <= response.status_code < 400:
+                moved = _moved_work(path, response)
+                if moved is not None:
+                    raise moved
                 raise OpenAlexRequestError("OpenAlex returned an unexpected redirect")
             if response.is_error:
                 raise OpenAlexRequestError(
@@ -478,15 +546,16 @@ class OpenAlexClient:
             raise OpenAlexResponseError("OpenAlex result count must be an integer")
         cost_value = meta.get("cost_usd")
         if cost_value is None:
-            cost_value = response.headers.get("X-RateLimit-Credits-Used", "0")
-        if isinstance(cost_value, bool) or not isinstance(
-            cost_value, (int, float, str)
-        ):
-            cost_value = 0.0
-        try:
-            api_cost = float(cost_value)
-        except ValueError:
-            api_cost = 0.0
+            api_cost = _header_cost_usd(response)
+        else:
+            if isinstance(cost_value, bool) or not isinstance(
+                cost_value, (int, float, str)
+            ):
+                cost_value = 0.0
+            try:
+                api_cost = float(cost_value)
+            except ValueError:
+                api_cost = 0.0
 
         works: list[OpenAlexWork] = []
         for result in results_value:
@@ -500,3 +569,22 @@ class OpenAlexClient:
             api_cost_usd=api_cost,
             source_metadata=cast(Mapping[str, object], dict(meta)),
         )
+
+
+def _moved_work(path: str, response: httpx.Response) -> OpenAlexMoved | None:
+    """The merge a work lookup's permanent redirect reports, if it is one."""
+    if response.status_code not in {301, 308} or not path.startswith("/works/W"):
+        return None
+    match = _MOVED_WORK_LOCATION.match(response.headers.get("location", ""))
+    if match is None:
+        return None
+    return OpenAlexMoved(path.removeprefix("/works/"), match.group(1))
+
+
+def _header_cost_usd(response: httpx.Response) -> float:
+    """Dollar cost from the X-RateLimit-Credits-Used header, which counts credits."""
+    try:
+        credits = float(response.headers.get("X-RateLimit-Credits-Used", "0"))
+    except ValueError:
+        return 0.0
+    return credits * _USD_PER_CREDIT

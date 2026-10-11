@@ -42,6 +42,17 @@ content is controlled by RESEARCH_PLATFORM_TRACE_CONTENT:
 - ids records identifiers and scores;
 - full includes content permitted by the local trace policy.
 
+Errors follow the same levels (changed 2026-10-08):
+- **Below full,** a failed span records only an ERROR status, with no description, and
+  `error.type` (the exception class).
+- **At full,** it also records the message as `research.error.message`.
+- **Exception events are never recorded.** OpenTelemetry records them by default, with the
+  full message and stack trace. A message can hold prompt, model-output or passage text,
+  such as a pydantic error's `input_value`, so before this change that text reached the
+  JSONL files and Langfuse at every level.
+
+`get_tracer()` returns a `PrivateTracer` that applies this rule to every span.
+
 ## Prometheus queries
 
 Request rate by route:

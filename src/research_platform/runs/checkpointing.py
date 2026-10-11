@@ -16,34 +16,27 @@ from psycopg_pool import AsyncConnectionPool
 
 CHECKPOINT_SCHEMA: Final = "langgraph"
 
+# Exactly the pydantic models and enums reachable from ResearchState
+# (tests/test_checkpoint_allowlist.py checks this). LangGraph's msgpack serializer
+# rebuilds only allow-listed types; any other type is logged and returned as raw data
+# (CVE-2026-28277, GHSA-g48c-2wqr-h844).
 _CHECKPOINT_TYPES: Final = (
     ("research_platform.agents.answering", "VerifiedAnswer"),
+    ("research_platform.agents.evidence", "EvidenceRef"),
     ("research_platform.agents.evidence", "EvidenceRegistry"),
-    ("research_platform.api.schemas.search", "SearchFiltersModel"),
-    ("research_platform.llm.types", "CallKind"),
-    ("research_platform.llm.types", "ModelIdentity"),
     ("research_platform.runs.contracts", "AnswerOutcome"),
     ("research_platform.runs.contracts", "ClaimResult"),
     ("research_platform.runs.contracts", "ClaimVerdict"),
     ("research_platform.runs.contracts", "DraftClaimOutcome"),
     ("research_platform.runs.contracts", "EvidenceCitation"),
-    ("research_platform.runs.contracts", "FailureCategory"),
-    ("research_platform.runs.contracts", "PaperSummary"),
-    ("research_platform.runs.contracts", "ResearchFilters"),
-    ("research_platform.runs.contracts", "ResearchMode"),
-    ("research_platform.runs.contracts", "ResearchRequest"),
-    ("research_platform.runs.contracts", "ResearchRunView"),
-    ("research_platform.runs.contracts", "RunBudgets"),
-    ("research_platform.runs.contracts", "RunProvenance"),
-    ("research_platform.runs.contracts", "RunStatus"),
-    ("research_platform.runs.contracts", "RunUsage"),
     ("research_platform.runs.contracts", "SupportLabel"),
     ("research_platform.runs.contracts", "SynthesisSummary"),
     ("research_platform.tools.research_tools", "ToolLedger"),
 )
 
 
-def _serializer() -> JsonPlusSerializer:
+def checkpoint_serializer() -> JsonPlusSerializer:
+    """The serializer every checkpointer uses, production and scripted alike."""
     return JsonPlusSerializer(allowed_msgpack_modules=_CHECKPOINT_TYPES)
 
 
@@ -67,7 +60,7 @@ async def open_checkpointer(
         open=False,
     )
     async with pool:
-        yield AsyncPostgresSaver(pool, serde=_serializer())
+        yield AsyncPostgresSaver(pool, serde=checkpoint_serializer())
 
 
 async def setup_checkpoints(database_url: str) -> None:

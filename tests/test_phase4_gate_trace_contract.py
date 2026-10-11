@@ -85,9 +85,16 @@ def _scripted_case() -> tuple[RegressionCase, FakeCorpus]:
     cases = load_cases(CASES_PATH)
     corpus = load_corpus(CASES_PATH)
     case = next(item for item in cases if item.case_id == "route-01-search-path")
+    # With the marker question, the scripted searches are not repeats of the first
+    # plan's whole-question searches, so all four run.
     case = dataclasses.replace(
         case,
         request=case.request.model_copy(update={"question": QUESTION_MARKER}),
+        expect={
+            **case.expect,
+            "tools": ["search_papers", "search_evidence"] * 2,
+            "tool_statuses": {"succeeded": 4, "cached": 0, "rejected": 0},
+        },
     )
     return case, corpus
 

@@ -8,9 +8,12 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from research_platform.api import create_app
 from research_platform.api.body_limit import BodySizeLimitMiddleware
+from research_platform.api.errors import handle_http_error
 from research_platform.api.rate_limits import (
     DEFAULT_LIMITS,
     Limit,
@@ -161,6 +164,51 @@ def test_body_over_limit_streamed_is_413() -> None:
 
     response = asyncio.run(_call(_body_app(), "POST", "/body", content=chunks()))
     assert response.status_code == 413
+
+
+class _Payload(BaseModel):
+    text: str
+
+
+def _model_body_app(max_bytes: int = 65536) -> FastAPI:
+    """A route whose body FastAPI parses into a model, as the real routes do."""
+    app = FastAPI()
+    app.add_exception_handler(StarletteHTTPException, handle_http_error)
+
+    @app.post("/model")
+    async def model(payload: _Payload) -> dict[str, int]:
+        return {"length": len(payload.text)}
+
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=max_bytes)
+    return app
+
+
+def test_streamed_body_over_limit_on_a_model_route_is_413() -> None:
+    async def chunks() -> AsyncIterator[bytes]:
+        yield b'{"text": "' + b"x" * 40000
+        yield b"x" * 40000 + b'"}'
+
+    response = asyncio.run(_call(_model_body_app(), "POST", "/model", content=chunks()))
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "request_too_large"
+
+
+def test_unknown_route_uses_the_error_envelope() -> None:
+    response = asyncio.run(_call(create_app(settings=_settings()), "GET", "/nope"))
+
+    assert response.status_code == 404
+    error = response.json()["error"]
+    assert error["code"] == "not_found"
+    assert "request_id" in error
+
+
+def test_wrong_method_uses_the_error_envelope_and_keeps_allow() -> None:
+    response = asyncio.run(_call(create_app(settings=_settings()), "DELETE", "/health"))
+
+    assert response.status_code == 405
+    assert response.json()["error"]["code"] == "method_not_allowed"
+    assert response.headers["allow"] == "GET"
 
 
 def test_small_body_passes() -> None:
