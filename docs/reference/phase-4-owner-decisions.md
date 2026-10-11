@@ -260,14 +260,17 @@ Evidence available at the time:
   measured on development questions, since the 14-character fragments are weak retrieval
   units.
 
-## Pending owner decisions (2026-10-11)
+### 13. Gate item 4 walkthrough accepted (2026-10-11)
 
-- **Gate item 4:** review the replacement walkthrough `7a3517c0`
-  (`local-reference/phase4/walkthroughs/7a3517c0-592f-45eb-aa25-e5243483793f.md`).
-- **Phase 4 acceptance** (P4-36).
-- **Claim scope words** (proposed ADR-0029, local branch `quality/reasoning-prompts`): accept
-  or reject the stricter claim check and the record of two prompt trials that were not
-  adopted.
+- **Decision:** the owner accepted walkthrough `7a3517c0`, the rerun of the rejected
+  `2138fb5e`, as the reviewed gate-item-4 walkthrough.
+- **Evidence:** the rerun answered with 2 kept claims; the code-added whole-question
+  `search_evidence` supplied all 16 passages. Five repeats on plan policy v3 were each
+  partially supported with 1 kept claim, leaving verification as the stage. Re-verified on
+  2026-10-11: `explain` gives the same stages on `main` `9dc287f`, and `reproduce` exits 0
+  at each run's recorded commit.
+- **Re-examine:** quote copying from numeric table passages, which still fails 2 of 3
+  drafts in the repeats.
 
 ## Decisions delegated to the assistant
 

@@ -1,8 +1,8 @@
 # Phase 4 gate report
 
-**Status:** prepared 2026-10-07, re-verified 2026-10-11. Items 1, 2, 3 and 5 pass in CI.
-Gate item 4: the owner rejected walkthrough `2138fb5e` and asked for a rerun under the new
-decisions; the replacement walkthrough `7a3517c0` awaits the owner's review.
+**Status:** all five gate items pass. Prepared 2026-10-07, re-verified 2026-10-11. Items 1,
+2, 3 and 5 pass in CI. For item 4 the owner rejected walkthrough `2138fb5e` and accepted its
+rerun `7a3517c0` on 2026-10-11 (owner decision 13).
 
 This report records the five items from ADR-0028. The live development walkthroughs and
 their supporting traces remain private under `local-reference/phase4/walkthroughs/` and
@@ -17,7 +17,7 @@ is reproduced here.
    passed in [batch CI run 37598135293](https://github.com/avsngh-git/RAGpipeline/actions/runs/37598135293).
 3. **`research-runs reproduce` — passed in CI.** P4-19's configuration hash and scripted
    rerun checks passed in [batch CI run 37598135293](https://github.com/avsngh-git/RAGpipeline/actions/runs/37598135293).
-4. **Five live development walkthroughs — owner review pending.** The five runs below span
+4. **Five live development walkthroughs — passed; owner accepted `7a3517c0` on 2026-10-11.** The five runs below span
    three diagnosis stages. All five `research-runs reproduce` invocations exited 0, with
    matching hashes, rebuilt configurations, and no differences.
    - **Rejected (2026-10-07, owner decision 8):** the owner rejected walkthrough
@@ -29,8 +29,8 @@ is reproduced here.
      discovery-query fix (PR #151) and five repeats on policy v3: all partially supported
      with 1 kept claim, remaining stage verification. `reproduce` from the run's commit
      `e7cefcb` exited 0 with no differences.
-   - The owner reviews the replacement and records the judgement in
-     `phase-4-owner-decisions.md` before this item is marked passed.
+   - **Accepted (2026-10-11, owner decision 13):** the owner accepted the replacement
+     walkthrough `7a3517c0`.
 
    | Run | Mode / outcome | Stage | Trace finding |
    | --- | --- | --- | --- |
