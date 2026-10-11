@@ -260,6 +260,18 @@ Evidence available at the time:
   measured on development questions, since the 14-character fragments are weak retrieval
   units.
 
+### 13. Gate item 4 walkthrough accepted (2026-10-11)
+
+- **Decision:** the owner accepted walkthrough `7a3517c0`, the rerun of the rejected
+  `2138fb5e`, as the reviewed gate-item-4 walkthrough.
+- **Evidence:** the rerun answered with 2 kept claims; the code-added whole-question
+  `search_evidence` supplied all 16 passages. Five repeats on plan policy v3 were each
+  partially supported with 1 kept claim, leaving verification as the stage. Re-verified on
+  2026-10-11: `explain` gives the same stages on `main` `9dc287f`, and `reproduce` exits 0
+  at each run's recorded commit.
+- **Re-examine:** quote copying from numeric table passages, which still fails 2 of 3
+  drafts in the repeats.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
