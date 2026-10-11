@@ -260,6 +260,15 @@ Evidence available at the time:
   measured on development questions, since the 14-character fragments are weak retrieval
   units.
 
+## Pending owner decisions (2026-10-11)
+
+- **Gate item 4:** review the replacement walkthrough `7a3517c0`
+  (`local-reference/phase4/walkthroughs/7a3517c0-592f-45eb-aa25-e5243483793f.md`).
+- **Phase 4 acceptance** (P4-36).
+- **Claim scope words** (proposed ADR-0029, local branch `quality/reasoning-prompts`): accept
+  or reject the stricter claim check and the record of two prompt trials that were not
+  adopted.
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
@@ -276,3 +285,10 @@ Evidence available at the time:
   P4-10; P4-19 on P4-13; P4-26 on P4-09; P4-28 on P4-27 and P4-09; P4-34 on P4-37.
 - **`retrieval-dev`** takes the retrieval profile ID as a required option, because the
   search contract requires it explicitly.
+- **Reproduction at the recorded commit (2026-10-11):** gate item 4 is re-verified by
+  running `reproduce` at each run's `git_checkout`. With current code the stored hashes
+  still match, but the rebuild adds settings introduced after the runs; migrating older
+  configurations stays on #115.
+- **Operations guides (2026-10-11):** P4-36 asked for key, authentication and
+  `research-eval` documentation; none existed, so `docs/operations/authentication.md` and
+  `docs/operations/evaluation.md` were written from the code.

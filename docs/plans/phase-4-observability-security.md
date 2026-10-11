@@ -1,6 +1,6 @@
 # Phase 4 — Observability, LLMOps and security
 
-Status: planned on 2026-10-06; ADRs accepted by the owner on 2026-10-06. The decisions are in
+Status: implementation complete on 2026-10-11; awaiting the owner's gate-4 review and acceptance. Planned and ADRs accepted by the owner on 2026-10-06. The decisions are in
 three ADRs:
 
 - [ADR-0026](../adr/0026-phase4-observability-and-run-records.md): tracing, content levels,
