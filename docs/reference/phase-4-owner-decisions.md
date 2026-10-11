@@ -272,6 +272,32 @@ Evidence available at the time:
 - **Re-examine:** quote copying from numeric table passages, which still fails 2 of 3
   drafts in the repeats.
 
+### 14. Phase 4 accepted (2026-10-11, P4-36)
+
+- **Decision:** the owner accepted Phase 4 and asked for all of its work to be merged.
+- **Evidence:** the [gate report](phase-4-gate-report.md): items 1, 2, 3 and 5 pass in CI
+  (hosted CI on `main` `9dc287f` green with both Trivy scans), and item 4 passed with
+  decision 13. `research-eval list` and a `research-maintenance retention` dry run work
+  against `research_phase1_review`.
+- **Carried forward:** the Phase 5 inputs in section 21 of the source of truth.
+
+### 15. Claim scope words; prompt trials not adopted (2026-10-11, ADR-0029)
+
+- **Decision:** the owner accepted
+  [ADR-0029](../adr/0029-claim-scope-words-and-prompt-trials.md). A claim may use "both",
+  "all", "best", "highest", "lowest", "worst", "largest" or "smallest" only if its quote
+  does. The prompts stay unchanged.
+- **Evidence:** a review of 218 stored thinking traces found abstention on partly
+  answerable questions (57 of 131 synthesis calls) and thinking spent on an invisible output
+  schema. Replays on the 21 development questions: a broad prompt kept 33 claims (old 28)
+  but about 73% were supported and relevant (old about 86%); a format-only prompt kept 20;
+  neither reduced abstention. The new words reject 2 of 59 passing historical drafts, one a
+  true error and one a paraphrase that quote fallback keeps.
+- **Alternatives set aside:** adopting either prompt; claims with several quotes; a
+  separate per-passage relevance call.
+- **Re-examine:** abstention, with a paired multi-seed measurement (about 126 synthesis
+  calls).
+
 ## Decisions delegated to the assistant
 
 - **`security-live` uses fake retrieval** (ADR-0028 decision 6): the synthetic adversarial
@@ -288,3 +314,10 @@ Evidence available at the time:
   P4-10; P4-19 on P4-13; P4-26 on P4-09; P4-28 on P4-27 and P4-09; P4-34 on P4-37.
 - **`retrieval-dev`** takes the retrieval profile ID as a required option, because the
   search contract requires it explicitly.
+- **Reproduction at the recorded commit (2026-10-11):** gate item 4 is re-verified by
+  running `reproduce` at each run's `git_checkout`. With current code the stored hashes
+  still match, but the rebuild adds settings introduced after the runs; migrating older
+  configurations stays on #115.
+- **Operations guides (2026-10-11):** P4-36 asked for key, authentication and
+  `research-eval` documentation; none existed, so `docs/operations/authentication.md` and
+  `docs/operations/evaluation.md` were written from the code.

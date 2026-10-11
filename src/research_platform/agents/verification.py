@@ -18,10 +18,12 @@ _STOPWORDS = frozenset(
     "has have had not no such also both each more most other some any all between using "
     "use used based via per".split()
 )
-# Words that strengthen a statement; a claim may use one only if its quote does.
+# Words that strengthen a statement; a claim may use one only if its quote does. The
+# scope and superlative words (ADR-0029) stop a single-row quote from becoming a claim
+# about "both" datasets or the "highest" score.
 _INTENSIFIERS = frozenset(
     "significantly substantially dramatically greatly consistently always never every "
-    "only".split()
+    "only both all best highest lowest worst largest smallest".split()
 )
 _NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)*(?!\w)")
 _THOUSANDS_SUFFIX = re.compile(r"(\d+(?:\.\d+)?)k\b")

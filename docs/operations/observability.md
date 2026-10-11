@@ -1,5 +1,8 @@
 # Local observability
 
+Related guides: [retention](retention.md), [authentication](authentication.md) and
+[evaluation and run diagnosis](evaluation.md).
+
 The observability profile is optional. It adds Prometheus and a self-hosted Langfuse v4 stack.
 
 ## Start and stop

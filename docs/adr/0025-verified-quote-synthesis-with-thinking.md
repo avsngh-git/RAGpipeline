@@ -5,6 +5,9 @@ date: 2026-10-04
 
 # Answer synthesis: thinking, quoted claims, labeled tables and code verification
 
+Decision 4 (the words a claim may use only if its quote does) is amended by
+[ADR-0029](0029-claim-scope-words-and-prompt-trials.md).
+
 Accepted by the project owner on 2026-10-04 after the answer-quality experiments below.
 The owner set precision, not latency, as the goal: answers on this laptop are allowed to
 take minutes. This replaces ADR-0020 decision 3 (the LLM support judge drops claims) and

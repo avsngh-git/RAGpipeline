@@ -82,20 +82,35 @@ def test_numbers_must_come_from_the_quote() -> None:
     assert thousands.numbers_from_quote
 
 
-def test_intensifier_must_come_from_the_quote_but_superlatives_may_paraphrase() -> None:
+def test_intensifier_must_come_from_the_quote() -> None:
     intensified = verify_claim(
         "A cross-encoder reranker significantly improves exact match by 4.5 points on NQ.",
         _QUOTE,
         _PROSE,
     )
+
+    assert not intensified.intensifiers_from_quote
+
+
+def test_scope_and_superlative_words_must_come_from_the_quote() -> None:
     superlative = verify_claim(
         "The best configuration improves exact match by 4.5 points on NQ.",
         _QUOTE,
         _PROSE,
     )
+    one_row_as_both = verify_claim(
+        "SparseX reached an nDCG@10 of 52.70 on both datasets.",
+        "Row: Method: SparseX; Dataset A — mAP: 31.40, nDCG@10: 52.70",
+        _TABLE,
+    )
 
-    assert not intensified.intensifiers_from_quote
-    assert superlative.intensifiers_from_quote
+    assert not superlative.intensifiers_from_quote
+    assert not one_row_as_both.intensifiers_from_quote
+    assert verify_claim(
+        "SparseX reached an nDCG@10 of 52.70 on Dataset A.",
+        "Row: Method: SparseX; Dataset A — mAP: 31.40, nDCG@10: 52.70",
+        _TABLE,
+    ).intensifiers_from_quote
 
 
 def test_handle_in_claim_text_fails() -> None:
