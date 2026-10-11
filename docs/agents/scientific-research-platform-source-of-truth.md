@@ -4,7 +4,7 @@
 **Version:** 1.40\
 **Last updated:** 2026-10-11\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77))\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md))\
 
 ---
 
@@ -1412,8 +1412,8 @@ Gate evidence (development only; labels and live judgments assistant-reviewed):
 
 ### Phase 4 — Observability, LLMOps, and security
 
-**Status: implementation complete on 2026-10-11; awaiting the owner's review of gate
-walkthrough `7a3517c0` and acceptance.** ADRs accepted by the owner on 2026-10-06. The
+**Status: accepted by the owner on 2026-10-11** (owner decision 14). ADRs accepted by the
+owner on 2026-10-06. The
 [Phase 4 plan](../plans/phase-4-observability-security.md), map issue
 [#77](https://github.com/avsngh-git/RAGpipeline/issues/77) (cards #78–#114),
 [handoff](../plans/phase-4-agent-handoff.md) and
@@ -1444,11 +1444,19 @@ re-run; five live development failures each attributed to a stage from trace evi
 reviewed by the owner; and the security, authentication and rate-limit tests in CI. Answer
 quality is reported, not gated.
 
+**Claim verification change (2026-10-11, [ADR-0029](../adr/0029-claim-scope-words-and-prompt-trials.md),
+requested by the owner):** a review of 218 stored thinking traces found the generator
+abstaining on questions that reviewed evidence partly answers (57 of 131 synthesis calls)
+and spending thinking on an output schema it could not see. Two prompt trials, replayed
+on the 21 development questions, did not reduce abstention and are not adopted. A claim
+may now use "both", "all", "best", "highest" and similar words only if its quote does.
+Abstention remains open.
+
 **Gate evidence (2026-10-11):** the [gate report](../reference/phase-4-gate-report.md)
 records items 1, 2, 3 and 5 passing in CI. For item 4, five development walkthroughs cover
 the evidence, verification and retrieval stages; `explain` gives the same stages on
 `main` `9dc287f`, and `reproduce` at each run's recorded commit exits 0. The owner rejected
-walkthrough `2138fb5e` (owner decision 8); its rerun `7a3517c0` awaits review. Hosted CI on
+walkthrough `2138fb5e` (owner decision 8) and accepted its rerun `7a3517c0` (decision 13). Hosted CI on
 `main` passes with both Trivy scans; `research-eval list` and a `research-maintenance
 retention` dry run work against `research_phase1_review`. Operations guides:
 [observability](../operations/observability.md), [retention](../operations/retention.md),
@@ -1460,8 +1468,8 @@ retention` dry run work against `research_phase1_review`. Operations guides:
 - **Answer quality is the main gap.** The last 42-run `agent-dev` sweep (`7b73c3fc`)
   answered 5, partially supported 25 and found insufficient evidence for 12, with a median
   of 1.5 kept claims. A 2026-10-11 review of stored thinking found the generator abstaining
-  on partly answerable questions; two prompt trials did not reduce it. Proposed ADR-0029
-  (local branch `quality/reasoning-prompts`) records the trials and a stricter claim check.
+  on partly answerable questions; two prompt trials did not reduce it
+  ([ADR-0029](../adr/0029-claim-scope-words-and-prompt-trials.md)).
 - **Backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115):** the planner,
   the `answered` definition, the flagged-table policy, configuration-drift migration (so
   `reproduce` with current code matches older runs), the worker image and the dense
@@ -1472,7 +1480,7 @@ retention` dry run work against `research_phase1_review`. Operations guides:
 - **Context length:** the owner's 100K-token setting is uncommitted on the main checkout;
   its GPU fit on the RTX 3050 is unmeasured.
 - **Operations:** Trivy exceptions expire on 2026-11-06 (owner decision 4); the Ollama
-  prompt-cache limit (PR #157) awaits merge; experiment `083f3b19` is a stale `running`
+  prompt-cache limit (PR #157) applies only after the Ollama container is recreated; experiment `083f3b19` is a stale `running`
   record from an interrupted sweep.
 
 ### Phase 5 — MCP

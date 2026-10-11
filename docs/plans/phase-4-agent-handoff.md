@@ -1,6 +1,6 @@
 # Phase 4 — Agent handoff
 
-Updated: 2026-10-11. **Status: implementation complete; awaiting the owner's review of gate walkthrough `7a3517c0` (P4-35) and acceptance of Phase 4 (P4-36).** ADRs 0026–0028 accepted by the owner on 2026-10-06.
+Updated: 2026-10-11. **Status: Phase 4 accepted by the owner on 2026-10-11.** ADRs 0026–0028 accepted by the owner on 2026-10-06.
 The [plan](phase-4-observability-security.md) and map issue
 [#77](https://github.com/avsngh-git/RAGpipeline/issues/77) define the cards; the
 [owner decisions](../reference/phase-4-owner-decisions.md) record the interview.
@@ -56,8 +56,8 @@ The [plan](phase-4-observability-security.md) and map issue
 | P4-29 (#106) | done | PR #121 | Trivy image and secret scans; seven owner-approved exceptions expire 2026-11-06 (owner decision 4) |
 | P4-33 (#110) | done | merged to `main` (`a8500e5`) | Three `security-live` runs recorded in the [report](../reference/phase-4-security-live-report.md); findings filed as [#139](https://github.com/avsngh-git/RAGpipeline/issues/139) (fixed in `72e75bb`) and [#140](https://github.com/avsngh-git/RAGpipeline/issues/140) |
 | P4-34 (#111) | done | P4-34 PR | Imported Phase 3 baseline `49ac1320-64cc-4324-bf0c-e70a673036fc`; resumed and completed all 42 `agent-dev` pairs in `c24d4759-aa3f-4ed6-b5b8-b54c69ae576c`; scripted regression `6e5b11ca-8a77-4f34-ba8f-bfbde713d742` passed 33/33. Candidate: answered 4, partially supported 11, insufficient evidence 27, median 176.45s, p90 284.44s; baseline: 1, 18, 23, median 16.58s, p90 32.95s. Compare: `local-reference/phase4/compare-agent-dev.md`; 42/42 pairs matched. Imported Phase 3 runs lack exact configuration rows; see report's configuration differences. Caveats (review): the baseline's stage counts (41 `generation`) are an artifact of Phase 3 runs having no drafted-claim records, and its configuration differences are inflated by the legacy provenance format; only the candidate's stages (none 4, evidence 17, verification 20, retrieval 1) are meaningful. No question text recorded here |
-| P4-35 (#112) | owner review pending | PR #146 | [Gate report](../reference/phase-4-gate-report.md): items 1, 2, 3, 5 pass in CI; five walkthroughs across evidence, verification and retrieval. The owner rejected `2138fb5e` (decision 8); rerun `7a3517c0` awaits review. Re-verified 2026-10-11: `explain` matches on `main` `9dc287f`; `reproduce` exits 0 at each run's recorded commit. Planner diagnosis in #115 |
-| P4-36 (#113) | owner acceptance pending | closeout PR | Source of truth 1.40 (status, gate evidence, Phase 5 inputs, §22 operations items); [authentication](../operations/authentication.md) and [evaluation](../operations/evaluation.md) guides; `main` CI green with Trivy; `research-eval list` and retention dry run verified against `research_phase1_review` |
+| P4-35 (#112) | done | PR #146 | [Gate report](../reference/phase-4-gate-report.md): items 1, 2, 3, 5 pass in CI; five walkthroughs across evidence, verification and retrieval. The owner rejected `2138fb5e` (decision 8) and accepted rerun `7a3517c0` (decision 13). Re-verified 2026-10-11: `explain` matches on `main` `9dc287f`; `reproduce` exits 0 at each run's recorded commit. Planner diagnosis in #115 |
+| P4-36 (#113) | done | PR #167 | Owner accepted Phase 4 (decision 14) and ADR-0029 (decision 15); source of truth 1.40 (status, gate evidence, Phase 5 inputs, §22 operations items); [authentication](../operations/authentication.md) and [evaluation](../operations/evaluation.md) guides; `main` CI green with Trivy; `research-eval list` and retention dry run verified against `research_phase1_review` |
 
 ## Dependency review (2026-10-08)
 

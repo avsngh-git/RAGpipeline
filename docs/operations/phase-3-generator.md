@@ -167,6 +167,10 @@ curl --fail-with-body http://127.0.0.1:8001/v1/research/RUN_ID
 research-runs show RUN_ID
 ```
 
+Since 2026-10-11 ([ADR-0029](../adr/0029-claim-scope-words-and-prompt-trials.md)), a claim
+may use "both", "all", "best", "highest", "lowest", "worst", "largest" or "smallest" only
+if its quote does. Restart the API and worker to load it.
+
 Synthesis thinks with no output cap ([ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md)):
 expect about 2 to 7 minutes per run on the RTX 3050. The defaults are
 `RESEARCH_PLATFORM_LLM_THINKING=plan,evaluate,synthesize` (evaluate added on 2026-10-07, Phase 4 owner decision 7; evaluation is then uncapped like synthesis), a 32,768-token context, a 1,200-second
