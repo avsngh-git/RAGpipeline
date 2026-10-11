@@ -1,8 +1,8 @@
 # Phase 4 gate report
 
-**Status:** prepared 2026-10-07. Items 1, 2, 3 and 5 pass in CI. Gate item 4: the owner
-rejected walkthrough `2138fb5e` and asked for a rerun under the new decisions; the
-replacement walkthrough `7a3517c0` awaits the owner's review.
+**Status:** prepared 2026-10-07, re-verified 2026-10-11. Items 1, 2, 3 and 5 pass in CI.
+Gate item 4: the owner rejected walkthrough `2138fb5e` and asked for a rerun under the new
+decisions; the replacement walkthrough `7a3517c0` awaits the owner's review.
 
 This report records the five items from ADR-0028. The live development walkthroughs and
 their supporting traces remain private under `local-reference/phase4/walkthroughs/` and
@@ -52,12 +52,26 @@ is reproduced here.
 
 ## Independent verification
 
-The planning session re-ran `research-runs explain --json` and `research-runs reproduce` on
-the five runs from merged `main` (`8f3e471`) against `research_phase1_review`. Stages, findings
-and draft verdicts matched the table above, and all five reproductions exited 0. Caveat: online
-discovery was not configured during the P4-34 sweep (see `e60ea304`), which limits what the
-sweep can show about discovery. The rerun of `e60ea304` with the OpenAlex key set (verified working) still planned only local
-search, which supports the planner diagnosis below.
+- **2026-10-07:** the planning session re-ran `research-runs explain --json` and
+  `research-runs reproduce` on the five runs from merged `main` (`8f3e471`) against
+  `research_phase1_review`. Stages, findings and draft verdicts matched the table above,
+  and all five reproductions exited 0. Online discovery was not configured during the P4-34
+  sweep (see `e60ea304`), which limits what the sweep can show about discovery. The rerun
+  of `e60ea304` with the OpenAlex key set still planned only local search, which supports
+  the planner diagnosis below.
+- **2026-10-11, from `main` `9dc287f`:**
+  - `explain` gave the same stage and findings for all five runs; `7a3517c0` answered and
+    has no failure stage.
+  - `reproduce` at each run's recorded commit (`e72d9d3`, `fc3170f`, `e7cefcb`) exited 0
+    for all six runs, with matching hashes, matching rebuilt configurations and no
+    differences.
+  - `reproduce` with today's code still matches every stored hash but exits 1: the rebuilt
+    configuration adds settings introduced after these runs (`max_synthesis_attempts`,
+    explicit sampling values, the plan policy and the pinned torch version). Reproduction
+    therefore uses the recipe's `git_checkout`. Migrating older configurations is backlog
+    [#115](https://github.com/avsngh-git/RAGpipeline/issues/115).
+  - Hosted CI on `main` passed, including both Trivy scans
+    ([run 37818548312](https://github.com/avsngh-git/RAGpipeline/actions/runs/37818548312)).
 
 ## Planner diagnosis
 
