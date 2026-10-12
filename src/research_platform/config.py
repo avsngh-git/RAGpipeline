@@ -14,6 +14,8 @@ DEFAULT_DATABASE_URL: Final = "postgresql://research:research@localhost:5432/res
 DEFAULT_QDRANT_URL: Final = "http://localhost:6333"
 DEFAULT_DEPENDENCY_TIMEOUT_SECONDS: Final = 2.0
 DEFAULT_EVIDENCE_ACCESS_PROFILE: Final = "disabled"
+DEFAULT_MCP_TEXT_POLICY: Final = "public_display_only"
+_MCP_TEXT_POLICIES: Final = frozenset({"public_display_only", "trusted_private_client"})
 DEFAULT_LLM_BASE_URL: Final = "http://localhost:11434"
 DEFAULT_LLM_MODEL: Final = "qwen3.5-2b-text:q4_k_m"
 DEFAULT_LLM_TIMEOUT_SECONDS: Final = 1200.0
@@ -127,6 +129,10 @@ def _evidence_access_profile_default() -> str:
         "RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE",
         DEFAULT_EVIDENCE_ACCESS_PROFILE,
     )
+
+
+def _mcp_text_policy_default() -> str:
+    return os.environ.get("RESEARCH_PLATFORM_MCP_TEXT_POLICY", DEFAULT_MCP_TEXT_POLICY)
 
 
 def _lexical_index_root_default() -> Path:
@@ -263,6 +269,7 @@ class Settings:
     llm_context_tokens: int = field(default_factory=_llm_context_tokens_default)
     llm_thinking: frozenset[CallKind] = field(default_factory=_llm_thinking_default)
     llm_seed: int = field(default_factory=_llm_seed_default)
+    mcp_text_policy: str = field(default_factory=_mcp_text_policy_default)
 
     def __post_init__(self) -> None:
         environment = self.environment.strip().lower()
@@ -348,3 +355,18 @@ class Settings:
             raise ValueError(
                 "dependency_timeout_seconds must be a finite positive number"
             )
+
+        policy = self.mcp_text_policy.strip().lower()
+        if policy not in _MCP_TEXT_POLICIES:
+            raise ValueError(
+                "mcp_text_policy must be public_display_only or trusted_private_client"
+            )
+        if policy == "trusted_private_client" and (
+            self.environment == "production"
+            or self.evidence_access_profile != "trusted_private_local"
+        ):
+            raise ValueError(
+                "trusted_private_client requires the trusted_private_local evidence "
+                "profile outside production"
+            )
+        object.__setattr__(self, "mcp_text_policy", policy)
