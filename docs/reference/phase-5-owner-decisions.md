@@ -59,6 +59,19 @@ model sees titles, IDs, ranks, pages, sections and claim text but no passages. T
 **Re-examine:** before any deployment or sharing of the platform, and if a model provider's
 data terms change.
 
+### 3. Gate item 4 accepted (2026-10-12)
+
+**Decision:** the owner accepted the P5-16 live MCP Inspector session as gate item 4, so all
+four Phase 5 gate items pass.
+
+**Evidence:** run `0de45d17-f140-4c9f-a3ae-d2c73069df2e`, started over MCP with a
+`read`+`research` key, completed (`answered`) and its HTTP view matches the MCP view except
+withheld quotes; details in the [gate report](phase-5-gate-report.md). The demo's
+concurrent-search finding (#205) was fixed in PR #207 before acceptance.
+
+**Re-examine:** at Phase 6 deployment, with the deployed host, origin and authentication
+settings.
+
 ## Decisions delegated to the assistant
 
 Proposed in the interview; the owner did not object (2026-10-12):

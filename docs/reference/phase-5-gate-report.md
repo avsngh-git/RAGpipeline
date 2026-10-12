@@ -1,7 +1,7 @@
 # Phase 5 gate report
 
-**Status:** gate items 1–3 pass in CI; item 4 ran on 2026-10-12 and awaits the owner's
-review. Prepared 2026-10-12.
+**Status:** all four gate items pass. Items 1–3 pass in CI; the owner accepted item 4 on
+2026-10-12 (owner decision 3). Prepared 2026-10-12.
 
 The phase gate (source of truth section 21): *an external MCP client and the internal
 LangGraph agent use the same core research capability without duplicated business logic.*
@@ -39,7 +39,7 @@ here.
    | The per-tool scope check is skipped | security suite |
    | A run may ingest without the `ingest` scope | security suite |
 
-4. **Live external-client session — ran 2026-10-12; owner review pending.** The API ran from
+4. **Live external-client session — passed; owner accepted on 2026-10-12 (decision 3).** The API ran from
    `main` (`7c7193a`) on `127.0.0.1:8001` against `research_phase1_review` (migration 028
    applied; 218 existing runs keep `ingestion_permitted = true`), text policy
    `public_display_only`. Key `ab9a088c` (principal `p5-16-mcp`, scopes `read` and `research`,
