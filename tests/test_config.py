@@ -11,6 +11,7 @@ from research_platform.config import (
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_SEED,
     DEFAULT_LLM_TIMEOUT_SECONDS,
+    DEFAULT_MCP_TEXT_POLICY,
     DEFAULT_QDRANT_URL,
     Settings,
 )
@@ -22,6 +23,7 @@ _SETTING_ENVIRONMENT_VARIABLES = (
     "RESEARCH_PLATFORM_DATABASE_URL",
     "RESEARCH_PLATFORM_QDRANT_URL",
     "RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE",
+    "RESEARCH_PLATFORM_MCP_TEXT_POLICY",
     "RESEARCH_PLATFORM_LLM_BASE_URL",
     "RESEARCH_PLATFORM_LLM_MODEL",
     "RESEARCH_PLATFORM_LLM_TIMEOUT_SECONDS",
@@ -44,6 +46,7 @@ def test_settings_use_safe_development_defaults(monkeypatch) -> None:
     assert settings.qdrant_url == DEFAULT_QDRANT_URL
     assert settings.dependency_timeout_seconds == DEFAULT_DEPENDENCY_TIMEOUT_SECONDS
     assert settings.evidence_access_profile == DEFAULT_EVIDENCE_ACCESS_PROFILE
+    assert settings.mcp_text_policy == DEFAULT_MCP_TEXT_POLICY
     assert settings.openalex_api_key is None
     assert settings.llm_base_url == DEFAULT_LLM_BASE_URL
     assert settings.llm_model == DEFAULT_LLM_MODEL
@@ -94,6 +97,54 @@ def test_settings_read_environment_overrides(monkeypatch) -> None:
     assert settings.llm_thinking == frozenset({CallKind.PLAN, CallKind.SYNTHESIZE})
     assert settings.llm_seed == 42
     assert "secret-test-key" not in repr(settings)
+
+
+def test_mcp_text_policy_defaults_to_public_display_only(monkeypatch) -> None:
+    monkeypatch.delenv("RESEARCH_PLATFORM_MCP_TEXT_POLICY", raising=False)
+
+    assert Settings().mcp_text_policy == "public_display_only"
+
+
+def test_mcp_text_policy_reads_the_environment(monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCH_PLATFORM_MCP_TEXT_POLICY", "trusted_private_client")
+    monkeypatch.setenv(
+        "RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE", "trusted_private_local"
+    )
+
+    assert Settings().mcp_text_policy == "trusted_private_client"
+
+
+def test_unknown_mcp_text_policy_is_rejected(monkeypatch) -> None:
+    monkeypatch.setenv("RESEARCH_PLATFORM_MCP_TEXT_POLICY", "public")
+
+    with pytest.raises(
+        ValueError,
+        match="mcp_text_policy must be public_display_only or trusted_private_client",
+    ):
+        Settings()
+
+
+def test_trusted_private_client_needs_trusted_private_local() -> None:
+    with pytest.raises(
+        ValueError,
+        match="trusted_private_client requires the trusted_private_local evidence profile outside production",
+    ):
+        Settings(
+            mcp_text_policy="trusted_private_client",
+            evidence_access_profile="disabled",
+        )
+
+
+def test_trusted_private_client_is_rejected_in_production() -> None:
+    with pytest.raises(
+        ValueError,
+        match="trusted_private_client requires the trusted_private_local evidence profile outside production",
+    ):
+        Settings(
+            environment="production",
+            mcp_text_policy="trusted_private_client",
+            evidence_access_profile="trusted_private_local",
+        )
 
 
 @pytest.mark.parametrize(
