@@ -69,7 +69,10 @@ here.
   list.
 - **Import cycle (fixed, PR #201).** Importing an MCP module before `create_app` failed through
   `research_platform/api/__init__`.
-- **Concurrent searches (open, #205).** Found in the Claude Code demo below.
+- **Concurrent searches (fixed, PR #207, closes #205).** Found in the Claude Code demo below:
+  the query embedder rejected a query while another was in flight. It now waits up to the
+  query timeout. Live check, 4 parallel MCP searches × 3 rounds: 3 errors per round before,
+  0 after.
 - **Workflow.** Several agent cards were committed but not pushed, and three cards were merged
   before review; each was reviewed on `main` afterwards.
 
@@ -93,6 +96,6 @@ with the API restarted at `trusted_private_client` for the demo and returned to
   concurrently and failed with `dependency_unavailable`, because the query embedder rejects a
   query while another is in flight (`EmbeddingInferenceBusy`). The agent never hits this
   because it calls tools one at a time. Filed as
-  [#205](https://github.com/avsngh-git/RAGpipeline/issues/205).
+  [#205](https://github.com/avsngh-git/RAGpipeline/issues/205) and fixed in PR #207.
 - Two earlier launch attempts sent the model a prompt with an empty question (a bug in the
   demo's launcher script); the model asked for the question and made no tool calls.
