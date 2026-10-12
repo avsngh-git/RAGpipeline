@@ -249,6 +249,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.phase2_services = api_services
+    app.state.research_services = research_services
     app.state.settings = settings
     app.state.auth_settings = auth_settings
     app.state.api_key_store = api_key_store
