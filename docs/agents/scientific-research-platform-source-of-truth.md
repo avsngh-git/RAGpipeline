@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.40\
-**Last updated:** 2026-10-11\
+**Version:** 1.41\
+**Last updated:** 2026-10-12\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md))\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169))\
 
 ---
 
@@ -224,6 +224,7 @@ These choices MUST be evaluated or recorded in ADRs before being treated as perm
 - broader ML corpus expansion and exact full-text adapters (initial corpus policy is fixed in Section 8.6);
 - citation graph representation details within PostgreSQL;
 - exact experiment/configuration tracking persistence beyond Langfuse traces (Phase 4: `run_configurations` and `experiments` tables in PostgreSQL, [ADR-0026](../adr/0026-phase4-observability-and-run-records.md) and [ADR-0028](../adr/0028-phase4-experiment-records-and-gate.md)).
+- MCP SDK and transport (resolved for Phase 5: official Python SDK `mcp` 2.3.0, protocol revision 2026-07-28, Streamable HTTP; [ADR-0030](../adr/0030-phase5-mcp-adapter.md)).
 
 Candidates MAY be benchmarked in notebooks, but benchmark results and hardware feasibility MUST justify final selection.
 
@@ -537,7 +538,8 @@ these rules.
 - **Private local access:** Phase 2 serves trusted private local research and evidence
   inspection through a service-layer policy requiring applicable source permissions.
   Existing public-display restrictions remain unchanged. A request flag cannot grant
-  private inspection rights. Public passage exposure requires a separate decision.
+  private inspection rights. Public passage exposure requires a separate decision; for
+  external MCP clients it is [ADR-0031](../adr/0031-phase5-external-passage-exposure.md).
 - **Benchmark and review:** cover discovery, specific evidence, tables, cross-paper
   comparison, filters and missing evidence. Ten calibration families were reviewed
   on 2026-09-26, with about 32 minutes of source-review effort. The current
@@ -730,6 +732,7 @@ Prompts are optional; tools and selected resources are the priority.
 - Remote deployment SHOULD use the current production-recommended HTTP transport supported by the selected official MCP SDK.
 - Remote MCP access MUST use authentication, rate limits, input validation, and the same service-layer authorization as the HTTP API.
 - Protocol/SDK versions MUST be pinned and the implemented MCP specification version MUST be documented because the protocol evolves.
+- Phase 5 ([ADR-0030](../adr/0030-phase5-mcp-adapter.md)): the official Python SDK `mcp` 2.3.0, protocol revision 2026-07-28 (2025-11-25 clients also served), Streamable HTTP mounted at `/mcp` inside the API process with the Phase 4 API keys, scopes and rate limits. No stdio transport: a second process would load the retrieval models again on the 4 GiB GPU. Evidence text reaches an external client only under the text exposure policy of [ADR-0031](../adr/0031-phase5-external-passage-exposure.md).
 
 MCP is added after core services and tools work reliably; it MUST NOT block early retrieval development.
 
@@ -1485,6 +1488,17 @@ retention` dry run work against `research_phase1_review`. Operations guides:
 
 ### Phase 5 — MCP
 
+**Status: planned on 2026-10-12.** The owner chose MCP-only scope (answer quality stays in
+backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115)) and accepted
+[ADR-0030](../adr/0030-phase5-mcp-adapter.md) (shared `ResearchCapabilities` service for HTTP
+and MCP, SDK `mcp` 2.3.0, `/mcp` mount, API-key auth, eight tools and two resources, and the
+`ingest` scope for run-triggered ingestion over HTTP and MCP alike) and
+[ADR-0031](../adr/0031-phase5-external-passage-exposure.md) (text exposure policy). The
+[plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)
+(cards #170–#186), [handoff](../plans/phase-5-agent-handoff.md),
+[SDK spike](../reference/phase-5-mcp-sdk-spike.md) and
+[owner decisions](../reference/phase-5-owner-decisions.md) track the work.
+
 Deliver:
 
 - one MCP server over existing services;
@@ -1493,6 +1507,9 @@ Deliver:
 - protocol-level tests, auth, and usage example.
 
 Gate: an external MCP client and the internal LangGraph agent use the same core research capability without duplicated business logic.
+ADR-0030 makes it checkable: CI parity of MCP results with the HTTP routes and `ResearchTools` on
+the same fakes; a CI import boundary for the MCP adapter and the capability service; a CI MCP
+security suite; and a live MCP Inspector session reviewed by the owner.
 
 ### Phase 6 — Deployment and portfolio presentation
 
@@ -1584,7 +1601,8 @@ Resolve these progressively; do not decide all of them before evidence is availa
     Earlier sets keep their own gates. Phase 3 operational gates are defined by ADR-0020 and
     passed on the reported development sweeps; answer-quality thresholds remain open and
     the observed quality is diagnostic only.
-13. Exact remote MCP SDK/transport version at implementation time.
+13. Exact remote MCP SDK/transport version at implementation time. **Resolved for Phase 5
+    (ADR-0030):** `mcp` 2.3.0, protocol revision 2026-07-28, Streamable HTTP.
 14. Disposable artifact retention periods; the 2 GiB hard acquisition cap was
     retained after measuring the complete ten-paper source-artifact footprint. Run-data
     retention is set in ADR-0026 (checkpoints 7/30 days, model-call text 90 days).
