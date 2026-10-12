@@ -31,7 +31,8 @@ The [plan](phase-5-mcp.md) and map issue
 
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
-| P5-01 (#170) | in progress | — | ADRs 0030–0031, plan, handoff, spike, owner decisions, source of truth 1.41 |
+| P5-01 (#170) | done | PR #187 | ADRs 0030–0031, plan, handoff, spike, owner decisions, source of truth 1.41 |
+| P5-03 (#172) | implementation complete | — | SDK lock and spike check updated; imports, mypy, locked-version mount, image build, pip audit and local Trivy scan pass. A combined build with P5-02's base refresh is clean without exceptions. Hosted CI pending PR publication. |
 
 ## Environment facts
 
