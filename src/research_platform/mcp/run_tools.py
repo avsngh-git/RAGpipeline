@@ -57,10 +57,11 @@ def run_result(view: ResearchRunView, *, text_allowed: bool) -> ResearchRunResul
 
 
 def register_run_tools(server: MCPServer, state: Any) -> None:
-    """Register the research-run tools and research-run:// (card P5-12)."""
-    if getattr(state, "research_services", None) is None:
-        return
+    """Register the research-run tools and research-run:// (card P5-12).
 
+    Always registered: the API builds research services in its lifespan, after this
+    server is created, and each call reports service_unavailable until they exist.
+    """
     from research_platform.mcp.runtime import run_call
 
     @server.tool(
