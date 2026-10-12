@@ -86,6 +86,19 @@ TOOL_LATENCY = Histogram(
     buckets=_FAST_BUCKETS,
     registry=REGISTRY,
 )
+MCP_CALLS = Counter(
+    "research_mcp_calls_total",
+    "MCP tool and resource calls by name and status.",
+    ["tool", "status"],
+    registry=REGISTRY,
+)
+MCP_LATENCY = Histogram(
+    "research_mcp_call_duration_seconds",
+    "MCP tool and resource call duration.",
+    ["tool"],
+    buckets=_FAST_BUCKETS,
+    registry=REGISTRY,
+)
 LLM_CALLS = Counter(
     "research_llm_calls_total",
     "Model calls by kind and status.",
