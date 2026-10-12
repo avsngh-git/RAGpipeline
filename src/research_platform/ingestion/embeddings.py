@@ -229,26 +229,27 @@ class _SentenceTransformerEmbedder:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("query text must be non-empty")
         loop = asyncio.get_running_loop()
-        with self._query_submission_lock:
-            if self._closed:
-                raise EmbeddingModelError("local query embedder is closed")
-            if (
-                self._active_query_future is not None
-                and not self._active_query_future.done()
-            ):
-                raise EmbeddingInferenceBusy(
-                    "query embedding worker is completing a previous request"
-                )
-            try:
-                worker_future = self._query_executor.submit(
-                    self._encode_texts,
-                    (text,),
-                    self._profile.query_prefix,
-                    configuration,
-                )
-            except RuntimeError:
-                raise EmbeddingModelError("local query embedder is closed") from None
-            self._active_query_future = worker_future
+        wait_deadline = loop.time() + self.query_timeout_seconds
+        while True:
+            with self._query_submission_lock:
+                if self._closed:
+                    raise EmbeddingModelError("local query embedder is closed")
+                previous = self._active_query_future
+                if previous is None or previous.done():
+                    try:
+                        worker_future = self._query_executor.submit(
+                            self._encode_texts,
+                            (text,),
+                            self._profile.query_prefix,
+                            configuration,
+                        )
+                    except RuntimeError:
+                        raise EmbeddingModelError(
+                            "local query embedder is closed"
+                        ) from None
+                    self._active_query_future = worker_future
+                    break
+            await self._wait_for_previous_query(previous, loop, wait_deadline)
         future = asyncio.wrap_future(worker_future, loop=loop)
         future.add_done_callback(_consume_query_future_exception)
         try:
@@ -266,6 +267,32 @@ class _SentenceTransformerEmbedder:
             raise
         except Exception:
             raise EmbeddingModelError("local query embedding failed") from None
+
+    async def _wait_for_previous_query(
+        self,
+        previous: Future[tuple[tuple[float, ...], ...]],
+        loop: asyncio.AbstractEventLoop,
+        deadline: float,
+    ) -> None:
+        """Wait, up to the query timeout, for the worker's current query to finish.
+
+        Concurrent searches (for example parallel MCP tool calls) take turns on the
+        single worker instead of failing; a worker that stays busy is still an error.
+        """
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise EmbeddingInferenceBusy(
+                "query embedding worker stayed busy past the query timeout"
+            )
+        waited = asyncio.wrap_future(previous, loop=loop)
+        waited.add_done_callback(_consume_query_future_exception)
+        # asyncio.wait neither cancels the previous query nor raises its failure,
+        # which belongs to the previous caller.
+        done, _ = await asyncio.wait({waited}, timeout=remaining)
+        if not done:
+            raise EmbeddingInferenceBusy(
+                "query embedding worker stayed busy past the query timeout"
+            )
 
     def close(self) -> None:
         """Reject new query work and cancel queued work while the active call finishes."""
