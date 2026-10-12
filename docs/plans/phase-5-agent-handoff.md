@@ -40,6 +40,13 @@ The [plan](phase-5-mcp.md) and map issue
 | P5-08 (#177) | done | PR #193 | `authenticate_authorization`, `require_principal_scope`, `enforce_rate_limit`; `McpAuthGate` reuses `handle_app_error`. Found unpushed, and an uncommitted copy sat in the main checkout on the P5-07 branch (identical; removed) |
 | P5-06 (#175) | done | PR #194 | `serving`, `resolve_snapshot`, `start_run`, `get_run`; runs record `ingestion_permitted` from the `ingest` scope. Review: P5-13's import-boundary allowlist made name-limited so `RunNotFound` from `runs.repository` is allowed (card #182 edited) |
 | P5-09 (#178) | done | PR #195 | `/mcp` mount, `run_call` runtime, metrics and spans, `mcp/testing.py`. Squash-merged before review; reviewed on `main` (`518cc9f`, CI green): matches the card. The branch `phase5/p5-09-mcp-server` holds an older, unmerged rebase and can be deleted |
+| P5-12 (#181) | done | PR #198, fix #199 | Run tools and `research-run://`. Squash-merged before review with a guard that skipped registration when research services were absent at server creation; in the running API they are built later, so the run tools never appeared. #199 always registers them and replaces P5-09's obsolete "tool list is empty" test with a production-shaped one |
+| P5-10 (#179) | done | PR #197 | `search_papers`, `search_evidence`; compact items, text withheld by default. Review: a test required its tools to be the only ones; changed to "included" |
+| P5-11 (#180) | done | PR #200 | Paper, citation and related tools reusing the HTTP response models; `paper://`. Pushed without a PR; opened and merged |
+| — | done | fix #201 | Import cycle: importing any MCP module before `create_app` failed through `research_platform/api/__init__`. `mount_mcp` now imports the gate and server when called; `tests/test_mcp_imports.py` imports each module in a fresh interpreter |
+| P5-15 (#184) | done | PR #202 | `docs/operations/mcp.md`, `scripts/mcp_inspector_check.sh` (Inspector 2.8.0), README section. Merged before review; reviewed on `main` |
+| P5-13 (#182) | done | PR #203 | **Gate items 1–2.** Parity with HTTP and `ResearchTools`; import boundary. Merged before review; mutation checks on `main`: a forbidden import and an MCP tool bypassing `ResearchCapabilities` both fail the gate tests |
+| P5-14 (#183) | done | PR #204 | **Gate item 3.** MCP security suite. Merged before review; mutation checks: text policy leaking text, a skipped scope check and ingestion without `ingest` each fail the suite. `main` at `7c7193a`: 1407 passed, 114 skipped |
 
 ## Environment facts
 
