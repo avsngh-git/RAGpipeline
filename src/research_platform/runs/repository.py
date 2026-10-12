@@ -74,6 +74,7 @@ class StoredRun:
     pinned_snapshot_id: UUID | None = None
     pinned_generation: int | None = None
     principal: str = "legacy-local"
+    ingestion_permitted: bool = True
 
 
 @dataclass(frozen=True)
@@ -112,14 +113,16 @@ class RunRepository:
         *,
         generation: int | None = None,
         principal: str = "legacy-local",
+        ingestion_permitted: bool = True,
     ) -> UUID:
         """Store a queued run, pinned to ``generation`` when one is served."""
         async with self._pool.acquire() as connection:
             run_id = await connection.fetchval(
                 """
                 INSERT INTO research_runs
-                    (question, status, mode, request, snapshot_id, generation, principal)
-                VALUES ($1, 'queued', $2, $3::jsonb, $4, $5, $6)
+                    (question, status, mode, request, snapshot_id, generation, principal,
+                     ingestion_permitted)
+                VALUES ($1, 'queued', $2, $3::jsonb, $4, $5, $6, $7)
                 RETURNING id
                 """,
                 request.question,
@@ -128,6 +131,7 @@ class RunRepository:
                 request.snapshot_id,
                 generation,
                 principal,
+                ingestion_permitted,
             )
         return cast(UUID, run_id)
 
@@ -138,7 +142,8 @@ class RunRepository:
                 """
                 SELECT id, status, mode, request, snapshot_id, configuration_id,
                        resume_count, active_seconds, created_at, started_at, completed_at,
-                       generation, principal, provenance ->> 'snapshot_id' AS pinned_snapshot_id,
+                       generation, principal, ingestion_permitted,
+                       provenance ->> 'snapshot_id' AS pinned_snapshot_id,
                        (provenance ->> 'generation')::integer AS pinned_generation
                 FROM research_runs
                 WHERE id = $1
@@ -163,7 +168,8 @@ class RunRepository:
                 """
                 SELECT id, status, mode, request, snapshot_id, configuration_id,
                        resume_count, active_seconds, created_at, started_at, completed_at,
-                       generation, principal, provenance ->> 'snapshot_id' AS pinned_snapshot_id,
+                       generation, principal, ingestion_permitted,
+                       provenance ->> 'snapshot_id' AS pinned_snapshot_id,
                        (provenance ->> 'generation')::integer AS pinned_generation
                 FROM research_runs
                 WHERE status = ANY($1::text[])
@@ -934,6 +940,7 @@ def _stored_run(row: asyncpg.Record) -> StoredRun:
         completed_at=row["completed_at"],
         generation=row["generation"],
         principal=row["principal"],
+        ingestion_permitted=row["ingestion_permitted"],
         pinned_snapshot_id=(
             UUID(row["pinned_snapshot_id"]) if row["pinned_snapshot_id"] else None
         ),

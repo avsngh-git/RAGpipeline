@@ -8,7 +8,14 @@ from research_platform.ingestion.membership_policy import _Candidate, decide
 SETTINGS = DiscoverySettings()
 
 
-def _decide(candidate: _Candidate, *, duplicate=False, accepted=0, maximum=5):
+def _decide(
+    candidate: _Candidate,
+    *,
+    duplicate=False,
+    accepted=0,
+    maximum=5,
+    ingestion_permitted=True,
+):
     return decide(
         "W1",
         candidate,
@@ -16,6 +23,7 @@ def _decide(candidate: _Candidate, *, duplicate=False, accepted=0, maximum=5):
         duplicate=duplicate,
         accepted_for_run=accepted,
         max_papers=maximum,
+        ingestion_permitted=ingestion_permitted,
     ).reason
 
 
@@ -38,6 +46,31 @@ def test_reasons_follow_the_fixed_order() -> None:
 def test_unknown_year_and_language_are_not_refused() -> None:
     unknown = _Candidate(in_papers=True, indexed=False, year=None, language=None)
     assert _decide(unknown) == "accepted"
+
+
+def test_ingest_scope_required_comes_first() -> None:
+    acceptable = _Candidate(in_papers=True, indexed=False, year=2024, language="en")
+    decision = decide(
+        "W1",
+        acceptable,
+        settings=SETTINGS,
+        duplicate=False,
+        accepted_for_run=0,
+        max_papers=5,
+        ingestion_permitted=False,
+    )
+    already_indexed = _Candidate(in_papers=True, indexed=True, year=2024, language="en")
+
+    assert (decision.decision, decision.reason) == ("refused", "ingest_scope_required")
+    assert (
+        _decide(already_indexed, ingestion_permitted=False) == "ingest_scope_required"
+    )
+
+
+def test_ingestion_permitted_defaults_to_true() -> None:
+    acceptable = _Candidate(in_papers=True, indexed=False, year=2024, language="en")
+
+    assert _decide(acceptable) == "accepted"
 
 
 def test_run_limit_counts_earlier_acceptances() -> None:

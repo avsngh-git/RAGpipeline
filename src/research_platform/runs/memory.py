@@ -62,6 +62,7 @@ class InMemoryRunStore:
         *,
         generation: int | None = None,
         principal: str = "legacy-local",
+        ingestion_permitted: bool = True,
     ) -> UUID:
         run_id = uuid4()
         self._runs[run_id] = StoredRun(
@@ -77,6 +78,7 @@ class InMemoryRunStore:
             started_at=None,
             completed_at=None,
             principal=principal,
+            ingestion_permitted=ingestion_permitted,
         )
         self.generations[run_id] = generation
         return run_id

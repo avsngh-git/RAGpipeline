@@ -37,6 +37,7 @@ class RunStore(Protocol):
         *,
         generation: int | None = None,
         principal: str = "legacy-local",
+        ingestion_permitted: bool = True,
     ) -> UUID: ...
 
     async def get_run(self, run_id: UUID) -> StoredRun: ...
