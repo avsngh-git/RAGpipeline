@@ -1,6 +1,6 @@
 # Phase 5 — MCP
 
-Status: planned with the owner on 2026-10-12. The decisions are in two ADRs:
+Status: accepted by the owner on 2026-10-12 (owner decision 4). Planned with the owner on 2026-10-12. The decisions are in two ADRs:
 
 - [ADR-0030](../adr/0030-phase5-mcp-adapter.md): the shared capability service, SDK and
   protocol version, mounting, transport, authentication, tools and resources, errors,

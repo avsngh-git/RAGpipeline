@@ -1,6 +1,6 @@
 # Phase 5 — Agent handoff
 
-Updated: 2026-10-12. **Status: in progress; ADR-0030 and ADR-0031 accepted by the owner on 2026-10-12.**
+Updated: 2026-10-12. **Status: Phase 5 accepted by the owner on 2026-10-12.** ADR-0030 and ADR-0031 accepted by the owner on 2026-10-12.
 The [plan](phase-5-mcp.md) and map issue
 [#169](https://github.com/avsngh-git/RAGpipeline/issues/169) define the cards; the
 [owner decisions](../reference/phase-5-owner-decisions.md) record the interview; the
@@ -48,6 +48,7 @@ The [plan](phase-5-mcp.md) and map issue
 | P5-13 (#182) | done | PR #203 | **Gate items 1–2.** Parity with HTTP and `ResearchTools`; import boundary. Merged before review; mutation checks on `main`: a forbidden import and an MCP tool bypassing `ResearchCapabilities` both fail the gate tests |
 | P5-14 (#183) | done | PR #204 | **Gate item 3.** MCP security suite. Merged before review; mutation checks: text policy leaking text, a skipped scope check and ingestion without `ingest` each fail the suite. `main` at `7c7193a`: 1407 passed, 114 skipped |
 | P5-16 (#185) | done | PR #206 | Gate item 4 ran 2026-10-12: Inspector session on `main` `7c7193a`; run `0de45d17` started over MCP completed (`answered`) and matches HTTP except withheld quotes. Claude Code demo under owner decision 2; finding #205 (concurrent searches) fixed in PR #207. Owner accepted gate item 4 (decision 3). See `docs/reference/phase-5-gate-report.md` |
+| P5-17 (#186) | done | closeout PR | Owner accepted Phase 5 (decision 4); source of truth 1.42 (status, gate evidence, Phase 6 inputs, section 22 MCP item) |
 
 ## Environment facts
 
