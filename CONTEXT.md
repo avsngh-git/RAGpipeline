@@ -151,3 +151,11 @@ One evaluation run of a named suite over a versioned dataset, with its configura
 **Principal**:
 The named caller behind an API key; a research run belongs to the principal that started it.
 _Avoid_: user, account
+
+**External client**:
+A program outside the platform, such as an AI assistant, that uses research capabilities through the MCP server on behalf of a principal. What it receives may leave the machine, for example to the client's own model provider.
+_Avoid_: MCP user, agent (the platform's own research agent is not an external client)
+
+**Text exposure policy**:
+The server-wide rule for which evidence text an external client may receive: by default only passages whose permission evidence allows public display; on a trusted private client, the same text as private evidence inspection.
+_Avoid_: redaction setting, display flag
