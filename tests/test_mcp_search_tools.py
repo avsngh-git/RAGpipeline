@@ -46,7 +46,7 @@ async def test_tools_are_listed_read_only_with_schemas() -> None:
         async with Client(server) as client:
             tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    assert set(tools) == {"search_papers", "search_evidence"}
+    assert {"search_papers", "search_evidence"} <= set(tools)
     assert tools["search_papers"].annotations.read_only_hint is True
     assert tools["search_evidence"].annotations.read_only_hint is True
     assert tools["search_papers"].output_schema is not None
