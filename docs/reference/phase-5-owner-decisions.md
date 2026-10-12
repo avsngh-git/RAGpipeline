@@ -86,3 +86,31 @@ SDK spike; the owner confirmed the plan and asked for the cards:
 - **`find_related_papers`** uses shared references and co-citations only, not embedding
   similarity.
 - **MCP Inspector** pinned at 2.8.0 (released 2026-09-23).
+
+## P5-02 housekeeping execution (2026-10-12; implementation complete)
+
+- **Experiment `083f3b19-03b8-4970-887b-8670ea5cc053`:** it was still `running`, had zero
+  items, and had no completion time. The experiment schema permits only `running`,
+  `completed` and `failed`; it has no `interrupted` state, and the CLI has no status-edit
+  command. A guarded SQL update for this ID while its state was still `running` set status
+  to `failed`, set `completed_at`, and appended an interruption note while preserving the
+  existing notes and other fields. The resulting row was returned as `failed`.
+- **Ollama cache limit:** recreated the service with
+  `docker compose --profile llm up -d --force-recreate ollama` to apply the merged PR #157
+  setting. The recreated container reports `LLAMA_ARG_CACHE_RAM=1024`.
+- **Trivy exceptions:** removed all seven entries from `.trivyignore` after patching the
+  image layers. The Ubuntu base now upgrades `libssl3t64` and `openssl` to the newest
+  Ubuntu security release (`3.0.13-0ubuntu3.16` on 2026-10-12). The owner chose an unpinned
+  upgrade over an exact version pin, because Ubuntu's apt index keeps only the newest version
+  and an exact pin would fail every image build after the next OpenSSL update; the base image
+  digest stays pinned and the CI Trivy scan checks the result. The Miniforge base now refreshes Conda to `26.9.2`, which updates
+  `py-rattler` to `0.26.0` and `urllib3` to `2.8.0`; the runtime lock already pins fixed
+  `setuptools`, `msgpack-python` and `urllib3` versions. Trivy identified the remaining
+  setuptools/msgpack vendor advisories in pip's embedded vendor BOM, not the installed
+  package metadata. Pip is only needed while building the image: base pip is removed after
+  the base refresh, and app-environment pip is removed after package installation. The
+  rebuilt app imports successfully without pip. Trivy 0.70.0, using the CI HIGH/CRITICAL and
+  `ignore-unfixed` policy with exceptions disabled, reports zero findings.
+- **Card evidence:** the image was built from the P5-03 lock in its isolated worktree with
+  the P5-02 Dockerfile. The Trivy scan was a local CI-equivalent check; hosted CI remains
+  pending publication of the cards' PRs.

@@ -6,6 +6,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install --yes --only-upgrade libssl3t64 openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && conda install --yes --name base --override-channels -c conda-forge \
+        conda=26.9.2 \
+        msgpack-python=1.2.2 \
+        urllib3=2.8.0 \
+    && conda remove --yes --name base --force pip \
+    && conda clean --all --yes
+
 COPY environment-linux-64.lock /tmp/environment-linux-64.lock
 RUN conda create --yes --prefix "${CONDA_ENV}" --file /tmp/environment-linux-64.lock \
     && conda clean --all --yes
@@ -33,6 +43,9 @@ COPY configs/phase35-generation-index-lexical.example.json ./configs/
 RUN python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt \
     && python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt \
     && python -m pip install --no-build-isolation --no-deps .
+
+RUN conda remove --yes --prefix "${CONDA_ENV}" --force pip \
+    && conda clean --all --yes
 
 EXPOSE 8000
 
