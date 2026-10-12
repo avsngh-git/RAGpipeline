@@ -32,7 +32,8 @@ The [plan](phase-5-mcp.md) and map issue
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
 | P5-01 (#170) | done | PR #187 | ADRs 0030–0031, plan, handoff, spike, owner decisions, source of truth 1.41 |
-| P5-03 (#172) | implementation complete | — | SDK lock and spike check updated; imports, mypy, locked-version mount, image build, pip audit and local Trivy scan pass. A combined build with P5-02's base refresh is clean without exceptions. Hosted CI pending PR publication. |
+| P5-02 (#171) | PR open | stacked on #188 | Stale experiment failed with an interruption note; Ollama recreated. Patched Ubuntu OpenSSL and Miniforge/Conda layers, removed build-only pip from the runtime image, deleted all seven Trivy exceptions; local Trivy 0.70.0 scan with the P5-03 lock is clean without exceptions. OpenSSL upgrade unpinned (owner choice). |
+| P5-03 (#172) | PR open | PR #188 | SDK lock and spike check updated; imports, mypy, locked-version mount, image build, pip audit and local Trivy scan pass. A combined build with P5-02's base refresh is clean without exceptions. |
 
 ## Environment facts
 
