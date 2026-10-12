@@ -25,6 +25,7 @@ from research_platform.worker.queue import IngestionQueue
 POLICY_REVISION = "online-membership-v1"
 
 DecisionReason = Literal[
+    "ingest_scope_required",
     "accepted",
     "unknown_paper",
     "already_indexed",
@@ -64,10 +65,13 @@ def decide(
     duplicate: bool,
     accepted_for_run: int,
     max_papers: int,
+    ingestion_permitted: bool = True,
 ) -> MembershipDecision:
     """Apply the refusal rules in their fixed order."""
     reason: DecisionReason = "accepted"
-    if not candidate.in_papers:
+    if not ingestion_permitted:
+        reason = "ingest_scope_required"
+    elif not candidate.in_papers:
         reason = "unknown_paper"
     elif candidate.indexed:
         reason = "already_indexed"
@@ -124,6 +128,13 @@ class MembershipPolicy:
                     f"membership-policy:{self._collection_id}",
                 )
                 catalog = await _catalog(connection, normalized)
+                ingestion_permitted = True
+                if run_id is not None:
+                    stored = await connection.fetchval(
+                        "SELECT ingestion_permitted FROM research_runs WHERE id = $1",
+                        run_id,
+                    )
+                    ingestion_permitted = stored is not False
                 accepted_for_run = (
                     0
                     if run_id is None
@@ -158,6 +169,7 @@ class MembershipPolicy:
                         duplicate=paper_id in pending,
                         accepted_for_run=accepted_for_run,
                         max_papers=max_papers,
+                        ingestion_permitted=ingestion_permitted,
                     )
                     if decision.decision == "accepted":
                         accepted_for_run += 1

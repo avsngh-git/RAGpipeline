@@ -58,3 +58,4 @@ results remain in private JSON Lines files.
 principal owner to each research run (ADR-0027).
 027_draft_claim_quote_fallback.sql allows the `kept_as_quote` verdict, for a drafted
 claim that failed its checks and was replaced by its verified quote.
+`028_run_ingestion_permission.sql` records whether a research run may trigger ingestion; runs started by a key without the `ingest` scope may not (ADR-0030).

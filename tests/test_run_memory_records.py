@@ -77,6 +77,18 @@ async def test_memory_load_missing_raises() -> None:
 
 
 @pytest.mark.anyio
+async def test_in_memory_store_keeps_ingestion_permitted() -> None:
+    store = InMemoryRunStore()
+    request = ResearchRequest(question="what helps", mode=ResearchMode.QUICK)
+
+    refused_run_id = await store.create_run(request, ingestion_permitted=False)
+    permitted_run_id = await store.create_run(request)
+
+    assert (await store.get_run(refused_run_id)).ingestion_permitted is False
+    assert (await store.get_run(permitted_run_id)).ingestion_permitted is True
+
+
+@pytest.mark.anyio
 async def test_memory_loaded_configuration_is_a_copy() -> None:
     store = InMemoryRunStore()
     expected = configuration_id(_PAYLOAD)
