@@ -14,6 +14,7 @@ dependencies:
   - uvicorn
   - asyncpg
   - langgraph=1.2.9
+  - mcp=2.3.0
   - psycopg=3.3.4
   - psycopg-pool=3.3.3
   - websockets=16.1.1

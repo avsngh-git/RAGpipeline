@@ -13,6 +13,7 @@ dependencies = [
     "httpx",
     "langgraph==1.2.9",
     "langgraph-checkpoint-postgres==3.1.2",
+    "mcp==2.3.0",
     "opentelemetry-api==1.45.0",
     "opentelemetry-exporter-otlp-proto-http==1.45.0",
     "opentelemetry-sdk==1.45.0",

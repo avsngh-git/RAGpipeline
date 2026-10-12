@@ -51,5 +51,20 @@ It records the SDK facts the Phase 5 cards rely on.
 
 - Claude Code, Claude Desktop and MCP Inspector against the real API: that is gate item 4
   (card P5-16).
-- Behaviour with the lock's FastAPI and Starlette versions: CI checks it once P5-03 adds the
-  dependency.
+- Runtime integration with the real API: the focused check below only exercises a minimal
+  MCP tool through the locked FastAPI mount.
+
+## Locked environment verification (2026-10-12)
+
+P5-03 added `mcp=2.3.0` to the Conda lock and `environment.yaml`, and `mcp==2.3.0` to
+`pyproject.toml`. Installing with `conda install --freeze-installed -c conda-forge mcp=2.3.0`
+added `mcp-types` 2.3.0, `sse-starlette` 3.5.0, `pyjwt` 2.15.1, and the SDK's remaining
+transitive packages. `httpx2` 2.13.1 was already present. No existing locked package version
+changed, and the probe required no mypy override.
+
+In the recreated locked environment, the required imports (`MCPServer`, `Client`, and
+`httpx2`) passed. Strict mypy accepted `from mcp.server import MCPServer` from a module under
+`src/research_platform/`. A FastAPI 0.141.1 app on Starlette 1.6.0 mounted the SDK's stateless,
+JSON Streamable HTTP app at `/mcp`; the SDK client negotiated protocol `2026-07-28`, listed a
+probe tool and received its structured result. This confirms the spike's mount behavior on the
+locked framework versions; the real API integration remains for the implementation cards.
