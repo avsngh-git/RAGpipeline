@@ -1,6 +1,6 @@
 # Phase 5 — Agent handoff
 
-Updated: 2026-10-12. **Status: planned; ADR-0030 and ADR-0031 accepted by the owner on 2026-10-12.**
+Updated: 2026-10-12. **Status: in progress; ADR-0030 and ADR-0031 accepted by the owner on 2026-10-12.**
 The [plan](phase-5-mcp.md) and map issue
 [#169](https://github.com/avsngh-git/RAGpipeline/issues/169) define the cards; the
 [owner decisions](../reference/phase-5-owner-decisions.md) record the interview; the
@@ -32,8 +32,14 @@ The [plan](phase-5-mcp.md) and map issue
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
 | P5-01 (#170) | done | PR #187 | ADRs 0030–0031, plan, handoff, spike, owner decisions, source of truth 1.41 |
-| P5-02 (#171) | PR open | stacked on #188 | Stale experiment failed with an interruption note; Ollama recreated. Patched Ubuntu OpenSSL and Miniforge/Conda layers, removed build-only pip from the runtime image, deleted all seven Trivy exceptions; local Trivy 0.70.0 scan with the P5-03 lock is clean without exceptions. OpenSSL upgrade unpinned (owner choice). |
-| P5-03 (#172) | PR open | PR #188 | SDK lock and spike check updated; imports, mypy, locked-version mount, image build, pip audit and local Trivy scan pass. A combined build with P5-02's base refresh is clean without exceptions. |
+| P5-02 (#171) | done | PR #189 | Stale experiment failed with an interruption note; Ollama recreated. Patched Ubuntu OpenSSL and Miniforge/Conda layers, removed build-only pip from the runtime image, deleted all seven Trivy exceptions; local Trivy 0.70.0 scan with the P5-03 lock is clean without exceptions. OpenSSL upgrade unpinned (owner choice). |
+| P5-03 (#172) | done | PR #188 | SDK lock and spike check updated; imports, mypy, locked-version mount, image build, pip audit and local Trivy scan pass. A combined build with P5-02's base refresh is clean without exceptions. |
+| P5-04 (#173) | done | PR #191 | `ResearchCapabilities` for retrieval; `AppError` and the citation cursor moved to `services/`; routes are thin adapters. Agent work found committed but unpushed in its worktree; pushed and reviewed |
+| P5-05 (#174) | done | PR #192 | Migration 028 `ingestion_permitted`; `ingest_scope_required` is the first refusal rule. Found unpushed; pushed and reviewed |
+| P5-07 (#176) | done | PR #190 | `Settings.mcp_text_policy`, `external_text_allowed`, `redact_run_view` |
+| P5-08 (#177) | done | PR #193 | `authenticate_authorization`, `require_principal_scope`, `enforce_rate_limit`; `McpAuthGate` reuses `handle_app_error`. Found unpushed, and an uncommitted copy sat in the main checkout on the P5-07 branch (identical; removed) |
+| P5-06 (#175) | done | PR #194 | `serving`, `resolve_snapshot`, `start_run`, `get_run`; runs record `ingestion_permitted` from the `ingest` scope. Review: P5-13's import-boundary allowlist made name-limited so `RunNotFound` from `runs.repository` is allowed (card #182 edited) |
+| P5-09 (#178) | done | PR #195 | `/mcp` mount, `run_call` runtime, metrics and spans, `mcp/testing.py`. Squash-merged before review; reviewed on `main` (`518cc9f`, CI green): matches the card. The branch `phase5/p5-09-mcp-server` holds an older, unmerged rebase and can be deleted |
 
 ## Environment facts
 
@@ -41,7 +47,10 @@ The [plan](phase-5-mcp.md) and map issue
   models use about 1.9 GiB of the GPU beside the generator, which is why MCP runs inside the API
   process.
 - **Conda environment:** the local `sci_research_agent` has FastAPI 0.138.0 and Starlette 1.3.1,
-  behind the lock (0.141.1 and 1.6.0). CI uses the lock.
+  behind the lock (0.141.1 and 1.6.0). CI uses the lock. MCP cards need `mcp` 2.3.0 installed
+  locally (`conda install -n sci_research_agent --freeze-installed -c conda-forge mcp=2.3.0`).
+- **Agents and pushing:** three of the first four agent cards were committed but never pushed;
+  remind each agent to push after its first commit.
 - **Node:** 22.23.2 locally; MCP Inspector 2.8.0 needs 22.19 or later.
 - **Live services:** the host API serves on `127.0.0.1:8001`; research runs use the database
   `research_phase1_review`. Agent cards never touch them.
