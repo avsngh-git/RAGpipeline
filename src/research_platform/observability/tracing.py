@@ -51,7 +51,8 @@ SPAN_SEARCH_SELECT: Final = "search.select"
 SPAN_CITATION_LOOKUP: Final = "citation_lookup"
 SPAN_INGESTION_REQUEST: Final = "ingestion.request"
 SPAN_INGESTION_PAPER: Final = "ingestion.paper"
-# Dynamic names: f"node.{node_name}", f"tool.{tool_name}", f"llm.{call_kind}".
+# Dynamic names: f"node.{node_name}", f"tool.{tool_name}", f"llm.{call_kind}", f"mcp.{name}".
+# Dynamic span names: f"mcp.{name}".
 
 ATTR_RUN_ID: Final = "research.run_id"
 ATTR_MODE: Final = "research.mode"
@@ -65,6 +66,9 @@ ATTR_RETRIEVAL_PROFILE_ID: Final = "research.retrieval_profile_id"
 ATTR_CODE_REVISION: Final = "research.code_revision"
 ATTR_RESUME_COUNT: Final = "research.resume_count"
 ATTR_REQUEST_ID: Final = "research.request_id"
+ATTR_MCP_TOOL: Final = "research.mcp.tool"
+ATTR_MCP_STATUS: Final = "research.mcp.status"
+ATTR_MCP_PRINCIPAL: Final = "research.mcp.principal"
 ATTR_NODE: Final = "research.node"
 ATTR_TOOL_NAME: Final = "research.tool.name"
 ATTR_TOOL_ORDINAL: Final = "research.tool.ordinal"

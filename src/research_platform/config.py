@@ -135,6 +135,19 @@ def _mcp_text_policy_default() -> str:
     return os.environ.get("RESEARCH_PLATFORM_MCP_TEXT_POLICY", DEFAULT_MCP_TEXT_POLICY)
 
 
+def _mcp_allowed_hosts_default() -> tuple[str, ...]:
+    value = os.environ.get(
+        "RESEARCH_PLATFORM_MCP_ALLOWED_HOSTS",
+        "127.0.0.1:*,localhost:*,[::1]:*",
+    )
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def _mcp_allowed_origins_default() -> tuple[str, ...]:
+    value = os.environ.get("RESEARCH_PLATFORM_MCP_ALLOWED_ORIGINS", "")
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
 def _lexical_index_root_default() -> Path:
     return Path(
         os.environ.get(
@@ -270,6 +283,12 @@ class Settings:
     llm_thinking: frozenset[CallKind] = field(default_factory=_llm_thinking_default)
     llm_seed: int = field(default_factory=_llm_seed_default)
     mcp_text_policy: str = field(default_factory=_mcp_text_policy_default)
+    mcp_allowed_hosts: tuple[str, ...] = field(
+        default_factory=_mcp_allowed_hosts_default
+    )
+    mcp_allowed_origins: tuple[str, ...] = field(
+        default_factory=_mcp_allowed_origins_default
+    )
 
     def __post_init__(self) -> None:
         environment = self.environment.strip().lower()
@@ -370,3 +389,5 @@ class Settings:
                 "profile outside production"
             )
         object.__setattr__(self, "mcp_text_policy", policy)
+        if not self.mcp_allowed_hosts:
+            raise ValueError("mcp_allowed_hosts must not be empty")

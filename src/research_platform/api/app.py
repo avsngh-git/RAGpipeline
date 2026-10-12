@@ -20,6 +20,7 @@ from research_platform.ingestion.generation_index import (
 )
 from research_platform.ingestion.indexing import IndexConfiguration, VectorEmbedder
 from research_platform.ingestion.paper_index import SparsePaperEncoder
+from research_platform.mcp.mount import mount_mcp
 from research_platform.observability.logging_config import configure_logging
 from research_platform.observability.metrics import render_metrics
 from research_platform.observability.request_context import RequestIDMiddleware
@@ -162,6 +163,9 @@ def create_app(
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with AsyncExitStack() as stack:
             stack.callback(shutdown_tracing)
+            await stack.enter_async_context(
+                application.state.mcp_server.session_manager.run()
+            )
             runtime: Any | None = None
             application.state.phase2_runtime_ready = (
                 True if api_services is not None else None
@@ -309,6 +313,7 @@ def create_app(
     app.include_router(create_phase2_router(settings, api_services))
     app.include_router(create_research_router(research_services))
     app.include_router(create_ingestion_router(ingestion_service))
+    app.state.mcp_server = mount_mcp(app, settings)
     return app
 
 
