@@ -41,6 +41,24 @@ Evidence available at the time:
 | Q12 | Live check client | MCP Inspector CLI for gate item 4 (no model, nothing leaves the laptop); a Claude Code session as a reported, ungated demo under the Q11 setting | Inspector only; Claude Code only |
 | Q13 | Phase 4 leftovers | One `ready-for-human` housekeeping card first: resolve or renew the seven Trivy exceptions before they expire on 2026-11-06, mark experiment `083f3b19` interrupted, recreate the Ollama container for the PR #157 cache limit. Unmerged answer-quality candidates stay with #115 | Leave them to #115 or Phase 6 |
 
+### 2. Passage text for the owner's Claude Code demo (2026-10-12)
+
+**Decision:** for the P5-16 Claude Code demo only, the API on the owner's laptop runs with
+`RESEARCH_PLATFORM_MCP_TEXT_POLICY=trusted_private_client`, so the owner's own key and client
+receive passage text and claim quotes. The owner judges this, including Claude Code sending
+tool results to Anthropic's API, to be private non-commercial use under the corpus's CC BY-NC-ND
+and personal-use terms (ADR-0031 decision 3). The policy returns to `public_display_only` after
+the demo.
+
+**Evidence:** `passage_display_permitted` is false for every paper, so without this setting the
+model sees titles, IDs, ranks, pages, sections and claim text but no passages. The gate itself
+(item 4, MCP Inspector) ran under the default policy.
+
+**Alternatives set aside:** a metadata-only demo; skipping the demo.
+
+**Re-examine:** before any deployment or sharing of the platform, and if a model provider's
+data terms change.
+
 ## Decisions delegated to the assistant
 
 Proposed in the interview; the owner did not object (2026-10-12):
