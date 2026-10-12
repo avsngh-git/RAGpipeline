@@ -8,12 +8,14 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from research_platform.config import Settings
 
-from .auth_gate import McpAuthGate
-from .server import build_mcp_server
-
 
 def mount_mcp(app: FastAPI, settings: Settings) -> MCPServer:
     """Mount the MCP Streamable HTTP endpoint at /mcp behind API-key authentication."""
+    # Imported here: research_platform.api's package import loads api.app, which
+    # imports this module, and the gate and tool modules import research_platform.api.
+    from .auth_gate import McpAuthGate
+    from .server import build_mcp_server
+
     server = build_mcp_server(app.state)
     sub_app = server.streamable_http_app(
         streamable_http_path="/",

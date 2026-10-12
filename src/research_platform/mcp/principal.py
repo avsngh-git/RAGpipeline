@@ -7,8 +7,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Final
 
-from research_platform.api.errors import AppError
 from research_platform.auth.keys import Principal
+from research_platform.services.errors import AppError
 
 _CURRENT: Final[ContextVar[Principal | None]] = ContextVar(
     "research_mcp_principal", default=None
