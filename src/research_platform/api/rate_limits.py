@@ -141,15 +141,22 @@ def rate_limited(
 
     async def dependency(request: Request) -> Principal:
         principal = await authenticate(request)
-        retry_after = request.app.state.rate_limiter.check(principal.name, route_class)
-        if retry_after is not None:
-            RATE_LIMITED.labels(route_class.value).inc()
-            raise AppError(
-                "rate_limited",
-                "Too many requests; retry later.",
-                429,
-                headers={"Retry-After": str(max(1, math.ceil(retry_after)))},
-            )
+        enforce_rate_limit(request.app.state.rate_limiter, principal, route_class)
         return principal
 
     return dependency
+
+
+def enforce_rate_limit(
+    limiter: TokenBucketLimiter, principal: Principal, route_class: RouteClass
+) -> None:
+    """Consume one token or raise AppError 429 with Retry-After."""
+    retry_after = limiter.check(principal.name, route_class)
+    if retry_after is not None:
+        RATE_LIMITED.labels(route_class.value).inc()
+        raise AppError(
+            "rate_limited",
+            "Too many requests; retry later.",
+            429,
+            headers={"Retry-After": str(max(1, math.ceil(retry_after)))},
+        )

@@ -58,45 +58,63 @@ def require_scope(scope: Scope) -> Callable[[Request], Awaitable[Principal]]:
 
     async def dependency(request: Request) -> Principal:
         settings: AuthSettings = request.app.state.auth_settings
-        if settings.mode == "disabled":
-            return LOCAL_PRINCIPAL
-
-        authorization = request.headers.get("authorization")
-        if authorization is None or not authorization.lower().startswith("bearer "):
-            AUTH_FAILURES.labels("missing").inc()
-            raise AppError(
-                "authentication_required",
-                "An API key is required.",
-                401,
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        store: ApiKeyStore | None = getattr(request.app.state, "api_key_store", None)
-        if store is None:
-            raise AppError(
-                "authentication_unavailable",
-                "Authentication is not available.",
-                503,
-            )
-
-        token = authorization[7:].strip()
-        principal = await store.authenticate(token)
-        if principal is None:
-            AUTH_FAILURES.labels("invalid").inc()
-            raise AppError(
-                "invalid_api_key",
-                "The API key is not valid.",
-                401,
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        if not principal.has(scope):
-            AUTH_FAILURES.labels("scope").inc()
-            raise AppError(
-                "insufficient_scope",
-                "The API key lacks the required scope.",
-                403,
-            )
-        request.state.principal = principal
+        principal = await authenticate_authorization(
+            request.headers.get("authorization"),
+            settings,
+            getattr(request.app.state, "api_key_store", None),
+        )
+        require_principal_scope(principal, scope)
+        if settings.mode != "disabled":
+            request.state.principal = principal
         return principal
 
     return dependency
+
+
+async def authenticate_authorization(
+    authorization: str | None,
+    settings: AuthSettings,
+    store: ApiKeyStore | None,
+) -> Principal:
+    """Return the caller named by an Authorization header, or raise AppError."""
+    if settings.mode == "disabled":
+        return LOCAL_PRINCIPAL
+
+    if authorization is None or not authorization.lower().startswith("bearer "):
+        AUTH_FAILURES.labels("missing").inc()
+        raise AppError(
+            "authentication_required",
+            "An API key is required.",
+            401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if store is None:
+        raise AppError(
+            "authentication_unavailable",
+            "Authentication is not available.",
+            503,
+        )
+
+    token = authorization[7:].strip()
+    principal = await store.authenticate(token)
+    if principal is None:
+        AUTH_FAILURES.labels("invalid").inc()
+        raise AppError(
+            "invalid_api_key",
+            "The API key is not valid.",
+            401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return principal
+
+
+def require_principal_scope(principal: Principal, scope: Scope) -> None:
+    """Raise AppError 403 when the caller lacks the scope."""
+    if not principal.has(scope):
+        AUTH_FAILURES.labels("scope").inc()
+        raise AppError(
+            "insufficient_scope",
+            "The API key lacks the required scope.",
+            403,
+        )
