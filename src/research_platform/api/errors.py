@@ -1,7 +1,6 @@
 """Safe API error types and exception handlers."""
 
 import logging
-from collections.abc import Mapping
 from typing import Any
 
 from fastapi import Request
@@ -13,8 +12,18 @@ from research_platform.observability.request_context import (
     REQUEST_ID_HEADER,
     get_request_id,
 )
+from research_platform.services.errors import AppError
 
 logger = logging.getLogger("research_platform.errors")
+
+__all__ = [
+    "AppError",
+    "ErrorBody",
+    "ErrorResponse",
+    "handle_app_error",
+    "handle_http_error",
+    "handle_unexpected_error",
+]
 
 
 class ErrorBody(BaseModel):
@@ -29,26 +38,6 @@ class ErrorResponse(BaseModel):
     """Envelope used for all handled API errors."""
 
     error: ErrorBody
-
-
-class AppError(Exception):
-    """An expected application failure safe to expose to the client."""
-
-    def __init__(
-        self,
-        code: str,
-        message: str,
-        status_code: int = 400,
-        *,
-        headers: Mapping[str, str] | None = None,
-    ) -> None:
-        if not 400 <= status_code <= 599:
-            raise ValueError("status_code must be between 400 and 599")
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.status_code = status_code
-        self.headers = dict(headers or {})
 
 
 def _request_id(request: Request) -> str | None:

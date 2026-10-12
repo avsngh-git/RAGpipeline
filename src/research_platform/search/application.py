@@ -1196,11 +1196,13 @@ async def create_phase2_runtime(
         from research_platform.api.routes import Phase2APIServices
         from research_platform.search.paper_graph import CitationGraphReader
         from research_platform.search.paper_reads import SnapshotPaperReader
+        from research_platform.search.paper_related import RelatedPaperReader
 
         services = Phase2APIServices(
             search=executor,
             papers=SnapshotPaperReader(pool),
             citations=CitationGraphReader(pool),
+            related=RelatedPaperReader(pool),
         )
         return Phase2Runtime(pool, http, services, reranker, embedder)
     except BaseException:
