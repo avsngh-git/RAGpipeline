@@ -299,9 +299,8 @@ def test_cancelled_query_keeps_single_worker_capacity_until_inference_finishes()
         with pytest.raises(asyncio.CancelledError):
             await request
 
-        for _ in range(8):
-            with pytest.raises(EmbeddingInferenceBusy):
-                await embedder.embed_query("another query", configuration=config)
+        with pytest.raises(EmbeddingInferenceBusy):
+            await embedder.embed_query("another query", configuration=config)
         assert model.maximum_active == 1
 
         model.release.set()
@@ -355,10 +354,14 @@ def test_slow_model_load_occupies_bounded_query_worker() -> None:
             embedder.embed_query("readiness probe", configuration=config)
         )
         assert await asyncio.to_thread(embedder.load_started.wait, 1)
-        with pytest.raises(EmbeddingInferenceBusy):
-            await embedder.embed_query("concurrent search", configuration=config)
+        concurrent = asyncio.create_task(
+            embedder.embed_query("concurrent search", configuration=config)
+        )
+        await asyncio.sleep(0.05)
+        assert not concurrent.done()
         embedder.release_load.set()
         assert len(await startup_probe) == 384
+        assert len(await concurrent) == 384
         assert (
             len(await embedder.embed_query("subsequent search", configuration=config))
             == 384
@@ -426,3 +429,56 @@ def test_fp16_without_cuda_is_refused_before_loading(
     with pytest.raises(Exception, match="fp16 embedding requires CUDA"):
         _load_with_fake_libraries(monkeypatch, precision="fp16", cuda=False)
     assert _RecordingSentenceTransformer.calls == []
+
+
+def test_concurrent_queries_take_turns_on_the_single_worker() -> None:
+    model = _BlockingModel()
+    embedder = E5SmallV2Embedder(model=model, query_timeout_seconds=1.5)
+    config = embedder.index_configuration()
+
+    async def exercise() -> None:
+        first = asyncio.create_task(
+            embedder.embed_query("first query", configuration=config)
+        )
+        assert await asyncio.to_thread(model.started.wait, 1)
+        second = asyncio.create_task(
+            embedder.embed_query("second query", configuration=config)
+        )
+        await asyncio.sleep(0.05)
+        assert not second.done()
+        model.release.set()
+        assert len(await first) == 384
+        assert len(await second) == 384
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        model.release.set()
+        embedder.close()
+    assert model.maximum_active == 1
+
+
+def test_waiting_query_ignores_the_previous_query_failure() -> None:
+    model = _BlockingModel()
+    embedder = E5SmallV2Embedder(model=model, query_timeout_seconds=3.0)
+    config = embedder.index_configuration()
+
+    async def exercise() -> None:
+        first = asyncio.create_task(
+            embedder.embed_query("first query", configuration=config)
+        )
+        assert await asyncio.to_thread(model.started.wait, 1)
+        second = asyncio.create_task(
+            embedder.embed_query("second query", configuration=config)
+        )
+        # The blocked encoder gives up after two seconds and fails the first query.
+        with pytest.raises(EmbeddingModelError):
+            await first
+        model.release.set()
+        assert len(await second) == 384
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        model.release.set()
+        embedder.close()
