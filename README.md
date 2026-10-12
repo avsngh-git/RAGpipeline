@@ -45,6 +45,12 @@ retrieval services and generator.
 The response includes claims, evidence handles and paper metadata. Passage text and live
 evaluation inputs remain private local data.
 
+## MCP server
+
+The MCP server exposes selected research tools over the local API at `/mcp/` using Streamable HTTP.
+See the [MCP operations guide](docs/operations/mcp.md) for keys, clients and the Inspector check.
+The adapter and its security decisions are documented in [ADR-0030](docs/adr/0030-phase5-mcp-adapter.md).
+
 ## Development environment
 
 This project uses Conda as its development dependency manager.
