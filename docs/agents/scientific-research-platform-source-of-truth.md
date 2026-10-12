@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.41\
+**Version:** 1.42\
 **Last updated:** 2026-10-12\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169))\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)) and accepted by the owner on 2026-10-12 after all four gate items passed ([gate report](../reference/phase-5-gate-report.md))\
 
 ---
 
@@ -1488,7 +1488,8 @@ retention` dry run work against `research_phase1_review`. Operations guides:
 
 ### Phase 5 — MCP
 
-**Status: planned on 2026-10-12.** The owner chose MCP-only scope (answer quality stays in
+**Status: accepted by the owner on 2026-10-12** (owner decision 4), after all four gate items
+passed ([gate report](../reference/phase-5-gate-report.md)). Planned on 2026-10-12: the owner chose MCP-only scope (answer quality stays in
 backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115)) and accepted
 [ADR-0030](../adr/0030-phase5-mcp-adapter.md) (shared `ResearchCapabilities` service for HTTP
 and MCP, SDK `mcp` 2.3.0, `/mcp` mount, API-key auth, eight tools and two resources, and the
@@ -1510,6 +1511,28 @@ Gate: an external MCP client and the internal LangGraph agent use the same core 
 ADR-0030 makes it checkable: CI parity of MCP results with the HTTP routes and `ResearchTools` on
 the same fakes; a CI import boundary for the MCP adapter and the capability service; a CI MCP
 security suite; and a live MCP Inspector session reviewed by the owner.
+
+**Gate evidence (2026-10-12):** items 1–3 pass in CI on `main` `7c7193a`
+([run 38292707408](https://github.com/avsngh-git/RAGpipeline/actions/runs/38292707408)); five
+deliberate breaks (a forbidden import, an MCP tool bypassing `ResearchCapabilities`, a leaking
+text policy, a skipped scope check, ingestion without `ingest`) each fail the gate tests. Item 4:
+an MCP Inspector 2.8.0 session against the development API started run `0de45d17` over MCP with
+a `read`+`research` key; it completed (`answered`), its HTTP view matches the MCP view except
+withheld quotes, and it recorded `ingestion_permitted = false`. The owner accepted it (decision
+3). A Claude Code demo, run with passage text under owner decision 2, chose `search_papers` and
+`search_evidence` itself and exposed concurrent searches failing in the query embedder (#205),
+fixed in PR #207. Review fixes during the phase: run tools missing from the running API (PR #199)
+and an import cycle through `research_platform.api` (PR #201).
+
+**Phase 6 inputs from Phase 5:**
+
+- OAuth only if the public demo needs browser-based MCP clients; today clients send a static
+  bearer key (ADR-0030).
+- Deployed hosts and origins: set `RESEARCH_PLATFORM_MCP_ALLOWED_HOSTS` and
+  `RESEARCH_PLATFORM_MCP_ALLOWED_ORIGINS`; the defaults accept only loopback.
+- Passage text stays withheld from external clients unless public display is permitted
+  (ADR-0031); no paper permits it today, so a public demo shows metadata and claims only.
+- The MCP server runs inside the API process; there is no stdio transport.
 
 ### Phase 6 — Deployment and portfolio presentation
 
@@ -1536,7 +1559,7 @@ The project is portfolio-complete only when all of the following are true:
 - [ ] The agent uses validated typed tools and terminates within enforced budgets.
 - [ ] Hybrid retrieval, reranking, metadata filtering, and citation traversal work on a real corpus.
 - [ ] Answers contain verified claim-to-evidence-to-paper mappings.
-- [ ] Selected capabilities are usable through one MCP server.
+- [x] Selected capabilities are usable through one MCP server.
 
 ### Engineering
 

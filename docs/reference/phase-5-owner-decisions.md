@@ -72,6 +72,16 @@ concurrent-search finding (#205) was fixed in PR #207 before acceptance.
 **Re-examine:** at Phase 6 deployment, with the deployed host, origin and authentication
 settings.
 
+### 4. Phase 5 accepted (2026-10-12)
+
+**Decision:** the owner accepted Phase 5 (MCP).
+
+**Evidence:** all four gate items pass ([gate report](phase-5-gate-report.md)); the concurrent
+search finding (#205) is fixed (PR #207).
+
+**Re-examine:** the Phase 6 inputs in source-of-truth section 21 (OAuth for browser clients,
+deployed hosts and origins, passage display).
+
 ## Decisions delegated to the assistant
 
 Proposed in the interview; the owner did not object (2026-10-12):
