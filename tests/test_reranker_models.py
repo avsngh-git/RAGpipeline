@@ -72,7 +72,10 @@ def _mock_libraries(
 ) -> tuple[dict[str, object], dict[str, object]]:
     calls: dict[str, object] = {}
     torch = SimpleNamespace(
-        float32=object(), cuda=SimpleNamespace(is_available=lambda: cuda_available)
+        float32=object(),
+        float16=object(),
+        bfloat16=object(),
+        cuda=SimpleNamespace(is_available=lambda: cuda_available),
     )
 
     class AutoTokenizer:
@@ -268,20 +271,42 @@ def test_minilm_still_requires_the_512_token_budget() -> None:
 
 
 @pytest.mark.parametrize("device", ["auto", "cpu"])
-def test_half_precision_reranker_refuses_cpu(
-    monkeypatch: pytest.MonkeyPatch, device: str
+@pytest.mark.parametrize("precision", ["fp16", "bf16"])
+def test_half_precision_reranker_uses_float32_on_cpu(
+    monkeypatch: pytest.MonkeyPatch, device: str, precision: str
 ) -> None:
-    _mock_libraries(
+    calls, dependencies = _mock_libraries(
         monkeypatch,
         tokenizer=FakeTokenizer(),
         model=FakeModel(),
         cuda_available=False,
     )
-    identity = dataclasses.replace(_identity(), precision="fp16")
+    identity = dataclasses.replace(_identity(), precision=precision)
     scorer = PinnedSentenceTransformersReranker(identity, device=device)
 
-    with pytest.raises(RerankerDeviceUnavailable, match="fp16 reranking requires CUDA"):
-        scorer.count_pair("query", "evidence")
+    assert scorer.count_pair("query", "evidence") > 0
+    assert calls["model_kwargs"]["model_kwargs"] == {
+        "dtype": dependencies["torch"].float32
+    }
+
+
+def test_half_precision_reranker_keeps_gpu_precision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls, dependencies = _mock_libraries(
+        monkeypatch,
+        tokenizer=FakeTokenizer(),
+        model=FakeModel(),
+        cuda_available=True,
+    )
+    identity = dataclasses.replace(_identity(), precision="fp16")
+    scorer = PinnedSentenceTransformersReranker(identity, device="auto")
+
+    assert scorer.count_pair("query", "evidence") > 0
+    assert calls["model_kwargs"]["device"] == "cuda"
+    assert calls["model_kwargs"]["model_kwargs"] == {
+        "dtype": dependencies["torch"].float16
+    }
 
 
 def test_full_precision_reranker_still_runs_on_cpu(

@@ -1,0 +1,31 @@
+name: sci_research_agent_serving
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - setuptools
+  - fastapi
+  - httpx
+  - uvicorn
+  - asyncpg
+  - langgraph=1.2.9
+  - mcp=2.3.0
+  - psycopg=3.3.4
+  - psycopg-pool=3.3.3
+  - websockets=16.1.1
+  - numpy=2.5.3
+  - opentelemetry-api=1.45.0
+  - opentelemetry-sdk=1.45.0
+  - opentelemetry-exporter-otlp-proto-http=1.45.0
+  - prometheus_client=0.26.0
+  - filelock
+  - pytorch-cpu=2.14
+  - transformers=5.17.0
+  - sentence-transformers=6.1.0
+  - tokenizers=0.23.2
+  - safetensors=0.8.0
+  - pip:
+      - bm25s==0.3.11
+      - huggingface_hub==1.33.0

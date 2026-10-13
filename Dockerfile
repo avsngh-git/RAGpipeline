@@ -16,8 +16,9 @@ RUN apt-get update \
     && conda remove --yes --name base --force pip \
     && conda clean --all --yes
 
-COPY environment-linux-64.lock /tmp/environment-linux-64.lock
-RUN conda create --yes --prefix "${CONDA_ENV}" --file /tmp/environment-linux-64.lock \
+COPY environment-serving-linux-64.lock /tmp/environment-serving-linux-64.lock
+COPY requirements-serving.txt ./requirements-serving.txt
+RUN conda create --yes --prefix "${CONDA_ENV}" --file /tmp/environment-serving-linux-64.lock \
     && conda clean --all --yes
 
 ENV PATH="${CONDA_ENV}/bin:${PATH}"
@@ -41,6 +42,7 @@ COPY benchmarks/phase2/acceptance-v1.toml \
 COPY configs/phase35-generation-index-lexical.example.json ./configs/
 
 RUN python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt \
+    && python -m pip install --no-deps --require-hashes -r requirements-serving.txt \
     && python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt \
     && python -m pip install --no-build-isolation --no-deps .
 

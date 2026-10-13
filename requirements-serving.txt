@@ -1,0 +1,2 @@
+huggingface_hub==1.33.0 \
+    --hash=sha256:04e434b06e100eddbce9a6e817d72693a7884b10a79bd67ab48080d5c07eb899
