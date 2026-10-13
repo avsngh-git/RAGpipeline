@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.42\
-**Last updated:** 2026-10-12\
+**Version:** 1.43\
+**Last updated:** 2026-10-13\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)) and accepted by the owner on 2026-10-12 after all four gate items passed ([gate report](../reference/phase-5-gate-report.md))\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)) and accepted by the owner on 2026-10-12 after all four gate items passed ([gate report](../reference/phase-5-gate-report.md)); Phase 6 (release, small mode and portfolio) planned on 2026-10-13 with ADR-0032 and ADR-0033 accepted by the owner ([plan](../plans/phase-6-portfolio.md)); the owner made public hosting optional (ADR-0033)\
 
 ---
 
@@ -107,7 +107,7 @@ The finished project MUST:
 13. Include unit, integration, API, regression, and security-focused tests.
 14. Run locally through Docker Compose.
 15. Use a simple, professional GitHub Actions pipeline.
-16. Provide at least one genuinely deployed demonstration environment.
+16. Provide a released, versioned image and a documented procedure that runs the demonstration environment; public hosting is optional (changed 2026-10-13 by the owner, [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md)).
 17. Expose selected research capabilities through one MCP server.
 18. Remain feasible for development on a laptop with an NVIDIA RTX 3050.
 
@@ -217,7 +217,7 @@ These choices MUST be evaluated or recorded in ADRs before being treated as perm
 - exact local tool-capable generator and quantization (Phase 3: text-only Qwen3.5-2B `Q4_K_M` on Ollama, all layers on the GPU beside retrieval, [ADR-0021](../adr/0021-phase3-qwen35-2b-gpu.md); synthesis runs with thinking on and no output-token cap, [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md));
 - local LLM serving implementation between supported adapters (Phase 3: Ollama, ADR-0018);
 - background execution mechanism for long research runs (Phase 3: in-process worker with LangGraph checkpoints, [ADR-0019](../adr/0019-phase3-research-run-execution.md)) and later API-controlled ingestion (Phase 1 uses resumable terminal commands);
-- production/demo hosting provider;
+- production/demo hosting provider (Phase 6: none; public hosting optional, [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md));
 - authentication mechanism for the deployed demo (Phase 4: hashed API keys with scopes, [ADR-0027](../adr/0027-phase4-authentication-and-rate-limits.md));
 - caching implementation;
 - frontend framework;
@@ -1011,9 +1011,11 @@ Model weights and large datasets MUST NOT be baked into the application image.
 
 ### 18.2 Production/demo
 
-At least one real environment MUST expose a functional backend/demo. The deployment SHOULD avoid permanent GPU cost. Acceptable patterns include a CPU-compatible small model, a scheduled/on-demand GPU, or a clearly documented local-model demonstration paired with a hosted backend subset.
+The demonstration MUST expose a functional backend/demo through a released, versioned image and a documented local small mode. Public hosting is optional; the project owner does not accept hosting costs ([ADR-0033](../adr/0033-phase6-delivery-without-hosting.md)). If public hosting is chosen in future, it SHOULD avoid permanent GPU cost. Acceptable patterns include a CPU-compatible small model, a scheduled/on-demand GPU, or a clearly documented local-model demonstration paired with a hosted backend subset.
 
-The final deployment architecture remains OPEN until a cost and feasibility comparison is completed.
+The public hosting target and cost envelope remain OPEN for optional future hosting work. Phase 6's release and local demonstration environment are specified below.
+
+Phase 6 ([ADR-0033](../adr/0033-phase6-delivery-without-hosting.md)): the owner will not accept a hosting bill, and no free tier checked on 2026-10-13 fits. The demonstration is a released image plus a reviewer small mode on CPU (`scripts/demo_load.sh`, `docker compose up`) over a public CC BY demo bundle ([ADR-0032](../adr/0032-phase6-public-cc-by-demo-collection.md)), and a video recorded on the owner's laptop with live GPU research runs. Public hosting stays optional.
 
 ---
 
@@ -1536,16 +1538,29 @@ and an import cycle through `research_platform.api` (PR #201).
 
 ### Phase 6 — Deployment and portfolio presentation
 
+**Status: planned on 2026-10-13.** The owner accepted
+[ADR-0032](../adr/0032-phase6-public-cc-by-demo-collection.md) (the accepted 100-paper snapshot,
+all CC BY, becomes a public demo collection after a per-document display check) and
+[ADR-0033](../adr/0033-phase6-delivery-without-hosting.md) (no hosted environment, changing goal 16
+of section 3.1; a serving lock with CPU PyTorch; GHCR images and releases; an allowlisted demo
+bundle; the reviewer small mode; `GET /v1/serving`; a static UI page). The
+[plan](../plans/phase-6-portfolio.md), [handoff](../plans/phase-6-agent-handoff.md) and
+[owner decisions](../reference/phase-6-owner-decisions.md) track the work. Answer quality stays
+in backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115).
+
 Deliver:
 
 - versioned Docker images;
 - release/deployment workflow;
-- one real deployed environment;
+- one real deployed environment (changed by ADR-0033: a released image and a documented local demonstration environment; public hosting optional);
 - thin UI or compelling API demo;
 - architecture, benchmark, failure-analysis, and operations documentation;
 - final README and recorded demo.
 
 Gate: a reviewer can clone, run a small mode, inspect tests/results, and understand the production design without private knowledge.
+ADR-0033 makes it checkable: the `demo-smoke` workflow follows the README quickstart on a fresh
+GitHub runner and passes; a cold-reviewer agent with only the public repository reports every
+point that needed private knowledge, and each is fixed or recorded; the owner accepts the video.
 
 ---
 
@@ -1581,7 +1596,7 @@ The project is portfolio-complete only when all of the following are true:
 - [x] Runs have correlated logs, metrics, and traces.
 - [x] Model/prompt/retrieval/index/configuration versions are recoverable.
 - [x] Secrets are not committed or leaked to outputs.
-- [ ] A versioned image is deployed to a real target.
+- [ ] A versioned image is released and runs the documented demonstration environment (ADR-0033).
 - [ ] Basic operating, migration, backup/rebuild, and failure-recovery instructions exist.
 
 ### Portfolio narrative
@@ -1617,8 +1632,8 @@ Resolve these progressively; do not decide all of them before evidence is availa
    separate `research-worker` process.
 9. Authentication and caching implementations. **Authentication resolved for Phase 4
    (ADR-0027):** hashed API keys with scopes and run ownership. Caching remains open.
-10. Production hosting target and cost envelope.
-11. Thin UI choice.
+10. Production hosting target and cost envelope. **Phase 6 (ADR-0033):** no hosting, no cost; public hosting optional.
+11. Thin UI choice. **Resolved for Phase 6 (ADR-0033):** one static HTML page served by FastAPI.
 12. Phase 2 retrieval and runtime thresholds are frozen in acceptance-v14 (ADR-0015,
     ADR-0016) and accepted profile v10 (ADR-0017); the acceptance method is ADR-0014.
     Earlier sets keep their own gates. Phase 3 operational gates are defined by ADR-0020 and
