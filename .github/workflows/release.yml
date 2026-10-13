@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Promote the tested image
+        id: promote
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          image=ghcr.io/avsngh-git/ragpipeline
+          source="$image:sha-${GITHUB_SHA::12}"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if ! docker buildx imagetools inspect "$source" > /dev/null 2>&1; then
+            echo "::error::$source does not exist. Tag a main commit whose CI run passed."
+            exit 1
+          fi
+          docker buildx imagetools create --tag "$image:$TAG" --tag "$image:latest" "$source"
+          digest=$(docker buildx imagetools inspect "$image:$TAG" | awk '/^Digest:/ {print $2; exit}')
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          DIGEST: ${{ steps.promote.outputs.digest }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" --title "$TAG" --generate-notes \
+            --notes "Image: \`ghcr.io/avsngh-git/ragpipeline:$TAG\` (\`$DIGEST\`), promoted from \`sha-${GITHUB_SHA::12}\` without rebuilding."

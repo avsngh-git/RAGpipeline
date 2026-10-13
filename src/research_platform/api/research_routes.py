@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from pydantic import BaseModel, ConfigDict
 
 from research_platform.auth.keys import Principal, Scope
 from research_platform.observability.request_context import get_request_id
@@ -17,7 +18,17 @@ from research_platform.services.capabilities import (
 
 from .rate_limits import RouteClass, rate_limited
 
-__all__ = ["ResearchAPIServices", "create_research_router"]
+__all__ = ["ResearchAPIServices", "ServingResponse", "create_research_router"]
+
+
+class ServingResponse(BaseModel):
+    """The snapshot and retrieval profile this server answers from."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    snapshot_id: UUID
+    retrieval_profile_id: str
+    generation: int | None
 
 
 def _active_services(
@@ -77,5 +88,23 @@ def create_research_router(
         ],
     ) -> ResearchRunView:
         return await capabilities(request).get_run(run_id, principal=principal)
+
+    @router.get(
+        "/v1/serving",
+        response_model=ServingResponse,
+        summary="Get the served snapshot and retrieval profile",
+    )
+    async def get_serving(
+        request: Request,
+        _principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.RUN_READ))
+        ],
+    ) -> ServingResponse:
+        serving = capabilities(request).serving()
+        return ServingResponse(
+            snapshot_id=serving.snapshot_id,
+            retrieval_profile_id=serving.retrieval_profile_id,
+            generation=serving.generation,
+        )
 
     return router
