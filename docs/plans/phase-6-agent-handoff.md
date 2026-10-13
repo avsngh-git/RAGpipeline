@@ -31,7 +31,7 @@ Updated: 2026-10-13. **Status: planned.** ADR-0032 and ADR-0033 accepted by the 
 
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
-| P6-01 (#210) | in review | — | ADRs 0032–0033, plan, handoff, owner decisions, source of truth 1.43 |
+| P6-01 (#210) | merged | c472286 / [PR #229](https://github.com/avsngh-git/RAGpipeline/pull/229) | Hosted CI run [#38407311684](https://github.com/avsngh-git/RAGpipeline/actions/runs/38407311684) passed |
 
 ## Environment facts
 
