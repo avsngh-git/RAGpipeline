@@ -88,7 +88,7 @@ sequenceDiagram
     PG-->>Client: status, answer, claims, and provenance
 ```
 
-`RunBudgets` records and enforces limits for planning rounds, actions per plan, tool calls, citation depth, evidence passages, synthesis tokens, model retries, active run time, resumes, ingestion waits, and synthesis attempts. Run provenance stores the effective budgets. The quick graph also bounds its paper and evidence searches in code. See [`runs/contracts.py`](../../src/research_platform/runs/contracts.py), [`runs/runner.py`](../../src/research_platform/runs/runner.py), and [`agents/graph_quick.py`](../../src/research_platform/agents/graph_quick.py).
+`RunBudgets` records and enforces limits for planning rounds, actions per plan, tool calls, citation depth, evidence passages, synthesis tokens, model retries, active run time, resumes, ingestion waits, and synthesis attempts. `ToolLedger` caches repeated identical actions so they do not repeat backend work, and the validated settings cap the model context. The quick graph requests up to 10 paper hits, selects up to five candidate IDs, and requests up to 20 evidence results. Run provenance stores the effective run budgets. See [`runs/contracts.py`](../../src/research_platform/runs/contracts.py), [`tools/research_tools.py`](../../src/research_platform/tools/research_tools.py), [`config.py`](../../src/research_platform/config.py), [`runs/runner.py`](../../src/research_platform/runs/runner.py), and [`agents/graph_quick.py`](../../src/research_platform/agents/graph_quick.py).
 
 Quote verification occurs after the model returns a structured draft. Code resolves each evidence handle, confirms that the quote occurs in the cited passage, checks the claim against the quote, and drops claims that fail. If the quote itself passes, code may keep the quote as the claim. See [`agents/answering.py`](../../src/research_platform/agents/answering.py), [`agents/verification.py`](../../src/research_platform/agents/verification.py), and [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md).
 
@@ -98,13 +98,13 @@ The locked retrieval contract has seven stages: validate and normalize the query
 
 | Stage | Implementation |
 | --- | --- |
-| Query and filters | Validate the request and apply snapshot, year, and evidence filters before ranking. |
+| Query and filters | Validate the request and apply snapshot, year, and evidence filters before ranking. ([Source of truth §9.1](../agents/scientific-research-platform-source-of-truth.md), [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)) |
 | Lexical search | Qdrant sparse IDF (`qdrant-v1.19.1-lucene-idf`), `scientific-en-v1` analyzer revision `v1`. ([Frozen profile](../../benchmarks/phase2/frozen-profile-v10-qdrant.toml)) |
 | Dense search | gte-modernbert-base, pinned revision `e7f32e3c00f91d699e8c43b53106206bcc72bb22`, 768-dimensional vectors. ([Frozen profile](../../benchmarks/phase2/frozen-profile-v10-qdrant.toml)) |
 | Fusion | RRF (`rrf-v1`) with rank constant 10. ([Frozen profile](../../benchmarks/phase2/frozen-profile-v10-qdrant.toml)) |
 | Reranking | Ettin-150M, pinned revision `025501c4e0f9bbeb4c5b198318e0089ff061cc14`, fp16 profile precision. ([Frozen profile](../../benchmarks/phase2/frozen-profile-v10-qdrant.toml)) |
-| Selection | Deduplicate and apply per-paper and result context budgets after ranking. |
-| Results | Return paper or evidence hits with ranks, component scores, stable source IDs, and provenance. |
+| Selection | Deduplicate and apply per-paper and result context budgets after ranking. ([Frozen profile](../../benchmarks/phase2/frozen-profile-v10-qdrant.toml)) |
+| Results | Return paper or evidence hits with ranks, component scores, stable source IDs, and provenance. ([Source of truth §9.2](../agents/scientific-research-platform-source-of-truth.md), [ADR-0017](../adr/0017-phase2-accepted-profile-v10.md)) |
 
 The [frozen profile](../../benchmarks/phase2/frozen-profile-v10-qdrant.toml) sets lexical, dense, and fused candidate pools to 50, reranks up to 16 candidates, and returns up to 10 results by default. It keeps up to five support passages per paper and limits evidence results to 4,000 tokens or 12,000 characters. Those are profile settings, not answer-quality guarantees. The profile file preserves its 2026-10-05 `inactive` label, while the later [source of truth §21](../agents/scientific-research-platform-source-of-truth.md) records that `v10-qdrant` serves by default after its parity gate. This overview follows the later status and uses the profile file for the exact retrieval settings.
 
