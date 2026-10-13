@@ -83,6 +83,11 @@ temporary collection. CI supplies fresh service containers for these tests.
 
 ## Locked Linux environment
 
+`environment-linux-64.lock` is the slim test and development environment;
+`environment-serving-linux-64.lock` is the CPU inference environment used by the
+Docker image. See [the serving environment guide](docs/operations/serving-environment.md)
+for its model dependencies and regeneration procedure.
+
 `environment-linux-64.lock` is an exact Conda package lock for Linux x86-64.
 Use it when reproducing the currently tested Linux environment:
 

@@ -144,6 +144,9 @@ class PinnedSentenceTransformersReranker:
             ) from None
 
         device = self._resolve_device(torch)
+        # The frozen precision describes the measured GPU path. CPU inference has
+        # no half-precision benefit and must remain available for the Phase 6 image.
+        runtime_precision = self.identity.precision if device == "cuda" else "fp32"
         cache_folder = str(self.cache_folder) if self.cache_folder is not None else None
         try:
             tokenizer = tokenizer_factory.from_pretrained(
@@ -168,7 +171,7 @@ class PinnedSentenceTransformersReranker:
                     "dtype": getattr(
                         torch,
                         {"fp32": "float32", "fp16": "float16", "bf16": "bfloat16"}[
-                            self.identity.precision
+                            runtime_precision
                         ],
                     )
                 },
@@ -190,13 +193,6 @@ class PinnedSentenceTransformersReranker:
             if self.device == "auto" and cuda_available
             else ("cpu" if self.device == "auto" else self.device)
         )
-        if device == "cpu" and self.identity.precision != "fp32":
-            # Half precision is a GPU speed setting; the frozen profile was measured
-            # on CUDA. Refusing here lets search fall back to the unchanged hybrid
-            # order instead of reranking with a different numeric path.
-            raise RerankerDeviceUnavailable(
-                f"{self.identity.precision} reranking requires CUDA"
-            )
         return device
 
 
