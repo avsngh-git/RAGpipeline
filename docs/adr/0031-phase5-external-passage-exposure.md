@@ -62,3 +62,10 @@ separate decision".
   default policy.
 - Turning on `trusted_private_client` is an owner action recorded in the decision record, not a
   code change.
+
+## Correction (2026-10-13)
+
+The context above says the corpus includes CC BY-NC-ND and personal-use papers. That is true of
+six follow-up files acquired on 2026-09-25, which were never added to a snapshot; every document in
+the accepted snapshot is CC BY. [ADR-0032](0032-phase6-public-cc-by-demo-collection.md) records
+the check and makes that snapshot a public demo collection. The decisions above are unchanged.

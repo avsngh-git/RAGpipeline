@@ -31,7 +31,9 @@ issue card. For Phase 4, read `docs/plans/phase-4-agent-handoff.md`, then
 `docs/plans/phase-4-observability-security.md`; a Phase 4 implementer follows its
 GitHub issue card under map issue #77. For Phase 5, read `docs/plans/phase-5-agent-handoff.md`,
 then `docs/plans/phase-5-mcp.md`; a Phase 5 implementer follows its GitHub issue card
-under map issue #169. These handoffs own phase-specific
+under map issue #169. For Phase 6, read `docs/plans/phase-6-agent-handoff.md`,
+then `docs/plans/phase-6-portfolio.md`; a Phase 6 implementer follows its GitHub issue card
+under map issue #209. These handoffs own phase-specific
 progress and delegation. Otherwise default to tutoring for the user's Python learning.
 
 ### Issue tracker
