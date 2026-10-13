@@ -132,8 +132,8 @@ latency. See the [v14 timing and resource report](phase-2-acceptance-report.md).
 | Phase 3.5 peak GPU memory, natural / forced ingestion | 2,622 / 3,912 MiB | [Phase 3.5 evaluation](phase-3.5-evaluation-report.md) |
 
 The Phase 3.5 forced-ingestion run used the API, worker, and Ollama together; its GPU
-peak was 3,912 MiB. This development measurement shows why CPU small mode is a separate
-runtime configuration. See the [Phase 3.5 evaluation](phase-3.5-evaluation-report.md).
+peak was 3,912 MiB. It does not measure CPU small-mode latency. See the
+[Phase 3.5 evaluation](phase-3.5-evaluation-report.md) and [Phase 6 plan](../plans/phase-6-portfolio.md).
 
 ## Agent and answer measurements
 
