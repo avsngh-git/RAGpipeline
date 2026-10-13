@@ -40,6 +40,8 @@ COPY benchmarks/phase2/acceptance-v1.toml \
      benchmarks/phase2/hybrid-e5-profile-v1.toml \
      ./benchmarks/phase2/
 COPY configs/phase35-generation-index-lexical.example.json ./configs/
+COPY migrations ./migrations
+ENV RESEARCH_PLATFORM_MIGRATIONS_DIR=/app/migrations
 
 RUN python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt \
     && python -m pip install --no-deps --require-hashes -r requirements-serving.txt \
