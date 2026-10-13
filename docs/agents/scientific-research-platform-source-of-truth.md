@@ -1011,9 +1011,9 @@ Model weights and large datasets MUST NOT be baked into the application image.
 
 ### 18.2 Production/demo
 
-At least one real environment MUST expose a functional backend/demo. The deployment SHOULD avoid permanent GPU cost. Acceptable patterns include a CPU-compatible small model, a scheduled/on-demand GPU, or a clearly documented local-model demonstration paired with a hosted backend subset.
+The demonstration MUST expose a functional backend/demo through a released, versioned image and a documented local small mode. Public hosting is optional; the project owner does not accept hosting costs ([ADR-0033](../adr/0033-phase6-delivery-without-hosting.md)). If public hosting is chosen in future, it SHOULD avoid permanent GPU cost. Acceptable patterns include a CPU-compatible small model, a scheduled/on-demand GPU, or a clearly documented local-model demonstration paired with a hosted backend subset.
 
-The final deployment architecture remains OPEN until a cost and feasibility comparison is completed.
+The public hosting target and cost envelope remain OPEN for optional future hosting work. Phase 6's release and local demonstration environment are specified below.
 
 Phase 6 ([ADR-0033](../adr/0033-phase6-delivery-without-hosting.md)): the owner will not accept a hosting bill, and no free tier checked on 2026-10-13 fits. The demonstration is a released image plus a reviewer small mode on CPU (`scripts/demo_load.sh`, `docker compose up`) over a public CC BY demo bundle ([ADR-0032](../adr/0032-phase6-public-cc-by-demo-collection.md)), and a video recorded on the owner's laptop with live GPU research runs. Public hosting stays optional.
 

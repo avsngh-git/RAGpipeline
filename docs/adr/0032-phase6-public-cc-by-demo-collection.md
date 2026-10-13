@@ -34,7 +34,8 @@ Accepted by the project owner on 2026-10-13 in the Phase 6 planning interview
    **demo bundle** attached to a GitHub Release, and shown in the UI, the recorded video and
    documentation.
 2. **Display is recorded per document, not assumed.** Before export, a reviewed display decision
-   is recorded for each of the 100 documents: the reviewer opens the recorded terms URL (or the
+   is recorded for every document artifact reachable from the accepted snapshot's 100 paper
+   members (currently 102 source documents): the reviewer opens the recorded terms URL (or the
    pinned arXiv record) and confirms a CC BY licence on that exact version. For each confirmed
    document a new `document_permission_evidence` row is inserted with
    `passage_display_permitted = true`, a `permission_basis` naming the checked URL, and the reviewer
