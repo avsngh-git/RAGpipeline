@@ -1,70 +1,98 @@
 # Scientific Research Platform
 
-An installable Python project for a scientific literature research platform.
+This platform searches scientific papers, retrieves and reranks evidence, and follows citation relationships. It returns research answers with claims that can be traced to source passages and paper metadata ([project specification](docs/agents/scientific-research-platform-source-of-truth.md)).
 
-## Project status
+## What it shows
 
-Phase 0 and the Phase 1 corpus milestone are complete. The accepted 100-paper
-snapshot is finalized. Phase 1 remediation passed [hosted CI
-36238052340](https://github.com/avsngh-git/RAGpipeline/actions/runs/36238052340)
-on revision `d28e1adc299d6199774c78a2d63cb3eb0870d5ab`; see the
-[audit closeout](docs/reviews/phase-1-completion-audit-2026-09-26.md) and
-[corpus acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
+- **Hybrid retrieval and reranking:** the selected v10 profile passed all 16 gates in the one-time v14 held-out assessment; three quality gates passed by narrow margins inside sampling noise ([benchmarks](docs/reference/benchmarks.md), [profile decision](docs/adr/0017-phase2-accepted-profile-v10.md)).
+- **A bounded LangGraph agent:** the fully sampled development sweep completed 42 of 42 runs within budget, with no unknown evidence handles or completed-run budget violations. These are operational results, not answer-quality gates ([benchmarks](docs/reference/benchmarks.md)).
+- **Verified claim evidence:** quote checks rejected 7 of 15 partial or unsupported claims and 2 of 60 supported claims in the reviewed sample; verification can filter unsupported drafts and reject some supported ones ([failure analysis](docs/reference/failure-analysis.md), [ADR-0025](docs/adr/0025-verified-quote-synthesis-with-thinking.md)).
+- **Observable, reproducible runs:** all five accepted Phase 4 walkthroughs reproduced with matching configuration hashes ([Phase 4 gate report](docs/reference/phase-4-gate-report.md)).
+- **One MCP server over shared services:** parity and security checks passed in CI; the recorded gate run had 1,407 passed and 114 skipped tests ([Phase 5 gate report](docs/reference/phase-5-gate-report.md), [ADR-0030](docs/adr/0030-phase5-mcp-adapter.md)).
 
-**Phase 2 is accepted (2026-09-30).** The one-time R8 v14 held-out assessment (30 families)
-passed all 16 gates with frozen profile v10: gte-modernbert-base + BM25S hybrid + Ettin-150M
-reranker ([ADR-0017](docs/adr/0017-phase2-accepted-profile-v10.md)). Three quality gates passed by
-narrow margins inside sampling noise, the gates were lowered after v13 failed
-([ADR-0015](docs/adr/0015-phase2-acceptance-gate-revision.md)), and labels are
-assistant-reviewed. See the [current acceptance report](docs/reference/phase-2-acceptance-report.md),
-the [handoff](docs/plans/phase-2-agent-handoff.md) and the
-[evaluation protocol](docs/plans/phase-2-evaluation-protocol.md).
+## Architecture
 
-**Phase 3 was accepted by the owner on 2026-10-03** ([owner acceptance record](https://github.com/avsngh-git/RAGpipeline/issues/18#issuecomment-5972350487)). P3-17 merged as
-PR #41; exact main CI run [37144867835](https://github.com/avsngh-git/RAGpipeline/actions/runs/37144867835)
-passed on revision `f2cd0954a940d04c418d2607a98c79fc009b96be`. The live development report
-covers `quick` and `deep_research`, and the local run guide shows how to submit and inspect
-either mode: [evaluation report](docs/reference/phase-3-evaluation-report.md),
-[Phase 3 run operations](docs/operations/phase-3-generator.md).
+This is the system context from section 5 of the [project specification](docs/agents/scientific-research-platform-source-of-truth.md).
 
-## Research runs
-
-The API starts asynchronous research runs with `POST /v1/research` and returns a `run_id`.
-Set `mode` to `quick` or `deep_research`; poll `GET /v1/research/{run_id}` or use
-`research-runs show RUN_ID` to inspect status and the structured answer. Follow the
-[Phase 3 operations guide](docs/operations/phase-3-generator.md) to start the local API,
-retrieval services and generator.
-
-```json
-{
-  "question": "Which retrieval methods improve evidence ranking?",
-  "mode": "deep_research"
-}
+```mermaid
+flowchart TD
+    U["User / Web UI"] --> API["FastAPI"]
+    EXT["External MCP Client"] --> MCP["Research MCP Server"]
+    API --> AG["LangGraph Research Agent"]
+    AG --> SVC["Application Services"]
+    MCP --> SVC
+    SVC --> RET["Hybrid Retrieval + Reranker"]
+    SVC --> META["Metadata + Run Store"]
+    SVC --> GRAPH["Citation Graph Service"]
+    RET --> QD["Qdrant"]
+    META --> PG["PostgreSQL"]
+    GRAPH --> PG
+    GRAPH --> OA["OpenAlex"]
+    AG --> LLM["Self-hosted LLM"]
 ```
 
-The response includes claims, evidence handles and paper metadata. Passage text and live
-evaluation inputs remain private local data.
+See the [architecture overview](docs/architecture/overview.md) for components and request flow.
 
-## MCP server
+## Try it (about 10 minutes, CPU only)
 
-The MCP server exposes selected research tools over the local API at `/mcp/` using Streamable HTTP.
-See the [MCP operations guide](docs/operations/mcp.md) for keys, clients and the Inspector check.
-The adapter and its security decisions are documented in [ADR-0030](docs/adr/0030-phase5-mcp-adapter.md).
+The estimate and quickstart are from the [P6-12 card](https://github.com/avsngh-git/RAGpipeline/issues/221); the commands are implemented by [`scripts/demo_load.sh`](scripts/demo_load.sh).
 
-## Development environment
+```bash
+git clone https://github.com/avsngh-git/RAGpipeline.git
+cd RAGpipeline
+scripts/demo_load.sh
+docker compose up -d
+```
 
-This project uses Conda as its development dependency manager.
+Once P6-11 publishes the `demo-data-v1` bundle after its per-document display review, the loader downloads it and prepares the local services ([Phase 6 plan](docs/plans/phase-6-portfolio.md), [display policy](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Then open `http://127.0.0.1:8000/`, paste the key saved in `demo-data/api-key`, and open one of the showcase run links printed by the script. The page lets you search the released collection and inspect its showcase runs. Public display is limited to material cleared by the document review ([ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md), [ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)).
 
-Create the environment from the human-maintained specification:
+Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. The sizing figures are from the [P6-12 card](https://github.com/avsngh-git/RAGpipeline/issues/221); TODO(owner): add a repository measurement for these estimates. Live research runs need an NVIDIA GPU: `scripts/demo_load.sh --with-llm` ([generator setup](docs/operations/phase-3-generator.md)).
+
+Connect an MCP client to `http://127.0.0.1:8000/mcp/` with the same key ([MCP operations](docs/operations/mcp.md)).
+
+## Video
+
+TODO(owner): video link (P6-18).
+
+## Results
+
+| Measurement | Result | Caveat |
+| --- | --- | --- |
+| Phase 2 retrieval acceptance | 16 of 16 gates passed | Three quality gates passed by margins inside sampling noise; labels are assistant-reviewed ([benchmarks](docs/reference/benchmarks.md)). |
+| Phase 3 run completion | 42 of 42 in the fully sampled sweep | Development families only; answer quality was not gated ([benchmarks](docs/reference/benchmarks.md)). |
+| Phase 4 reproduction | 5 of 5 accepted walkthroughs reproduced | Development walkthroughs, not a broad quality benchmark ([Phase 4 gate report](docs/reference/phase-4-gate-report.md)). |
+
+See [benchmarks](docs/reference/benchmarks.md) and [failure analysis](docs/reference/failure-analysis.md) for methods, uncertainty, and limitations.
+
+## Design decisions
+
+- Qdrant runs dense and sparse retrieval in one search service ([ADR-0022](docs/adr/0022-phase35-qdrant-search-and-content.md)).
+- PostgreSQL is authoritative; Qdrant is derived and rebuildable ([ADR-0023](docs/adr/0023-phase35-index-generations.md)).
+- The accepted retrieval profile uses gte-modernbert-base, BM25S, and Ettin-150M ([ADR-0017](docs/adr/0017-phase2-accepted-profile-v10.md)).
+- Research runs use resumable LangGraph checkpoints ([ADR-0019](docs/adr/0019-phase3-research-run-execution.md)).
+- Claims use verified quotes and evidence mappings ([ADR-0025](docs/adr/0025-verified-quote-synthesis-with-thinking.md)).
+- API keys carry scopes and runs have ownership ([ADR-0027](docs/adr/0027-phase4-authentication-and-rate-limits.md)).
+- Traces and run records preserve diagnostic and configuration provenance ([ADR-0026](docs/adr/0026-phase4-observability-and-run-records.md)).
+- MCP handlers and HTTP routes share research capabilities; passage exposure follows a separate policy ([ADR-0030](docs/adr/0030-phase5-mcp-adapter.md), [ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md)).
+- The delivery uses a released image and local CPU mode; public hosting is optional ([ADR-0033](docs/adr/0033-phase6-delivery-without-hosting.md)).
+
+## Limitations
+
+- The accepted corpus contains 100 papers; retrieval results do not establish performance across scientific literature ([benchmarks](docs/reference/benchmarks.md)).
+- Agent and answer-quality observations come from development sets and remain diagnostic ([benchmarks](docs/reference/benchmarks.md)).
+- The generator sometimes abstains when reviewed evidence is partly answerable; two prompt trials did not reduce this behavior ([failure analysis](docs/reference/failure-analysis.md), [ADR-0029](docs/adr/0029-claim-scope-words-and-prompt-trials.md)).
+- The planner rarely chooses paper discovery in development runs; this work remains in [backlog #115](https://github.com/avsngh-git/RAGpipeline/issues/115) ([failure analysis](docs/reference/failure-analysis.md)).
+- CPU small mode is for review, not the GPU benchmark environment; CPU retrieval latency has not been measured ([benchmarks](docs/reference/benchmarks.md), [Phase 6 plan](docs/plans/phase-6-portfolio.md)).
+
+## Development
+
+Create the Conda environment and install the package in editable mode ([environment definition](environment.yaml)):
 
 ```bash
 conda env create --file environment.yaml
 conda activate sci_research_agent
 python -m pip install --no-build-isolation --no-deps -e .
 ```
-
-The editable installation makes the local `src/` package importable while
-keeping source changes immediately available to the environment.
 
 Run the project checks from the repository root:
 
@@ -75,428 +103,12 @@ python -m mypy
 python -m pytest
 ```
 
-The integration tests skip unless RESEARCH_PLATFORM_TEST_DATABASE_URL and
-RESEARCH_PLATFORM_TEST_QDRANT_URL point to disposable services. The
-PostgreSQL URL must use a dedicated database named research_test; tests apply
-migrations and enforce constraints. The Qdrant test creates and removes a
-temporary collection. CI supplies fresh service containers for these tests.
+Integration tests skip unless `RESEARCH_PLATFORM_TEST_DATABASE_URL` and `RESEARCH_PLATFORM_TEST_QDRANT_URL` point to disposable services. The PostgreSQL URL must use a dedicated `research_test` database; tests apply migrations and enforce constraints. CI supplies fresh service containers ([evaluation operations](docs/operations/evaluation.md)). See also the [observability](docs/operations/observability.md), [retention](docs/operations/retention.md), [authentication](docs/operations/authentication.md), and [serving environment](docs/operations/serving-environment.md) guides.
 
-## Locked Linux environment
+## Data and licences
 
-`environment-linux-64.lock` is the slim test and development environment;
-`environment-serving-linux-64.lock` is the CPU inference environment used by the
-Docker image. See [the serving environment guide](docs/operations/serving-environment.md)
-for its model dependencies and regeneration procedure.
+The code is licensed under [MIT](LICENSE). Demo passages are CC BY excerpts and are listed in the downloaded bundle's `ATTRIBUTION.md`; only documents cleared for display are included ([ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Send takedown requests through a [GitHub issue](https://github.com/avsngh-git/RAGpipeline/issues/new).
 
-`environment-linux-64.lock` is an exact Conda package lock for Linux x86-64.
-Use it when reproducing the currently tested Linux environment:
+## Project history
 
-```bash
-conda create \
-  --name sci_research_agent_linux \
-  --file environment-linux-64.lock
-
-conda run -n sci_research_agent_linux \
-  python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
-
-conda run -n sci_research_agent_linux \
-  python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt
-
-conda run -n sci_research_agent_linux \
-  python -m pip install --no-build-isolation --no-deps -e .
-```
-
-The lock file contains exact Conda packages, not PyPI distributions. The
-BM25S and LangGraph PostgreSQL checkpoint runtime wheels are separately
-version- and hash-pinned in `requirements-bm25s.txt` and
-`requirements-langgraph.txt`; install both before the local package. Conda
-provides their runtime dependencies, including NumPy 2.5.3 for BM25S.
-
-## Application configuration
-
-`research_platform.config.Settings` reads configuration from process
-environment variables and validates it when a settings object is created.
-Supported variables are:
-
-- `RESEARCH_PLATFORM_ENVIRONMENT`: `development`, `test`, or `production`.
-- `RESEARCH_PLATFORM_LOG_LEVEL`: `DEBUG`, `INFO`, `WARNING`, `ERROR`, or
-  `CRITICAL`.
-- `RESEARCH_PLATFORM_DATABASE_URL`: a PostgreSQL connection URL.
-- `RESEARCH_PLATFORM_QDRANT_URL`: an HTTP or HTTPS Qdrant URL.
-- `RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS`: positive timeout for readiness
-  checks.
-- `OPENALEX_API_KEY`: secret used by explicitly invoked discovery/acquisition
-  commands; it is never part of the serialized ingestion configuration.
-
-`.env.example` documents safe local-development values. It is not loaded
-automatically by the standard library configuration code; copy it to `.env`
-and export those values in the shell, or provide the variables through Docker
-Compose. `.env` is ignored by Git and must contain any real credentials.
-
-Invalid values raise `ValueError` during `Settings()` construction so an
-application fails at startup with a clear configuration error.
-
-## Run the API
-
-Start the development server with Uvicorn:
-
-```bash
-python -m uvicorn research_platform.api:create_app \
-  --factory \
-  --reload
-```
-
-Check process liveness:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-Expected response:
-
-```json
-{"status":"ok"}
-```
-
-## Logging and errors
-
-The API assigns every HTTP request an `X-Request-ID`. A caller-provided ID is
-preserved when it is non-empty and reasonably bounded; otherwise the API
-generates a UUID. The ID is returned in response headers and error bodies, and
-is attached to request logs.
-
-Application logs are emitted as JSON with timestamps, levels, logger names,
-request IDs, and safe HTTP metadata. Expected failures can raise `AppError`
-and return a structured response containing an error code, message, and
-request ID. Unexpected failures return a generic `internal_error` response.
-Exception diagnostics retain the exception type and frame locations while
-omitting exception messages and traceback source text.
-
-## Local services and migrations
-
-Start PostgreSQL, Qdrant, and the API together:
-
-```bash
-docker compose up --build
-```
-
-The services use named volumes so ordinary restarts preserve local data.
-Verify liveness and dependency readiness separately:
-
-```bash
-curl http://127.0.0.1:8000/health
-curl -i http://127.0.0.1:8000/ready
-```
-
-Apply the versioned PostgreSQL schema from the host environment:
-
-```bash
-conda activate sci_research_agent
-python scripts/migrate.py
-```
-
-The migration runner records applied versions in `schema_migrations` and is
-safe to run again. The Qdrant index remains a derived store and is not part
-of the relational migration.
-
-
-## Phase 1 discovery and manifest review
-
-The terminal discovery command uses OpenAlex Works search with a versioned
-JSON configuration, cursor checkpoints, one request at a time, a 50-request
-per-run ceiling and bounded retries. The API key is read from `OPENALEX_API_KEY`
-(or the ignored project `.env` file); it is never included in the serialized
-configuration or request URL. Ordinary tests use mocked source responses and
-make no OpenAlex requests.
-
-```bash
-cp .env.example .env
-# Add your OpenAlex key to .env, then:
-conda activate sci_research_agent
-python -m research_platform.ingestion.cli discover \
-  --config configs/phase1-discovery.example.json
-```
-
-The command prints a discovery run ID. Resume an interrupted run with the same
-configuration:
-
-```bash
-python -m research_platform.ingestion.cli discover \
-  --config configs/phase1-discovery.example.json --resume RUN_ID
-```
-
-Prepare and export the explainable shortlist, edit each decision/reason and the
-three coverage reviews, then import it and explicitly approve it:
-
-```bash
-python -m research_platform.ingestion.cli manifest prepare \
-  --run-id RUN_ID --version 1 --per-query-limit 50
-mkdir -p data/manifests
-python -m research_platform.ingestion.cli manifest export \
-  --manifest-id MANIFEST_ID --output data/manifests/phase1-v1.json
-# Edit phase1-v1.json and fill all decisions and coverage notes.
-python -m research_platform.ingestion.cli manifest import \
-  --manifest-id MANIFEST_ID --input data/manifests/phase1-v1.json
-python -m research_platform.ingestion.cli manifest approve \
-  --manifest-id MANIFEST_ID --reviewer "Your name"
-```
-
-Approval is an explicit human action. It requires a reason for every shortlist
-decision and a covered/gap note for each approved coverage question. PostgreSQL
-prevents later edits to an approved manifest. Discovery records the query origin,
-OpenAlex rank, provider metadata and explicit older-paper exceptions; its
-shortlist is a review aid, not an inclusion classifier. After review, generate a
-report with candidate decisions, per-query yield, coverage notes, selection-signal
-breakdowns, request limits and any truncated queries. Its inclusion share describes
-the reviewed shortlist only; it does not estimate corpus recall.
-
-```bash
-research-ingest manifest report \
-  --manifest-id MANIFEST_ID --output data/manifests/phase1-review-report.json
-```
-
-After approval and import, unresolved citation IDs can be enriched with a separate
-bounded metadata lookup. The command saves found/not-found results by external ID
-without creating placeholder paper rows. Each request uses the same configured
-request and retry limits:
-
-```bash
-research-ingest citations enrich \
-  --config configs/phase1-discovery.example.json --limit 20
-```
-
-This command makes live OpenAlex metadata requests. Tests use mocked responses and
-do not call OpenAlex. Full-text download is separate from discovery and citation
-enrichment. The accepted adapters cover OpenAlex content, Springer Nature,
-version-pinned arXiv, and Glasgow Eprints. Exact hosts, request bounds, and
-source-specific permission evidence are recorded in
-[ADR-0007](docs/adr/0007-bounded-direct-source-pdf-downloads.md). The 100 selected
-files passed their individual version, checksum, storage, and indexing checks;
-six other privately stored follow-up PDFs remain unassociated with the accepted set.
-
-## Phase 1 evidence, indexing and operations
-
-The API container and host CLI share the default artifact root. Compose bind
-mounts the Git-ignored `data/artifacts` directory at `/app/data/artifacts` inside
-the API container, so downloaded source PDFs persist across container recreation.
-
-The approved ten-paper extraction and indexing pilot is recorded in the
-[full-pilot report](docs/reference/phase-1-full-extraction-pilot.md). After
-source-linked corrections and figure reclassification, all eight flagged-table
-checks passed. Its snapshot remains a draft because it is below the 100-paper
-acceptance minimum, not because a table review is pending.
-
-The ingestion CLI can create and edit draft snapshots, validate their selected
-versions and permissions, and finalize them under a named reviewer. Finalization
-checks the 100-paper minimum by default, exact extraction source-artifact
-permission, usable chunk membership, Qdrant count and the fingerprint of the
-indexed evidence IDs. Use `--minimum-papers 10` only for a separately reviewed
-10-paper pilot snapshot; it does not meet the Phase 1 acceptance target.
-
-```bash
-research-ingest snapshots create \
-  --name phase1-pilot \
-  --configuration data/manifests/snapshot-config.json
-research-ingest snapshots add \
-  --snapshot-id SNAPSHOT_ID \
-  --paper-id PAPER_ID \
-  --document-id DOCUMENT_UUID \
-  --extraction-id EXTRACTION_UUID \
-  --selection-reason "Approved manifest inclusion"
-research-ingest snapshots inspect --snapshot-id SNAPSHOT_ID
-research-ingest snapshots evidence --snapshot-id SNAPSHOT_ID --limit 20
-research-ingest snapshots validate --snapshot-id SNAPSHOT_ID
-research-ingest snapshots finalize \
-  --snapshot-id SNAPSHOT_ID --reviewer "Your name"
-research-ingest jobs status --job-id JOB_UUID
-```
-
-The evidence command prints a bounded local preview from a draft snapshot. It
-accepts a limit from 1 to 100 for each type, truncates text previews at 2,000
-characters, and shows at most 50 cells per table with cell text clipped at 500
-characters. The output reports when results are clipped.
-Evidence appears only when the exact extraction source artifact has reviewed
-storage permission. Public passage display remains disabled. Document availability
-(`metadata_only` or `acquired`) is recorded separately from per-job processing
-outcomes and snapshot lifecycle.
-
-The snapshot configuration JSON includes the chosen `index_configuration_id`.
-For the Phase 1 pilot, use the reversible E5-small-v2 configuration recorded in
-[ADR-0005](docs/adr/0005-phase1-embedding-pilot.md). Phase 2 evaluation later replaced it with gte-modernbert-base for retrieval
-([ADR-0017](docs/adr/0017-phase2-accepted-profile-v10.md)); the frozen profile and acceptance
-results are in the Phase 2 report. Install the optional parser and
-embedding dependencies only in the local ingestion environment; ordinary CI does
-not download their model weights.
-
-For a new draft, add the approved paper/document pairs before starting
-extraction. The CLI records `10-paper-comparison` for up to 10 members. For an
-exact 100-member draft it records `100-paper-pilot` and requires the approved
-membership decision, source-route review, and source-content review. The acceptance
-run is already complete; starting another job against its snapshot would repeat
-extraction work. The review inputs live under Git-ignored `manifests/` and
-`local-reference/` paths and are available only in the local project workspace.
-
-A 10-paper comparison job uses:
-
-```bash
-research-ingest jobs start \
-  --snapshot-id SNAPSHOT_ID \
-  --chunking-configuration configs/phase1-e5-small-v2-chunking.example.json \
-  --artifact-root data/artifacts
-```
-
-The accepted 100-paper snapshot is in the isolated `research_phase1_review`
-database. Export its URL before running 100-paper snapshot or job commands; the
-Compose default `research` database does not contain the accepted snapshot. The
-membership, selected-document map, and source review files are Git-ignored local
-review data, not files available from a clean checkout.
-
-```bash
-export RESEARCH_PLATFORM_DATABASE_URL=postgresql://research:research@localhost:5432/research_phase1_review
-```
-
-To create a fresh 100-paper run, create a separate membership-bound draft and add
-the selected documents. This does not modify the accepted snapshot and will repeat
-the extraction workload:
-
-```bash
-research-ingest snapshots create \
-  --name phase1-100-reproduction \
-  --configuration local-reference/phase1-100/snapshot-configuration.json
-research-ingest snapshots add-membership \
-  --snapshot-id NEW_SNAPSHOT_ID \
-  --decision manifests/phase1-100-paper-membership-decision.json \
-  --document-map local-reference/phase1-100/selected-document-ids.json
-```
-
-A 100-paper job uses the new snapshot bound to the approved decision and source
-reviews:
-
-```bash
-research-ingest jobs start \
-  --snapshot-id SNAPSHOT_ID \
-  --chunking-configuration configs/phase1-e5-small-v2-chunking.example.json \
-  --artifact-root data/artifacts \
-  --membership-decision manifests/phase1-100-paper-membership-decision.json \
-  --source-route-review local-reference/phase1-100/source-route-review.json \
-  --source-content-review local-reference/phase1-100/source-content-review.json
-```
-
-Inspect the accepted snapshot and completed extraction job:
-
-```bash
-research-ingest snapshots inspect --snapshot-id 4b11fab3-d4a5-4e7a-a58e-8654accf2c6c
-research-ingest snapshots validate --snapshot-id 4b11fab3-d4a5-4e7a-a58e-8654accf2c6c --minimum-papers 100
-research-ingest jobs status --job-id 0e6bebc6-706d-49ec-9ad7-296ad48f1f89
-```
-
-If a new job is interrupted while pending or failed, resume its saved checkpoints.
-Extraction and chunking have separate checkpoints. Retry a terminally failed paper
-from the stage that failed (`extraction` or `chunking`), with a reason. A new job
-with changed chunking settings can reuse the same persisted extraction when its
-source and parser settings still match:
-
-```bash
-research-ingest jobs resume --job-id JOB_UUID --artifact-root data/artifacts
-research-ingest jobs retry \
-  --job-id JOB_UUID \
-  --document-id DOCUMENT_UUID \
-  --from-stage chunking \
-  --reason "Reviewed cause and retry rationale" \
-  --artifact-root data/artifacts
-```
-
-Use `--from-stage extraction` when the parser failed. The accepted 100-paper job
-is already complete; its single expired lease was
-recovered on the next attempt. Keep the job's recorded sources and configuration
-fixed. Source or configuration changes require a new draft/job with new identities.
-
-Then build or reconcile its local Qdrant collection and inspect IDs/counts without
-printing passages:
-
-```bash
-research-ingest index rebuild \
-  --snapshot-id SNAPSHOT_ID \
-  --configuration configs/phase1-e5-small-v2-index.example.json
-research-ingest index inspect \
-  --snapshot-id SNAPSHOT_ID \
-  --configuration configs/phase1-e5-small-v2-index.example.json
-```
-
-For a new pilot, keep each flagged table pending until its headers and selected
-values have been checked against the source PDF. The 100-paper acceptance sample
-reviewed 83 flagged tables and 20 ordinary-sample packet items; one item was a
-figure, and all 102 table reviews are recorded in the [acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
-
-```bash
-research-ingest snapshots review-table \
-  --snapshot-id SNAPSHOT_ID \
-  --extraction-id EXTRACTION_UUID \
-  --table-ordinal TABLE_ORDINAL \
-  --reviewer "Your name"
-```
-
-Keep a new snapshot in draft until its selected evidence has been reviewed and
-its integrity validation passes. Public passage display remains disabled. For the
-completed 100-paper run, 269/269 sampled unique numeric values were present, the
-44,277 PostgreSQL and Qdrant evidence IDs reconciled, and all exact PDF artifacts
-resolved. Snapshot `4b11fab3-d4a5-4e7a-a58e-8654accf2c6c` is finalized and passes
-validation with 100 members, 44,277 expected chunks, and no issues.
-
-Storage inspection and cleanup preview are also available. Cleanup candidates
-include old database artifacts without document references, stale unregistered
-content-addressed PDFs, and interrupted partial files. `storage cleanup` is preview
-only by default. Add `--apply` to retire the listed files; it requires an explicit
-age cutoff, refuses to run while an ingestion job is active, and protects every
-artifact linked to a document. If interrupted, run it again to reconcile the
-remaining unreferenced files. The 168-hour value below is an example, not a project
-retention decision. Set `--root` and byte limits to match the active acquisition
-configuration. The ten-paper source-artifact footprint set the 2 GiB cap. The 100-paper run
-used 116,492,245 bytes. See the [acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md)
-for recovery, storage, and retry measurements; the disposable-file retention
-period remains an explicit project decision.
-
-```bash
-research-ingest storage inspect --root data/artifacts
-research-ingest storage cleanup-preview \
-  --root data/artifacts --older-than-hours 168
-research-ingest storage cleanup \
-  --root data/artifacts --older-than-hours 168
-research-ingest storage cleanup \
-  --root data/artifacts --older-than-hours 168 --apply
-```
-
-Run database-backed commands only after applying the versioned migrations to
-the intended database. The 100-paper decision selects 10 approved v1 references,
-21 expansion candidates, 51 cited-work candidates and 18 discovery-cache candidates.
-All 100 selected PDFs passed exact-source, checksum and persisted permission checks;
-all 100 extractions completed. Six additional private follow-up PDFs remain
-unassociated and do not count toward the accepted set. Any further full-text
-acquisition needs its own reviewed membership and source permission evidence. The
-accepted 100-paper snapshot is finalized; its evidence and verification are
-recorded in the [acceptance report](docs/reference/phase-1-100-paper-acceptance-report.md).
-
-Reproduce the parser comparison and its source-scored reference measurements using
-the optional local environment described in the [extraction comparison report](docs/reference/phase-1-extraction-comparison.md). The [embedding feasibility report](docs/reference/phase-1-embedding-pilot.md) records its pinned model and reproduction settings. These model benchmarks are separate from ordinary CI.
-
-## Environment files
-
-- `environment.yaml` is the human-maintained Conda environment definition.
-- `environment-linux-64.lock` records exact package builds for Linux x86-64.
-- `pyproject.toml` defines the Python package and configures build, linting,
-  type checking, and testing tools.
-
-The YAML specification is the normal starting point for a new development
-environment. The Linux x86-64 lock is consumed by GitHub Actions and the Docker
-image, so the tested CI environment and container runtime use the same exact
-Conda packages. The image installs the local project with dependency resolution
-disabled; its runtime dependencies come from that lock. Regenerate the lock
-after deliberate environment changes.
-
-## Phase 1 learning plan
-
-The [detailed ingestion plan](docs/plans/phase-1-corpus-ingestion.md) contains
-14 approved tasks, dependencies, learning objectives and acceptance criteria.
-A continuing agent should read the [Phase 1 handoff](docs/plans/phase-1-learning-handoff.md)
-for current progress and the next exercise. The user implements the tasks unless
-coding is explicitly delegated.
+See [docs/history.md](docs/history.md) for the phase log and [the project source of truth](docs/agents/scientific-research-platform-source-of-truth.md) for the current specification.
