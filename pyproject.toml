@@ -55,6 +55,7 @@ research-runs = "research_platform.runs.cli:main"
 research-eval = "research_platform.evaluation.cli:main"
 research-keys = "research_platform.auth.cli:main"
 research-worker = "research_platform.worker.main:main"
+research-demo = "research_platform.demo.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
