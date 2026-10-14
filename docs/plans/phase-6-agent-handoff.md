@@ -32,7 +32,22 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
 | P6-01 (#210) | merged | c472286 / [PR #229](https://github.com/avsngh-git/RAGpipeline/pull/229) | Hosted CI run [#38407311684](https://github.com/avsngh-git/RAGpipeline/actions/runs/38407311684) passed |
+| P6-02 (#211) | merged | PR #230 | Serving lock (CPU PyTorch); image 4.22 GB loads both pinned models on CPU. Hub 1.33.0 pinned by hash in `requirements-serving.txt` (its Conda build conflicts with `mcp=2.3.0`). CPU reranks in fp32; the guard that refused fp16 on CPU was removed, resolved by P6-20, which records the actual device and precision per run |
+| P6-03 (#212) | merged | PR #233 | Merged before review; reviewed on `main`: matches the card. Main CI pushed `sha-6d1d9847734d` |
+| P6-04 (#213) | merged | PR #234 | Merged before review; reviewed on `main`: matches the card |
+| P6-05 (#214) | merged | PR #235 | Merged before review; reviewed on `main`: matches the card |
+| P6-13 (#222) | merged | PR #232 | Links resolve; no private data |
+| P6-14 (#223) | merged | PR #231 | Links resolve; spot-checked numbers match the v14 report; caveats stated beside passes |
+| P6-06 (#215) | merged | PR #239 | Merged before review; reviewed on `main`: the 35 allowlisted queries and 22 exclusions match the card. Load also disables the two snapshot immutability triggers inside its transaction (needed to load items of a finalized snapshot) |
+| P6-09 (#218) | merged | PR #238 | Merged before review; reviewed on `main`: DOM built with `textContent` only, CSP as specified, assets shipped as package data |
+| P6-07 (#216) | merged | PR #241 | Merged before review; reviewed on `main`: matches the card; also rejects manifest paths outside the bundle and checks Qdrant collections before any database write. A failed Qdrant restore after the PostgreSQL load needs `demo_load.sh --reset` |
+| P6-08 (#217) | merged | PR #243, fix #244 | Merged before review. Review: the key-creation `docker compose run` lacked `-T`, so in an interactive terminal stderr merged into the captured JSON; fixed in #244 |
+| P6-16 (#225) | merged | PR #240 | 4:30 over seven segments; two `TODO(owner)` items for after P6-17 |
+| P6-20 (#237) | merged | PR #242 | Added in review of PR #230. Runs record `reranker_runtime`; older payloads keep their hashes; `reproduce` reads it back |
 | P6-12 (#221) | merged | `1e2579c` / [PR #245](https://github.com/avsngh-git/RAGpipeline/pull/245) | Exact-head CI [#38561647884](https://github.com/avsngh-git/RAGpipeline/actions/runs/38561647884) passed; issue #221 closed |
+| P6-10 (#219) | merged | PR #246 | Reviewed on `main`: stdlib-only smoke script and workflow match the card; first real run in P6-17 |
+| P6-15 (#224) | merged | PR #247 | Reviewed on `main`: ten sections, links resolve, no private data |
+| P6-11 (#220) | in progress | fix #248 | 100 display decisions committed (all CC BY; 11 confirmed via Crossref); 8 showcase runs by principal `demo` on the GPU host (2 answered, 5 partially supported, 1 insufficient evidence); bundle exported (35 tables, 288,407 rows, 354 MB) and privacy-scanned clean. Export exposed the P6-07 connection bug, fixed in #248 |
 
 ## Environment facts
 
