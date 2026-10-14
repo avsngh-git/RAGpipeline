@@ -227,6 +227,7 @@ __marimo__/
 /data/qdrant/
 /data/phase2/lexical-indexes/
 /data/phase2/experiments/
+/demo-data/
 
 # Local agent-authored research manifests, review decisions, and acquisition records.
 /manifests/
