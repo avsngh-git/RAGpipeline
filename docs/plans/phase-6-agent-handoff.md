@@ -47,7 +47,8 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 | P6-12 (#221) | merged | `1e2579c` / [PR #245](https://github.com/avsngh-git/RAGpipeline/pull/245) | Exact-head CI [#38561647884](https://github.com/avsngh-git/RAGpipeline/actions/runs/38561647884) passed; issue #221 closed |
 | P6-10 (#219) | merged | PR #246 | Reviewed on `main`: stdlib-only smoke script and workflow match the card; first real run in P6-17 |
 | P6-15 (#224) | merged | PR #247 | Reviewed on `main`: ten sections, links resolve, no private data |
-| P6-11 (#220) | in progress | fix #248 | 100 display decisions committed (all CC BY; 11 confirmed via Crossref); 8 showcase runs by principal `demo` on the GPU host (2 answered, 5 partially supported, 1 insufficient evidence); bundle exported (35 tables, 288,407 rows, 354 MB) and privacy-scanned clean. Export exposed the P6-07 connection bug, fixed in #248 |
+| P6-11 (#220) | done | fixes #248, #249 | 100 display decisions (all CC BY; 11 via Crossref); 8 showcase runs by principal `demo` (2 answered, 5 partially supported, 1 insufficient evidence); bundle 35 tables, 288,407 rows, 354 MB, privacy-scanned clean; fresh-clone load 634 s and 6/6 smoke checks; release `demo-data-v1` |
+| P6-17 (#226) | done | #250, #251, #252 | `v0.6.0` released (`977e7aa`); demo-smoke run 38576130251 passed 6/6 on a fresh runner; cold review passed, findings fixed or filed (#253, #254). See `docs/reference/phase-6-gate-report.md` |
 
 ## Environment facts
 
