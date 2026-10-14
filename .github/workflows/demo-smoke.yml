@@ -1,0 +1,38 @@
+name: Demo smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Image to test
+        required: true
+        default: ghcr.io/avsngh-git/ragpipeline:latest
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      RESEARCH_PLATFORM_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.image || format('ghcr.io/avsngh-git/ragpipeline:{0}', github.event.workflow_run.head_branch) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - name: Load the demo (README quickstart, step 1)
+        run: scripts/demo_load.sh
+      - name: Start the stack (README quickstart, step 2)
+        run: docker compose up -d --wait
+      - name: Smoke checks
+        run: python3 scripts/demo_smoke.py
+      - name: API logs on failure
+        if: failure()
+        run: docker compose logs api --tail 200

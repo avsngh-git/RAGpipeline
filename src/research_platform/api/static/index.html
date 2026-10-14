@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scientific Research Platform</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0 auto; max-width: 58rem; padding: 1.5rem; line-height: 1.55; }
+      h1, h2 { line-height: 1.2; }
+      form, section, footer { margin: 1.5rem 0; }
+      fieldset { border: 1px solid #8888; border-radius: .5rem; padding: 1rem; }
+      label { display: block; margin: .65rem 0 .2rem; }
+      input, textarea, select, button { font: inherit; max-width: 100%; }
+      input[type="password"], input[type="number"], textarea, select { box-sizing: border-box; width: 100%; }
+      textarea { min-height: 5rem; }
+      button { margin-top: .8rem; padding: .35rem .8rem; cursor: pointer; }
+      .muted { opacity: .75; }
+      .status { min-height: 1.6em; }
+      .result, .claim { border-top: 1px solid #8888; padding: .8rem 0; }
+      blockquote { border-left: .2rem solid #888; margin: .5rem 0; padding-left: 1rem; }
+      table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; }
+      th, td { border: 1px solid #8888; padding: .35rem .55rem; text-align: left; }
+      code { overflow-wrap: anywhere; }
+      @media (prefers-color-scheme: dark) { a { color: #9bc8ff; } }
+      @media (max-width: 38rem) { body { padding: 1rem; } }
+    </style>
+    <script src="/ui/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <h1>Scientific Research Platform</h1>
+      <p class="muted">Search the served research collection or inspect a research run.</p>
+    </header>
+    <main>
+      <section aria-labelledby="key-heading">
+        <h2 id="key-heading">API key</h2>
+        <form id="key-form">
+          <label for="api-key">Bearer key</label>
+          <input id="api-key" name="api-key" type="password" autocomplete="off" required>
+          <button type="submit">Save for this tab</button>
+        </form>
+        <p id="key-status" class="status" role="status" aria-live="polite">Enter a key to connect.</p>
+        <p id="serving" class="status" aria-live="polite">Serving identity unavailable.</p>
+      </section>
+      <section aria-labelledby="search-heading">
+        <h2 id="search-heading">Search</h2>
+        <form id="search-form">
+          <label for="query">Research query</label>
+          <textarea id="query" name="query" required></textarea>
+          <label for="search-kind">Search type</label>
+          <select id="search-kind" name="kind">
+            <option value="papers">Papers</option>
+            <option value="evidence">Evidence</option>
+          </select>
+          <label for="limit">Result limit (1–20)</label>
+          <input id="limit" name="limit" type="number" min="1" max="20" value="10" required>
+          <button type="submit">Search</button>
+        </form>
+        <p id="search-status" class="status" role="status" aria-live="polite"></p>
+        <div id="results" aria-live="polite"></div>
+      </section>
+      <section aria-labelledby="run-heading">
+        <h2 id="run-heading">Research run</h2>
+        <p>Open a run with a URL fragment such as <code>#run=00000000-0000-0000-0000-000000000000</code>.</p>
+        <p id="run-status" class="status" role="status" aria-live="polite">No run selected.</p>
+        <div id="run-view"></div>
+      </section>
+    </main>
+    <footer class="muted">
+      <p><a href="https://github.com/avsngh-git/RAGpipeline" rel="noreferrer">Project repository</a></p>
+      <p>Passages are CC BY excerpts listed in the bundle's ATTRIBUTION.md.</p>
+    </footer>
+  </body>
+</html>

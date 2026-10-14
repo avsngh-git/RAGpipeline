@@ -24,6 +24,7 @@ services:
 
   api:
     platform: linux/amd64
+    image: ${RESEARCH_PLATFORM_IMAGE:-ghcr.io/avsngh-git/ragpipeline:latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -32,17 +33,33 @@ services:
       RESEARCH_PLATFORM_LOG_LEVEL: ${RESEARCH_PLATFORM_LOG_LEVEL:-INFO}
       RESEARCH_PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-research}:${POSTGRES_PASSWORD:-research}@postgres:5432/${POSTGRES_DB:-research}
       RESEARCH_PLATFORM_QDRANT_URL: http://qdrant:6333
+      RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE: trusted_private_local
+      RESEARCH_PLATFORM_MODEL_DEVICE: ${RESEARCH_PLATFORM_MODEL_DEVICE:-cpu}
+      HF_HOME: /models/hf
+      RESEARCH_PLATFORM_RERANKER_CACHE_DIR: /models/reranker
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      TRANSFORMERS_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      RESEARCH_PLATFORM_LLM_BASE_URL: ${RESEARCH_PLATFORM_LLM_BASE_URL:-http://ollama:11434}
+      RESEARCH_PLATFORM_LLM_MODEL: ${RESEARCH_PLATFORM_LLM_MODEL:-qwen3.5-2b-text:q4_k_m}
       OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
       RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS: ${RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS:-2}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - ./data/artifacts:/app/data/artifacts
+      - model_cache:/models
+      - ./demo-data:/demo-data:ro
     depends_on:
       postgres:
         condition: service_healthy
       qdrant:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 60
+      start_period: 60s
 
   ollama:
     image: ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01
@@ -74,6 +91,7 @@ services:
               capabilities: [gpu]
 
 volumes:
+  model_cache:
   postgres_data:
   qdrant_data_v1_19:
   ollama_models:
