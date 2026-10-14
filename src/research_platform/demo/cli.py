@@ -7,7 +7,8 @@ import asyncio
 import importlib
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -91,7 +92,7 @@ async def _export(args: argparse.Namespace, settings: Settings) -> None:
         raise DemoExportRefused("unsupported bundle version")
 
     args.output.mkdir(parents=True)
-    async with await asyncpg.connect(settings.database_url) as connection:
+    async with _connect(settings.database_url) as connection:
         tables = await export_tables(
             connection,
             snapshot_id=args.snapshot_id,
@@ -224,7 +225,7 @@ async def _load(args: argparse.Namespace, settings: Settings) -> None:
     if not isinstance(runs, list):
         raise DemoLoadRefused("manifest runs are invalid")
 
-    async with await asyncpg.connect(settings.database_url) as connection:
+    async with _connect(settings.database_url) as connection:
         schema_version = await _schema_version(connection)
         if schema_version != manifest.get("schema_version"):
             raise DemoLoadRefused("schema version differs; run research-migrate first")
@@ -269,6 +270,15 @@ async def _load(args: argparse.Namespace, settings: Settings) -> None:
             }
         )
     )
+
+
+@asynccontextmanager
+async def _connect(database_url: str) -> AsyncIterator[asyncpg.Connection]:
+    connection = await asyncpg.connect(database_url)
+    try:
+        yield connection
+    finally:
+        await connection.close()
 
 
 def _fetch_models(settings: Settings) -> None:
