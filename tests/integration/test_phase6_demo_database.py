@@ -112,18 +112,7 @@ def test_export_and_load_round_trip(
         async with _source_database(evidence_snapshots) as (pool, snapshot_id, papers):
             principal = f"demo-{uuid4().hex}"
             other_principal = f"other-{uuid4().hex}"
-            async with pool.acquire() as connection:
-                document_ids = [paper.document_id for paper in papers]
-                await connection.execute(
-                    "UPDATE document_permission_evidence SET passage_display_permitted = true "
-                    "WHERE document_id = ANY($1::uuid[])",
-                    document_ids,
-                )
-                await connection.execute(
-                    "UPDATE document_artifacts SET passage_display_permitted = true "
-                    "WHERE document_id = ANY($1::uuid[])",
-                    document_ids,
-                )
+            await _allow_display(pool, papers)
             repository = RunRepository(pool)
             request = ResearchRequest(
                 question="Synthetic demo export fixture",
@@ -361,17 +350,26 @@ async def _source_database(
 
 async def _allow_display(pool: asyncpg.Pool, papers: Sequence[_PaperFixture]) -> None:
     async with pool.acquire() as connection:
-        document_ids = [paper.document_id for paper in papers]
-        await connection.execute(
-            "UPDATE document_permission_evidence SET passage_display_permitted = true "
-            "WHERE document_id = ANY($1::uuid[])",
-            document_ids,
-        )
-        await connection.execute(
-            "UPDATE document_artifacts SET passage_display_permitted = true "
-            "WHERE document_id = ANY($1::uuid[])",
-            document_ids,
-        )
+        async with connection.transaction():
+            await connection.execute(
+                "ALTER TABLE document_permission_evidence DISABLE TRIGGER "
+                "document_permission_evidence_immutable"
+            )
+            document_ids = [paper.document_id for paper in papers]
+            await connection.execute(
+                "UPDATE document_permission_evidence SET passage_display_permitted = true "
+                "WHERE document_id = ANY($1::uuid[])",
+                document_ids,
+            )
+            await connection.execute(
+                "UPDATE document_artifacts SET passage_display_permitted = true "
+                "WHERE document_id = ANY($1::uuid[])",
+                document_ids,
+            )
+            await connection.execute(
+                "ALTER TABLE document_permission_evidence ENABLE TRIGGER "
+                "document_permission_evidence_immutable"
+            )
 
 
 async def _create_demo_database() -> str:
