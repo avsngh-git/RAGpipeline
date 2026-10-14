@@ -40,7 +40,10 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 | P6-14 (#223) | merged | PR #231 | Links resolve; spot-checked numbers match the v14 report; caveats stated beside passes |
 | P6-06 (#215) | merged | PR #239 | Merged before review; reviewed on `main`: the 35 allowlisted queries and 22 exclusions match the card. Load also disables the two snapshot immutability triggers inside its transaction (needed to load items of a finalized snapshot) |
 | P6-09 (#218) | merged | PR #238 | Merged before review; reviewed on `main`: DOM built with `textContent` only, CSP as specified, assets shipped as package data |
-| P6-20 (#237) | open | — | Added in review of PR #230: record the reranker's actual device and precision in run provenance |
+| P6-07 (#216) | merged | PR #241 | Merged before review; reviewed on `main`: matches the card; also rejects manifest paths outside the bundle and checks Qdrant collections before any database write. A failed Qdrant restore after the PostgreSQL load needs `demo_load.sh --reset` |
+| P6-08 (#217) | merged | PR #243, fix #244 | Merged before review. Review: the key-creation `docker compose run` lacked `-T`, so in an interactive terminal stderr merged into the captured JSON; fixed in #244 |
+| P6-16 (#225) | merged | PR #240 | 4:30 over seven segments; two `TODO(owner)` items for after P6-17 |
+| P6-20 (#237) | merged | PR #242 | Added in review of PR #230. Runs record `reranker_runtime`; older payloads keep their hashes; `reproduce` reads it back |
 
 ## Environment facts
 
