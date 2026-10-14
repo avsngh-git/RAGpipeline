@@ -1,6 +1,6 @@
 # Phase 6 — Agent handoff
 
-Updated: 2026-10-13. **Status: planned.** ADR-0032 and ADR-0033 accepted by the owner on
+Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by the owner on
 2026-10-13. The [plan](phase-6-portfolio.md) and map issue
 [#209](https://github.com/avsngh-git/RAGpipeline/issues/209) define the cards; the
 [owner decisions](../reference/phase-6-owner-decisions.md) record the interview.
@@ -32,6 +32,7 @@ Updated: 2026-10-13. **Status: planned.** ADR-0032 and ADR-0033 accepted by the 
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
 | P6-01 (#210) | merged | c472286 / [PR #229](https://github.com/avsngh-git/RAGpipeline/pull/229) | Hosted CI run [#38407311684](https://github.com/avsngh-git/RAGpipeline/actions/runs/38407311684) passed |
+| P6-12 (#221) | merged | `1e2579c` / [PR #245](https://github.com/avsngh-git/RAGpipeline/pull/245) | Exact-head CI [#38561647884](https://github.com/avsngh-git/RAGpipeline/actions/runs/38561647884) passed; issue #221 closed |
 
 ## Environment facts
 
