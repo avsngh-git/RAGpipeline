@@ -299,6 +299,10 @@ async def _source_database(
                     "ALTER TABLE snapshots DISABLE TRIGGER "
                     "snapshots_immutable_after_finalize"
                 )
+                await connection.execute(
+                    "ALTER TABLE document_permission_evidence DISABLE TRIGGER "
+                    "document_permission_evidence_immutable"
+                )
                 try:
                     await connection.execute(
                         "DELETE FROM research_runs WHERE snapshot_id = $1", snapshot_id
@@ -347,6 +351,10 @@ async def _source_database(
                     await connection.execute(
                         "ALTER TABLE snapshots ENABLE TRIGGER "
                         "snapshots_immutable_after_finalize"
+                    )
+                    await connection.execute(
+                        "ALTER TABLE document_permission_evidence ENABLE TRIGGER "
+                        "document_permission_evidence_immutable"
                     )
         await pool.close()
 
