@@ -286,35 +286,60 @@ async def _source_database(
         yield pool, snapshot_id, papers
     finally:
         async with pool.acquire() as connection:
-            await connection.execute(
-                "DELETE FROM research_runs WHERE snapshot_id = $1", snapshot_id
-            )
-            await connection.execute(
-                "DELETE FROM snapshot_item_chunks WHERE snapshot_id = $1", snapshot_id
-            )
-            await connection.execute(
-                "DELETE FROM snapshot_items WHERE snapshot_id = $1", snapshot_id
-            )
-            await connection.execute(
-                "DELETE FROM snapshot_index_states WHERE snapshot_id = $1", snapshot_id
-            )
-            await connection.execute(
-                "DELETE FROM index_generations WHERE snapshot_id = $1", snapshot_id
-            )
-            await connection.execute("DELETE FROM snapshots WHERE id = $1", snapshot_id)
-            artifact_ids = await connection.fetch(
-                "SELECT artifact_id FROM document_artifacts WHERE document_id = ANY($1::uuid[])",
-                [paper.document_id for paper in papers],
-            )
-            await connection.execute(
-                "DELETE FROM papers WHERE id = ANY($1::text[])",
-                [paper.paper_id for paper in papers],
-            )
-            if artifact_ids:
+            async with connection.transaction():
                 await connection.execute(
-                    "DELETE FROM artifacts WHERE id = ANY($1::uuid[])",
-                    [row["artifact_id"] for row in artifact_ids],
+                    "ALTER TABLE snapshot_items DISABLE TRIGGER "
+                    "snapshot_items_immutable_after_finalize"
                 )
+                await connection.execute(
+                    "ALTER TABLE snapshots DISABLE TRIGGER "
+                    "snapshots_immutable_after_finalize"
+                )
+                try:
+                    await connection.execute(
+                        "DELETE FROM research_runs WHERE snapshot_id = $1", snapshot_id
+                    )
+                    await connection.execute(
+                        "DELETE FROM snapshot_item_chunks WHERE snapshot_id = $1",
+                        snapshot_id,
+                    )
+                    await connection.execute(
+                        "DELETE FROM snapshot_items WHERE snapshot_id = $1", snapshot_id
+                    )
+                    await connection.execute(
+                        "DELETE FROM snapshot_index_states WHERE snapshot_id = $1",
+                        snapshot_id,
+                    )
+                    await connection.execute(
+                        "DELETE FROM index_generations WHERE snapshot_id = $1",
+                        snapshot_id,
+                    )
+                    await connection.execute(
+                        "DELETE FROM snapshots WHERE id = $1", snapshot_id
+                    )
+                    artifact_ids = await connection.fetch(
+                        "SELECT artifact_id FROM document_artifacts "
+                        "WHERE document_id = ANY($1::uuid[])",
+                        [paper.document_id for paper in papers],
+                    )
+                    await connection.execute(
+                        "DELETE FROM papers WHERE id = ANY($1::text[])",
+                        [paper.paper_id for paper in papers],
+                    )
+                    if artifact_ids:
+                        await connection.execute(
+                            "DELETE FROM artifacts WHERE id = ANY($1::uuid[])",
+                            [row["artifact_id"] for row in artifact_ids],
+                        )
+                finally:
+                    await connection.execute(
+                        "ALTER TABLE snapshot_items ENABLE TRIGGER "
+                        "snapshot_items_immutable_after_finalize"
+                    )
+                    await connection.execute(
+                        "ALTER TABLE snapshots ENABLE TRIGGER "
+                        "snapshots_immutable_after_finalize"
+                    )
         await pool.close()
 
 
@@ -347,7 +372,11 @@ async def _create_demo_database() -> str:
     finally:
         await admin.close()
     target_url = parsed._replace(path=f"/{DEMO_DATABASE}").geturl()
-    await apply_migrations(target_url)
+    try:
+        await apply_migrations(target_url)
+    except Exception:
+        await _drop_demo_database()
+        raise
     return target_url
 
 
