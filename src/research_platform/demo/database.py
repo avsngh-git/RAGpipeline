@@ -288,6 +288,14 @@ async def load_tables(
         if snapshots or papers:
             raise DemoLoadRefused("target database is not empty")
 
+        await connection.execute(
+            "ALTER TABLE snapshot_items DISABLE TRIGGER "
+            "snapshot_items_immutable_after_finalize"
+        )
+        await connection.execute(
+            "ALTER TABLE snapshot_item_chunks DISABLE TRIGGER "
+            "snapshot_item_chunks_immutable_after_finalize"
+        )
         for table, path in files:
             with gzip.open(path, mode="rt", encoding="utf-8", newline="") as source:
                 columns = next(csv.reader(source), None)
@@ -302,6 +310,14 @@ async def load_tables(
                     header=True,
                 )
 
+        await connection.execute(
+            "ALTER TABLE snapshot_item_chunks ENABLE TRIGGER "
+            "snapshot_item_chunks_immutable_after_finalize"
+        )
+        await connection.execute(
+            "ALTER TABLE snapshot_items ENABLE TRIGGER "
+            "snapshot_items_immutable_after_finalize"
+        )
         serial_columns = await connection.fetch(
             """
             SELECT table_name, column_name
