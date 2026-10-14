@@ -368,7 +368,11 @@ async def _build_research_services(
         trace_content_from_env,
     )
     from research_platform.runs.checkpointing import open_checkpointer
-    from research_platform.runs.contracts import ResearchMode, RunBudgets
+    from research_platform.runs.contracts import (
+        RerankerRuntimeRecord,
+        ResearchMode,
+        RunBudgets,
+    )
     from research_platform.runs.executor import RunExecutor
     from research_platform.runs.repository import RunRepository
     from research_platform.runs.runner import (
@@ -415,6 +419,7 @@ async def _build_research_services(
         open_checkpointer(settings.database_url)
     )
     serving = await resolve_serving_identity(settings, runtime.pool)
+    reranker_runtime = getattr(runtime, "reranker_runtime", None)
     runner = ResearchRunner(
         RunnerDependencies(
             repository=store,
@@ -430,6 +435,14 @@ async def _build_research_services(
             serving_resolver=lambda: resolve_serving_identity(settings, runtime.pool),
             code_revision=code_revision(),
             decoding=decoding_settings(settings),
+            reranker_runtime=(
+                RerankerRuntimeRecord(
+                    device=reranker_runtime.device,
+                    precision=reranker_runtime.precision,
+                )
+                if reranker_runtime is not None
+                else None
+            ),
             store_llm_payloads=(
                 trace_content_from_env(settings.environment) is TraceContent.FULL
             ),

@@ -75,6 +75,7 @@ from research_platform.runs.checkpointing import thread_config
 from research_platform.runs.contracts import (
     UNINGESTED_SIMILARITY_THRESHOLD,
     FailureCategory,
+    RerankerRuntimeRecord,
     ResearchMode,
     ResearchRequest,
     RunBudgets,
@@ -190,6 +191,7 @@ def build_effective_configuration(
     code_revision: str,
     decoding: DecodingSettings | None = None,
     trace_id: str | None = None,
+    reranker_runtime: RerankerRuntimeRecord | None = None,
 ) -> EffectiveConfiguration:
     """Build the effective run configuration payload and provenance."""
     snapshot_id = request.snapshot_id or serving.snapshot_id
@@ -220,6 +222,10 @@ def build_effective_configuration(
         effective_configuration["generation_configuration_id"] = (
             serving.generation_configuration_id
         )
+    if reranker_runtime is not None:
+        effective_configuration["reranker_runtime"] = reranker_runtime.model_dump(
+            mode="json"
+        )
     diagnostic_threshold = (
         UNINGESTED_SIMILARITY_THRESHOLD if request.mode is ResearchMode.QUICK else None
     )
@@ -245,6 +251,7 @@ def build_effective_configuration(
         tool_schema_digest=schema_digest,
         decoding=decoding,
         generation_configuration_id=serving.generation_configuration_id,
+        reranker_runtime=reranker_runtime,
     )
     return EffectiveConfiguration(
         payload=effective_configuration,
@@ -263,6 +270,7 @@ def build_provenance(
     code_revision: str,
     decoding: DecodingSettings | None = None,
     trace_id: str | None = None,
+    reranker_runtime: RerankerRuntimeRecord | None = None,
 ) -> RunProvenance:
     """Build stable provenance for the effective run configuration."""
     return build_effective_configuration(
@@ -275,6 +283,7 @@ def build_provenance(
         code_revision=code_revision,
         decoding=decoding,
         trace_id=trace_id,
+        reranker_runtime=reranker_runtime,
     ).provenance
 
 
@@ -322,6 +331,7 @@ class RunnerDependencies:
     serving_resolver: Callable[[], Awaitable[ServingIdentity]] | None = None
     decoding: DecodingSettings | None = None
     store_llm_payloads: bool = False
+    reranker_runtime: RerankerRuntimeRecord | None = None
 
 
 class _ActivePauses:
@@ -441,6 +451,7 @@ class ResearchRunner:
                 code_revision=self._deps.code_revision,
                 decoding=self._deps.decoding,
                 trace_id=trace_id,
+                reranker_runtime=self._deps.reranker_runtime,
             )
             provenance = effective.provenance
             span = trace.get_current_span()

@@ -8,6 +8,7 @@ import re
 from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -186,6 +187,13 @@ class SynthesisSummary(_ContractModel):
     attempts: int = Field(1, ge=1)
 
 
+class RerankerRuntimeRecord(_ContractModel):
+    """Device and precision the reranker actually used for a run."""
+
+    device: Literal["cpu", "cuda"]
+    precision: Literal["fp32", "fp16", "bf16"]
+
+
 class PaperSummary(_ContractModel):
     """Compact paper metadata included in a run result."""
 
@@ -220,6 +228,7 @@ class RunProvenance(_ContractModel):
     tool_schema_digest: str | None = None
     decoding: DecodingSettings | None = None
     generation_configuration_id: str | None = None
+    reranker_runtime: RerankerRuntimeRecord | None = None
 
     @field_validator("configuration_id")
     @classmethod
