@@ -1,13 +1,13 @@
 # Scientific Research Platform
 
-This platform searches scientific papers, retrieves and reranks evidence, and follows citation relationships. It returns research answers with claims that can be traced to source passages and paper metadata ([project specification](docs/agents/scientific-research-platform-source-of-truth.md)).
+This platform searches scientific papers, retrieves and reranks evidence, and follows citation relationships. It returns research answers with claims that can be traced to source passages and paper metadata. Its services are available through both the web API and a shared MCP server ([project specification](docs/agents/scientific-research-platform-source-of-truth.md), [MCP architecture](docs/adr/0030-phase5-mcp-adapter.md)).
 
 ## What it shows
 
 - **Hybrid retrieval and reranking:** the selected v10 profile passed all 16 gates in the one-time v14 held-out assessment; three quality gates passed by narrow margins inside sampling noise ([benchmarks](docs/reference/benchmarks.md), [profile decision](docs/adr/0017-phase2-accepted-profile-v10.md)).
-- **A bounded LangGraph agent:** the fully sampled development sweep completed 42 of 42 runs within budget, with no unknown evidence handles or completed-run budget violations. These are operational results, not answer-quality gates ([benchmarks](docs/reference/benchmarks.md)).
-- **Verified claim evidence:** quote checks rejected 7 of 15 partial or unsupported claims and 2 of 60 supported claims in the reviewed sample; verification can filter unsupported drafts and reject some supported ones ([failure analysis](docs/reference/failure-analysis.md), [ADR-0025](docs/adr/0025-verified-quote-synthesis-with-thinking.md)).
-- **Observable, reproducible runs:** all five accepted Phase 4 walkthroughs reproduced with matching configuration hashes ([Phase 4 gate report](docs/reference/phase-4-gate-report.md)).
+- **A bounded LangGraph agent:** the fully sampled development sweep completed 42 of 42 runs within configured run and tool budgets, with no unknown evidence handles or completed-run budget violations. These are operational results, not answer-quality gates ([benchmarks](docs/reference/benchmarks.md)).
+- **Claim → quote → passage → paper verification:** quote checks rejected 7 of 15 partial or unsupported claims and 2 of 60 supported claims in the reviewed sample; verification can filter unsupported drafts and reject some supported ones ([failure analysis](docs/reference/failure-analysis.md), [ADR-0025](docs/adr/0025-verified-quote-synthesis-with-thinking.md)).
+- **Observable, reproducible runs:** `research-runs explain` inspects a run diagnosis and `research-runs reproduce` checks its recorded configuration; all five accepted Phase 4 walkthroughs reproduced with matching configuration hashes ([Phase 4 gate report](docs/reference/phase-4-gate-report.md)).
 - **One MCP server over shared services:** parity and security checks passed in CI; the recorded gate run had 1,407 passed and 114 skipped tests ([Phase 5 gate report](docs/reference/phase-5-gate-report.md), [ADR-0030](docs/adr/0030-phase5-mcp-adapter.md)).
 
 ## Architecture
@@ -35,7 +35,7 @@ See the [architecture overview](docs/architecture/overview.md) for components an
 
 ## Try it (about 10 minutes, CPU only)
 
-The estimate and quickstart are from the [P6-12 card](https://github.com/avsngh-git/RAGpipeline/issues/221); the commands are implemented by [`scripts/demo_load.sh`](scripts/demo_load.sh).
+The commands are implemented by [`scripts/demo_load.sh`](scripts/demo_load.sh). TODO(owner): verify the ten-minute estimate with a fresh-clone run and record the measurement in repository documentation.
 
 ```bash
 git clone https://github.com/avsngh-git/RAGpipeline.git
@@ -46,7 +46,7 @@ docker compose up -d
 
 Once P6-11 publishes the `demo-data-v1` bundle after its per-document display review, the loader downloads it and prepares the local services ([Phase 6 plan](docs/plans/phase-6-portfolio.md), [display policy](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Then open `http://127.0.0.1:8000/`, paste the key saved in `demo-data/api-key`, and open one of the showcase run links printed by the script. The page lets you search the released collection and inspect its showcase runs. Public display is limited to material cleared by the document review ([ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md), [ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)).
 
-Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. The sizing figures are from the [P6-12 card](https://github.com/avsngh-git/RAGpipeline/issues/221); TODO(owner): add a repository measurement for these estimates. Live research runs need an NVIDIA GPU: `scripts/demo_load.sh --with-llm` ([generator setup](docs/operations/phase-3-generator.md)).
+Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. TODO(owner): verify the disk and memory estimates with a fresh-clone run and record the measurements in repository documentation. Live research runs need an NVIDIA GPU: `scripts/demo_load.sh --with-llm` ([generator setup](docs/operations/phase-3-generator.md)).
 
 Connect an MCP client to `http://127.0.0.1:8000/mcp/` with the same key ([MCP operations](docs/operations/mcp.md)).
 
@@ -82,7 +82,7 @@ See [benchmarks](docs/reference/benchmarks.md) and [failure analysis](docs/refer
 - Agent and answer-quality observations come from development sets and remain diagnostic ([benchmarks](docs/reference/benchmarks.md)).
 - The generator sometimes abstains when reviewed evidence is partly answerable; two prompt trials did not reduce this behavior ([failure analysis](docs/reference/failure-analysis.md), [ADR-0029](docs/adr/0029-claim-scope-words-and-prompt-trials.md)).
 - The planner rarely chooses paper discovery in development runs; this work remains in [backlog #115](https://github.com/avsngh-git/RAGpipeline/issues/115) ([failure analysis](docs/reference/failure-analysis.md)).
-- CPU small mode is for review, not the GPU benchmark environment; CPU retrieval latency has not been measured ([benchmarks](docs/reference/benchmarks.md), [Phase 6 plan](docs/plans/phase-6-portfolio.md)).
+- CPU small mode is slower than the GPU benchmark path and is intended for review, not benchmarking; CPU retrieval latency has not been measured ([benchmarks](docs/reference/benchmarks.md), [Phase 6 plan](docs/plans/phase-6-portfolio.md)).
 
 ## Development
 
