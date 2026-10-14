@@ -152,5 +152,5 @@ from pathlib import Path
 
 manifest = json.loads(Path("/demo-data/'"$archive_dir"'/manifest.json").read_text(encoding="utf-8"))
 for run in manifest["runs"]:
-    print(f"http://127.0.0.1:8000/#run={run[\"run_id\"]}  ({run[\"mode\"]})")
+    print("http://127.0.0.1:8000/#run=" + run["run_id"] + "  (" + run["mode"] + ")")
 '
