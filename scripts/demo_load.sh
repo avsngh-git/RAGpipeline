@@ -99,8 +99,7 @@ docker compose run --rm --no-deps \
   -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 \
   api research-demo fetch-models
 
-if [[ ! -f demo-data/api-key ]]; then
-  announce 'Creating the local demo API key'
+create_demo_key() {
   key_args=(--principal demo --scope read)
   if (( with_llm )); then
     key_args+=(--scope research)
@@ -109,6 +108,26 @@ if [[ ! -f demo-data/api-key ]]; then
   api_key="$(printf '%s' "$key_json" | docker compose run --rm --no-deps -T api python -c 'import json,sys; print(json.load(sys.stdin)["api_key"])')"
   (umask 077 && printf '%s\n' "$api_key" > demo-data/api-key)
   unset api_key key_json
+}
+
+if [[ ! -f demo-data/api-key ]]; then
+  announce 'Creating the local demo API key'
+  create_demo_key
+elif (( with_llm )); then
+  announce 'Checking the existing key has research scope'
+  key_state="$(docker compose run --rm --no-deps -T api bash -o pipefail -c "research-keys list | python -c 'import json,pathlib,sys; prefix=pathlib.Path(\"/demo-data/api-key\").read_text(encoding=\"utf-8\").strip()[4:12]; records=[json.loads(line) for line in sys.stdin if line.strip()]; match=next((row for row in records if row[\"key_prefix\"] == prefix and row[\"principal\"] == \"demo\"),None); print(json.dumps({\"key_id\":match[\"key_id\"],\"research\":bool({\"research\",\"admin\"} & set(match[\"scopes\"]) and match[\"revoked_at\"] is None})) if match else print(json.dumps({\"found\":False}))'")"
+  if [[ "$key_state" == *'"found": false'* ]]; then
+    printf '%s\n' 'The saved API key is not active in this database; rerun with --reset.' >&2
+    exit 1
+  fi
+  has_research="$(printf '%s' "$key_state" | docker compose run --rm --no-deps -T api python -c 'import json,sys; print(json.load(sys.stdin)["research"])')"
+  if [[ "$has_research" != true ]]; then
+    old_key_id="$(printf '%s' "$key_state" | docker compose run --rm --no-deps -T api python -c 'import json,sys; print(json.load(sys.stdin)["key_id"])')"
+    announce 'Replacing the local demo API key with a research-scoped key'
+    create_demo_key
+    docker compose run --rm --no-deps api research-keys revoke "$old_key_id"
+    unset old_key_id key_state has_research
+  fi
 fi
 
 if (( with_llm )); then
