@@ -136,8 +136,8 @@ extraction. The CLI records `10-paper-comparison` for up to 10 members. For an
 exact 100-member draft it records `100-paper-pilot` and requires the approved
 membership decision, source-route review, and source-content review. The acceptance
 run is already complete; starting another job against its snapshot would repeat
-extraction work. The review inputs live under Git-ignored `manifests/` and
-owner-only local review files paths and are available only in the local project workspace.
+extraction work. The review inputs live in Git-ignored manifests and other
+owner-only local review files; they are available only in the local project workspace.
 
 A 10-paper comparison job uses:
 
@@ -155,7 +155,7 @@ membership, selected-document map, and source review files are Git-ignored local
 review data, not files available from a clean checkout.
 
 ```bash
-export RESEARCH_PLATFORM_DATABASE_URL=$RESEARCH_PLATFORM_DATABASE_URL
+export RESEARCH_PLATFORM_DATABASE_URL="<your local PostgreSQL URL>"
 ```
 
 To create a fresh 100-paper run, create a separate membership-bound draft and add
@@ -165,11 +165,11 @@ the extraction workload:
 ```bash
 research-ingest snapshots create \
   --name phase1-100-reproduction \
-  --configuration owner-only local review file
+  --configuration OWNER_ONLY_SNAPSHOT_CONFIGURATION
 research-ingest snapshots add-membership \
   --snapshot-id NEW_SNAPSHOT_ID \
   --decision manifests/phase1-100-paper-membership-decision.json \
-  --document-map owner-only local review file
+  --document-map OWNER_ONLY_DOCUMENT_MAP
 ```
 
 A 100-paper job uses the new snapshot bound to the approved decision and source
@@ -181,8 +181,8 @@ research-ingest jobs start \
   --chunking-configuration configs/phase1-e5-small-v2-chunking.example.json \
   --artifact-root data/artifacts \
   --membership-decision manifests/phase1-100-paper-membership-decision.json \
-  --source-route-review owner-only local review file \
-  --source-content-review owner-only local review file
+  --source-route-review OWNER_ONLY_SOURCE_ROUTE_REVIEW \
+  --source-content-review OWNER_ONLY_SOURCE_CONTENT_REVIEW
 ```
 
 Inspect the accepted snapshot and completed extraction job:
