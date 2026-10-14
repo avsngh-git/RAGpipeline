@@ -129,7 +129,10 @@ from research_platform.search.profiles import (
     RetrievalProfile,
 )
 from research_platform.search.reranker import CrossEncoderReranker
-from research_platform.search.reranker_models import PinnedSentenceTransformersReranker
+from research_platform.search.reranker_models import (
+    PinnedSentenceTransformersReranker,
+    RerankerRuntime,
+)
 from research_platform.search.reranker_service import rerank_with_fallback
 from research_platform.search.sparse_lexical import VocabularyRepository
 from research_platform.search.table_context import (
@@ -864,6 +867,7 @@ class Phase2Runtime:
     api_services: Any
     reranker: CrossEncoderReranker
     embedder: Any
+    reranker_runtime: RerankerRuntime | None = None
 
     async def close(self) -> None:
         self.embedder.close()
@@ -1167,6 +1171,16 @@ async def create_phase2_runtime(
         await asyncio.to_thread(
             local_reranker.score_pairs, (("local readiness", "probe"),)
         )
+        runtime = local_reranker.runtime
+        if runtime is not None:
+            logger.info(
+                "reranker_runtime_selected",
+                extra={
+                    "device": runtime.device,
+                    "precision": runtime.precision,
+                    "profile_precision": reranker_identity.precision,
+                },
+            )
         executor = Phase2SearchExecutor(
             pool=pool,
             index_configuration=configuration,
@@ -1204,7 +1218,14 @@ async def create_phase2_runtime(
             citations=CitationGraphReader(pool),
             related=RelatedPaperReader(pool),
         )
-        return Phase2Runtime(pool, http, services, reranker, embedder)
+        return Phase2Runtime(
+            pool,
+            http,
+            services,
+            reranker,
+            embedder,
+            reranker_runtime=local_reranker.runtime,
+        )
     except BaseException:
         if reranker is not None:
             reranker.close()

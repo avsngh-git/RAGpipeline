@@ -53,12 +53,13 @@ class FakeModel:
         return self.output or FakeArray([3.25] * len(pairs))
 
 
-def _identity() -> RerankerIdentity:
+def _identity(*, precision: str = "fp32") -> RerankerIdentity:
     return RerankerIdentity(
         model=MINILM_RERANKER_MODEL,
         revision=MINILM_RERANKER_REVISION,
         preprocessing_revision="query-source-chunk-v1",
         maximum_input_tokens=512,
+        precision=precision,
     )
 
 
@@ -147,6 +148,44 @@ def test_pinned_loader_is_offline_revision_pinned_and_returns_raw_logits(
     assert predict_kwargs["apply_softmax"] is False
     assert predict_kwargs["show_progress_bar"] is False
     assert predict_kwargs["activation_fn"]("raw logits") == "raw logits"
+
+
+def test_runtime_is_none_before_loading() -> None:
+    assert PinnedSentenceTransformersReranker(_identity()).runtime is None
+
+
+def test_cpu_runtime_records_fp32_for_an_fp16_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_libraries(
+        monkeypatch,
+        tokenizer=FakeTokenizer(),
+        model=FakeModel(),
+        cuda_available=False,
+    )
+    scorer = PinnedSentenceTransformersReranker(_identity(precision="fp16"))
+
+    scorer.score_pairs((("query", "evidence"),))
+
+    assert scorer.runtime == reranker_models.RerankerRuntime("cpu", "fp32")
+
+
+def test_cuda_runtime_keeps_the_profile_precision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_libraries(
+        monkeypatch,
+        tokenizer=FakeTokenizer(),
+        model=FakeModel(),
+        cuda_available=True,
+    )
+    scorer = PinnedSentenceTransformersReranker(
+        _identity(precision="fp16"), device="cuda"
+    )
+
+    scorer.score_pairs((("query", "evidence"),))
+
+    assert scorer.runtime == reranker_models.RerankerRuntime("cuda", "fp16")
 
 
 def test_only_reviewed_model_revisions_are_accepted() -> None:

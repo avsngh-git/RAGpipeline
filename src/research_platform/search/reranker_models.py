@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib
 from collections.abc import Sequence
+from dataclasses import dataclass
 from numbers import Real
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from research_platform.search.profiles import RerankerIdentity
 from research_platform.search.reranker import (
@@ -39,6 +40,14 @@ SUPPORTED_RERANKERS = {
 RerankerDevice = Literal["auto", "cpu", "cuda"]
 
 
+@dataclass(frozen=True)
+class RerankerRuntime:
+    """The device and numeric precision the loaded reranker actually uses."""
+
+    device: Literal["cpu", "cuda"]
+    precision: Literal["fp32", "fp16", "bf16"]
+
+
 class PinnedSentenceTransformersReranker:
     """Lazy local-only tokenizer/scorer for the approved P2-10 candidate models.
 
@@ -67,6 +76,12 @@ class PinnedSentenceTransformersReranker:
         self._model: Any | None = None
         self._tokenizer: Any | None = None
         self._torch: Any | None = None
+        self._runtime: RerankerRuntime | None = None
+
+    @property
+    def runtime(self) -> RerankerRuntime | None:
+        """The loaded runtime, or None before the model loads."""
+        return self._runtime
 
     def count_pair(self, query: str, evidence_text: str) -> int:
         """Count the complete model pair with special tokens and no truncation."""
@@ -181,6 +196,10 @@ class PinnedSentenceTransformersReranker:
         self._torch = torch
         self._tokenizer = tokenizer
         self._model = model
+        self._runtime = RerankerRuntime(
+            device=cast(Literal["cpu", "cuda"], device),
+            precision=cast(Literal["fp32", "fp16", "bf16"], runtime_precision),
+        )
 
     def _resolve_device(self, torch: Any) -> str:
         cuda_available = bool(torch.cuda.is_available())

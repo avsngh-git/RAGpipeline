@@ -59,6 +59,13 @@ The frozen reranker precision remains fp16 for the measured CUDA profile. Its
 loader uses fp32 for CPU inference, where half precision is not a supported
 runtime path; the CPU scores are produced by the same pinned model and weights.
 
+## Reranker precision on CPU
+
+The profile's `fp16` precision applies on CUDA; on CPU the reranker runs in
+`fp32`. Research runs record the actual device and precision as
+`reranker_runtime` in their provenance and effective configuration. CPU scores
+can differ in the last digits, so benchmark numbers come from the GPU host.
+
 ## Build record
 
 The serving environment was solved on Linux x86-64 with Conda 26.7.1. The

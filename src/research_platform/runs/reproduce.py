@@ -11,6 +11,7 @@ from pydantic import BaseModel, ValidationError
 
 from research_platform.llm.types import CallKind, DecodingSettings, ModelIdentity
 from research_platform.runs.contracts import (
+    RerankerRuntimeRecord,
     ResearchRequest,
     RunBudgets,
     configuration_id,
@@ -36,6 +37,7 @@ class ReproductionInputs:
     model: ModelIdentity
     decoding: DecodingSettings | None
     code_revision: str
+    reranker_runtime: RerankerRuntimeRecord | None = None
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,14 @@ def inputs_from_configuration(
     except KeyError as error:
         raise _missing(str(error.args[0])) from None
 
+    reranker_runtime = None
+    if "reranker_runtime" in configuration:
+        reranker_runtime = _model_value(
+            "reranker_runtime",
+            RerankerRuntimeRecord,
+            configuration["reranker_runtime"],
+        )
+
     return ReproductionInputs(
         request=request,
         budgets=budgets,
@@ -135,6 +145,7 @@ def inputs_from_configuration(
         model=model,
         decoding=decoding,
         code_revision=code_revision,
+        reranker_runtime=reranker_runtime,
     )
 
 
@@ -199,6 +210,7 @@ async def check_run(store: RunStore, run_id: UUID) -> ReproductionCheck:
         budgets=inputs.budgets,
         code_revision=inputs.code_revision,
         decoding=inputs.decoding,
+        reranker_runtime=inputs.reranker_runtime,
     )
     rebuilt_matches = rebuilt.provenance.configuration_id == expected_id
     return ReproductionCheck(
@@ -230,6 +242,8 @@ def reproduction_recipe(inputs: ReproductionInputs) -> dict[str, object]:
                 ),
             }
         )
+    if inputs.reranker_runtime is not None:
+        environment["RESEARCH_PLATFORM_MODEL_DEVICE"] = inputs.reranker_runtime.device
     recipe: dict[str, object] = {
         "git_checkout": inputs.code_revision.split("+", maxsplit=1)[0],
         "environment": environment,
