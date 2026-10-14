@@ -35,7 +35,7 @@ See the [architecture overview](docs/architecture/overview.md) for components an
 
 ## Try it (about 10 minutes, CPU only)
 
-The commands are implemented by [`scripts/demo_load.sh`](scripts/demo_load.sh). TODO(owner): verify the ten-minute estimate with a fresh-clone run and record the measurement in repository documentation.
+The commands are implemented by [`scripts/demo_load.sh`](scripts/demo_load.sh). On 2026-10-14 a fresh clone completed it in 634 seconds on a laptop CPU, most of it downloading the image, the bundle and the models.
 
 ```bash
 git clone https://github.com/avsngh-git/RAGpipeline.git
@@ -44,7 +44,7 @@ scripts/demo_load.sh
 docker compose up -d
 ```
 
-Once P6-11 publishes the `demo-data-v1` bundle after its per-document display review, the loader downloads it and prepares the local services ([Phase 6 plan](docs/plans/phase-6-portfolio.md), [display policy](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Then open `http://127.0.0.1:8000/`, paste the key saved in `demo-data/api-key`, and open one of the showcase run links printed by the script. The page lets you search the released collection and inspect its showcase runs. Public display is limited to material cleared by the document review ([ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md), [ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)).
+The loader downloads the [`demo-data-v1`](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v1) bundle (354 MB: the 100-paper corpus, its search indexes and eight showcase runs), verifies its checksum and prepares the local services ([Phase 6 plan](docs/plans/phase-6-portfolio.md), [display policy](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Then open `http://127.0.0.1:8000/`, paste the key saved in `demo-data/api-key`, and open one of the showcase run links printed by the script. The page lets you search the released collection and inspect its showcase runs. Public display is limited to material cleared by the document review ([ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md), [ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)).
 
 Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. TODO(owner): verify the disk and memory estimates with a fresh-clone run and record the measurements in repository documentation. Live research runs need an NVIDIA GPU: `scripts/demo_load.sh --with-llm` ([generator setup](docs/operations/phase-3-generator.md)).
 
