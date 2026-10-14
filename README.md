@@ -46,7 +46,7 @@ docker compose up -d
 
 The loader downloads the [`demo-data-v1`](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v1) bundle (354 MB: the 100-paper corpus, its search indexes and eight showcase runs), verifies its checksum and prepares the local services ([Phase 6 plan](docs/plans/phase-6-portfolio.md), [display policy](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Then open `http://127.0.0.1:8000/`, paste the key saved in `demo-data/api-key`, and open one of the showcase run links printed by the script. The page lets you search the released collection and inspect its showcase runs. Public display is limited to material cleared by the document review ([ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md), [ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)).
 
-Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. TODO(owner): verify the disk and memory estimates with a fresh-clone run and record the measurements in repository documentation. Live research runs need an NVIDIA GPU: `scripts/demo_load.sh --with-llm` ([generator setup](docs/operations/phase-3-generator.md)).
+Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. The parts add up to about 7.5 GB: the API image (4.2 GB), the PostgreSQL and Qdrant images (0.7 GB), the bundle and its unpacked copy (0.7 GB), the loaded data (about 0.8 GB) and the two models (about 1.2 GB). It ran on a laptop VM with 11 GB of memory and on a standard GitHub runner.
 
 If you already run another checkout of this project with Docker Compose, give the demo its own project name and ports so the two stacks do not share containers or volumes; Compose names a project after its directory:
 
@@ -58,7 +58,7 @@ docker compose up -d
 
 The script then prints links on the chosen `API_PORT`.
 
-Connect an MCP client to `http://127.0.0.1:8000/mcp/` with the same key ([MCP operations](docs/operations/mcp.md)).
+Connect an MCP client to `http://127.0.0.1:8000/mcp/` (or your `API_PORT`) with the same key ([MCP operations](docs/operations/mcp.md)).
 
 ## Video
 
@@ -101,8 +101,12 @@ Create the Conda environment and install the package in editable mode ([environm
 ```bash
 conda env create --file environment.yaml
 conda activate sci_research_agent
+python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
+python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt
 python -m pip install --no-build-isolation --no-deps -e .
 ```
+
+CI builds the same environment from the exact lock instead (`conda create --name sci_research_agent --file environment-linux-64.lock`, then the three `pip` lines; see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Keep the checkout outside the system temporary directory: the Phase 3 evaluation script refuses to run from there to protect private data, and its test fails at import.
 
 Run the project checks from the repository root:
 
