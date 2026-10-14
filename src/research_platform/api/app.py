@@ -1,14 +1,17 @@
 """FastAPI application construction and core health/search routes."""
 
+import functools
 import json
 import logging
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
+from importlib import resources
 from typing import TYPE_CHECKING, Any, AsyncIterator, Final, Literal
 
 import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -84,6 +87,20 @@ class _DiscoveryEmbedder:
 # request limit must therefore not be the per-run limit: the spend ledger enforces
 # the per-run and daily limits. This ceiling only stops a runaway process.
 _API_OPENALEX_REQUEST_CEILING: Final = 1_000_000
+_UI_CONTENT_SECURITY_POLICY: Final = (
+    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; "
+    "frame-ancestors 'none'"
+)
+
+
+@functools.cache
+def _ui_asset(name: str) -> str:
+    return (
+        resources.files("research_platform.api")
+        .joinpath("static", name)
+        .read_text(encoding="utf-8")
+    )
 
 
 def api_discovery_config(settings: "DiscoverySettings") -> "DiscoveryConfig":
@@ -280,6 +297,25 @@ def create_app(
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.get("/", include_in_schema=False)
+    async def ui() -> HTMLResponse:
+        return HTMLResponse(
+            _ui_asset("index.html"),
+            headers={
+                "Content-Security-Policy": _UI_CONTENT_SECURITY_POLICY,
+                "X-Content-Type-Options": "nosniff",
+                "Referrer-Policy": "no-referrer",
+            },
+        )
+
+    @app.get("/ui/app.js", include_in_schema=False)
+    async def ui_script() -> Response:
+        return Response(
+            _ui_asset("app.js"),
+            media_type="text/javascript",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:
