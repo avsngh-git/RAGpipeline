@@ -66,20 +66,20 @@ The repository ignores `.env`; keep real credentials there and out of commits. S
 
 | Variable | Compose value or default | Purpose |
 | --- | --- | --- |
-| `RESEARCH_PLATFORM_ENVIRONMENT` | `development` | Selects the runtime environment. |
-| `RESEARCH_PLATFORM_LOG_LEVEL` | `INFO` | Sets API log verbosity. |
-| `RESEARCH_PLATFORM_DATABASE_URL` | Built from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` for the `postgres` service. | Connects the API to PostgreSQL. |
-| `RESEARCH_PLATFORM_QDRANT_URL` | `http://qdrant:6333` | Connects the API to Qdrant. |
-| `RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE` | `trusted_private_local` | Enables the local UI to display evidence text from the demo bundle. |
-| `RESEARCH_PLATFORM_MODEL_DEVICE` | `cpu` | Selects CPU inference for the reviewer mode. |
-| `HF_HOME` | `/models/hf` | Stores downloaded embedding model files in the `model_cache` volume. |
-| `RESEARCH_PLATFORM_RERANKER_CACHE_DIR` | `/models/reranker` | Stores downloaded reranker files in the `model_cache` volume. |
-| `HF_HUB_OFFLINE` | `1` | Uses cached Hugging Face files after the setup script fetches models. |
-| `TRANSFORMERS_OFFLINE` | Same value as `HF_HUB_OFFLINE` | Keeps Transformers in offline mode after setup. |
-| `RESEARCH_PLATFORM_LLM_BASE_URL` | `http://ollama:11434` | Sets the optional Ollama endpoint. |
-| `RESEARCH_PLATFORM_LLM_MODEL` | `qwen3.5-2b-text:q4_k_m` | Selects the optional Ollama model. |
-| `OPENALEX_API_KEY` | Empty | Optional OpenAlex credential for online discovery. |
-| `RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS` | `2` | Bounds PostgreSQL and Qdrant readiness checks. |
+| `RESEARCH_PLATFORM_ENVIRONMENT` | `development` ([Compose](../../docker-compose.yml)) | Selects the runtime environment ([settings](../../src/research_platform/config.py)). |
+| `RESEARCH_PLATFORM_LOG_LEVEL` | `INFO` ([Compose](../../docker-compose.yml)) | Sets API log verbosity ([settings](../../src/research_platform/config.py)). |
+| `RESEARCH_PLATFORM_DATABASE_URL` | Built from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` for the `postgres` service ([Compose](../../docker-compose.yml)). | Connects the API to PostgreSQL ([settings](../../src/research_platform/config.py)). |
+| `RESEARCH_PLATFORM_QDRANT_URL` | `http://qdrant:6333` ([Compose](../../docker-compose.yml)) | Connects the API to Qdrant ([settings](../../src/research_platform/config.py)). |
+| `RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE` | `trusted_private_local` ([Compose](../../docker-compose.yml)) | Enables the local UI to display evidence text from the demo bundle ([settings](../../src/research_platform/config.py)). |
+| `RESEARCH_PLATFORM_MODEL_DEVICE` | `cpu` ([Compose](../../docker-compose.yml)) | Selects CPU inference for the reviewer mode ([settings](../../src/research_platform/config.py)). |
+| `HF_HOME` | `/models/hf` ([Compose](../../docker-compose.yml)) | Stores downloaded embedding model files in the `model_cache` volume ([Compose](../../docker-compose.yml)). |
+| `RESEARCH_PLATFORM_RERANKER_CACHE_DIR` | `/models/reranker` ([Compose](../../docker-compose.yml)) | Stores downloaded reranker files in the `model_cache` volume ([Compose](../../docker-compose.yml)). |
+| `HF_HUB_OFFLINE` | `1` ([Compose](../../docker-compose.yml)) | Uses cached Hugging Face files after the setup script fetches models ([demo setup](../../scripts/demo_load.sh)). |
+| `TRANSFORMERS_OFFLINE` | Same value as `HF_HUB_OFFLINE` ([Compose](../../docker-compose.yml)) | Keeps Transformers in offline mode after setup ([Compose](../../docker-compose.yml)). |
+| `RESEARCH_PLATFORM_LLM_BASE_URL` | `http://ollama:11434` ([Compose](../../docker-compose.yml)) | Sets the optional Ollama endpoint ([Compose](../../docker-compose.yml)). |
+| `RESEARCH_PLATFORM_LLM_MODEL` | `qwen3.5-2b-text:q4_k_m` ([Compose](../../docker-compose.yml)) | Selects the optional Ollama model ([Compose](../../docker-compose.yml)). |
+| `OPENALEX_API_KEY` | Empty ([Compose](../../docker-compose.yml)) | Optional OpenAlex credential for online discovery ([settings](../../src/research_platform/config.py)). |
+| `RESEARCH_PLATFORM_DEPENDENCY_TIMEOUT_SECONDS` | `2` ([Compose](../../docker-compose.yml)) | Bounds PostgreSQL and Qdrant readiness checks ([readiness](../../src/research_platform/services/readiness.py)). |
 
 For the local demonstration, run [`scripts/demo_load.sh`](../../scripts/demo_load.sh)
 before `docker compose up -d`. It downloads and verifies the demo bundle, applies
@@ -88,14 +88,12 @@ migrations, loads the data and fetches the model files.
 ## Migrations
 
 Apply migrations explicitly before starting a new image version. The runner applies
-pending SQL files in order and records each applied version. It has no down-migration
-command, so treat schema migrations as forward-only and take a PostgreSQL backup first.
+pending SQL files in order and records each applied version ([migration runner](../../src/research_platform/persistence/migrations.py)).
+It has no down-migration command, so treat schema migrations as forward-only
+([migration runner](../../src/research_platform/persistence/migrations.py)) and take a
+PostgreSQL backup first ([backup procedure](#postgresql), [delivery decision](../adr/0033-phase6-delivery-without-hosting.md)).
 The image sets `RESEARCH_PLATFORM_MIGRATIONS_DIR` to `/app/migrations`; keep that path
-unless you intentionally provide a different migration directory. See the
-[Dockerfile](../../Dockerfile).
-See [`migrations.py`](../../src/research_platform/persistence/migrations.py),
-[ADR-0033](../adr/0033-phase6-delivery-without-hosting.md), and the
-[Compose setup script](../../scripts/demo_load.sh).
+unless you intentionally provide a different migration directory ([Dockerfile](../../Dockerfile)).
 
 ```bash
 export RESEARCH_PLATFORM_IMAGE=ghcr.io/avsngh-git/ragpipeline:v0.6.0
@@ -108,9 +106,10 @@ docker compose up -d
 
 ### PostgreSQL
 
-The PostgreSQL container supplies `pg_dump` and `pg_restore`. Set `BACKUP_FILE` to a
-protected location outside the repository. The custom-format archive contains the
-database name and can be restored as a replacement database.
+The PostgreSQL container supplies `pg_dump` and `pg_restore` ([Compose configuration](../../docker-compose.yml)).
+Set `BACKUP_FILE` to a protected location outside the repository. The custom-format
+archive contains the database name and can be restored as a replacement database
+([PostgreSQL service image](../../docker-compose.yml)).
 
 ```bash
 export BACKUP_FILE=/secure/location/research.dump
@@ -120,8 +119,9 @@ docker compose exec -T postgres sh -c \
   > "$BACKUP_FILE"
 ```
 
-To restore that archive, stop the API first. `--create` recreates the database recorded
-in the archive; this replaces the current database contents.
+To restore that archive, stop the API first ([Compose configuration](../../docker-compose.yml)).
+`--create` recreates the database recorded in the archive; this replaces the current
+database contents ([restore command](../../docker-compose.yml)).
 
 ```bash
 docker compose stop api
@@ -195,13 +195,13 @@ See [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md), the
 
 | Symptom | Likely cause | Action |
 | --- | --- | --- |
-| `/ready` returns `503` | Its response identifies unavailable PostgreSQL, Qdrant, search runtime, or research runtime dependencies. | Check `docker compose ps` and `docker compose logs api`; start or repair the named dependency, then recheck `/ready`. The readiness check reports dependency status without connection details. |
-| Search reports missing model files while offline | The model cache is empty or incomplete. | Fetch the pinned models while online, then restart the API: `docker compose run --rm --no-deps -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 api research-demo fetch-models`. The files live in the `model_cache` volume. |
-| Qdrant collection is missing | Its volume or collection was removed, or the demo bundle was not loaded. | If PostgreSQL still has the published generation, rebuild into empty collections with the command in [Backup and restore](#qdrant). For a fresh demo database, rerun `scripts/demo_load.sh` to load its Qdrant snapshots. |
-| A research run was interrupted | The API stopped while a run was queued or running. | On startup, the executor resumes a running run from its last checkpoint. It retries a run at most `2` times, then records `resume_exhausted`; start a new run if it has exhausted retries. See [ADR-0019](../adr/0019-phase3-research-run-execution.md). |
-| Ollama is unreachable | The optional `llm` profile is stopped, or its model has not been imported. | Start it with `docker compose --profile llm up -d ollama`, then follow the one-time import command in the [generator operations guide](phase-3-generator.md). This path requires an NVIDIA GPU. |
-| Docker reports no space left | Docker images, model caches or named data volumes use the available disk. | Inspect usage with `docker system df`; remove unused images with `docker image prune`. Do not remove named volumes unless you intend to erase PostgreSQL, Qdrant, model-cache or Ollama data. |
-| An API request returns `429` | The principal exceeded a route-class limit or the active-run limit. | Wait for the `Retry-After` interval and retry. The [authentication guide](authentication.md#errors) lists the defaults and response behavior. |
+| `/ready` returns `503` | Its response identifies unavailable PostgreSQL, Qdrant, search runtime, or research runtime dependencies ([readiness route](../../src/research_platform/api/app.py), [dependency checks](../../src/research_platform/services/readiness.py)). | Check `docker compose ps` and `docker compose logs api`; start or repair the named dependency, then recheck `/ready`. The readiness check reports dependency status without connection details ([dependency checks](../../src/research_platform/services/readiness.py)). |
+| Search reports missing model files while offline | The model cache is empty or incomplete ([demo setup](../../scripts/demo_load.sh)). | Fetch the pinned models while online, then restart the API: `docker compose run --rm --no-deps -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 api research-demo fetch-models` ([demo CLI](../../src/research_platform/demo/cli.py)). The files live in the `model_cache` volume ([Compose configuration](../../docker-compose.yml)). |
+| Qdrant collection is missing | Its volume or collection was removed, or the demo bundle was not loaded ([demo setup](../../scripts/demo_load.sh)). | If PostgreSQL still has the published generation, rebuild into empty collections with the command in [Backup and restore](#qdrant). To reload the demo bundle, run `scripts/demo_load.sh --reset`; this removes all Compose named volumes, including PostgreSQL, before loading the bundle again ([reset implementation](../../scripts/demo_load.sh)). Back up anything needed first. |
+| A research run was interrupted | The API stopped while a run was queued or running ([ADR-0019](../adr/0019-phase3-research-run-execution.md)). | On startup, the executor resumes a running run from its last checkpoint. It retries a run at most `2` times, then records `resume_exhausted`; start a new run if it has exhausted retries ([ADR-0019](../adr/0019-phase3-research-run-execution.md)). |
+| Ollama is unreachable | The optional `llm` profile is stopped, or its model has not been imported ([Compose configuration](../../docker-compose.yml), [generator operations guide](phase-3-generator.md)). | Start it with `docker compose --profile llm up -d ollama`, then follow the one-time import command in the [generator operations guide](phase-3-generator.md). This path requires an NVIDIA GPU ([Compose configuration](../../docker-compose.yml)). |
+| Docker reports no space left | Docker images, model caches or named data volumes use the available disk ([Compose configuration](../../docker-compose.yml)). | Inspect usage with `docker system df`; remove unused images with `docker image prune`. Do not remove named volumes unless you intend to erase PostgreSQL, Qdrant, model-cache or Ollama data ([Compose configuration](../../docker-compose.yml)). |
+| An API request returns `429` | The principal exceeded a route-class limit or the active-run limit ([authentication guide](authentication.md#errors)). | Wait for the `Retry-After` interval and retry. The [authentication guide](authentication.md#errors) lists the defaults and response behavior. |
 
 The `/ready` endpoint checks PostgreSQL and Qdrant and also reports whether the search
 and research runtimes initialized. See the [readiness route](../../src/research_platform/api/app.py)
