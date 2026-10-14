@@ -104,7 +104,7 @@ create_demo_key() {
   if (( with_llm )); then
     key_args+=(--scope research)
   fi
-  key_json="$(docker compose run --rm --no-deps api research-keys create "${key_args[@]}")"
+  key_json="$(docker compose run --rm --no-deps -T api research-keys create "${key_args[@]}")"
   api_key="$(printf '%s' "$key_json" | docker compose run --rm --no-deps -T api python -c 'import json,sys; print(json.load(sys.stdin)["api_key"])')"
   (umask 077 && printf '%s\n' "$api_key" > demo-data/api-key)
   unset api_key key_json
