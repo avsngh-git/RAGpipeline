@@ -26,7 +26,7 @@ EXPECTED_MCP_TOOLS: Final = frozenset(
     }
 )
 SMOKE_QUERY: Final = "reranking for retrieval-augmented generation"
-README_SECTION: Final = 'the README "Small-mode demo" section'
+README_SECTION: Final = 'the README "Try it" section'
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,7 @@ This platform searches scientific papers, retrieves and reranks evidence, and fo
 - **A bounded LangGraph agent:** the fully sampled development sweep completed 42 of 42 runs within configured run and tool budgets, with no unknown evidence handles or completed-run budget violations. These are operational results, not answer-quality gates ([benchmarks](docs/reference/benchmarks.md)).
 - **Claim → quote → passage → paper verification:** quote checks rejected 7 of 15 partial or unsupported claims and 2 of 60 supported claims in the reviewed sample; verification can filter unsupported drafts and reject some supported ones ([failure analysis](docs/reference/failure-analysis.md), [ADR-0025](docs/adr/0025-verified-quote-synthesis-with-thinking.md)).
 - **Observable, reproducible runs:** `research-runs explain` inspects a run diagnosis and `research-runs reproduce` checks its recorded configuration; all five accepted Phase 4 walkthroughs reproduced with matching configuration hashes ([Phase 4 gate report](docs/reference/phase-4-gate-report.md)).
-- **One MCP server over shared services:** parity and security checks passed in CI; the recorded gate run had 1,407 passed and 114 skipped tests ([Phase 5 gate report](docs/reference/phase-5-gate-report.md), [ADR-0030](docs/adr/0030-phase5-mcp-adapter.md)).
+- **One MCP server over shared services:** parity and security checks passed in CI; a local run at the gate commit had 1,407 passed and 114 skipped tests ([Phase 5 gate report](docs/reference/phase-5-gate-report.md), [ADR-0030](docs/adr/0030-phase5-mcp-adapter.md)).
 
 ## Architecture
 
@@ -48,6 +48,16 @@ The loader downloads the [`demo-data-v1`](https://github.com/avsngh-git/RAGpipel
 
 Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. TODO(owner): verify the disk and memory estimates with a fresh-clone run and record the measurements in repository documentation. Live research runs need an NVIDIA GPU: `scripts/demo_load.sh --with-llm` ([generator setup](docs/operations/phase-3-generator.md)).
 
+If you already run another checkout of this project with Docker Compose, give the demo its own project name and ports so the two stacks do not share containers or volumes; Compose names a project after its directory:
+
+```bash
+export COMPOSE_PROJECT_NAME=ragdemo POSTGRES_PORT=55432 QDRANT_PORT=56333 API_PORT=18000
+scripts/demo_load.sh
+docker compose up -d
+```
+
+The script then prints links on the chosen `API_PORT`.
+
 Connect an MCP client to `http://127.0.0.1:8000/mcp/` with the same key ([MCP operations](docs/operations/mcp.md)).
 
 ## Video
@@ -68,7 +78,7 @@ See [benchmarks](docs/reference/benchmarks.md) and [failure analysis](docs/refer
 
 - Qdrant runs dense and sparse retrieval in one search service ([ADR-0022](docs/adr/0022-phase35-qdrant-search-and-content.md)).
 - PostgreSQL is authoritative; Qdrant is derived and rebuildable ([ADR-0023](docs/adr/0023-phase35-index-generations.md)).
-- The accepted retrieval profile uses gte-modernbert-base, BM25S, and Ettin-150M ([ADR-0017](docs/adr/0017-phase2-accepted-profile-v10.md)).
+- The accepted retrieval profile combines gte-modernbert-base dense search, BM25 lexical scoring with the `scientific-en` analyzer (accepted with BM25S, served as Qdrant sparse vectors after a parity check, [ADR-0022](docs/adr/0022-phase35-qdrant-search-and-content.md)), and the Ettin-150M reranker ([ADR-0017](docs/adr/0017-phase2-accepted-profile-v10.md)).
 - Research runs use resumable LangGraph checkpoints ([ADR-0019](docs/adr/0019-phase3-research-run-execution.md)).
 - Claims use verified quotes and evidence mappings ([ADR-0025](docs/adr/0025-verified-quote-synthesis-with-thinking.md)).
 - API keys carry scopes and runs have ownership ([ADR-0027](docs/adr/0027-phase4-authentication-and-rate-limits.md)).
