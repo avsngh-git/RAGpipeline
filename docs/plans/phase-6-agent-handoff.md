@@ -38,6 +38,9 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 | P6-05 (#214) | merged | PR #235 | Merged before review; reviewed on `main`: matches the card |
 | P6-13 (#222) | merged | PR #232 | Links resolve; no private data |
 | P6-14 (#223) | merged | PR #231 | Links resolve; spot-checked numbers match the v14 report; caveats stated beside passes |
+| P6-06 (#215) | merged | PR #239 | Merged before review; reviewed on `main`: the 35 allowlisted queries and 22 exclusions match the card. Load also disables the two snapshot immutability triggers inside its transaction (needed to load items of a finalized snapshot) |
+| P6-09 (#218) | merged | PR #238 | Merged before review; reviewed on `main`: DOM built with `textContent` only, CSP as specified, assets shipped as package data |
+| P6-20 (#237) | open | — | Added in review of PR #230: record the reranker's actual device and precision in run provenance |
 
 ## Environment facts
 
