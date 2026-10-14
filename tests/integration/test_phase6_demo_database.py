@@ -292,6 +292,10 @@ async def _source_database(
                     "snapshot_items_immutable_after_finalize"
                 )
                 await connection.execute(
+                    "ALTER TABLE snapshot_item_chunks DISABLE TRIGGER "
+                    "snapshot_item_chunks_immutable_after_finalize"
+                )
+                await connection.execute(
                     "ALTER TABLE snapshots DISABLE TRIGGER "
                     "snapshots_immutable_after_finalize"
                 )
@@ -332,6 +336,10 @@ async def _source_database(
                             [row["artifact_id"] for row in artifact_ids],
                         )
                 finally:
+                    await connection.execute(
+                        "ALTER TABLE snapshot_item_chunks ENABLE TRIGGER "
+                        "snapshot_item_chunks_immutable_after_finalize"
+                    )
                     await connection.execute(
                         "ALTER TABLE snapshot_items ENABLE TRIGGER "
                         "snapshot_items_immutable_after_finalize"
