@@ -92,7 +92,7 @@ def test_export_refuses_undisplayable_documents(
     evidence_snapshots: _SnapshotFactory, tmp_path: Path
 ) -> None:
     async def exercise() -> None:
-        async with _source_database() as (pool, snapshot_id, papers):
+        async with _source_database(evidence_snapshots) as (pool, snapshot_id, papers):
             async with pool.acquire() as connection:
                 with pytest.raises(DemoExportRefused):
                     await export_tables(
@@ -102,14 +102,14 @@ def test_export_refuses_undisplayable_documents(
                         bundle_dir=tmp_path,
                     )
 
-    asyncio.run(exercise(evidence_snapshots))
+    asyncio.run(exercise())
 
 
 def test_export_and_load_round_trip(
     evidence_snapshots: _SnapshotFactory, tmp_path: Path
 ) -> None:
     async def exercise() -> None:
-        async with _source_database() as (pool, snapshot_id, papers):
+        async with _source_database(evidence_snapshots) as (pool, snapshot_id, papers):
             principal = f"demo-{uuid4().hex}"
             other_principal = f"other-{uuid4().hex}"
             async with pool.acquire() as connection:
@@ -197,14 +197,14 @@ def test_export_and_load_round_trip(
             finally:
                 await _drop_demo_database()
 
-    asyncio.run(exercise(evidence_snapshots))
+    asyncio.run(exercise())
 
 
 def test_load_refuses_a_tampered_file(
     evidence_snapshots: _SnapshotFactory, tmp_path: Path
 ) -> None:
     async def exercise() -> None:
-        async with _source_database() as (pool, snapshot_id, papers):
+        async with _source_database(evidence_snapshots) as (pool, snapshot_id, papers):
             await _allow_display(pool, papers)
             async with pool.acquire() as connection:
                 exported = await export_tables(
@@ -232,14 +232,14 @@ def test_load_refuses_a_tampered_file(
             finally:
                 await _drop_demo_database()
 
-    asyncio.run(exercise(evidence_snapshots))
+    asyncio.run(exercise())
 
 
 def test_load_refuses_a_non_empty_target(
     evidence_snapshots: _SnapshotFactory, tmp_path: Path
 ) -> None:
     async def exercise() -> None:
-        async with _source_database() as (pool, snapshot_id, papers):
+        async with _source_database(evidence_snapshots) as (pool, snapshot_id, papers):
             await _allow_display(pool, papers)
             async with pool.acquire() as connection:
                 exported = await export_tables(
@@ -260,7 +260,7 @@ def test_load_refuses_a_non_empty_target(
             finally:
                 await _drop_demo_database()
 
-    asyncio.run(exercise(evidence_snapshots))
+    asyncio.run(exercise())
 
 
 @asynccontextmanager
