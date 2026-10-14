@@ -144,13 +144,14 @@ fi
 announce 'Starting the API and waiting for model readiness'
 docker compose up -d --wait api
 
-printf '%s\n' 'UI: http://127.0.0.1:8000/'
+printf 'UI: http://127.0.0.1:%s/\n' "${API_PORT:-8000}"
 printf '%s\n' 'API key: demo-data/api-key'
 docker compose run --rm --no-deps -T api python -c '
 import json
 from pathlib import Path
 
+port = "'"${API_PORT:-8000}"'"
 manifest = json.loads(Path("/demo-data/'"$archive_dir"'/manifest.json").read_text(encoding="utf-8"))
 for run in manifest["runs"]:
-    print("http://127.0.0.1:8000/#run=" + run["run_id"] + "  (" + run["mode"] + ")")
+    print("http://127.0.0.1:" + port + "/#run=" + run["run_id"] + "  (" + run["mode"] + ")")
 '
