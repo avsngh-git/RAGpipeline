@@ -45,6 +45,9 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 | P6-16 (#225) | merged | PR #240 | 4:30 over seven segments; two `TODO(owner)` items for after P6-17 |
 | P6-20 (#237) | merged | PR #242 | Added in review of PR #230. Runs record `reranker_runtime`; older payloads keep their hashes; `reproduce` reads it back |
 | P6-12 (#221) | merged | `1e2579c` / [PR #245](https://github.com/avsngh-git/RAGpipeline/pull/245) | Exact-head CI [#38561647884](https://github.com/avsngh-git/RAGpipeline/actions/runs/38561647884) passed; issue #221 closed |
+| P6-10 (#219) | merged | PR #246 | Reviewed on `main`: stdlib-only smoke script and workflow match the card; first real run in P6-17 |
+| P6-15 (#224) | merged | PR #247 | Reviewed on `main`: ten sections, links resolve, no private data |
+| P6-11 (#220) | in progress | fix #248 | 100 display decisions committed (all CC BY; 11 confirmed via Crossref); 8 showcase runs by principal `demo` on the GPU host (2 answered, 5 partially supported, 1 insufficient evidence); bundle exported (35 tables, 288,407 rows, 354 MB) and privacy-scanned clean. Export exposed the P6-07 connection bug, fixed in #248 |
 
 ## Environment facts
 
