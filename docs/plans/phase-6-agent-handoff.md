@@ -1,6 +1,6 @@
 # Phase 6 — Agent handoff
 
-Updated: 2026-10-13. **Status: planned.** ADR-0032 and ADR-0033 accepted by the owner on
+Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by the owner on
 2026-10-13. The [plan](phase-6-portfolio.md) and map issue
 [#209](https://github.com/avsngh-git/RAGpipeline/issues/209) define the cards; the
 [owner decisions](../reference/phase-6-owner-decisions.md) record the interview.
@@ -32,6 +32,12 @@ Updated: 2026-10-13. **Status: planned.** ADR-0032 and ADR-0033 accepted by the 
 | Card | State | Commit / PR | Notes |
 | --- | --- | --- | --- |
 | P6-01 (#210) | merged | c472286 / [PR #229](https://github.com/avsngh-git/RAGpipeline/pull/229) | Hosted CI run [#38407311684](https://github.com/avsngh-git/RAGpipeline/actions/runs/38407311684) passed |
+| P6-02 (#211) | merged | PR #230 | Serving lock (CPU PyTorch); image 4.22 GB loads both pinned models on CPU. Hub 1.33.0 pinned by hash in `requirements-serving.txt` (its Conda build conflicts with `mcp=2.3.0`). CPU reranks in fp32; the guard that refused fp16 on CPU was removed, so CPU provenance still names the profile's fp16 (open question) |
+| P6-03 (#212) | merged | PR #233 | Merged before review; reviewed on `main`: matches the card. Main CI pushed `sha-6d1d9847734d` |
+| P6-04 (#213) | merged | PR #234 | Merged before review; reviewed on `main`: matches the card |
+| P6-05 (#214) | merged | PR #235 | Merged before review; reviewed on `main`: matches the card |
+| P6-13 (#222) | merged | PR #232 | Links resolve; no private data |
+| P6-14 (#223) | merged | PR #231 | Links resolve; spot-checked numbers match the v14 report; caveats stated beside passes |
 
 ## Environment facts
 
