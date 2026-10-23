@@ -14,9 +14,9 @@ dependencies = [
     "langgraph==1.2.9",
     "langgraph-checkpoint-postgres==3.1.2",
     "mcp==2.3.0",
-    "opentelemetry-api==1.45.0",
-    "opentelemetry-exporter-otlp-proto-http==1.45.0",
-    "opentelemetry-sdk==1.45.0",
+    "opentelemetry-api==1.45.1",
+    "opentelemetry-exporter-otlp-proto-http==1.45.1",
+    "opentelemetry-sdk==1.45.1",
     "prometheus-client==0.26.0",
     "psycopg==3.3.4",
     "psycopg-pool==3.3.3",
@@ -77,4 +77,7 @@ strict = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
-markers = ["integration: requires dedicated disposable PostgreSQL and Qdrant services"]
+markers = [
+    "integration: requires dedicated disposable PostgreSQL and Qdrant services",
+    "browser: Playwright browser journeys",
+]

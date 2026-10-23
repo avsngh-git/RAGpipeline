@@ -16,11 +16,14 @@ dependencies:
   - psycopg-pool=3.3.3
   - websockets=16.1.1
   - numpy=2.5.3
-  - opentelemetry-api=1.45.0
-  - opentelemetry-sdk=1.45.0
-  - opentelemetry-exporter-otlp-proto-http=1.45.0
+  - opentelemetry-api=1.45.1
+  - opentelemetry-sdk=1.45.1
+  - opentelemetry-exporter-otlp-proto-http=1.45.1
   - prometheus_client=0.26.0
   - filelock
+  # Security floors (pip-audit, 2026-10-23): PYSEC-2026-4322, PYSEC-2026-4320.
+  - brotli-python>=1.2.1
+  - certifi>=2026.10.19
   - pytorch-cpu=2.14
   - transformers=5.17.0
   - sentence-transformers=6.1.0

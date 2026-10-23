@@ -55,6 +55,19 @@ jobs:
       - name: Install the package
         run: conda run --name sci_research_agent python -m pip install --no-build-isolation --no-deps -e .
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('environment-linux-64.lock') }}
+      - name: Install Chromium for browser tests
+        run: conda run --name sci_research_agent python -m playwright install --with-deps chromium
+      - name: Check Chromium launches
+        run: >-
+          conda run --name sci_research_agent python -c
+          "from playwright.sync_api import sync_playwright as s;
+          p = s().start(); b = p.chromium.launch(); print('chromium', b.version); b.close(); p.stop()"
+
       - name: Lint
         run: conda run --name sci_research_agent python -m ruff check .
 
