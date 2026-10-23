@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.43\
-**Last updated:** 2026-10-13\
+**Version:** 1.44\
+**Last updated:** 2026-10-23\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)) and accepted by the owner on 2026-10-12 after all four gate items passed ([gate report](../reference/phase-5-gate-report.md)); Phase 6 (release, small mode and portfolio) planned on 2026-10-13 with ADR-0032 and ADR-0033 accepted by the owner ([plan](../plans/phase-6-portfolio.md)); the owner made public hosting optional (ADR-0033)\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)) and accepted by the owner on 2026-10-12 after all four gate items passed ([gate report](../reference/phase-5-gate-report.md)); Phase 6 (release, small mode and portfolio) planned on 2026-10-13 with ADR-0032 and ADR-0033 accepted by the owner ([plan](../plans/phase-6-portfolio.md)); the owner made public hosting optional (ADR-0033); on 2026-10-23 the owner accepted [ADR-0034](../adr/0034-phase6-product-ui.md) (a usable research UI over the run record) ahead of the video\
 
 ---
 
@@ -220,7 +220,7 @@ These choices MUST be evaluated or recorded in ADRs before being treated as perm
 - production/demo hosting provider (Phase 6: none; public hosting optional, [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md));
 - authentication mechanism for the deployed demo (Phase 4: hashed API keys with scopes, [ADR-0027](../adr/0027-phase4-authentication-and-rate-limits.md));
 - caching implementation;
-- frontend framework;
+- frontend framework (Phase 6: none; plain ES modules served by FastAPI, [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md), [ADR-0034](../adr/0034-phase6-product-ui.md));
 - broader ML corpus expansion and exact full-text adapters (initial corpus policy is fixed in Section 8.6);
 - citation graph representation details within PostgreSQL;
 - exact experiment/configuration tracking persistence beyond Langfuse traces (Phase 4: `run_configurations` and `experiments` tables in PostgreSQL, [ADR-0026](../adr/0026-phase4-observability-and-run-records.md) and [ADR-0028](../adr/0028-phase4-experiment-records-and-gate.md)).
@@ -266,6 +266,8 @@ Required endpoints:
 | `POST` | `/v1/collections/{collection_id}/ingest` | Start or resume ingestion |
 | `GET` | `/health` | Process liveness |
 | `GET` | `/ready` | Dependency readiness |
+
+Phase 6 adds owner-scoped run routes for the UI ([ADR-0034](../adr/0034-phase6-product-ui.md)): `GET /v1/research` (list), `GET /v1/research/{run_id}/record`, `GET /v1/research/{run_id}/model-calls/{ordinal}`, `POST /v1/research/{run_id}/cancel` and `GET /v1/me`; P6-05 added `GET /v1/serving` (ADR-0033).
 
 API versioning MUST begin at `/v1`. Error responses MUST be structured and MUST NOT leak secrets or raw internal stack traces.
 
@@ -1546,7 +1548,12 @@ of section 3.1; a serving lock with CPU PyTorch; GHCR images and releases; an al
 bundle; the reviewer small mode; `GET /v1/serving`; a static UI page). The
 [plan](../plans/phase-6-portfolio.md), [handoff](../plans/phase-6-agent-handoff.md) and
 [owner decisions](../reference/phase-6-owner-decisions.md) track the work. Answer quality stays
-in backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115).
+in backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115). On 2026-10-23 the owner accepted
+[ADR-0034](../adr/0034-phase6-product-ui.md) (owner decisions entry 2): the page at `/` becomes a
+usable research UI with run history, a run form, cancellation and the run record (timeline,
+drafted-claim verdicts, diagnosis, model-call text), still with no framework or build step, over five
+new owner-scoped routes; bundle v2 adds showcase model-call text; cards P6-21 to P6-32 precede the
+video, and gate items 1–2 are re-run on `v0.6.1`.
 
 Deliver:
 
@@ -1560,7 +1567,8 @@ Deliver:
 Gate: a reviewer can clone, run a small mode, inspect tests/results, and understand the production design without private knowledge.
 ADR-0033 makes it checkable: the `demo-smoke` workflow follows the README quickstart on a fresh
 GitHub runner and passes; a cold-reviewer agent with only the public repository reports every
-point that needed private knowledge, and each is fixed or recorded; the owner accepts the video.
+point that needed private knowledge, and each is fixed or recorded; the owner accepts the video. ADR-0034 adds `demo-smoke` checks for the new run routes and bundle v2, and Playwright
+browser journeys in pull-request CI.
 
 ---
 
@@ -1633,7 +1641,8 @@ Resolve these progressively; do not decide all of them before evidence is availa
 9. Authentication and caching implementations. **Authentication resolved for Phase 4
    (ADR-0027):** hashed API keys with scopes and run ownership. Caching remains open.
 10. Production hosting target and cost envelope. **Phase 6 (ADR-0033):** no hosting, no cost; public hosting optional.
-11. Thin UI choice. **Resolved for Phase 6 (ADR-0033):** one static HTML page served by FastAPI.
+11. Thin UI choice. **Resolved for Phase 6 (ADR-0033, ADR-0034):** a static page of plain ES modules
+    served by FastAPI, with no framework or build step.
 12. Phase 2 retrieval and runtime thresholds are frozen in acceptance-v14 (ADR-0015,
     ADR-0016) and accepted profile v10 (ADR-0017); the acceptance method is ADR-0014.
     Earlier sets keep their own gates. Phase 3 operational gates are defined by ADR-0020 and
