@@ -186,6 +186,7 @@ export function renderRun(match, main) {
   main.append(h("section", { class: "doc stack" }, status, content));
 
   function showError(problem) {
+    status.hidden = false;
     const message = problem instanceof ApiError && problem.status === 404
       ? "This run does not exist, or it belongs to another key."
       : problem instanceof Error ? problem.message : "Could not load this run.";
@@ -246,8 +247,7 @@ export function renderRun(match, main) {
   }
 
   function draw(run, record, scroll) {
-    status.textContent = `Run status: ${run.status.replaceAll("_", " ")}`;
-    if (run.failure_category) status.append(" · ", failureLine(run.failure_category));
+    status.hidden = true;
     const modeLabel = run.mode === "deep_research" ? "deep research" : "quick";
     const active = ACTIVE.includes(run.status);
     const header = h("div", { class: "run-header stack" },
