@@ -56,8 +56,9 @@ Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by 
 | P6-15 (#224) | merged | PR #247 | Reviewed on `main`: ten sections, links resolve, no private data |
 | P6-11 (#220) | done | fixes #248, #249 | 100 display decisions (all CC BY; 11 via Crossref); 8 showcase runs by principal `demo` (2 answered, 5 partially supported, 1 insufficient evidence); bundle 35 tables, 288,407 rows, 354 MB, privacy-scanned clean; fresh-clone load 634 s and 6/6 smoke checks; release `demo-data-v1` |
 | P6-17 (#226) | done | #250, #251, #252 | `v0.6.0` released (`977e7aa`); demo-smoke run 38576130251 passed 6/6 on a fresh runner; cold review passed, findings fixed or filed (#253, #254). See `docs/reference/phase-6-gate-report.md` |
-| P6-21 (#257) | in review | branch `phase6/p6-21-ui-plan` | ADR-0034, plan section, owner decisions entry 2, source of truth 1.44 |
+| P6-21 (#257) | merged | `782a590` / PR #269 | ADR-0034, plan section, owner decisions entry 2, source of truth 1.44 |
 | P6-22 (#258) | done | branch `prototype/p6-22-ui` (`9047560`, not for `main`) | Owner chose layout B, Report (owner decisions entry 3); P6-26 and P6-27 written against it |
+| P6-28 (#264) | in review | branch `phase6/p6-28-playwright-lock` | `pytest-playwright` 0.9.0 in the test lock; OpenTelemetry 1.45.1, brotli 1.2.1 and certifi 2026.10.19 in both locks (pip-audit advisories of 2026-10-23); every other package unchanged; Chromium installed and launched in CI |
 
 ## Environment facts
 
@@ -75,3 +76,4 @@ Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by 
   `research_phase1_review`. Agent cards never touch them.
 - **Integration tests:** new modules are named `test_phase6_*.py`.
 - **Private data:** Phase 6 private data goes under `local-reference/phase6/`.
+- **Browser tests locally:** Chromium needs system libraries that WSL lacks (`libnspr4`, `libnss3` and others). Install them once with `sudo "$(conda run -n sci_research_agent which python)" -m playwright install-deps chromium`, then `python -m playwright install chromium`.
