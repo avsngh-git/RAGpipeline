@@ -83,6 +83,7 @@ def test_failure_category_accepts_cancelled_by_principal() -> None:
                     thinking={CallKind.PLAN: False},
                     prompt_versions={"system": "v1"},
                     budgets=RunBudgets(),
+                    trace_id="trace-test-cancel",
                 ),
             )
             await repository.fail_run(
