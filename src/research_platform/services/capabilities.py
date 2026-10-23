@@ -21,7 +21,15 @@ from research_platform.runs.contracts import (
     RunPage,
     RunUsage,
 )
+from research_platform.runs.diagnosis import diagnose, load_diagnosis_inputs
 from research_platform.runs.executor import ResearchQueueFull, RunExecutor
+from research_platform.runs.record_views import (
+    ModelCallTextView,
+    ModelMessageView,
+    RunRecordView,
+    model_call_view,
+    tool_call_view,
+)
 from research_platform.runs.repository import RunNotFound
 from research_platform.runs.runner import ServingIdentity
 from research_platform.runs.store import RunStore
@@ -331,6 +339,88 @@ class ResearchCapabilities:
                 status_code=503,
             )
         return await self.research.store.get_run_view(stored.run_id)
+
+    async def run_record(self, run_id: UUID, *, principal: Principal) -> RunRecordView:
+        await self.owned_run(run_id, principal=principal)
+        research = self.research
+        if research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        inputs = await load_diagnosis_inputs(research.store, run_id)
+        diagnosis = diagnose(inputs)
+        stored_text = {
+            call.ordinal
+            for call in await research.store.list_llm_calls(
+                run_id, include_payloads=True
+            )
+            if call.payload is not None
+        }
+        return RunRecordView(
+            run_id=run_id,
+            tool_calls=tuple(
+                tool_call_view(record)
+                for record in sorted(inputs.tool_calls, key=lambda item: item.ordinal)
+            ),
+            model_calls=tuple(
+                model_call_view(call, text_recorded=call.ordinal in stored_text)
+                for call in sorted(inputs.llm_calls, key=lambda item: item.ordinal)
+            ),
+            drafted_claims=inputs.drafts,
+            synthesis=inputs.synthesis,
+            diagnosis=diagnosis,
+        )
+
+    async def model_call_text(
+        self, run_id: UUID, ordinal: int, *, principal: Principal
+    ) -> ModelCallTextView:
+        await self.owned_run(run_id, principal=principal)
+        research = self.research
+        if research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        trusted = self.settings.evidence_access_profile == "trusted_private_local"
+        calls = await research.store.list_llm_calls(run_id, include_payloads=trusted)
+        call = next((item for item in calls if item.ordinal == ordinal), None)
+        if call is None:
+            raise AppError(
+                "model_call_not_found",
+                "The requested model call does not exist.",
+                404,
+            )
+        if not trusted:
+            return ModelCallTextView(
+                run_id=run_id,
+                ordinal=ordinal,
+                kind=call.record.kind.value,
+                state="withheld",
+            )
+        payload = call.payload
+        if payload is None:
+            return ModelCallTextView(
+                run_id=run_id,
+                ordinal=ordinal,
+                kind=call.record.kind.value,
+                state="not_recorded",
+            )
+        return ModelCallTextView(
+            run_id=run_id,
+            ordinal=ordinal,
+            kind=call.record.kind.value,
+            state="available",
+            messages=tuple(
+                ModelMessageView(role=message.role, content=message.content)
+                for message in payload.messages
+            ),
+            thinking=payload.thinking,
+            output=payload.output,
+            error_preview=payload.error_preview,
+        )
 
     async def list_runs(
         self, *, principal: Principal, limit: int = 20, cursor: str | None = None
