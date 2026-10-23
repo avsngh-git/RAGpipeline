@@ -362,7 +362,7 @@ class ResearchCapabilities:
         llm_calls = await research.store.list_llm_calls(run_id)
         current = await research.store.get_run(run_id)
         usage = RunUsage(
-            plan_rounds=0,
+            plan_rounds=sum(call.record.kind.value == "plan" for call in llm_calls),
             tool_calls=len(tool_calls),
             model_calls=len(llm_calls),
             active_seconds=current.active_seconds,

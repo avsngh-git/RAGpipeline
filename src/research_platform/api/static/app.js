@@ -5,6 +5,8 @@ import { renderKey } from "./view-key.js";
 import { renderSearch, resetSearchState } from "./view-search.js";
 import { renderPaper } from "./view-paper.js";
 import { renderRun } from "./view-run.js";
+import { renderNewRun } from "./view-new-run.js";
+import { renderRuns } from "./view-runs.js";
 
 const who = document.getElementById("who");
 
@@ -49,6 +51,8 @@ window.addEventListener("ui-key-required", (event) => {
 });
 
 route(/^#\/search$/, (_match, main) => renderSearch(main));
+route(/^#\/new$/, (_match, main) => renderNewRun(main));
+route(/^#\/runs$/, (_match, main) => renderRuns(main));
 route(/^#\/papers\/(W[0-9]+)$/, (match, main) => renderPaper(match, main));
 route(/^#\/runs\/([0-9a-f-]{36})$/i, (match, main) => renderRun(match, main));
 

@@ -28,6 +28,7 @@ from research_platform.runs.diagnosis import (
     diagnose,
     load_diagnosis_inputs,
 )
+from research_platform.runs.llm_records import LLMCallRecord
 from research_platform.runs.memory import InMemoryRunStore
 from research_platform.runs.repository import ToolCallRecord
 from research_platform.runs.runner import ServingIdentity
@@ -174,6 +175,36 @@ def test_cancel_keeps_partial_record() -> None:
     assert response.status_code == 200
     assert calls == 1
     assert response.json()["usage"]["tool_calls"] == 1
+
+
+def test_cancel_counts_plan_rounds() -> None:
+    async def exercise() -> httpx.Response:
+        keys_store, keys = await _keys()
+        store = InMemoryRunStore()
+        app = _app(store, StubExecutor(), api_key_store=keys_store)
+        _, run_id = await _start(app, keys["alice"])
+        identifier = UUID(run_id)
+        for ordinal, kind in enumerate(
+            (CallKind.PLAN, CallKind.PLAN, CallKind.EVALUATE), start=1
+        ):
+            await store.append_llm_call(
+                identifier,
+                LLMCallRecord(
+                    kind=kind,
+                    status="succeeded",
+                    model_name="synthetic-model",
+                    think=False,
+                    attempts=1,
+                    duration_ms=1.0,
+                ),
+            )
+        return await _request(
+            app, "POST", f"/v1/research/{run_id}/cancel", key=keys["alice"]
+        )
+
+    response = asyncio.run(exercise())
+    assert response.status_code == 200
+    assert response.json()["usage"]["plan_rounds"] == 2
 
 
 def test_cancel_finished_run_is_409() -> None:
