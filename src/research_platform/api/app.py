@@ -321,7 +321,7 @@ def create_app(
         )
 
     @app.get("/ui/{name}", include_in_schema=False)
-    async def ui_asset_route(name: str) -> Response:
+    async def ui_asset(name: str) -> Response:
         if name not in _ui_asset_names():
             raise AppError("not_found", "The requested file does not exist.", 404)
         return Response(
