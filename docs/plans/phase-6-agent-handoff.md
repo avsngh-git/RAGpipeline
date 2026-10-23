@@ -28,7 +28,8 @@ Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by 
 6. P6-10, P6-11, P6-12 and P6-15 when their blockers close.
 7. P6-17 (gate items 1–2).
 8. Product UI ([ADR-0034](../adr/0034-phase6-product-ui.md), added 2026-10-23): P6-21, then P6-22
-   (prototype, owner approval), P6-23, P6-24, P6-25 and P6-28 in parallel; P6-26 after P6-22;
+   (prototype, owner approval), P6-23 and P6-28 in parallel; P6-24 and P6-25 after P6-23 (they
+   reuse its `owned_run`); P6-26 after P6-22;
    P6-27 after P6-23 to P6-26; P6-29 after P6-27 and P6-28; P6-30 after P6-24; P6-31 after P6-27
    and P6-30; P6-32 (gate items 1–2 again, `v0.6.1`) after P6-29 and P6-31.
 9. P6-18 (video) after P6-32, then P6-19 (closeout).

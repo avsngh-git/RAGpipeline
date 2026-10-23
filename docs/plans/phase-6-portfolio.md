@@ -93,8 +93,8 @@ issues #257 to #268 in order, sub-issues of map issue #209.
 | P6-21 | human | ADR-0034, this section, handoff, owner decisions entry 2, source of truth 1.44 | — |
 | P6-22 | human | Throwaway UI prototype on fake payloads; the owner approves the layout | P6-21 |
 | P6-23 | agent | `GET /v1/research` (list) and `GET /v1/me` | P6-21 |
-| P6-24 | agent | `GET /v1/research/{run_id}/record` and `GET /v1/research/{run_id}/model-calls/{ordinal}` | P6-21 |
-| P6-25 | agent | `POST /v1/research/{run_id}/cancel` and failure category `cancelled_by_principal` | P6-21 |
+| P6-24 | agent | `GET /v1/research/{run_id}/record` and `GET /v1/research/{run_id}/model-calls/{ordinal}` | P6-23 |
+| P6-25 | agent | `POST /v1/research/{run_id}/cancel` and failure category `cancelled_by_principal` | P6-23 |
 | P6-26 | agent | UI as ES modules with a hash router: search with filters, paper pages, layout | P6-22 |
 | P6-27 | agent | UI run views: run form, history, run page, run record panels, model text, cancel | P6-23, P6-24, P6-25, P6-26 |
 | P6-28 | human | `pytest-playwright` in the test lock; Chromium in CI | P6-21 |
