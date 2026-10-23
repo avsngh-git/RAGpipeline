@@ -61,7 +61,7 @@ research-demo = "research_platform.demo.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-research_platform = ["api/static/*.html", "api/static/*.js"]
+research_platform = ["api/static/*.html", "api/static/*.js", "api/static/*.css"]
 
 
 [tool.ruff]
