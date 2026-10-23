@@ -10,7 +10,7 @@ Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by 
 
 - Each card is a GitHub issue labelled `wayfinder:task`, plus `ready-for-agent` or
   `ready-for-human`, and is a sub-issue of map issue #209. P6-01 to P6-19 are #210 to #228 in
-  order. Blockers are native GitHub dependencies
+  order; P6-21 to P6-32 are #257 to #268 in order. Blockers are native GitHub dependencies
   and a "Blocked by" line.
 - Cards run in parallel. Pick any open, unassigned card whose blockers are closed, and claim it
   with `gh issue edit <n> --add-assignee @me`.
@@ -55,7 +55,7 @@ Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by 
 | P6-15 (#224) | merged | PR #247 | Reviewed on `main`: ten sections, links resolve, no private data |
 | P6-11 (#220) | done | fixes #248, #249 | 100 display decisions (all CC BY; 11 via Crossref); 8 showcase runs by principal `demo` (2 answered, 5 partially supported, 1 insufficient evidence); bundle 35 tables, 288,407 rows, 354 MB, privacy-scanned clean; fresh-clone load 634 s and 6/6 smoke checks; release `demo-data-v1` |
 | P6-17 (#226) | done | #250, #251, #252 | `v0.6.0` released (`977e7aa`); demo-smoke run 38576130251 passed 6/6 on a fresh runner; cold review passed, findings fixed or filed (#253, #254). See `docs/reference/phase-6-gate-report.md` |
-| P6-21 | in progress | branch `phase6/p6-21-ui-plan` | ADR-0034, plan section, owner decisions entry 2, source of truth 1.44 |
+| P6-21 (#257) | in review | branch `phase6/p6-21-ui-plan` | ADR-0034, plan section, owner decisions entry 2, source of truth 1.44 |
 
 ## Environment facts
 

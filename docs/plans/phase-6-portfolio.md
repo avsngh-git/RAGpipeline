@@ -85,7 +85,8 @@ Added on 2026-10-23 after the owner's UI interview ([owner decisions](../referen
 entry 2). [ADR-0034](../adr/0034-phase6-product-ui.md) amends ADR-0033 decisions 4, 7 and 8: the
 page at `/` becomes a usable research UI (search with filters, paper pages, run form, run history,
 run page with the run record, model-call text and cancel), built from plain ES modules with no build
-step, over five new owner-scoped routes. P6-18 waits for these cards.
+step, over five new owner-scoped routes. P6-18 waits for these cards. P6-21 to P6-32 are
+issues #257 to #268 in order, sub-issues of map issue #209.
 
 | Card | Type | Delivers | Blocked by |
 | --- | --- | --- | --- |
