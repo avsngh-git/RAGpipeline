@@ -60,6 +60,7 @@ class FailureCategory(StrEnum):
     RETRIEVAL_ERROR = "retrieval_error"
     RESUME_EXHAUSTED = "resume_exhausted"
     CONFIGURATION_CHANGED = "configuration_changed"
+    CANCELLED_BY_PRINCIPAL = "cancelled_by_principal"
     INTERNAL = "internal"
 
 

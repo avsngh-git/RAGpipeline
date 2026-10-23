@@ -19,6 +19,7 @@ from research_platform.runs.contracts import (
     ResearchRequest,
     ResearchRunView,
     RunPage,
+    RunStatus,
     RunUsage,
 )
 from research_platform.runs.diagnosis import diagnose, load_diagnosis_inputs
@@ -30,7 +31,7 @@ from research_platform.runs.record_views import (
     model_call_view,
     tool_call_view,
 )
-from research_platform.runs.repository import RunNotFound
+from research_platform.runs.repository import InvalidRunTransition, RunNotFound
 from research_platform.runs.runner import ServingIdentity
 from research_platform.runs.store import RunStore
 from research_platform.search.application_errors import (
@@ -339,6 +340,48 @@ class ResearchCapabilities:
                 status_code=503,
             )
         return await self.research.store.get_run_view(stored.run_id)
+
+    async def cancel_run(
+        self, run_id: UUID, *, principal: Principal
+    ) -> ResearchRunView:
+        """Cancel an active run owned by the principal or an administrator."""
+        stored = await self.owned_run(run_id, principal=principal)
+        if stored.status in (RunStatus.COMPLETED, RunStatus.FAILED):
+            raise AppError(
+                "run_not_active", "The research run has already finished.", 409
+            )
+        research = self.research
+        if research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        await research.executor.cancel(run_id)
+        tool_calls = await research.store.list_tool_calls(run_id)
+        llm_calls = await research.store.list_llm_calls(run_id)
+        current = await research.store.get_run(run_id)
+        usage = RunUsage(
+            plan_rounds=0,
+            tool_calls=len(tool_calls),
+            model_calls=len(llm_calls),
+            active_seconds=current.active_seconds,
+            resumes=current.resume_count,
+            rejected_claims=0,
+            unsupported_claims=0,
+        )
+        try:
+            await research.store.fail_run(
+                run_id,
+                category=FailureCategory.CANCELLED_BY_PRINCIPAL,
+                message="cancelled_by_principal",
+                usage=usage,
+            )
+        except InvalidRunTransition:
+            raise AppError(
+                "run_not_active", "The research run has already finished.", 409
+            ) from None
+        return await research.store.get_run_view(run_id)
 
     async def run_record(self, run_id: UUID, *, principal: Principal) -> RunRecordView:
         await self.owned_run(run_id, principal=principal)
