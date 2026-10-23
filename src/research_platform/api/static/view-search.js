@@ -60,7 +60,13 @@ function renderEvidence(parent, hit) {
 
 export async function showResults(parent, payload, kind, snapshotId) {
   parent.replaceChildren();
-  const top = h("div", { class: "row" }, pill(payload.result_status),
+  const statuses = {
+    ranked_candidates: ["ranked", "ok"],
+    no_candidates_returned: ["no results", "warn"],
+    no_eligible_records: ["nothing matches the filters", "warn"],
+  };
+  const [statusText, statusTone] = statuses[payload.result_status] || [payload.result_status, ""];
+  const top = h("div", { class: "row" }, pill(statusText, statusTone),
     h("span", { class: "muted", text: `${payload.eligible_count} eligible before ranking` }));
   parent.append(top);
   const hits = payload.hits || [];
@@ -182,7 +188,7 @@ export function renderSearch(main) {
       state.payload = payload;
       state.payloadKind = state.kind;
       state.snapshotId = identity.snapshot_id;
-      status.replaceChildren(pill(payload.result_status));
+      status.replaceChildren();
       await showResults(results, payload, state.payloadKind, identity.snapshot_id);
     } catch (problem) {
       if (!active) return;
@@ -203,7 +209,7 @@ export function renderSearch(main) {
     h("div", { class: "searchhead" }, h("h1", { text: "Search the collection" }), identityLine),
     form, status, results));
   if (state.payload) {
-    status.replaceChildren(pill(state.payload.result_status));
+    status.replaceChildren();
     void serving().then((identity) => showResults(
       results,
       state.payload,
