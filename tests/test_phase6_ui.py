@@ -1,4 +1,4 @@
-"""Serving checks for the small static reviewer UI."""
+"""Serving checks for the modular static reviewer UI."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from research_platform.config import Settings
 from research_platform.services.readiness import ReadinessReport
 
 _ROOT = Path(__file__).parents[1]
-_HTML = _ROOT / "src/research_platform/api/static/index.html"
-_SCRIPT = _ROOT / "src/research_platform/api/static/app.js"
+_STATIC = _ROOT / "src/research_platform/api/static"
+_HTML = _STATIC / "index.html"
 
 
 class StubReadinessChecker:
@@ -47,61 +47,101 @@ def test_root_serves_the_page_with_a_strict_csp() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "/ui/app.js" in response.text
+    assert '<script type="module" src="/ui/app.js"></script>' in response.text
+    assert '<link rel="stylesheet" href="/ui/app.css">' in response.text
     assert response.headers["content-security-policy"] == _UI_CONTENT_SECURITY_POLICY
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["referrer-policy"] == "no-referrer"
 
 
-def test_script_is_served_as_javascript() -> None:
-    response = asyncio.run(_request(_app(), "/ui/app.js"))
+def test_every_asset_is_served_with_its_type() -> None:
+    app = _app()
+    for asset in sorted((*_STATIC.glob("*.js"), *_STATIC.glob("*.css"))):
+        response = asyncio.run(_request(app, f"/ui/{asset.name}"))
+        expected = "text/javascript" if asset.suffix == ".js" else "text/css"
+        assert response.status_code == 200, asset.name
+        assert response.headers["content-type"].startswith(expected), asset.name
+        assert response.headers["x-content-type-options"] == "nosniff", asset.name
 
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/javascript")
-    assert response.headers["x-content-type-options"] == "nosniff"
+
+def test_unknown_or_unsafe_asset_names_are_404() -> None:
+    app = _app()
+    for path in (
+        "/ui/missing.js",
+        "/ui/APP.JS",
+        "/ui/index.html",
+        "/ui/..%2Fapp.py",
+        "/ui/.hidden.js",
+    ):
+        assert asyncio.run(_request(app, path)).status_code == 404, path
 
 
-def test_page_has_no_inline_script_or_handlers() -> None:
+def test_page_has_no_inline_script_style_or_handlers() -> None:
     html = _HTML.read_text(encoding="utf-8")
 
     scripts = re.findall(r"<script\b([^>]*)>", html, flags=re.IGNORECASE)
     assert len(scripts) == 1
     assert re.search(r"\bsrc\s*=", scripts[0], flags=re.IGNORECASE)
+    assert re.search(r"\btype\s*=\s*['\"]module['\"]", scripts[0], flags=re.IGNORECASE)
+    assert re.search(r"<style\b", html, flags=re.IGNORECASE) is None
     assert re.search(r"\son[a-z]+=", html, flags=re.IGNORECASE) is None
 
 
-def test_script_never_parses_html() -> None:
-    script = _SCRIPT.read_text(encoding="utf-8")
+def test_scripts_never_parse_html() -> None:
+    for script in _STATIC.glob("*.js"):
+        text = script.read_text(encoding="utf-8")
+        for forbidden in (
+            "innerHTML",
+            "outerHTML",
+            "insertAdjacentHTML",
+            "document.write",
+            "eval(",
+            "new Function",
+        ):
+            assert forbidden not in text, f"{forbidden} in {script.name}"
 
-    for forbidden in (
-        "innerHTML",
-        "outerHTML",
-        "insertAdjacentHTML",
-        "document.write",
-        "eval(",
-        "new Function",
-    ):
-        assert forbidden not in script
+
+def test_scripts_import_only_local_modules() -> None:
+    for script in _STATIC.glob("*.js"):
+        text = script.read_text(encoding="utf-8")
+        for imported in re.findall(
+            r"\bimport\s+.*?\s+from\s+['\"]([^'\"]+)['\"]", text
+        ):
+            assert re.fullmatch(r"\./[a-z][a-z0-9-]*\.js", imported), (
+                script.name,
+                imported,
+            )
+            assert (_STATIC / imported[2:]).is_file(), (script.name, imported)
 
 
-def test_script_calls_only_known_routes() -> None:
-    script = _SCRIPT.read_text(encoding="utf-8")
-    routes = re.findall(r"[\"'](/v1/[^\"']*)[\"']", script)
+def test_scripts_call_only_known_routes() -> None:
+    scripts = "\n".join(
+        path.read_text(encoding="utf-8") for path in _STATIC.glob("*.js")
+    )
+    routes = re.findall(r"['\"](/v1/[^'\"]*)['\"]", scripts)
 
     assert routes
     assert set(routes) <= {
         "/v1/serving",
         "/v1/search",
         "/v1/evidence/search",
+        "/v1/papers/",
+        "/v1/research",
         "/v1/research/",
+        "/v1/me",
     }
-    assert any(route.startswith("/v1/research/") for route in routes)
 
 
 def test_page_makes_no_external_requests() -> None:
-    html = _HTML.read_text(encoding="utf-8")
-    script = _SCRIPT.read_text(encoding="utf-8")
-    external = re.findall(r"https?://[^\"'\s<>]+", html + script)
+    static_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            *_STATIC.glob("*.html"),
+            *_STATIC.glob("*.js"),
+            *_STATIC.glob("*.css"),
+        )
+    )
+    external = re.findall(r"https?://[^\"'\s<>]+", static_text)
 
     assert external == ["https://github.com/avsngh-git/RAGpipeline"]
 
@@ -110,4 +150,7 @@ def test_assets_are_package_data() -> None:
     pyproject = (_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert "[tool.setuptools.package-data]" in pyproject
-    assert 'research_platform = ["api/static/*.html", "api/static/*.js"]' in pyproject
+    assert (
+        'research_platform = ["api/static/*.html", "api/static/*.js", "api/static/*.css"]'
+        in pyproject
+    )

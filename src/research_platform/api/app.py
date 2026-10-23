@@ -3,6 +3,7 @@
 import functools
 import json
 import logging
+import re
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from importlib import resources
@@ -92,6 +93,8 @@ _UI_CONTENT_SECURITY_POLICY: Final = (
     "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; "
     "frame-ancestors 'none'"
 )
+_UI_ASSET_NAME: Final = re.compile(r"^[a-z][a-z0-9-]*\.(js|css)$")
+_UI_MEDIA_TYPES: Final = {"js": "text/javascript", "css": "text/css"}
 
 
 @functools.cache
@@ -100,6 +103,14 @@ def _ui_asset(name: str) -> str:
         resources.files("research_platform.api")
         .joinpath("static", name)
         .read_text(encoding="utf-8")
+    )
+
+
+@functools.cache
+def _ui_asset_names() -> frozenset[str]:
+    static = resources.files("research_platform.api").joinpath("static")
+    return frozenset(
+        item.name for item in static.iterdir() if _UI_ASSET_NAME.match(item.name)
     )
 
 
@@ -309,11 +320,13 @@ def create_app(
             },
         )
 
-    @app.get("/ui/app.js", include_in_schema=False)
-    async def ui_script() -> Response:
+    @app.get("/ui/{name}", include_in_schema=False)
+    async def ui_asset(name: str) -> Response:
+        if name not in _ui_asset_names():
+            raise AppError("not_found", "The requested file does not exist.", 404)
         return Response(
-            _ui_asset("app.js"),
-            media_type="text/javascript",
+            _ui_asset(name),
+            media_type=_UI_MEDIA_TYPES[name.rsplit(".", 1)[1]],
             headers={"X-Content-Type-Options": "nosniff"},
         )
 
