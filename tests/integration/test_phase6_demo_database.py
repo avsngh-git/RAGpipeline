@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
@@ -128,6 +129,26 @@ def test_export_and_load_round_trip(
                     "UPDATE research_runs SET status = 'completed' WHERE id = ANY($1::uuid[])",
                     [demo_run_id, other_run_id],
                 )
+                for run_id in (demo_run_id, other_run_id):
+                    await connection.execute(
+                        """
+                        INSERT INTO llm_calls (
+                            run_id, ordinal, kind, status, model_name,
+                            think, attempts, duration_ms
+                        ) VALUES ($1, 1, 'synthesize', 'succeeded', 'synthetic', false, 1, 1.0)
+                        """,
+                        run_id,
+                    )
+                    await connection.execute(
+                        """
+                        INSERT INTO llm_call_payloads (run_id, ordinal, messages, output)
+                        VALUES ($1, 1, $2::jsonb, 'Synthetic zq7731 output')
+                        """,
+                        run_id,
+                        json.dumps(
+                            [{"role": "user", "content": "Synthetic zq7731 prompt"}]
+                        ),
+                    )
                 exported = await export_tables(
                     connection,
                     snapshot_id=snapshot_id,
@@ -141,6 +162,14 @@ def test_export_and_load_round_trip(
                 assert _sha256(path) == table.sha256
             assert (
                 next(table.rows for table in exported if table.name == "research_runs")
+                == 1
+            )
+            assert (
+                next(
+                    table.rows
+                    for table in exported
+                    if table.name == "llm_call_payloads"
+                )
                 == 1
             )
 
@@ -176,11 +205,18 @@ def test_export_and_load_round_trip(
                         )
                         == 0
                     )
-                    assert await target.fetchval("SELECT count(*) FROM api_keys") == 0
                     assert (
                         await target.fetchval("SELECT count(*) FROM llm_call_payloads")
-                        == 0
+                        == 1
                     )
+                    assert (
+                        await target.fetchval(
+                            "SELECT output FROM llm_call_payloads WHERE run_id = $1",
+                            demo_run_id,
+                        )
+                        == "Synthetic zq7731 output"
+                    )
+                    assert await target.fetchval("SELECT count(*) FROM api_keys") == 0
                 finally:
                     await target.close()
             finally:

@@ -51,7 +51,7 @@ for tool in curl sha256sum tar; do
   fi
 done
 
-DEMO_BUNDLE_VERSION="${DEMO_BUNDLE_VERSION:-v1}"
+DEMO_BUNDLE_VERSION="${DEMO_BUNDLE_VERSION:-v2}"
 DEMO_BUNDLE_URL="${DEMO_BUNDLE_URL:-https://github.com/avsngh-git/RAGpipeline/releases/download/demo-data-${DEMO_BUNDLE_VERSION}/research-demo-${DEMO_BUNDLE_VERSION}.tar}"
 archive="research-demo-${DEMO_BUNDLE_VERSION}.tar"
 archive_dir="research-demo-${DEMO_BUNDLE_VERSION}"
