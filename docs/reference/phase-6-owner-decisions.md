@@ -94,3 +94,20 @@ Evidence available at the time:
 Re-examine later: whether streaming thinking is worth its cost once the rest works; whether the
 model-call route should reach MCP; that the bundle v2 export ran before the showcase payloads expire
 (about mid-January 2027).
+
+### 3. UI layout (2026-10-23, P6-22)
+
+The owner reviewed the throwaway prototype (branch `prototype/p6-22-ui`, commit `9047560`,
+`docs/demo/ui-prototype.html`) with three layouts on invented data: A Workbench (sidebar, run page
+split into answer and run-record tabs), B Report (top navigation, the run reads as a document) and
+C Console (waterfall timeline, inspector, claims ledger). Decision: **B Report**. "It looks best and
+user friendly. The others are just overwhelming with information on one screen."
+
+Consequences for P6-26 and P6-27: one reading column with top navigation; the run page is a document
+in this order: question and status, answer with claim markers, claims with quotes and sources, "How
+this answer was made" (a narrative timeline, model-call text behind a disclosure), "What verification
+removed", diagnosis, budgets and provenance. The paper page shows the metadata the API serves (no
+authors, venue or abstract: `GET /v1/papers/{paper_id}` is metadata only) with references, citing
+papers and a search limited to the paper.
+
+Re-examine later: whether long runs (many tool calls) need the timeline collapsed by planning round.
