@@ -19,6 +19,7 @@ from research_platform.runs.contracts import (
     ResearchRunView,
     RunProvenance,
     RunStatus,
+    RunSummary,
     RunUsage,
     SynthesisSummary,
     configuration_id,
@@ -85,6 +86,48 @@ class InMemoryRunStore:
 
     async def get_run(self, run_id: UUID) -> StoredRun:
         return self._get_run(run_id)
+
+    async def list_principal_runs(
+        self,
+        principal: str,
+        *,
+        limit: int,
+        before: tuple[datetime, UUID] | None = None,
+    ) -> tuple[RunSummary, ...]:
+        if not 1 <= limit <= 101:
+            raise ValueError("limit must be between 1 and 101")
+        runs = sorted(
+            (
+                run
+                for run in self._runs.values()
+                if run.principal == principal
+                and (before is None or (run.created_at, run.run_id) < before)
+            ),
+            key=lambda run: (run.created_at, run.run_id),
+            reverse=True,
+        )
+        return tuple(
+            RunSummary(
+                run_id=run.run_id,
+                status=run.status,
+                mode=run.mode,
+                question=run.request.question,
+                answer_outcome=(
+                    self._answers[run.run_id][1]
+                    if run.run_id in self._answers
+                    else None
+                ),
+                failure_category=(
+                    self._failures[run.run_id][0]
+                    if run.run_id in self._failures
+                    else None
+                ),
+                created_at=run.created_at,
+                completed_at=run.completed_at,
+                active_seconds=run.active_seconds,
+            )
+            for run in runs[:limit]
+        )
 
     async def count_active_runs(self, principal: str) -> int:
         active = {

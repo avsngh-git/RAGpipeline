@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
@@ -17,6 +17,7 @@ from research_platform.runs.contracts import (
     ResearchRunView,
     RunProvenance,
     RunStatus,
+    RunSummary,
     RunUsage,
     SynthesisSummary,
 )
@@ -26,6 +27,8 @@ from research_platform.runs.llm_records import (
     StoredLLMCall,
 )
 from research_platform.runs.repository import EvidenceRecord, StoredRun, ToolCallRecord
+
+__all__ = ["RunStore", "StoredRun"]
 
 
 class RunStore(Protocol):
@@ -41,6 +44,14 @@ class RunStore(Protocol):
     ) -> UUID: ...
 
     async def get_run(self, run_id: UUID) -> StoredRun: ...
+
+    async def list_principal_runs(
+        self,
+        principal: str,
+        *,
+        limit: int,
+        before: tuple[datetime, UUID] | None = None,
+    ) -> tuple[RunSummary, ...]: ...
 
     async def count_active_runs(self, principal: str) -> int: ...
 

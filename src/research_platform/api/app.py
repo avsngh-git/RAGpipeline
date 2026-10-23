@@ -363,6 +363,7 @@ async def _build_research_services(
     from research_platform.config import DiscoverySettings
     from research_platform.ingestion.provenance import code_revision
     from research_platform.llm.ollama import OllamaClient, decoding_settings
+    from research_platform.llm.probe import OllamaProbe
     from research_platform.observability.content import (
         TraceContent,
         trace_content_from_env,
@@ -455,7 +456,12 @@ async def _build_research_services(
     executor = RunExecutor(runner, store)
     stack.push_async_callback(executor.stop)
     await executor.start()
-    return ResearchAPIServices(store=store, executor=executor, serving=serving)
+    return ResearchAPIServices(
+        store=store,
+        executor=executor,
+        serving=serving,
+        llm_available=OllamaProbe(llm_http, model=settings.llm_model),
+    )
 
 
 def _build_similarity_reader(
