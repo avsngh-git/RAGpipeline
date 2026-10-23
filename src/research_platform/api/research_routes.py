@@ -115,6 +115,20 @@ def create_research_router(
     ) -> ResearchRunView:
         return await capabilities(request).get_run(run_id, principal=principal)
 
+    @router.post(
+        "/v1/research/{run_id}/cancel",
+        response_model=ResearchRunView,
+        summary="Cancel a research run",
+    )
+    async def cancel_research(
+        run_id: UUID,
+        request: Request,
+        principal: Annotated[
+            Principal, Depends(rate_limited(Scope.RESEARCH, RouteClass.RUN_READ))
+        ],
+    ) -> ResearchRunView:
+        return await capabilities(request).cancel_run(run_id, principal=principal)
+
     @router.get(
         "/v1/research/{run_id}/record",
         response_model=RunRecordView,

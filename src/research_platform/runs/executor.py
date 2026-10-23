@@ -37,6 +37,10 @@ class RunExecutor:
         self._max_queue = max_queue
         self._queue: asyncio.Queue[tuple[UUID, str | None]] = asyncio.Queue()
         self._worker: asyncio.Task[None] | None = None
+        self._current_id: UUID | None = None
+        self._current_task: asyncio.Task[RunStatus] | None = None
+        self._cancelled: set[UUID] = set()
+        self._cancelling: UUID | None = None
         self._started = False
         self._start_lock = asyncio.Lock()
 
@@ -81,6 +85,19 @@ class RunExecutor:
         self._queue.put_nowait((run_id, request_id))
         RUN_QUEUE_DEPTH.set(self._queue.qsize())
 
+    async def cancel(self, run_id: UUID) -> None:
+        """Stop a queued or running run; return once it no longer executes."""
+        task = self._current_task
+        if self._current_id == run_id and task is not None and not task.done():
+            self._cancelling = run_id
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            return
+        self._cancelled.add(run_id)
+
     async def stop(self) -> None:
         """Cancel and await the worker, leaving an active run resumable."""
         worker = self._worker
@@ -97,10 +114,32 @@ class RunExecutor:
     async def _work(self) -> None:
         while True:
             run_id, request_id = await self._queue.get()
+            self._current_id = run_id
             RUN_QUEUE_DEPTH.set(self._queue.qsize())
             try:
+                if run_id in self._cancelled:
+                    self._cancelled.remove(run_id)
+                    continue
                 with bind_request_id(request_id):
-                    await self._runner.run(run_id)
+                    task = asyncio.create_task(self._runner.run(run_id))
+                    self._current_task = task
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        worker = asyncio.current_task()
+                        if (
+                            self._cancelling == run_id
+                            and worker is not None
+                            and worker.cancelling() == 0
+                        ):
+                            self._cancelling = None
+                            continue
+                        task.cancel()
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
+                        raise
             except asyncio.CancelledError:
                 raise
             except Exception as error:
@@ -109,4 +148,6 @@ class RunExecutor:
                     extra={"run_id": str(run_id), "error_type": type(error).__name__},
                 )
             finally:
+                self._current_id = None
+                self._current_task = None
                 self._queue.task_done()
