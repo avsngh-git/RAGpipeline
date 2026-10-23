@@ -50,3 +50,47 @@ Evidence available at the time:
 
 Re-examine later: whether a free host appears that fits; whether the CPU image's rankings match
 the GPU host closely enough to say so in the README.
+
+### 2. UI interview (2026-10-23)
+
+The owner asked for a frontend before recording the video: "I cannot have a video of this project
+working if I don't have a front end", and then "we need a frontend that anyone can use if they like,
+not just for a few runs". The owner answered 17 questions over six rounds, accepting the assistant's
+recommendation on each except Q3 (general use rather than a video prop), Q6 (observability added)
+and Q7 (model-call text added). [ADR-0034](../adr/0034-phase6-product-ui.md) records the design;
+the [plan](../plans/phase-6-portfolio.md) lists cards P6-21 to P6-32.
+
+Evidence available at the time:
+- **UI:** the P6-09 page searches papers or evidence and opens one run by `#run=`; it cannot start,
+  list or cancel runs or show tool calls. The video script starts the live run in a terminal.
+- **Run record:** `tool_calls`, `llm_calls`, `draft_claims` and `diagnose()` hold the timeline,
+  verification and diagnosis; the HTTP run view returns only usage counts. `list_runs` exists in the
+  run store without a route.
+- **Model text:** `llm_call_payloads` are written at trace content `full` (the development default,
+  which small mode uses), refused in production, deleted after 90 days, and kept out of bundle v1.
+- **Operations:** `/ready` ignores the LLM; no run can be cancelled; run reads are limited to 120 a
+  minute per key.
+
+| # | Topic | Decision | Alternatives set aside |
+| --- | --- | --- | --- |
+| Q1 | Placement | New Phase 6 cards that block P6-18 | A new Phase 7 |
+| Q2 | Video needs | Start runs from the UI, live progress, provenance panel, visual polish; paper pages | Run list (later taken in Q6) |
+| Q3 | Purpose | **A frontend anyone who runs the stack can use, not only for a few runs** | A video-only prop |
+| Q4 | Who builds | A throwaway prototype approved by the owner, then Codex Luna cards | Cards straight away; this session implements |
+| Q5 | "Anyone" | Whoever clones and runs it; no hosting (ADR-0033 stands) | A hosted public UI |
+| Q6 | Scope | Run history, filters, paper pages, capability awareness, read-only ingestion status, **and observability** | Driving ingestion from the UI; key management |
+| Q7 | Observability | Timeline, budgets, drafted-claim verdicts, diagnosis, Langfuse link **and model-call text** | A system metrics dashboard |
+| Q8 | Technology | Vanilla ES modules, no build step | Preact with htm vendored; React, Vite and TypeScript |
+| Q9 | Tests | Python Playwright journeys in PR CI on fakes | Route tests only; JS unit tests under Node |
+| Q10 | Model-text access | The run's owner with `read`, only when stored and under `trusted_private_local` | A new `inspect` scope; any principal |
+| Q11 | Showcase model text | Bundle v2 with the showcase payloads, privacy-scanned | Keep payloads out (Phase 6 Q10) |
+| Q12 | Live text | After each model call finishes; no streaming | Streaming thinking tokens |
+| Q13 | API | Five owner-scoped routes in one ADR, within the section 3.2 non-goal | Revising the non-goal; an LLM entry in `/ready` |
+| Q14 | Cancel | `POST /v1/research/{run_id}/cancel`, category `cancelled_by_principal` | Waiting out the budget |
+| Q15 | Naming | `/record`, after the glossary's run record | A new "run activity" term |
+| Q16 | Video | Live-run and diagnosis segments move into the browser; MCP stays in Claude Code | Keep the terminal segments |
+| Q17 | Gate | `demo-smoke` API checks for the new routes; re-run gate items 1–2 on `v0.6.1` | Playwright on the real stack; gate unchanged |
+
+Re-examine later: whether streaming thinking is worth its cost once the rest works; whether the
+model-call route should reach MCP; that the bundle v2 export ran before the showcase payloads expire
+(about mid-January 2027).

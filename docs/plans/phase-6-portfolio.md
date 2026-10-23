@@ -79,6 +79,32 @@ Answer quality is not part of this phase (owner decision Q1; backlog
 | P6-18 | human | Gate item 3: the owner records and accepts the video | P6-16, P6-17 |
 | P6-19 | human | Closeout, `v1.0.0`, source of truth | all |
 
+## Product UI (ADR-0034)
+
+Added on 2026-10-23 after the owner's UI interview ([owner decisions](../reference/phase-6-owner-decisions.md),
+entry 2). [ADR-0034](../adr/0034-phase6-product-ui.md) amends ADR-0033 decisions 4, 7 and 8: the
+page at `/` becomes a usable research UI (search with filters, paper pages, run form, run history,
+run page with the run record, model-call text and cancel), built from plain ES modules with no build
+step, over five new owner-scoped routes. P6-18 waits for these cards.
+
+| Card | Type | Delivers | Blocked by |
+| --- | --- | --- | --- |
+| P6-21 | human | ADR-0034, this section, handoff, owner decisions entry 2, source of truth 1.44 | — |
+| P6-22 | human | Throwaway UI prototype on fake payloads; the owner approves the layout | P6-21 |
+| P6-23 | agent | `GET /v1/research` (list) and `GET /v1/me` | P6-21 |
+| P6-24 | agent | `GET /v1/research/{run_id}/record` and `GET /v1/research/{run_id}/model-calls/{ordinal}` | P6-21 |
+| P6-25 | agent | `POST /v1/research/{run_id}/cancel` and failure category `cancelled_by_principal` | P6-21 |
+| P6-26 | agent | UI as ES modules with a hash router: search with filters, paper pages, layout | P6-22 |
+| P6-27 | agent | UI run views: run form, history, run page, run record panels, model text, cancel | P6-23, P6-24, P6-25, P6-26 |
+| P6-28 | human | `pytest-playwright` in the test lock; Chromium in CI | P6-21 |
+| P6-29 | agent | Playwright journeys in PR CI on fakes | P6-27, P6-28 |
+| P6-30 | human | Bundle `research-demo-v2` with showcase payloads, release `demo-data-v2`; `demo_load.sh` points at it | P6-24 |
+| P6-31 | agent | `demo-smoke` checks for the new routes; README and UI docs; video script segments 4–5 | P6-27, P6-30 |
+| P6-32 | human | Re-run gate items 1–2 on `v0.6.1` with bundle v2; update the gate report | P6-29, P6-31 |
+
+P6-18 is then blocked by P6-32. The showcase payloads expire about mid-January 2027, so P6-30 should
+run well before then.
+
 ## Risks and fallbacks
 
 | Risk | Detection | Response |
@@ -93,6 +119,8 @@ Answer quality is not part of this phase (owner decision Q1; backlog
 ## Not in Phase 6
 
 - any hosted environment, OAuth or public demo key;
+- a frontend framework or build step, streaming model output, a metrics dashboard in the UI, key
+  management in the UI, or the new run routes over MCP (ADR-0034);
 - answer-quality work, the planner, the `answered` definition and the rest of backlog #115;
 - the worker image and Docling in the image;
 - a per-paper public-display reader in the access policy.

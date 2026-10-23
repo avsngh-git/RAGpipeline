@@ -1,6 +1,7 @@
 # Phase 6 — Agent handoff
 
-Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by the owner on
+Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by the owner on
+2026-10-23 adds cards P6-21 to P6-32 ahead of the video. ADR-0032 and ADR-0033 accepted by the owner on
 2026-10-13. The [plan](phase-6-portfolio.md) and map issue
 [#209](https://github.com/avsngh-git/RAGpipeline/issues/209) define the cards; the
 [owner decisions](../reference/phase-6-owner-decisions.md) record the interview.
@@ -25,7 +26,12 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 4. P6-06 after P6-04; then P6-07.
 5. P6-08 after P6-02, P6-04 and P6-07; P6-16 after P6-09.
 6. P6-10, P6-11, P6-12 and P6-15 when their blockers close.
-7. P6-17 (gate items 1–2), P6-18 (video), P6-19 (closeout).
+7. P6-17 (gate items 1–2).
+8. Product UI ([ADR-0034](../adr/0034-phase6-product-ui.md), added 2026-10-23): P6-21, then P6-22
+   (prototype, owner approval), P6-23, P6-24, P6-25 and P6-28 in parallel; P6-26 after P6-22;
+   P6-27 after P6-23 to P6-26; P6-29 after P6-27 and P6-28; P6-30 after P6-24; P6-31 after P6-27
+   and P6-30; P6-32 (gate items 1–2 again, `v0.6.1`) after P6-29 and P6-31.
+9. P6-18 (video) after P6-32, then P6-19 (closeout).
 
 ## Progress
 
@@ -49,6 +55,7 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 | P6-15 (#224) | merged | PR #247 | Reviewed on `main`: ten sections, links resolve, no private data |
 | P6-11 (#220) | done | fixes #248, #249 | 100 display decisions (all CC BY; 11 via Crossref); 8 showcase runs by principal `demo` (2 answered, 5 partially supported, 1 insufficient evidence); bundle 35 tables, 288,407 rows, 354 MB, privacy-scanned clean; fresh-clone load 634 s and 6/6 smoke checks; release `demo-data-v1` |
 | P6-17 (#226) | done | #250, #251, #252 | `v0.6.0` released (`977e7aa`); demo-smoke run 38576130251 passed 6/6 on a fresh runner; cold review passed, findings fixed or filed (#253, #254). See `docs/reference/phase-6-gate-report.md` |
+| P6-21 | in progress | branch `phase6/p6-21-ui-plan` | ADR-0034, plan section, owner decisions entry 2, source of truth 1.44 |
 
 ## Environment facts
 
