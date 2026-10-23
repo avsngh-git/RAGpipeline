@@ -267,7 +267,7 @@ class InMemoryRunStore:
         _nonnegative_finite(record.duration_ms, "duration_ms")
         self._get_run(run_id)
         calls = self._tool_calls.setdefault(run_id, {})
-        calls.setdefault(record.ordinal, record)
+        calls.setdefault(record.ordinal, replace(record, recorded_at=datetime.now(UTC)))
 
     async def append_llm_call(
         self,
@@ -278,7 +278,14 @@ class InMemoryRunStore:
         self._get_run(run_id)
         calls = self._llm_calls.setdefault(run_id, [])
         ordinal = len(calls) + 1
-        calls.append(StoredLLMCall(ordinal=ordinal, record=record, payload=payload))
+        calls.append(
+            StoredLLMCall(
+                ordinal=ordinal,
+                record=record,
+                payload=payload,
+                recorded_at=datetime.now(UTC),
+            )
+        )
         return ordinal
 
     async def list_llm_calls(

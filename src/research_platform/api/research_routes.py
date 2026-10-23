@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Path, Query, Request, status
 from pydantic import BaseModel, ConfigDict
 
 from research_platform.auth.keys import Principal, Scope
 from research_platform.observability.request_context import get_request_id
 from research_platform.runs.contracts import ResearchRequest, ResearchRunView, RunPage
+from research_platform.runs.record_views import ModelCallTextView, RunRecordView
 from research_platform.services.capabilities import (
     MeView,
     ResearchAPIServices,
@@ -113,6 +114,37 @@ def create_research_router(
         ],
     ) -> ResearchRunView:
         return await capabilities(request).get_run(run_id, principal=principal)
+
+    @router.get(
+        "/v1/research/{run_id}/record",
+        response_model=RunRecordView,
+        summary="Get a research run's record",
+    )
+    async def get_research_record(
+        run_id: UUID,
+        request: Request,
+        principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.RUN_READ))
+        ],
+    ) -> RunRecordView:
+        return await capabilities(request).run_record(run_id, principal=principal)
+
+    @router.get(
+        "/v1/research/{run_id}/model-calls/{ordinal}",
+        response_model=ModelCallTextView,
+        summary="Get one model call's text",
+    )
+    async def get_model_call_text(
+        run_id: UUID,
+        ordinal: Annotated[int, Path(ge=1, le=1000)],
+        request: Request,
+        principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.RUN_READ))
+        ],
+    ) -> ModelCallTextView:
+        return await capabilities(request).model_call_text(
+            run_id, ordinal, principal=principal
+        )
 
     @router.get(
         "/v1/serving",

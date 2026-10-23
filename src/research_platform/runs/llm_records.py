@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Literal
 
 from research_platform.llm.contracts import ChatMessage
@@ -67,3 +68,4 @@ class StoredLLMCall:
     ordinal: int
     record: LLMCallRecord
     payload: LLMCallPayload | None = None
+    recorded_at: datetime | None = field(default=None, compare=False)

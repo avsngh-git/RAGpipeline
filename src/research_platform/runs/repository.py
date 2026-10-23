@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal, NoReturn, cast
 from uuid import UUID
@@ -89,6 +89,7 @@ class ToolCallRecord:
     result_summary: Mapping[str, object]
     duration_ms: float
     error_category: str | None = None
+    recorded_at: datetime | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -378,7 +379,7 @@ class RunRepository:
             rows = await connection.fetch(
                 """
                 SELECT ordinal, tool_name, arguments, result, status, duration_ms,
-                       error_category
+                       error_category, created_at
                 FROM tool_calls WHERE run_id = $1 ORDER BY ordinal
                 """,
                 run_id,
@@ -392,6 +393,7 @@ class RunRepository:
                 status=row["status"],
                 duration_ms=row["duration_ms"],
                 error_category=row["error_category"],
+                recorded_at=row["created_at"],
             )
             for row in rows
         )
@@ -1094,7 +1096,12 @@ def _stored_llm_call(row: asyncpg.Record) -> StoredLLMCall:
         if row["payload_run"] is not None
         else None
     )
-    return StoredLLMCall(ordinal=row["ordinal"], record=record, payload=payload)
+    return StoredLLMCall(
+        ordinal=row["ordinal"],
+        record=record,
+        payload=payload,
+        recorded_at=row["created_at"],
+    )
 
 
 def _configuration_hash(configuration: Mapping[str, object]) -> str:
