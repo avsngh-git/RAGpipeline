@@ -296,6 +296,27 @@ class ResearchRunView(_ContractModel):
         return self
 
 
+class RunSummary(_ContractModel):
+    """One row of a principal's run history."""
+
+    run_id: UUID
+    status: RunStatus
+    mode: ResearchMode
+    question: str
+    answer_outcome: AnswerOutcome | None = None
+    failure_category: FailureCategory | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+    active_seconds: float = Field(0.0, ge=0)
+
+
+class RunPage(_ContractModel):
+    """A page of run history, newest first."""
+
+    runs: tuple[RunSummary, ...]
+    next_cursor: str | None = None
+
+
 def configuration_id(payload: Mapping[str, object]) -> str:
     """Return a stable SHA-256 identifier for a JSON-compatible payload."""
     serialized = json.dumps(

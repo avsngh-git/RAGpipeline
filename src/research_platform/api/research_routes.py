@@ -5,13 +5,14 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, ConfigDict
 
 from research_platform.auth.keys import Principal, Scope
 from research_platform.observability.request_context import get_request_id
-from research_platform.runs.contracts import ResearchRequest, ResearchRunView
+from research_platform.runs.contracts import ResearchRequest, ResearchRunView, RunPage
 from research_platform.services.capabilities import (
+    MeView,
     ResearchAPIServices,
     ResearchCapabilities,
 )
@@ -74,6 +75,30 @@ def create_research_router(
         return await capabilities(request).start_run(
             body, principal=principal, request_id=get_request_id()
         )
+
+    @router.get(
+        "/v1/research", response_model=RunPage, summary="List your research runs"
+    )
+    async def list_research(
+        request: Request,
+        principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.RUN_READ))
+        ],
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+        cursor: Annotated[str | None, Query(max_length=512)] = None,
+    ) -> RunPage:
+        return await capabilities(request).list_runs(
+            principal=principal, limit=limit, cursor=cursor
+        )
+
+    @router.get("/v1/me", response_model=MeView, summary="Describe the calling key")
+    async def get_me(
+        request: Request,
+        principal: Annotated[
+            Principal, Depends(rate_limited(Scope.READ, RouteClass.RUN_READ))
+        ],
+    ) -> MeView:
+        return await capabilities(request).me(principal=principal)
 
     @router.get(
         "/v1/research/{run_id}",

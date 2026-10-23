@@ -124,6 +124,10 @@ def _openalex_api_key_default() -> str | None:
     return os.environ.get("OPENALEX_API_KEY") or None
 
 
+def _langfuse_ui_url_default() -> str | None:
+    return os.environ.get("RESEARCH_PLATFORM_LANGFUSE_UI_URL") or None
+
+
 def _evidence_access_profile_default() -> str:
     return os.environ.get(
         "RESEARCH_PLATFORM_EVIDENCE_ACCESS_PROFILE",
@@ -261,6 +265,7 @@ class Settings:
         default_factory=_openalex_api_key_default,
         repr=False,
     )
+    langfuse_ui_url: str | None = field(default_factory=_langfuse_ui_url_default)
     dependency_timeout_seconds: float = field(
         default_factory=_dependency_timeout_default
     )
@@ -306,6 +311,16 @@ class Settings:
         _validate_url("database_url", self.database_url, frozenset({"postgresql"}))
         _validate_url("qdrant_url", self.qdrant_url, frozenset({"http", "https"}))
         _validate_url("llm_base_url", self.llm_base_url, frozenset({"http", "https"}))
+
+        if self.langfuse_ui_url is not None:
+            langfuse_ui_url = self.langfuse_ui_url.strip()
+            if not langfuse_ui_url:
+                object.__setattr__(self, "langfuse_ui_url", None)
+            else:
+                _validate_url(
+                    "langfuse_ui_url", langfuse_ui_url, frozenset({"http", "https"})
+                )
+                object.__setattr__(self, "langfuse_ui_url", langfuse_ui_url.rstrip("/"))
 
         llm_model = self.llm_model.strip()
         if not llm_model:
