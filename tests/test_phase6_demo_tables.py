@@ -10,7 +10,7 @@ from research_platform.demo.database import DEMO_TABLES, EXCLUDED_TABLES
 def test_table_names_are_unique_and_disjoint() -> None:
     names = [table.name for table in DEMO_TABLES]
 
-    assert len(names) == 35
+    assert len(names) == 36
     assert len(names) == len(set(names))
     assert set(names).isdisjoint(EXCLUDED_TABLES)
 

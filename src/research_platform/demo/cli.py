@@ -48,7 +48,7 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--snapshot-id", required=True, type=UUID)
     export.add_argument("--run-principal", required=True)
     export.add_argument("--output", required=True, type=Path)
-    export.add_argument("--bundle-version", default="v1")
+    export.add_argument("--bundle-version", default="v2")
     load = commands.add_parser("load", help="load a demo bundle")
     load.add_argument("--bundle", required=True, type=Path)
     commands.add_parser("fetch-models", help="download the pinned local models")
@@ -88,7 +88,7 @@ async def _execute(args: argparse.Namespace, settings: Settings) -> None:
 async def _export(args: argparse.Namespace, settings: Settings) -> None:
     if args.output.exists():
         raise DemoExportRefused("output directory already exists")
-    if args.bundle_version != "v1":
+    if args.bundle_version != "v2":
         raise DemoExportRefused("unsupported bundle version")
 
     args.output.mkdir(parents=True)

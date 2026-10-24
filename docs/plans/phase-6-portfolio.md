@@ -36,8 +36,8 @@ Answer quality is not part of this phase (owner decision Q1; backlog
 ```text
  laptop (owner, GPU)                          GitHub                         reviewer (CPU)
  ───────────────────                          ──────                         ──────────────
- research_phase1_review ──research-demo export──▶ Release demo-data-v1 ──▶ scripts/demo_load.sh
-   + showcase runs (principal demo)               research-demo-v1.tar        │ research-migrate
+ research_phase1_review ──research-demo export──▶ Release demo-data-v2 ──▶ scripts/demo_load.sh
+   + showcase runs (principal demo)               research-demo-v2.tar        │ research-migrate
  live runs for the video                                                      │ research-demo load
                                                                               │ research-demo fetch-models
  main ──CI──▶ ghcr.io/avsngh-git/ragpipeline:sha-… ──tag vX.Y.Z──▶ :vX.Y.Z, :latest ──▶ docker compose up

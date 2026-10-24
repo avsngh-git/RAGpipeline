@@ -155,6 +155,10 @@ DEMO_TABLES: Final[tuple[TableExport, ...]] = (
         "draft_claims", f"SELECT * FROM draft_claims WHERE run_id IN ({_RUNS})"
     ),
     TableExport("llm_calls", f"SELECT * FROM llm_calls WHERE run_id IN ({_RUNS})"),
+    TableExport(
+        "llm_call_payloads",
+        f"SELECT * FROM llm_call_payloads WHERE run_id IN ({_RUNS})",
+    ),
 )
 
 EXCLUDED_TABLES: Final[frozenset[str]] = frozenset(
@@ -177,7 +181,6 @@ EXCLUDED_TABLES: Final[frozenset[str]] = frozenset(
         "ingestion_jobs",
         "ingestion_requests",
         "ingestion_stage_attempts",
-        "llm_call_payloads",
         "manifest_paper_imports",
         "schema_migrations",
         "snapshot_variant_lineage",
