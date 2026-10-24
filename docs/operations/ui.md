@@ -9,8 +9,9 @@ The UI has these pages:
 
 - **Search:** search for papers or evidence, with year and evidence-type filters.
   Search results link to paper pages.
-- **Paper pages:** show paper metadata, abstract and citation links, including citing
-  papers and references.
+- **Paper pages:** show the paper's title, year and document version, its references
+  and citing papers, and a search limited to that paper. The API serves paper metadata
+  only, so there is no abstract or author list.
 - **New run:** submit a question as a quick or deep research run, with an optional
   publication-year range.
 - **Runs:** browse the current key's runs, newest first, and open a run page.
@@ -47,6 +48,7 @@ for its **Open trace in Langfuse** link.
 
 Cancelling an active run marks it failed with category `cancelled_by_principal` and
 keeps its partial run record, including recorded tool calls, model calls and drafted
-claims. Cancelling a run that has already finished has no effect.
+claims. Cancelling a run that has already finished is refused (`409 run_not_active`)
+and the run is unchanged.
 
 See [ADR-0034](../adr/0034-phase6-product-ui.md) for the accepted UI decision.
