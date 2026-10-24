@@ -46,6 +46,10 @@ docker compose up -d
 
 The loader downloads the [`demo-data-v2`](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v2) bundle (the 100-paper corpus, its search indexes and eight showcase runs, including their model-call text), verifies its checksum and prepares the local services ([Phase 6 plan](docs/plans/phase-6-portfolio.md), [display policy](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Then open `http://127.0.0.1:8000/`, paste the key saved in `demo-data/api-key`, and open one of the showcase run links printed by the script. The page lets you search the released collection and inspect its showcase runs. Public display is limited to material cleared by the document review ([ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md), [ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)).
 
+The UI supports paper and evidence search with filters and paper pages.
+Browse the eight showcase runs, their records and their recorded model-call text.
+Starting a live run needs a GPU and the optional `llm` profile; CPU small mode supports search and run inspection. See the [UI guide](docs/operations/ui.md) for pages, scopes and model-text behavior.
+
 Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. The parts add up to about 7.5 GB: the API image (4.2 GB), the PostgreSQL and Qdrant images (0.7 GB), the bundle and its unpacked copy (0.7 GB), the loaded data (about 0.8 GB) and the two models (about 1.2 GB). It ran on a laptop VM with 11 GB of memory and on a standard GitHub runner.
 
 If you already run another checkout of this project with Docker Compose, give the demo its own project name and ports so the two stacks do not share containers or volumes; Compose names a project after its directory:
