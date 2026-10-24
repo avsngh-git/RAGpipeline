@@ -20,6 +20,8 @@ _KEY = "rsk_" + "a" * 43
 _RUN_ID = "run-001"
 _PAPER_ID = "W100"
 _TOOLS = sorted(demo_smoke.EXPECTED_MCP_TOOLS)
+_RECORD_PATH = f"/v1/research/{_RUN_ID}/record"
+_TEXT_PATH = f"/v1/research/{_RUN_ID}/model-calls/1"
 
 
 class FakeTransport:
@@ -75,6 +77,25 @@ def _healthy_replies() -> dict[tuple[str, str], demo_smoke.Reply]:
             }
         ),
         ("POST", "/mcp/"): demo_smoke.Reply(200, "text/event-stream", event_body),
+        ("GET", "/"): demo_smoke.Reply(
+            200, "text/html; charset=utf-8", b"<html></html>"
+        ),
+        ("GET", "/ui/app.js"): demo_smoke.Reply(200, "text/javascript", b""),
+        ("GET", "/v1/me"): _reply(
+            {"principal": "demo", "research_runs": "model_unreachable"}
+        ),
+        ("GET", "/v1/research?limit=50"): _reply({"runs": [{"run_id": _RUN_ID}]}),
+        ("GET", _RECORD_PATH): _reply(
+            {
+                "tool_calls": [{"tool_name": "search_papers"}],
+                "model_calls": [{"ordinal": 1, "text_recorded": True}],
+                "drafted_claims": [{"verdict": "kept"}],
+                "diagnosis": {"stage": "none"},
+            }
+        ),
+        ("GET", _TEXT_PATH): _reply(
+            {"state": "available", "messages": [{"role": "user", "content": "text"}]}
+        ),
     }
 
 
@@ -91,7 +112,7 @@ def test_all_checks_pass_on_a_healthy_stack() -> None:
         FakeTransport(_healthy_replies()), _KEY, _manifest()
     )
 
-    assert len(results) == 6
+    assert len(results) == 11
     assert all(result.passed for result in results)
 
 
@@ -103,8 +124,8 @@ def test_mcp_json_reply_is_accepted() -> None:
 
     results = demo_smoke.run_checks(FakeTransport(replies), _KEY, _manifest())
 
-    assert results[-1].name == "mcp_tools"
-    assert results[-1].passed
+    mcp_result = next(result for result in results if result.name == "mcp_tools")
+    assert mcp_result.passed
 
 
 def test_missing_tool_fails_only_mcp_check() -> None:
@@ -141,11 +162,16 @@ def test_every_request_sends_the_key() -> None:
     assert all(
         headers.get("Authorization") == f"Bearer {_KEY}"
         for _, path, _, headers in transport.requests
-        if path != "/ready"
+        if path not in {"/ready", "/", "/ui/app.js"}
     )
     assert (
         next(headers for _, path, _, headers in transport.requests if path == "/ready")
         == {}
+    )
+    assert all(
+        headers == {}
+        for _, path, _, headers in transport.requests
+        if path in {"/", "/ui/app.js"}
     )
 
 
@@ -205,3 +231,87 @@ def test_workflow_is_not_run_on_pull_requests() -> None:
     workflow = yaml.safe_load(Path(".github/workflows/demo-smoke.yml").read_text())
 
     assert set(workflow[True]) == {"workflow_dispatch", "workflow_run"}
+
+
+def test_new_checks_pass_on_a_complete_stack() -> None:
+    results = demo_smoke.run_checks(
+        FakeTransport(_healthy_replies()), _KEY, _manifest()
+    )
+
+    assert [result.name for result in results[-5:]] == [
+        "ui",
+        "me",
+        "run_list",
+        "run_records",
+        "model_text",
+    ]
+    assert all(result.passed for result in results[-5:])
+
+
+def test_model_text_check_fails_without_recorded_text() -> None:
+    replies = _healthy_replies()
+    replies[("GET", _RECORD_PATH)] = _reply(
+        {
+            "tool_calls": [{"tool_name": "search_papers"}],
+            "model_calls": [{"ordinal": 1, "text_recorded": False}],
+            "drafted_claims": [{"verdict": "kept"}],
+            "diagnosis": {"stage": "none"},
+        }
+    )
+
+    results = demo_smoke.run_checks(FakeTransport(replies), _KEY, _manifest())
+
+    assert results[-1].name == "model_text"
+    assert not results[-1].passed
+
+
+def test_run_list_check_fails_when_a_showcase_run_is_missing() -> None:
+    replies = _healthy_replies()
+    replies[("GET", "/v1/research?limit=50")] = _reply({"runs": []})
+
+    results = demo_smoke.run_checks(FakeTransport(replies), _KEY, _manifest())
+
+    assert results[-3].name == "run_list"
+    assert not results[-3].passed
+
+
+def test_me_check_fails_when_runs_are_available() -> None:
+    replies = _healthy_replies()
+    replies[("GET", "/v1/me")] = _reply(
+        {"principal": "demo", "research_runs": "available"}
+    )
+
+    results = demo_smoke.run_checks(FakeTransport(replies), _KEY, _manifest())
+
+    assert results[-4].name == "me"
+    assert not results[-4].passed
+
+
+def test_ui_check_fails_without_the_page() -> None:
+    replies = _healthy_replies()
+    replies[("GET", "/")] = _reply({}, status=404, content_type="application/json")
+
+    results = demo_smoke.run_checks(FakeTransport(replies), _KEY, _manifest())
+
+    assert results[-5].name == "ui"
+    assert not results[-5].passed
+
+
+def test_details_hold_no_text() -> None:
+    marker = "private question quote message"
+    replies = _healthy_replies()
+    replies[("GET", _RECORD_PATH)] = _reply(
+        {
+            "tool_calls": [{"arguments": {"question": marker}}],
+            "model_calls": [{"ordinal": 1, "text_recorded": True}],
+            "drafted_claims": [{"text": marker}],
+            "diagnosis": {"stage": "none", "detail": marker},
+        }
+    )
+    replies[("GET", _TEXT_PATH)] = _reply(
+        {"state": "available", "messages": [{"content": marker}]}
+    )
+
+    results = demo_smoke.run_checks(FakeTransport(replies), _KEY, _manifest())
+
+    assert all(marker not in result.detail for result in results)

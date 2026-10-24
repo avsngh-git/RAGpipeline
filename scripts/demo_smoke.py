@@ -318,6 +318,202 @@ def run_checks(
             f"HTTP {mcp_reply.status}; tools {len(mcp_names)}; missing {missing_tools}",
         )
     )
+
+    page = _request(transport, "GET", "/")
+    app = _request(transport, "GET", "/ui/app.js")
+    ui_ok = (
+        page.status == 200
+        and "text/html" in page.content_type.lower()
+        and app.status == 200
+    )
+    results.append(
+        CheckResult(
+            "ui",
+            ui_ok,
+            f"HTTP {page.status}; app HTTP {app.status}",
+        )
+    )
+
+    me = _request(transport, "GET", "/v1/me", key=key)
+    me_state = "unknown"
+    me_ok = False
+    try:
+        me_data = _json_body(me)
+        state = me_data.get("research_runs") if isinstance(me_data, dict) else None
+        if state in {
+            "available",
+            "no_research_scope",
+            "service_unavailable",
+            "model_unreachable",
+        }:
+            me_state = state
+        me_ok = (
+            me.status == 200
+            and isinstance(me_data, dict)
+            and me_data.get("principal") == "demo"
+            and state != "available"
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        pass
+    results.append(
+        CheckResult("me", me_ok, f"HTTP {me.status}; research_runs {me_state}")
+    )
+
+    manifest_run_ids = (
+        {
+            item["run_id"]
+            for item in runs
+            if isinstance(item, dict)
+            and isinstance(item.get("run_id"), str)
+            and item["run_id"]
+        }
+        if isinstance(runs, list)
+        else set()
+    )
+    run_list = _request(transport, "GET", "/v1/research?limit=50", key=key)
+    listed_run_ids: set[str] = set()
+    try:
+        list_data = _json_body(run_list)
+        listed_runs = list_data.get("runs") if isinstance(list_data, dict) else None
+        if isinstance(listed_runs, list):
+            listed_run_ids = {
+                item["run_id"]
+                for item in listed_runs
+                if isinstance(item, dict) and isinstance(item.get("run_id"), str)
+            }
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        pass
+    missing_runs = len(manifest_run_ids - listed_run_ids)
+    listed_count = len(listed_run_ids)
+    results.append(
+        CheckResult(
+            "run_list",
+            run_list.status == 200 and missing_runs == 0,
+            f"listed {listed_count}; missing {missing_runs}",
+        )
+    )
+
+    record_failures = 0
+    runs_with_drafts = 0
+    checked_runs = 0
+    if not isinstance(runs, list):
+        record_failures += 1
+    else:
+        for item in runs:
+            run_id = item.get("run_id") if isinstance(item, dict) else None
+            if not isinstance(run_id, str) or not run_id:
+                record_failures += 1
+                continue
+            checked_runs += 1
+            path = "/v1/research/" + urllib.parse.quote(run_id, safe="") + "/record"
+            record_reply = _request(transport, "GET", path, key=key)
+            try:
+                record_data = _json_body(record_reply)
+                tool_calls = (
+                    record_data.get("tool_calls")
+                    if isinstance(record_data, dict)
+                    else None
+                )
+                diagnosis = (
+                    record_data.get("diagnosis")
+                    if isinstance(record_data, dict)
+                    else None
+                )
+                drafted_claims = (
+                    record_data.get("drafted_claims")
+                    if isinstance(record_data, dict)
+                    else None
+                )
+                if (
+                    record_reply.status != 200
+                    or not isinstance(tool_calls, list)
+                    or not tool_calls
+                    or not isinstance(diagnosis, dict)
+                    or not diagnosis.get("stage")
+                ):
+                    record_failures += 1
+                if isinstance(drafted_claims, list) and drafted_claims:
+                    runs_with_drafts += 1
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                record_failures += 1
+    results.append(
+        CheckResult(
+            "run_records",
+            record_failures == 0 and runs_with_drafts > 0,
+            f"runs checked {checked_runs}; failures {record_failures}; "
+            f"runs with drafted claims {runs_with_drafts}",
+        )
+    )
+
+    model_status = 0
+    model_state = "missing"
+    for item in runs if isinstance(runs, list) else []:
+        run_id = item.get("run_id") if isinstance(item, dict) else None
+        if not isinstance(run_id, str) or not run_id:
+            continue
+        path = "/v1/research/" + urllib.parse.quote(run_id, safe="") + "/record"
+        record_reply = _request(transport, "GET", path, key=key)
+        try:
+            record_data = _json_body(record_reply)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        calls = (
+            record_data.get("model_calls") if isinstance(record_data, dict) else None
+        )
+        recorded_call = (
+            next(
+                (
+                    call
+                    for call in calls
+                    if isinstance(call, dict)
+                    and call.get("text_recorded") is True
+                    and isinstance(call.get("ordinal"), int)
+                ),
+                None,
+            )
+            if isinstance(calls, list)
+            else None
+        )
+        if recorded_call is None:
+            continue
+        text_path = (
+            "/v1/research/"
+            + urllib.parse.quote(run_id, safe="")
+            + "/model-calls/"
+            + str(recorded_call["ordinal"])
+        )
+        text_reply = _request(transport, "GET", text_path, key=key)
+        model_status = text_reply.status
+        try:
+            text_data = _json_body(text_reply)
+            model_state = (
+                text_data.get("state")
+                if isinstance(text_data, dict)
+                and text_data.get("state") in {"available", "not_recorded", "withheld"}
+                else "unknown"
+            )
+            messages = (
+                text_data.get("messages") if isinstance(text_data, dict) else None
+            )
+            model_ok = (
+                text_reply.status == 200
+                and model_state == "available"
+                and isinstance(messages, list)
+                and len(messages) > 0
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            model_state = "unknown"
+            model_ok = False
+        break
+    else:
+        model_ok = False
+    results.append(
+        CheckResult(
+            "model_text",
+            model_ok,
+            f"HTTP {model_status}; state {model_state}",
+        )
+    )
     return results
 
 
@@ -326,7 +522,7 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--key-file", default="demo-data/api-key")
     parser.add_argument(
-        "--manifest", default="demo-data/research-demo-v1/manifest.json"
+        "--manifest", default="demo-data/research-demo-v2/manifest.json"
     )
     parser.add_argument("--timeout", type=float, default=180)
     return parser.parse_args(argv)
