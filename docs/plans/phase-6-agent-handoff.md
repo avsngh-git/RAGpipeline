@@ -1,6 +1,6 @@
 # Phase 6 — Agent handoff
 
-Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by the owner on
+Updated: 2026-10-24. **Status: in progress.** ADR-0034 (product UI) accepted by the owner on
 2026-10-23 adds cards P6-21 to P6-32 ahead of the video. ADR-0032 and ADR-0033 accepted by the owner on
 2026-10-13. The [plan](phase-6-portfolio.md) and map issue
 [#209](https://github.com/avsngh-git/RAGpipeline/issues/209) define the cards; the
@@ -62,10 +62,10 @@ Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by 
 | P6-24 (#260) | merged | PR #273 | Merged before review; reviewed on `main`: matches the card; withheld model text never loads payloads; `recorded_at` excluded from equality |
 | P6-26 (#262) | merged | PR #271 | Merged before review; reviewed on `main` in headless Chromium on fakes: search, paper pages, phone width, no console errors. Three search-page defects (duplicate status pill, raw status value, evidence kinds shown for paper search) moved into P6-27 step 7 |
 | P6-27 (#263) | merged | PR #276, merge commit `ef89099c1487d6fe7b3a27be1b4c3df6e5d852a5` | Exact-head CI [#40005630677](https://github.com/avsngh-git/RAGpipeline/actions/runs/40005630677) passed. Focused local UI/cancel tests passed (21); local full pytest was incomplete; CI installed and launched Chromium |
-| P6-28 (#264) | merged | PR #270, `01bd124` | `pytest-playwright` 0.9.0; Chromium launched in CI; security bumps (brotli, certifi, OpenTelemetry 1.45.1; Pillow 13.0.0 in the serving lock) with every other locked package unchanged |
+| P6-28 (#264) | merged | PR #270, `01bd124` | `pytest-playwright` 0.9.0; Chromium launched in CI; original security bumps (brotli, certifi, OpenTelemetry 1.45.1; Pillow 13.0.0 in the serving lock); later advisories fixed in PR #282 |
+| P6-29 (#265) | merged | PR #281, `bc6481e` | Final-head CI [#40084280628](https://github.com/avsngh-git/RAGpipeline/actions/runs/40084280628) passed (1,645 tests), including running Chromium journeys, dependency checks, migration, Docker build, Trivy and secret scan; issue closed |
 | P6-25 review | — | — | Reviewed on `main`: executor cancellation and shutdown behave as the card says; cancelled runs record `plan_rounds=0`, fixed in P6-27 step 7 |
 | P6-22 (#258) | done | branch `prototype/p6-22-ui` (`9047560`, not for `main`) | Owner chose layout B, Report (owner decisions entry 3); P6-26 and P6-27 written against it |
-| P6-28 (#264) | in review | branch `phase6/p6-28-playwright-lock` | `pytest-playwright` 0.9.0 in the test lock; OpenTelemetry 1.45.1, brotli 1.2.1 and certifi 2026.10.19 in both locks (pip-audit advisories of 2026-10-23); every other package unchanged; Chromium installed and launched in CI |
 
 ## Environment facts
 

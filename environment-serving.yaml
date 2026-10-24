@@ -5,12 +5,14 @@ channels:
 dependencies:
   - python=3.12
   - pip
-  - setuptools
+  # pip-audit, 2026-10-24: GHSA-xmj3-9gf7-h52w.
+  - setuptools>=84.1.0
   - fastapi
   - httpx
   - uvicorn
   - asyncpg
   - langgraph=1.2.9
+  - langgraph-checkpoint=4.3.0
   - mcp=2.3.0
   - psycopg=3.3.4
   - psycopg-pool=3.3.3
@@ -20,7 +22,9 @@ dependencies:
   - opentelemetry-sdk=1.45.1
   - opentelemetry-exporter-otlp-proto-http=1.45.1
   - prometheus_client=0.26.0
-  - filelock
+  # pip-audit, 2026-10-24: GHSA-fq56-3cx3-fjxp, GHSA-wfhq-q4j2-c37m,
+  # GHSA-rfpc-qcw5-3pc4, GHSA-9vhv-jxww-xfm5.
+  - filelock>=4.2.1
   # Security floors (pip-audit and Trivy, 2026-10-23).
   - brotli-python>=1.2.1
   - certifi>=2026.10.19
