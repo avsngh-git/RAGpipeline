@@ -102,7 +102,9 @@ dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
 
 header.site { background: var(--surface); border-bottom: 1px solid var(--line); padding-block: var(--s3); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-header.site .in, footer.site .in { max-width: 46rem; margin: 0 auto; display: flex; flex-wrap: wrap; gap: var(--s4); align-items: center; justify-content: space-between; }
+header.site .in, footer.site .in { margin: 0 auto; display: flex; flex-wrap: wrap; gap: var(--s4); align-items: center; justify-content: space-between; }
+header.site .in { max-width: 72rem; }
+footer.site .in { max-width: 46rem; }
 header.site .brand { font-weight: 700; text-decoration: none; }
 header.site nav { display: flex; gap: var(--s4); flex-wrap: wrap; font-size: .9rem; }
 header.site nav a { border-bottom: 2px solid transparent; padding: .2rem 0; text-decoration: none; }
@@ -133,7 +135,7 @@ main.page section > h2 { font-family: var(--read); font-size: 1.25rem; font-weig
 .claim.flash { animation: claim-flash 1.4s ease-out; }
 @keyframes claim-flash { 0%, 45% { background: var(--mark); } 100% { background: transparent; } }
 .citation-link { border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: .72em; font-weight: 700; min-width: 1.4em; padding: 0 .25em; cursor: pointer; }
-.dropped-list { display: flex; flex-direction: column; gap: var(--s3); padding-left: 1.25rem; }
+.dropped-list { display: flex; flex-direction: column; gap: var(--s3); list-style: none; padding-left: 0; }
 .dropped { padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r); }
 .story { list-style: none; margin: 0; padding: 0 0 0 var(--s4); border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: var(--s3); }
 .story > li { position: relative; padding: var(--s3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; }
