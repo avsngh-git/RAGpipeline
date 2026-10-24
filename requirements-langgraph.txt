@@ -1,2 +1,2 @@
-langgraph-checkpoint-postgres==3.1.2 \
-    --hash=sha256:6a7e38ef16985b54e356cba7bdaf447943aae33d5aaf290026c593bb6b4a6264
+langgraph-checkpoint-postgres==3.1.3 \
+    --hash=sha256:050ae583223e24d97747f27b9e06e7345bf13c972f1fb6ed33bb3d1f9c11cee4
