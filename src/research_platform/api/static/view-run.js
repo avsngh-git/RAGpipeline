@@ -43,9 +43,10 @@ function renderAnswer(answer, claims, state) {
   let offset = 0;
   citationPattern.lastIndex = 0;
   for (const match of answer.matchAll(citationPattern)) {
-    output.append(document.createTextNode(answer.slice(offset, match.index)));
+    const before = answer.slice(offset, match.index);
     const handles = match[1].split(",").map((handle) => handle.trim()).filter((handle) => sourceClaims.has(handle));
     if (handles.length) {
+      output.append(document.createTextNode(before.replace(/\s+$/, "")));
       for (const handle of handles) {
         const claimNumber = sourceClaims.get(handle);
         output.append(h("sup", null, h("button", {
@@ -60,8 +61,10 @@ function renderAnswer(answer, claims, state) {
             target.classList.add("flash");
             window.setTimeout(() => target.classList.remove("flash"), 1400);
           },
-        })), document.createTextNode(" "));
+        })));
       }
+    } else {
+      output.append(document.createTextNode(before));
     }
     offset = match.index + match[0].length;
   }
@@ -72,7 +75,7 @@ function renderAnswer(answer, claims, state) {
 function renderClaims(claims, papers) {
   if (!claims || !claims.length) return null;
   const items = claims.map((claim, index) => h("li", { id: `claim-${index + 1}`, class: "claim" },
-    h("p", { class: "claim-text", text: `${index + 1}. ${claim.text}` }),
+    h("p", { class: "claim-text", text: claim.text }),
     claim.quote ? h("blockquote", { class: "quote" }, h("mark", { text: claim.quote })) : null,
     (claim.evidence || []).map((evidence) => h("p", { class: "crumbs" },
       h("a", { href: `#/papers/${encodeURIComponent(evidence.paper_id)}`, text: paperLabel(papers, evidence.paper_id) }),
@@ -272,7 +275,7 @@ export function renderRun(match, main) {
       h("section", null, h("h2", { text: "Diagnosis" }),
         h("p", { text: record.diagnosis.stage === "none" ? "No problem found." : record.diagnosis.stage === "in_progress" ? "The run is still in progress." : `Attributed to the ${record.diagnosis.stage} stage.` }),
         (record.diagnosis.findings || []).map((finding) => h("p", null,
-          h("span", { text: finding.code.replaceAll("_", " ") }), " ", h("span", { class: "mono muted", text: finding.detail })))),
+          h("span", { text: finding.code.replaceAll("_", " ").replaceAll(":", ": ") }), " ", h("span", { class: "mono muted", text: finding.detail })))),
       renderBudgets(run, record, state.identity)];
     content.replaceChildren(...parts.filter(Boolean));
     for (const details of content.querySelectorAll("details")) {
