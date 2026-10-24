@@ -58,6 +58,12 @@ Updated: 2026-10-23. **Status: in progress.** ADR-0034 (product UI) accepted by 
 | P6-17 (#226) | done | #250, #251, #252 | `v0.6.0` released (`977e7aa`); demo-smoke run 38576130251 passed 6/6 on a fresh runner; cold review passed, findings fixed or filed (#253, #254). See `docs/reference/phase-6-gate-report.md` |
 | P6-21 (#257) | merged | `782a590` / PR #269 | ADR-0034, plan section, owner decisions entry 2, source of truth 1.44 |
 | P6-25 (#261) | merged | PR #274, merge commit `78a7c418b80457177fcf1fc3f226836764b63cb2` | Exact-head CI [#39998594754](https://github.com/avsngh-git/RAGpipeline/actions/runs/39998594754) passed (1,628 tests), including PostgreSQL cancellation and migration checks; issue closed |
+| P6-23 (#259) | merged | PR #272 | Merged before review; reviewed on `main`: matches the card (owner-scoped keyset list, `/v1/me` states, cached Ollama probe, Langfuse traces URL) |
+| P6-24 (#260) | merged | PR #273 | Merged before review; reviewed on `main`: matches the card; withheld model text never loads payloads; `recorded_at` excluded from equality |
+| P6-26 (#262) | merged | PR #271 | Merged before review; reviewed on `main` in headless Chromium on fakes: search, paper pages, phone width, no console errors. Three search-page defects (duplicate status pill, raw status value, evidence kinds shown for paper search) moved into P6-27 step 7 |
+| P6-27 (#263) | merged | PR #276, merge commit `ef89099c1487d6fe7b3a27be1b4c3df6e5d852a5` | Exact-head CI [#40005630677](https://github.com/avsngh-git/RAGpipeline/actions/runs/40005630677) passed. Focused local UI/cancel tests passed (21); local full pytest was incomplete; CI installed and launched Chromium |
+| P6-28 (#264) | merged | PR #270, `01bd124` | `pytest-playwright` 0.9.0; Chromium launched in CI; security bumps (brotli, certifi, OpenTelemetry 1.45.1; Pillow 13.0.0 in the serving lock) with every other locked package unchanged |
+| P6-25 review | — | — | Reviewed on `main`: executor cancellation and shutdown behave as the card says; cancelled runs record `plan_rounds=0`, fixed in P6-27 step 7 |
 | P6-22 (#258) | done | branch `prototype/p6-22-ui` (`9047560`, not for `main`) | Owner chose layout B, Report (owner decisions entry 3); P6-26 and P6-27 written against it |
 | P6-28 (#264) | in review | branch `phase6/p6-28-playwright-lock` | `pytest-playwright` 0.9.0 in the test lock; OpenTelemetry 1.45.1, brotli 1.2.1 and certifi 2026.10.19 in both locks (pip-audit advisories of 2026-10-23); every other package unchanged; Chromium installed and launched in CI |
 
