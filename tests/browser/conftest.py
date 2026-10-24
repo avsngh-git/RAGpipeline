@@ -6,7 +6,7 @@ import asyncio
 import socket
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,7 +19,7 @@ import uvicorn
 
 pytest.importorskip("playwright")
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.async_api import Browser, Page, async_playwright
 
 from research_platform.api import create_app
 from research_platform.api.auth import AuthSettings
@@ -48,9 +48,14 @@ class UIServer:
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Skip browser journeys only when the Playwright Chromium binary is absent."""
-    with sync_playwright() as playwright:
-        chromium_path = Path(playwright.chromium.executable_path)
-    if chromium_path.is_file():
+    browser_cache = Path.home() / ".cache" / "ms-playwright"
+    chromium_binaries = (
+        *browser_cache.glob("chromium-*/chrome-linux/chrome"),
+        *browser_cache.glob("chromium-*/chrome-linux64/chrome"),
+        *browser_cache.glob("chromium_headless_shell-*/chrome-linux/headless_shell"),
+        *browser_cache.glob("chromium_headless_shell-*/chrome-linux64/headless_shell"),
+    )
+    if any(path.is_file() for path in chromium_binaries):
         return
     skip = pytest.mark.skip(
         reason="Chromium not installed: run python -m playwright install chromium"
@@ -58,6 +63,17 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     for item in items:
         if "tests/browser/" in str(item.path):
             item.add_marker(skip)
+
+
+@pytest.fixture
+async def page(anyio_backend: str) -> AsyncIterator[Page]:
+    async with async_playwright() as playwright:
+        browser: Browser = await playwright.chromium.launch()
+        context = await browser.new_context()
+        page = await context.new_page()
+        yield page
+        await context.close()
+        await browser.close()
 
 
 @pytest.fixture(scope="session")
@@ -153,7 +169,7 @@ def ui_server() -> Iterator[UIServer]:
 
 
 @pytest.fixture
-def console_errors(page: Page) -> list[str]:
+async def console_errors(anyio_backend: str, page: Page) -> list[str]:
     errors: list[str] = []
     page.on(
         "console",
