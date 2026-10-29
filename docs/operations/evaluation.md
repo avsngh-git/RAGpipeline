@@ -6,6 +6,9 @@
 commands read `RESEARCH_PLATFORM_DATABASE_URL`; development runs use
 `research_phase1_review`.
 
+The integration tests do not use these databases; they need disposable PostgreSQL and
+Qdrant services ([integration test services](../../README.md#integration-test-services)).
+
 ## Suites
 
 | Suite | Needs | What it measures |
