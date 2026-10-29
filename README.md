@@ -53,7 +53,7 @@ The UI supports paper and evidence search with filters and paper pages.
 Browse the eight showcase runs, their records and their recorded model-call text.
 Starting a live run needs a GPU and the optional `llm` profile; CPU small mode supports search and run inspection. See the [UI guide](docs/operations/ui.md) for pages, scopes and model-text behavior.
 
-Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 12 GB free disk, and 8 GB RAM. The parts add up to about 7.5 GB: the API image (4.2 GB), the PostgreSQL and Qdrant images (0.7 GB), the bundle and its unpacked copy (0.7 GB), the loaded data (about 0.8 GB) and the two models (about 1.2 GB). It ran on a laptop VM with 11 GB of memory and on a standard GitHub runner.
+Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 11.1 GB free disk, and 8 GB RAM. Measured on 2026-10-29, the parts add up to 9.2 GB: the API image (4.2 GB), the PostgreSQL and Qdrant images (0.8 GB), the bundle and its unpacked copy (0.8 GB), the loaded data (2.4 GB: Qdrant 1.8 GB, PostgreSQL 0.6 GB) and the two models (1.0 GB); the free-disk figure adds 20%. It ran on a laptop VM with 11 GB of memory and on a standard GitHub runner.
 
 If you already run another checkout of this project with Docker Compose, give the demo its own project name and ports so the two stacks do not share containers or volumes; Compose names a project after its directory:
 
