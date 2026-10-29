@@ -32,6 +32,9 @@ dependencies:
   # Security floors (pip-audit, 2026-10-23): PYSEC-2026-4322, PYSEC-2026-4320.
   - brotli-python>=1.2.1
   - certifi>=2026.10.19
+  - dnspython>=2.9.0
+  - langgraph-sdk>=0.4.6
+  - msgpack-python>=1.2.3
   - pytest-playwright=0.9.0
   - pip:
       - bm25s==0.3.11
