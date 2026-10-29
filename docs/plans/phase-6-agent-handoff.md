@@ -1,6 +1,6 @@
 # Phase 6 — Agent handoff
 
-Updated: 2026-10-24. **Status: in progress.** ADR-0034 (product UI) accepted by the owner on
+Updated: 2026-10-29. **Status: in progress.** ADR-0034 (product UI) accepted by the owner on
 2026-10-23 adds cards P6-21 to P6-32 ahead of the video. ADR-0032 and ADR-0033 accepted by the owner on
 2026-10-13. The [plan](phase-6-portfolio.md) and map issue
 [#209](https://github.com/avsngh-git/RAGpipeline/issues/209) define the cards; the
@@ -65,6 +65,13 @@ Updated: 2026-10-24. **Status: in progress.** ADR-0034 (product UI) accepted by 
 | P6-28 (#264) | merged | PR #270, `01bd124` | `pytest-playwright` 0.9.0; Chromium launched in CI; original security bumps (brotli, certifi, OpenTelemetry 1.45.1; Pillow 13.0.0 in the serving lock); later advisories fixed in PR #282 |
 | P6-29 (#265) | merged | PR #281, `bc6481e` | Final-head CI [#40084280628](https://github.com/avsngh-git/RAGpipeline/actions/runs/40084280628) passed (1,645 tests), including running Chromium journeys, dependency checks, migration, Docker build, Trivy and secret scan; issue closed |
 | P6-25 review | — | — | Reviewed on `main`: executor cancellation and shutdown behave as the card says; cancelled runs record `plan_rounds=0`, fixed in P6-27 step 7 |
+| P6-30 (#266) | merged | PR #277, `0b311f3` | Bundle v2 with showcase model-call text; release `demo-data-v2` (353,781,760 bytes) |
+| P6-33 (#278) | merged | PR #279, `cd3c213` | Run page polish |
+| P6-31 (#267) | merged | PR #280, `6c42844` | Five new `demo-smoke` checks, UI guide, video script segments 4–5 |
+| P6-34 (#283) | merged | PR #285, `5301dd5` | Cold-review code and UI fixes; `fetch-models` downloads 863 MB instead of 6.7 GB |
+| P6-35 (#284) | merged | PR #287, `ad013d0` | Cold-review docs fixes; disk re-measured (9.2 GB rounded, 11.1 GB free needed) |
+| Security | merged | PR #282, PR #286 | Dependency advisories and image base fixes found by pip-audit and Trivy |
+| P6-32 (#268) | done | `v0.6.1`, `v0.6.2` | Demo smoke runs 40089248595 and 40882980828 passed 11 of 11; cold review findings fixed or recorded. See `docs/reference/phase-6-gate-report.md` |
 | P6-22 (#258) | done | branch `prototype/p6-22-ui` (`9047560`, not for `main`) | Owner chose layout B, Report (owner decisions entry 3); P6-26 and P6-27 written against it |
 
 ## Environment facts

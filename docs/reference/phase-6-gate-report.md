@@ -1,8 +1,11 @@
 # Phase 6 gate report
 
-**Status:** gate items 1 and 2 passed on 2026-10-14; item 3 (the owner accepts the video) is
-P6-18. The gate is defined in [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md)
-decision 8. Card: [P6-17 (#226)](https://github.com/avsngh-git/RAGpipeline/issues/226).
+**Status:** gate items 1 and 2 passed on 2026-10-14 for `v0.6.0`, and again for the product UI
+on `v0.6.1` and `v0.6.2` (2026-10-24 to 2026-10-29, [below](#rerun-on-the-product-ui-p6-32)).
+Item 3 (the owner accepts the video) is P6-18. The gate is defined in
+[ADR-0033](../adr/0033-phase6-delivery-without-hosting.md) decision 8; ADR-0034 decision 7 asks
+for the rerun. Cards: [P6-17 (#226)](https://github.com/avsngh-git/RAGpipeline/issues/226) and
+[P6-32 (#268)](https://github.com/avsngh-git/RAGpipeline/issues/268).
 
 ## Release under test
 
@@ -82,6 +85,68 @@ bugs, all fixed before the release:
   above). Containers were recreated on the owner's volumes; migrations were already current
   (028); the bundle load refused. The owner's stack was restored on its default ports, and runs,
   permission records and Qdrant point counts were verified intact.
+
+## Rerun on the product UI (P6-32)
+
+[ADR-0034](../adr/0034-phase6-product-ui.md) decision 7 reruns gate items 1 and 2 after the
+product UI (P6-21 to P6-31).
+
+### Release `v0.6.1`
+
+- **Release:** [`v0.6.1`](https://github.com/avsngh-git/RAGpipeline/releases/tag/v0.6.1) on
+  commit `6c42844`, published 2026-10-24. The Release workflow promoted `sha-6c428442ad15`
+  without rebuilding (digest
+  `sha256:148d790575d5980c6fecda75c1fe2fcc7a2f3c5fef591d63f9a98951ce92e689`).
+- **Demo data:** release [`demo-data-v2`](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v2)
+  (353,781,760 bytes): the v1 collection and showcase runs plus their recorded model-call text
+  (P6-30).
+- **Gate item 1:** Demo smoke
+  [run 40089248595](https://github.com/avsngh-git/RAGpipeline/actions/runs/40089248595) passed
+  11 of 11 checks on `ubuntu-latest` in 4 minutes. The five added checks cover the UI modules,
+  `GET /v1/me`, the run list, the run records of all eight showcase runs and model-call text.
+
+### Cold review of `v0.6.1`
+
+A fresh agent got only the public repository, its releases and issues, and ran everything in its
+own Compose project and ports. The quickstart worked first time (695 s), `demo_smoke.py` passed
+11 of 11, the full test suite passed with database services (1,655 tests) and the 12 browser
+journeys passed. Five README claims matched their sources. It described the production design
+correctly and judged that it could discuss the system in an interview.
+
+| Finding | Resolution |
+| --- | --- |
+| `fetch-models` downloaded every model format; the model cache was 6.7 GB and the README disk figures were about half the measured 15 GB | Download limited to the files the server loads (863 MB) in [P6-34, PR #285](https://github.com/avsngh-git/RAGpipeline/pull/285); README figures re-measured in [P6-35, PR #287](https://github.com/avsngh-git/RAGpipeline/pull/287) |
+| `demo_smoke.py` was undocumented and ignored `API_PORT`, so it tested another stack on port 8000 | Reads `API_PORT` (#285); README "Check the demo" step (#287) |
+| The quickstart pulled `:latest`, which on the reviewer's machine was still the `v0.6.0` image; deployment examples used `v0.6.0` | Quickstart clones a release tag and sets `RESEARCH_PLATFORM_IMAGE` to it; examples use `vX.Y.Z` (#287) |
+| Failed verification checks read as passed (“failed quote verification: quote found”); diagnosis findings read wrongly | Plain reasons and labels on the run page (#285) |
+| With the read-only demo key, **New run** never said a run needs a GPU | Notice names the NVIDIA GPU and the `llm` profile (#285) |
+| The key page said the key was “printed”; unknown paper IDs rendered as real papers; three smaller UI issues | Fixed in #285 |
+| The second quickstart command did nothing; cleanup needs `sudo` (Docker creates `data/` as root) | Command removed; "Remove the demo" note (#287) |
+| The results table omitted caveats: Phase 2 thresholds were lowered after v13 failed; Phase 4 reproduces only at each run's recorded commit | Caveats added (#287) |
+| Development setup: the Conda environment name can collide, the Playwright browser install and the integration test services were undocumented | `--name` note, Chromium install and a services recipe (#287) |
+| Showcase runs are visible only to the demo key | Documented in the UI guide (#287) |
+| 422 responses do not name the invalid field | Already backlog [#253](https://github.com/avsngh-git/RAGpipeline/issues/253) |
+| A claim passed with a quote ending in “...” and a stronger verb than its quote | Answer quality is out of scope (owner decision Q1); noted on backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115) |
+| The README video link is a `TODO(owner)` | Replaced by P6-18 |
+
+**Passed:** every finding is fixed or recorded.
+
+### Release `v0.6.2`
+
+- **Release:** [`v0.6.2`](https://github.com/avsngh-git/RAGpipeline/releases/tag/v0.6.2) on
+  commit `ad013d0`, published 2026-10-29, with the P6-34 and P6-35 fixes and the dependency
+  advisory fixes ([PR #282](https://github.com/avsngh-git/RAGpipeline/pull/282),
+  [PR #286](https://github.com/avsngh-git/RAGpipeline/pull/286)). The Release workflow promoted
+  `sha-ad013d0c547c` without rebuilding (digest
+  `sha256:765bfb617c706a7eb0ddab95b16a1866aded5d7ec757a0cce4a793082d9b708b`).
+- **Gate item 1:** Demo smoke
+  [run 40882980828](https://github.com/avsngh-git/RAGpipeline/actions/runs/40882980828) passed
+  11 of 11 checks on `ubuntu-latest` in 3 minutes with bundle `demo-data-v2`.
+- **Local fresh clone:** the README quickstart on `main` at `5301dd5` (P6-35) took 272 s with the
+  PostgreSQL and Qdrant images already cached and passed 11 of 11. Measured disk use was 8.8 GB
+  (models 0.9 GB, down from 6.7 GB).
+- The workflow still runs `docker compose up -d --wait` after `demo_load.sh`, under a step label
+  that names the removed README step. The command is a no-op on a running stack.
 
 ## Remaining
 
