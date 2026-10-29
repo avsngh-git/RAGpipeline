@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -519,7 +520,11 @@ def run_checks(
 
 def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check a running small-mode demo.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument(
+        "--base-url",
+        default=f"http://127.0.0.1:{os.environ.get('API_PORT', '8000')}",
+        help="API base URL (defaults to API_PORT, or 8000)",
+    )
     parser.add_argument("--key-file", default="demo-data/api-key")
     parser.add_argument(
         "--manifest", default="demo-data/research-demo-v2/manifest.json"

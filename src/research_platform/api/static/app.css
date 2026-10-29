@@ -64,6 +64,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pill.live::before { content: ""; width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; animation: pulse 1.2s infinite; }
 @keyframes pulse { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .pill.live::before { animation: none; } }
+[hidden] { display: none !important; }
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: .4rem .8rem; font-weight: 550; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .btn.danger { color: var(--bad); border-color: var(--bad); background: transparent; }

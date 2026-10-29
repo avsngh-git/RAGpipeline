@@ -38,7 +38,7 @@ export function renderKey(main, onSaved) {
       form,
       h("p", { class: "muted" }, "The key stays in this browser tab only. Create one with ",
         h("code", { text: "research-keys create" }), ", or use the key ",
-        h("code", { text: "scripts/demo_load.sh" }), " printed."),
+        h("code", { text: "scripts/demo_load.sh" }), " saved in demo-data/api-key."),
     ),
   );
 }

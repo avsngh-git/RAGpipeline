@@ -6,6 +6,37 @@ import { failureLine, fetchModelText, renderStory, statusPill } from "./run-reco
 const ACTIVE = ["queued", "running", "waiting_for_ingestion"];
 const viewState = new Map();
 const citationPattern = /\[([A-Za-z][A-Za-z0-9]*(?:,\s*[A-Za-z][A-Za-z0-9]*)*)\]/g;
+const CHECK_REASONS = {
+  quote_found: "the quote was not found in the cited passage",
+  words_from_quote: "fewer than half of the claim's content words come from its quote",
+  numbers_from_quote: "the claim has a number its quote does not",
+  intensifiers_from_quote: "the claim uses a scope word (such as both, all, best) its quote does not",
+  no_handles_in_text: "the claim text contains an evidence handle",
+  quote_names_its_row: "the table quote does not name its row",
+  no_other_row_named: "the claim names a different table row",
+};
+const DIAGNOSIS_LABELS = {
+  drafts_rejected: "Drafted claims by verdict",
+  planner_never_discovered: "The planner never chose discover_papers; tools it used",
+  tool_rejections: "Rejected tool calls",
+  llm_repairs: "Model output repairs",
+  model_declared_insufficient: "The model said the evidence was insufficient",
+  no_evidence_collected: "No evidence was collected",
+  omitted_evidence: "Evidence left out of synthesis",
+  ingestion_wait_cap: "Ingestion wait limit reached",
+  cancelled_by_principal: "Cancelled by its owner",
+};
+
+function checkReason(name) {
+  return CHECK_REASONS[name] || name.replaceAll("_", " ");
+}
+
+function diagnosisLabel(code) {
+  if (code.startsWith("failed_check:")) {
+    return `Failed check: ${checkReason(code.slice("failed_check:".length))}`;
+  }
+  return DIAGNOSIS_LABELS[code] || code.replaceAll("_", " ").replaceAll(":", ": ");
+}
 
 function clock(seconds) {
   const total = Math.max(0, Math.round(Number(seconds) || 0));
@@ -97,7 +128,7 @@ function renderDrafts(drafts) {
     let reason = "";
     if (draft.verdict === "unknown_handle") reason = "It cited a handle that was never shown to the model.";
     else if (draft.verdict === "not_shown") reason = "It cited a passage the model did not see.";
-    else if (draft.verdict === "failed_checks") reason = `It failed quote verification: ${(draft.failed_checks || []).map((item) => item.replaceAll("_", " ")).join(", ")}.`;
+    else if (draft.verdict === "failed_checks") reason = `It failed quote verification: ${(draft.failed_checks || []).map(checkReason).join("; ")}.`;
     else if (replaced) reason = "It failed its checks, so its verified quote is shown as the claim instead.";
     return h("li", { class: "dropped" },
       h("div", { class: "row" }, pill(draft.verdict.replaceAll("_", " "), replaced ? "warn" : "bad"), h("span", { class: "mono", text: draft.handle })),
@@ -275,7 +306,7 @@ export function renderRun(match, main) {
       h("section", null, h("h2", { text: "Diagnosis" }),
         h("p", { text: record.diagnosis.stage === "none" ? "No problem found." : record.diagnosis.stage === "in_progress" ? "The run is still in progress." : `Attributed to the ${record.diagnosis.stage} stage.` }),
         (record.diagnosis.findings || []).map((finding) => h("p", null,
-          h("span", { text: finding.code.replaceAll("_", " ").replaceAll(":", ": ") }), " ", h("span", { class: "mono muted", text: finding.detail })))),
+          h("span", { text: diagnosisLabel(finding.code) + (finding.detail ? ":" : "") }), " ", h("span", { class: "mono muted", text: finding.detail })))),
       renderBudgets(run, record, state.identity)];
     content.replaceChildren(...parts.filter(Boolean));
     for (const details of content.querySelectorAll("details")) {
