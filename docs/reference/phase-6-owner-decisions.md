@@ -111,3 +111,19 @@ authors, venue or abstract: `GET /v1/papers/{paper_id}` is metadata only) with r
 papers and a search limited to the paper.
 
 Re-examine later: whether long runs (many tool calls) need the timeline collapsed by planning round.
+
+### 4. Video answer sources (2026-10-29, P6-18)
+
+The recorded live deep research run (the section 2.5 reference question, run `18800d70`, outcome
+partially supported, 3 verified claims) cites three abstracts of papers the agent found through
+OpenAlex discovery, outside the 100 papers of the public demo collection. The video script required
+a display record for every shown source. Decision: **show them.** The owner accepts displaying
+these abstracts on the basis that OpenAlex metadata, including abstracts, is CC0
+([ADR-0032](../adr/0032-phase6-public-cc-by-demo-collection.md), context). This applies to
+OpenAlex abstracts in the video only; passages from full texts still need a display record.
+
+The owner accepted the video: 1 min 25 s, the question and answer at normal speed, the agent's
+working time as a clock with the run's real step timings and six project highlights, and no
+narration. It replaces the script's longer segment plan (MCP and CI segments omitted).
+
+Re-examine later: whether the display policy should name OpenAlex abstracts explicitly.
