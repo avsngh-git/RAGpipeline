@@ -2,7 +2,7 @@
 
 **Status:** gate items 1 and 2 passed on 2026-10-14 for `v0.6.0`, and again for the product UI
 on `v0.6.1` and `v0.6.2` (2026-10-24 to 2026-10-29, [below](#rerun-on-the-product-ui-p6-32)).
-Item 3 (the owner accepts the video) is P6-18. The gate is defined in
+Item 3 passed on 2026-10-29: the owner accepted the video ([below](#gate-item-3-the-video)). The gate is defined in
 [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md) decision 8; ADR-0034 decision 7 asks
 for the rerun. Cards: [P6-17 (#226)](https://github.com/avsngh-git/RAGpipeline/issues/226) and
 [P6-32 (#268)](https://github.com/avsngh-git/RAGpipeline/issues/268).
@@ -148,7 +148,21 @@ correctly and judged that it could discuss the system in an interview.
 - The workflow still runs `docker compose up -d --wait` after `demo_load.sh`, under a step label
   that names the removed README step. The command is a no-op on a running stack.
 
+## Gate item 3: the video
+
+The owner accepted the video on 2026-10-29 ([P6-18, #227](https://github.com/avsngh-git/RAGpipeline/issues/227));
+it is embedded in the README. It runs 1 min 25 s: a live deep research run on the reference question
+(run `18800d70`, `main` at `ff56c10`, partially supported, 3 verified claims, 4 min 43 s on the RTX 3050),
+with the question and answer at normal speed and the working time shown as a clock with the run's
+real step timings and six project highlights.
+
+- It departs from the [video script](../demo/video-script.md): no showcase run, MCP or CI segments, and
+  no narration.
+- The answer cites three OpenAlex abstracts of papers outside the demo collection. The owner accepted
+  showing them as CC0 metadata ([owner decisions](phase-6-owner-decisions.md), entry 4).
+
+**Passed.**
+
 ## Remaining
 
-- Gate item 3: the owner records and accepts the video (P6-18, #227).
 - Closeout and `v1.0.0` (P6-19, #228).
