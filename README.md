@@ -76,7 +76,9 @@ Connect an MCP client to `http://127.0.0.1:8000/mcp/` (or your `API_PORT`) with 
 
 ## Video
 
-TODO(owner): video link (P6-18).
+A live deep research run on the project's reference question, recorded on a laptop with an RTX 3050 GPU. The agent's 4 min 43 s of work is shown accelerated; the question and the answer play at normal speed.
+
+https://github.com/user-attachments/assets/6bf3debb-862c-4f89-822d-042e13705d83
 
 ## Results
 

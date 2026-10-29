@@ -72,6 +72,7 @@ Updated: 2026-10-29. **Status: in progress.** ADR-0034 (product UI) accepted by 
 | P6-35 (#284) | merged | PR #287, `ad013d0` | Cold-review docs fixes; disk re-measured (9.2 GB rounded, 11.1 GB free needed) |
 | Security | merged | PR #282, PR #286 | Dependency advisories and image base fixes found by pip-audit and Trivy |
 | P6-32 (#268) | done | `v0.6.1`, `v0.6.2` | Demo smoke runs 40089248595 and 40882980828 passed 11 of 11; cold review findings fixed or recorded. See `docs/reference/phase-6-gate-report.md` |
+| P6-18 (#227) | done | owner decisions entry 4 | Video accepted 2026-10-29 (1 min 25 s, run `18800d70`), embedded in the README; gate item 3 passed |
 | P6-22 (#258) | done | branch `prototype/p6-22-ui` (`9047560`, not for `main`) | Owner chose layout B, Report (owner decisions entry 3); P6-26 and P6-27 written against it |
 
 ## Environment facts
