@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 SCRIPT_PATH = Path("scripts/demo_smoke.py")
@@ -225,6 +226,14 @@ def test_script_uses_only_the_standard_library() -> None:
     )
 
     assert modules <= sys.stdlib_module_names
+
+
+def test_base_url_defaults_to_api_port(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_PORT", "18061")
+
+    args = demo_smoke._arguments([])
+
+    assert args.base_url == "http://127.0.0.1:18061"
 
 
 def test_workflow_is_not_run_on_pull_requests() -> None:

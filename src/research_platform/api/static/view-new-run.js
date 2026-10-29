@@ -4,7 +4,7 @@ import { onLeave } from "./router.js";
 
 const availabilityMessages = {
   no_research_scope:
-    "This key can search and read runs but cannot start them. Create a key with the research scope: research-keys create --principal <name> --scope read --scope research.",
+    "This key can search and read runs but cannot start them, because it lacks the research scope. Starting a run also needs the local model on a machine with an NVIDIA GPU (the stack's llm profile). With Docker Compose, create a key with docker compose run --rm --no-deps api research-keys create --principal <name> --scope read --scope research.",
   service_unavailable: "The research service is not running on this server.",
   model_unreachable:
     "Research runs need the local model. This server cannot reach Ollama, so a run would fail. Search, paper pages and saved runs still work. To run research, start the stack with the llm profile on a machine with an NVIDIA GPU (see the README).",

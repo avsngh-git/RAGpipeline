@@ -17,6 +17,8 @@ export function renderRuns(main) {
   const rows = h("tbody");
   const status = h("p", { class: "muted", role: "status", "aria-live": "polite", text: "Loading runs…" });
   const more = h("button", { class: "btn", type: "button", text: "Show more", hidden: true });
+  const header = h("div", { class: "spread" }, h("h1", { text: "Your research runs" }),
+    h("a", { class: "btn primary", href: "#/new", text: "New run" }));
   const table = h("table", { class: "data runs-table" },
     h("thead", null, h("tr", null,
       h("th", { scope: "col", text: "Status" }),
@@ -24,6 +26,7 @@ export function renderRuns(main) {
       h("th", { scope: "col", text: "Mode" }),
       h("th", { scope: "col", text: "Started" }),
       h("th", { scope: "col", text: "Time" }))), rows);
+  const tableWrap = h("div", { class: "tablewrap", hidden: true }, table);
   const empty = h("p", { class: "muted", hidden: true }, "No runs yet. ", h("a", { href: "#/new", text: "Start one" }));
 
   function appendRun(run) {
@@ -48,7 +51,9 @@ export function renderRuns(main) {
       page.runs.forEach(appendRun);
       cursor = page.next_cursor;
       more.hidden = !cursor;
-      empty.hidden = rows.children.length > 0;
+      const hasRuns = rows.children.length > 0;
+      empty.hidden = hasRuns;
+      tableWrap.hidden = !hasRuns;
       status.textContent = rows.children.length ? `${rows.children.length} runs shown.` : "";
     } catch (problem) {
       if (active) status.textContent = problem instanceof Error ? problem.message : "Could not load runs.";
@@ -59,8 +64,7 @@ export function renderRuns(main) {
   }
   more.addEventListener("click", () => { void loadPage(true); });
   main.append(h("section", { class: "doc stack" },
-    h("div", { class: "spread" }, h("h1", { text: "Your research runs" }),
-      h("a", { class: "btn primary", href: "#/new", text: "New run" })),
-    status, empty, h("div", { class: "tablewrap" }, table), more));
+    header,
+    status, empty, tableWrap, more));
   void loadPage();
 }

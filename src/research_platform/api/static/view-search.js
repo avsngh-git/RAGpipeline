@@ -36,12 +36,17 @@ function paperHref(paperId) {
   return `#/papers/${encodeURIComponent(paperId)}`;
 }
 
-function renderEvidence(parent, hit) {
+function sameTitle(value, title) {
+  return Boolean(title) && value.trim().toLowerCase() === title.trim().toLowerCase();
+}
+
+function renderEvidence(parent, hit, paperTitle = "") {
   const headings = (hit.source_spans || []).flatMap((span) => span.heading_path || []);
+  const heading = headings.join(" › ");
   const page = hit.source_location && hit.source_location.page_index_zero_based;
-  if (headings.length) parent.append(h("p", { class: "crumbs", text: headings.join(" › ") }));
+  if (headings.length && !sameTitle(heading, paperTitle)) parent.append(h("p", { class: "crumbs", text: heading }));
   if (page !== null && page !== undefined) parent.append(h("p", { class: "crumbs", text: `Page ${page + 1}` }));
-  if (hit.text) parent.append(h("p", { class: "text-reading", text: hit.text }));
+  if (hit.text && !sameTitle(hit.text, paperTitle)) parent.append(h("p", { class: "text-reading", text: hit.text }));
   const context = hit.table_context;
   if (!context) return;
   const table = h("table", { class: "data" });
@@ -98,7 +103,7 @@ export async function showResults(parent, payload, kind, snapshotId) {
         kind === "evidence" ? pill(hit.kind) : null),
       h("h2", null, h("a", { href: paperHref(hit.paper_id), text: title })),
       year !== null && year !== undefined ? h("p", { class: "muted num", text: String(year) }) : null);
-    if (evidence) renderEvidence(card, evidence);
+    if (evidence) renderEvidence(card, evidence, kind === "papers" ? title : "");
     parent.append(card);
   }
 }

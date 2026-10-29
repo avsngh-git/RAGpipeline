@@ -11,7 +11,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Final
 from urllib.parse import quote
 from uuid import UUID
 
@@ -39,6 +39,24 @@ from research_platform.demo.qdrant import export_collection, restore_collection
 from research_platform.ingestion.generation_index import GenerationIndexConfiguration
 from research_platform.ingestion.provenance import code_revision
 from research_platform.search.active_profile import resolve_frozen_profile_path
+
+MODEL_ALLOW_PATTERNS: Final = (
+    "*.json",
+    "*.safetensors",
+    "*.txt",
+    "*.model",
+    "tokenizer*",
+    "1_Pooling/*",
+)
+MODEL_IGNORE_PATTERNS: Final = (
+    "onnx/*",
+    "openvino/*",
+    "*.onnx",
+    "*.bin",
+    "*.ot",
+    "*.msgpack",
+    "*.h5",
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -295,7 +313,12 @@ def _fetch_models(settings: Settings) -> None:
     for role in ("embedding", "reranker"):
         model = profile[role]["model"]
         revision = profile[role]["revision"]
-        options: dict[str, str] = {"repo_id": model, "revision": revision}
+        options: dict[str, object] = {
+            "repo_id": model,
+            "revision": revision,
+            "allow_patterns": list(MODEL_ALLOW_PATTERNS),
+            "ignore_patterns": list(MODEL_IGNORE_PATTERNS),
+        }
         if role == "reranker" and settings.reranker_cache_dir is not None:
             options["cache_dir"] = str(settings.reranker_cache_dir)
         snapshot_download = getattr(hub, "snapshot_download")

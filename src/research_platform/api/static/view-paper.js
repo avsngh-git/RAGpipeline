@@ -6,8 +6,14 @@ import { showResults } from "./view-search.js";
 function endpointLabel(endpoint) {
   if (endpoint.status === "unresolved") {
     return {
-      label: [endpoint.external_namespace, endpoint.external_identifier].filter(Boolean).join(": ") || "Unresolved citation",
-      note: "not resolved",
+      label: `${endpoint.external_namespace || "Unknown namespace"}: ${endpoint.external_identifier || "Unknown identifier"} — not in this collection, no metadata`,
+      note: "",
+    };
+  }
+  if (endpoint.status === "outside_snapshot") {
+    return {
+      label: `${endpoint.title || endpoint.paper_id || "Unknown paper"} · ${endpoint.publication_year ?? "year unavailable"} — not in this collection`,
+      note: "",
     };
   }
   const label = [endpoint.title || endpoint.paper_id, endpoint.publication_year]
@@ -88,6 +94,15 @@ export function renderPaper(match, main) {
       const identity = await serving();
       const paper = await api("GET", "/v1/papers/" + encodeURIComponent(paperId) + "?snapshot_id=" + encodeURIComponent(identity.snapshot_id));
       if (!current) return;
+      if (paper.status === "unknown") {
+        section.replaceChildren(
+          h("p", { class: "eyebrow", text: "Paper" }),
+          h("h1", { text: "Paper not found" }),
+          h("p", { class: "notice", text: `This server has no record of ${paperId}.` }),
+          h("a", { href: "#/search", text: "Back to search" }),
+        );
+        return;
+      }
       const title = paper.title || paper.paper_id;
       const version = paper.document_version_kind === "published" ? "published version"
         : paper.document_version_kind === "preprint" ? "preprint"
