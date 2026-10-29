@@ -42,6 +42,11 @@ server recorded its payload at trace content level `full` and serves evidence un
 recorded” or “withheld”. The released showcase runs include their recorded model-call
 text in demo bundle v2.
 
+The showcase runs belong to principal `demo`, so only the demo key created by
+`scripts/demo_load.sh` (or an admin key) sees them. Other keys see “This run does not
+exist, or it belongs to another key”. An admin key opens them by link; **Runs** lists
+only the current key's own runs.
+
 Set `RESEARCH_PLATFORM_LANGFUSE_UI_URL` to the Langfuse project's traces page when
 the observability profile runs. The run page appends the run's trace ID to that URL
 for its **Open trace in Langfuse** link.
