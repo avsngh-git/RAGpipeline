@@ -28,6 +28,7 @@ dependencies:
   # Security floors (pip-audit and Trivy, 2026-10-23).
   - brotli-python>=1.2.1
   - certifi>=2026.10.19
+  - dnspython>=2.9.0
   - pillow>=13.0.0
   - pytorch-cpu=2.14
   - transformers=5.17.0
