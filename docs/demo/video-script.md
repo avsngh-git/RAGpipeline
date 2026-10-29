@@ -1,5 +1,7 @@
 # Recruiter demo video script
 
+> **Superseded on 2026-10-29.** The owner accepted a shorter video without narration, embedded in the [README](../../README.md#video); see [owner decisions](../reference/phase-6-owner-decisions.md) entry 4 and the [gate report](../reference/phase-6-gate-report.md#gate-item-3-the-video). This script records the original plan.
+
 This script is for a 3–5 minute recording on the GPU host, as set in [the Phase 6 owner decision](../reference/phase-6-owner-decisions.md) and [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md). Keep the recording focused on the research path and the engineering behind it.
 
 ## Setup checklist

@@ -1,6 +1,6 @@
 # Phase 6 — Release, small mode and portfolio
 
-Status: planned with the owner on 2026-10-13. The decisions are in two ADRs:
+Status: accepted by the owner on 2026-10-29 and released as `v1.0.0` ([gate report](../reference/phase-6-gate-report.md)). Planned with the owner on 2026-10-13. The decisions are in two ADRs:
 
 - [ADR-0032](../adr/0032-phase6-public-cc-by-demo-collection.md): the accepted 100-paper
   snapshot becomes a public CC BY demo collection, after a per-document display check.
