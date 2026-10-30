@@ -1,10 +1,10 @@
 # Scientific Research Platform — Project Source of Truth
 
 **Document status:** Authoritative<br>
-**Version:** 1.44\
-**Last updated:** 2026-10-23\
+**Version:** 1.45\
+**Last updated:** 2026-10-29\
 **Audience:** Human contributors and coding agents<br>
-**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)) and accepted by the owner on 2026-10-12 after all four gate items passed ([gate report](../reference/phase-5-gate-report.md)); Phase 6 (release, small mode and portfolio) planned on 2026-10-13 with ADR-0032 and ADR-0033 accepted by the owner ([plan](../plans/phase-6-portfolio.md)); the owner made public hosting optional (ADR-0033); on 2026-10-23 the owner accepted [ADR-0034](../adr/0034-phase6-product-ui.md) (a usable research UI over the run record) ahead of the video\
+**Project stage:** Phase 1 accepted corpus retained; Phase 2 accepted on 2026-09-30 after the one-time R8 v14 assessment passed all 16 acceptance gates with frozen profile v10 (ADR-0017; acceptance method ADR-0014, gates ADR-0015, latency ADR-0016; v14 sealed); Phase 3 accepted by the owner on 2026-10-03 (P3-17, PR #41; main CI 37144867835 passed on `f2cd0954a940d04c418d2607a98c79fc009b96be`); answer synthesis changed by owner-accepted [ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md) on 2026-10-04 (thinking, quoted claims, labeled tables, code verification); Phase 3.5 (Qdrant search and online ingestion) approved by the owner on 2026-10-04 with ADR-0022, ADR-0023 and ADR-0024; accepted by the owner on 2026-10-06 after Gates A–D ([owner decisions](../reference/phase-3.5-owner-decisions.md)); Phase 4 (observability, LLMOps and security) planned on 2026-10-06 with ADR-0026, ADR-0027 and ADR-0028 accepted by the owner on 2026-10-06 ([plan](../plans/phase-4-observability-security.md), map issue [#77](https://github.com/avsngh-git/RAGpipeline/issues/77)) and accepted by the owner on 2026-10-11 after all five gate items passed ([gate report](../reference/phase-4-gate-report.md)); Phase 5 (MCP) planned on 2026-10-12 with ADR-0030 and ADR-0031 accepted by the owner ([plan](../plans/phase-5-mcp.md), map issue [#169](https://github.com/avsngh-git/RAGpipeline/issues/169)) and accepted by the owner on 2026-10-12 after all four gate items passed ([gate report](../reference/phase-5-gate-report.md)); Phase 6 (release, small mode and portfolio) planned on 2026-10-13 with ADR-0032 and ADR-0033 accepted by the owner ([plan](../plans/phase-6-portfolio.md)); the owner made public hosting optional (ADR-0033); on 2026-10-23 the owner accepted [ADR-0034](../adr/0034-phase6-product-ui.md) (a usable research UI over the run record) ahead of the video; Phase 6 accepted by the owner on 2026-10-29 after all three gate items passed ([gate report](../reference/phase-6-gate-report.md)), released as `v1.0.0`; the project is portfolio-complete (section 22)\
 
 ---
 
@@ -1540,7 +1540,7 @@ and an import cycle through `research_platform.api` (PR #201).
 
 ### Phase 6 — Deployment and portfolio presentation
 
-**Status: planned on 2026-10-13.** The owner accepted
+**Status: accepted by the owner on 2026-10-29** ([owner decisions](../reference/phase-6-owner-decisions.md), entry 5). Planned on 2026-10-13: the owner accepted
 [ADR-0032](../adr/0032-phase6-public-cc-by-demo-collection.md) (the accepted 100-paper snapshot,
 all CC BY, becomes a public demo collection after a per-document display check) and
 [ADR-0033](../adr/0033-phase6-delivery-without-hosting.md) (no hosted environment, changing goal 16
@@ -1570,6 +1570,14 @@ GitHub runner and passes; a cold-reviewer agent with only the public repository 
 point that needed private knowledge, and each is fixed or recorded; the owner accepts the video. ADR-0034 adds `demo-smoke` checks for the new run routes and bundle v2, and Playwright
 browser journeys in pull-request CI.
 
+**Gate evidence (2026-10-29, [gate report](../reference/phase-6-gate-report.md)):** item 1:
+Demo smoke passed on `v0.6.0`, `v0.6.1` and `v0.6.2` (11 of 11 checks on the last, run
+[40882980828](https://github.com/avsngh-git/RAGpipeline/actions/runs/40882980828)) and on
+`v1.0.0`. Item 2: two cold reviews (`v0.6.0`, `v0.6.1`); every finding was fixed (P6-34, P6-35
+and earlier fix PRs) or recorded (#253, #254, #115). Item 3: the owner accepted a 1 min 25 s
+video of a live deep research run, embedded in the README (owner decisions entry 4). Release
+`v1.0.0` promotes the tested `main` image.
+
 ---
 
 ## 22. Definition of done
@@ -1578,41 +1586,41 @@ The project is portfolio-complete only when all of the following are true:
 
 ### Functionality
 
-- [ ] Users can start and inspect research runs through a versioned API.
-- [ ] The agent uses validated typed tools and terminates within enforced budgets.
-- [ ] Hybrid retrieval, reranking, metadata filtering, and citation traversal work on a real corpus.
-- [ ] Answers contain verified claim-to-evidence-to-paper mappings.
+- [x] Users can start and inspect research runs through a versioned API ([UI guide](../operations/ui.md), [run operations](../operations/phase-3-generator.md)).
+- [x] The agent uses validated typed tools and terminates within enforced budgets ([ADR-0019](../adr/0019-phase3-research-run-execution.md), [benchmarks](../reference/benchmarks.md)).
+- [x] Hybrid retrieval, reranking, metadata filtering, and citation traversal work on a real corpus ([ADR-0017](../adr/0017-phase2-accepted-profile-v10.md), [ADR-0022](../adr/0022-phase35-qdrant-search-and-content.md), [benchmarks](../reference/benchmarks.md)).
+- [x] Answers contain verified claim-to-evidence-to-paper mappings ([ADR-0025](../adr/0025-verified-quote-synthesis-with-thinking.md)).
 - [x] Selected capabilities are usable through one MCP server.
 
 ### Engineering
 
-- [ ] The service uses migrations, typed settings, structured errors, timeouts, and readiness checks.
-- [ ] Ingestion is idempotent, resumable, and versioned.
-- [ ] PostgreSQL is authoritative and Qdrant is rebuildable.
-- [ ] Core services are not coupled to LangGraph or MCP.
-- [ ] A new contributor can start the documented local profile reproducibly.
+- [x] The service uses migrations, typed settings, structured errors, timeouts, and readiness checks ([deployment](../operations/deployment.md)).
+- [x] Ingestion is idempotent, resumable, and versioned ([Phase 1 plan](../plans/phase-1-corpus-ingestion.md), [ADR-0023](../adr/0023-phase35-index-generations.md)).
+- [x] PostgreSQL is authoritative and Qdrant is rebuildable ([ADR-0023](../adr/0023-phase35-index-generations.md)).
+- [x] Core services are not coupled to LangGraph or MCP (CI import boundary; [Phase 5 gate report](../reference/phase-5-gate-report.md)).
+- [x] A new contributor can start the documented local profile reproducibly (Demo smoke and two cold reviews; [Phase 6 gate report](../reference/phase-6-gate-report.md)).
 
 ### Quality
 
-- [ ] Unit, integration, API, regression, and security tests pass.
-- [ ] Retrieval and generation experiments are reproducible and include meaningful baselines/ablations.
-- [ ] CI blocks contract breaks and defined material regressions.
-- [ ] The self-hosted configuration is demonstrated on feasible hardware.
+- [x] Unit, integration, API, regression, and security tests pass ([CI workflow](../../.github/workflows/ci.yml) on `main`).
+- [x] Retrieval and generation experiments are reproducible and include meaningful baselines/ablations ([benchmarks](../reference/benchmarks.md), [ADR-0028](../adr/0028-phase4-experiment-records-and-gate.md)).
+- [x] CI blocks contract breaks and defined material regressions (scripted regression, MCP parity and browser journeys in [CI](../../.github/workflows/ci.yml)).
+- [x] The self-hosted configuration is demonstrated on feasible hardware (RTX 3050 4 GB in the README video; CPU small mode).
 
 ### Operations
 
 - [x] Runs have correlated logs, metrics, and traces.
 - [x] Model/prompt/retrieval/index/configuration versions are recoverable.
 - [x] Secrets are not committed or leaked to outputs.
-- [ ] A versioned image is released and runs the documented demonstration environment (ADR-0033).
-- [ ] Basic operating, migration, backup/rebuild, and failure-recovery instructions exist.
+- [x] A versioned image is released and runs the documented demonstration environment (ADR-0033) (`v1.0.0`; [Phase 6 gate report](../reference/phase-6-gate-report.md)).
+- [x] Basic operating, migration, backup/rebuild, and failure-recovery instructions exist ([deployment](../operations/deployment.md)).
 
 ### Portfolio narrative
 
-- [ ] The README explains the problem, architecture, decisions, benchmarks, trade-offs, and limitations.
-- [ ] The project shows why each major component exists.
-- [ ] Limitations and failed experiments are documented honestly.
-- [ ] The demonstration emphasizes engineering and measured system quality, not only a polished chat UI.
+- [x] The README explains the problem, architecture, decisions, benchmarks, trade-offs, and limitations ([README](../../README.md)).
+- [x] The project shows why each major component exists ([architecture overview](../architecture/overview.md), [ADRs](../adr/)).
+- [x] Limitations and failed experiments are documented honestly ([failure analysis](../reference/failure-analysis.md)).
+- [x] The demonstration emphasizes engineering and measured system quality, not only a polished chat UI (README results and video; [benchmarks](../reference/benchmarks.md)).
 
 ---
 

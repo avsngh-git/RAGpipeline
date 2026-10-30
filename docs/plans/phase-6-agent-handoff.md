@@ -1,6 +1,6 @@
 # Phase 6 — Agent handoff
 
-Updated: 2026-10-29. **Status: in progress.** ADR-0034 (product UI) accepted by the owner on
+Updated: 2026-10-29. **Status: accepted by the owner on 2026-10-29; released as `v1.0.0`.** ADR-0034 (product UI) accepted by the owner on
 2026-10-23 adds cards P6-21 to P6-32 ahead of the video. ADR-0032 and ADR-0033 accepted by the owner on
 2026-10-13. The [plan](phase-6-portfolio.md) and map issue
 [#209](https://github.com/avsngh-git/RAGpipeline/issues/209) define the cards; the
@@ -73,6 +73,7 @@ Updated: 2026-10-29. **Status: in progress.** ADR-0034 (product UI) accepted by 
 | Security | merged | PR #282, PR #286 | Dependency advisories and image base fixes found by pip-audit and Trivy |
 | P6-32 (#268) | done | `v0.6.1`, `v0.6.2` | Demo smoke runs 40089248595 and 40882980828 passed 11 of 11; cold review findings fixed or recorded. See `docs/reference/phase-6-gate-report.md` |
 | P6-18 (#227) | done | owner decisions entry 4 | Video accepted 2026-10-29 (1 min 25 s, run `18800d70`), embedded in the README; gate item 3 passed |
+| P6-19 (#228) | done | `v1.0.0` | Owner acceptance (owner decisions entry 5); source of truth 1.45 with section 22 ticked; map issue #209 closed |
 | P6-22 (#258) | done | branch `prototype/p6-22-ui` (`9047560`, not for `main`) | Owner chose layout B, Report (owner decisions entry 3); P6-26 and P6-27 written against it |
 
 ## Environment facts

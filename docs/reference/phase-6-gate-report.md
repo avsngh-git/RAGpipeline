@@ -163,6 +163,8 @@ real step timings and six project highlights.
 
 **Passed.**
 
-## Remaining
+## Closeout
 
-- Closeout and `v1.0.0` (P6-19, #228).
+The owner accepted Phase 6 on 2026-10-29 ([owner decisions](phase-6-owner-decisions.md), entry 5).
+`v1.0.0` promotes the tested `main` image of the closeout commit; P6-19
+([#228](https://github.com/avsngh-git/RAGpipeline/issues/228)) records its Demo smoke run.

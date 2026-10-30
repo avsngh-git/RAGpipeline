@@ -127,3 +127,17 @@ working time as a clock with the run's real step timings and six project highlig
 narration. It replaces the script's longer segment plan (MCP and CI segments omitted).
 
 Re-examine later: whether the display policy should name OpenAlex abstracts explicitly.
+
+### 5. Phase 6 acceptance (2026-10-29, P6-19)
+
+All three gate items passed ([gate report](phase-6-gate-report.md)). The owner asked for the
+closeout to start, which this record takes as acceptance of Phase 6. Decision: **Phase 6 is
+accepted**, released as `v1.0.0`, and every section 22 item of the source of truth is ticked with
+its evidence.
+
+Carried forward, not part of Phase 6: answer quality, the planner and the `answered` definition
+(backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115)); 422 responses that do not
+name the field ([#253](https://github.com/avsngh-git/RAGpipeline/issues/253)); the flaky embedding
+test ([#254](https://github.com/avsngh-git/RAGpipeline/issues/254)); public hosting (optional,
+ADR-0033); and refreshing the showcase model-call text before the payloads expire in about
+mid-January 2027 if the bundle is re-exported.
