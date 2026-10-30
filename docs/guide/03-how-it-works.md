@@ -7,7 +7,7 @@ This chapter follows the data from a PDF to a verified answer. The [architecture
 ```mermaid
 flowchart TB
     subgraph Interfaces
-        UI["Web page /"]
+        UI["Web UI /"]
         HTTP["HTTP API /v1"]
         MCPS["MCP server /mcp"]
     end

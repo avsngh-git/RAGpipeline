@@ -17,12 +17,12 @@ flowchart LR
 - The `demo-smoke` workflow then follows the README quickstart against the released image on a fresh GitHub runner.
 - Images are `linux/amd64`. Model weights are not baked into the image; they are fetched into a volume at pinned revisions.
 
-v0.6.0 is the current release (commit `977e7aa`). Its demo smoke run passed in 7 minutes. See the [Phase 6 gate report](../reference/phase-6-gate-report.md).
+v1.0.0 is the current release. Its Demo smoke run passed all eleven checks. See the [Phase 6 gate report](../reference/phase-6-gate-report.md).
 
 ## Run a specific version
 
 ```bash
-export RESEARCH_PLATFORM_IMAGE=ghcr.io/avsngh-git/ragpipeline:v0.6.0      # or @sha256:<digest>
+export RESEARCH_PLATFORM_IMAGE=ghcr.io/avsngh-git/ragpipeline:vX.Y.Z      # or @sha256:<digest>
 docker compose pull api
 docker compose run --rm --no-deps api research-migrate
 docker compose up -d

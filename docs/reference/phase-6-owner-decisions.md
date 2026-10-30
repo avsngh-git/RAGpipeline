@@ -50,3 +50,94 @@ Evidence available at the time:
 
 Re-examine later: whether a free host appears that fits; whether the CPU image's rankings match
 the GPU host closely enough to say so in the README.
+
+### 2. UI interview (2026-10-23)
+
+The owner asked for a frontend before recording the video: "I cannot have a video of this project
+working if I don't have a front end", and then "we need a frontend that anyone can use if they like,
+not just for a few runs". The owner answered 17 questions over six rounds, accepting the assistant's
+recommendation on each except Q3 (general use rather than a video prop), Q6 (observability added)
+and Q7 (model-call text added). [ADR-0034](../adr/0034-phase6-product-ui.md) records the design;
+the [plan](../plans/phase-6-portfolio.md) lists cards P6-21 to P6-32.
+
+Evidence available at the time:
+- **UI:** the P6-09 page searches papers or evidence and opens one run by `#run=`; it cannot start,
+  list or cancel runs or show tool calls. The video script starts the live run in a terminal.
+- **Run record:** `tool_calls`, `llm_calls`, `draft_claims` and `diagnose()` hold the timeline,
+  verification and diagnosis; the HTTP run view returns only usage counts. `list_runs` exists in the
+  run store without a route.
+- **Model text:** `llm_call_payloads` are written at trace content `full` (the development default,
+  which small mode uses), refused in production, deleted after 90 days, and kept out of bundle v1.
+- **Operations:** `/ready` ignores the LLM; no run can be cancelled; run reads are limited to 120 a
+  minute per key.
+
+| # | Topic | Decision | Alternatives set aside |
+| --- | --- | --- | --- |
+| Q1 | Placement | New Phase 6 cards that block P6-18 | A new Phase 7 |
+| Q2 | Video needs | Start runs from the UI, live progress, provenance panel, visual polish; paper pages | Run list (later taken in Q6) |
+| Q3 | Purpose | **A frontend anyone who runs the stack can use, not only for a few runs** | A video-only prop |
+| Q4 | Who builds | A throwaway prototype approved by the owner, then Codex Luna cards | Cards straight away; this session implements |
+| Q5 | "Anyone" | Whoever clones and runs it; no hosting (ADR-0033 stands) | A hosted public UI |
+| Q6 | Scope | Run history, filters, paper pages, capability awareness, read-only ingestion status, **and observability** | Driving ingestion from the UI; key management |
+| Q7 | Observability | Timeline, budgets, drafted-claim verdicts, diagnosis, Langfuse link **and model-call text** | A system metrics dashboard |
+| Q8 | Technology | Vanilla ES modules, no build step | Preact with htm vendored; React, Vite and TypeScript |
+| Q9 | Tests | Python Playwright journeys in PR CI on fakes | Route tests only; JS unit tests under Node |
+| Q10 | Model-text access | The run's owner with `read`, only when stored and under `trusted_private_local` | A new `inspect` scope; any principal |
+| Q11 | Showcase model text | Bundle v2 with the showcase payloads, privacy-scanned | Keep payloads out (Phase 6 Q10) |
+| Q12 | Live text | After each model call finishes; no streaming | Streaming thinking tokens |
+| Q13 | API | Five owner-scoped routes in one ADR, within the section 3.2 non-goal | Revising the non-goal; an LLM entry in `/ready` |
+| Q14 | Cancel | `POST /v1/research/{run_id}/cancel`, category `cancelled_by_principal` | Waiting out the budget |
+| Q15 | Naming | `/record`, after the glossary's run record | A new "run activity" term |
+| Q16 | Video | Live-run and diagnosis segments move into the browser; MCP stays in Claude Code | Keep the terminal segments |
+| Q17 | Gate | `demo-smoke` API checks for the new routes; re-run gate items 1–2 on `v0.6.1` | Playwright on the real stack; gate unchanged |
+
+Re-examine later: whether streaming thinking is worth its cost once the rest works; whether the
+model-call route should reach MCP; that the bundle v2 export ran before the showcase payloads expire
+(about mid-January 2027).
+
+### 3. UI layout (2026-10-23, P6-22)
+
+The owner reviewed the throwaway prototype (branch `prototype/p6-22-ui`, commit `9047560`,
+`docs/demo/ui-prototype.html`) with three layouts on invented data: A Workbench (sidebar, run page
+split into answer and run-record tabs), B Report (top navigation, the run reads as a document) and
+C Console (waterfall timeline, inspector, claims ledger). Decision: **B Report**. "It looks best and
+user friendly. The others are just overwhelming with information on one screen."
+
+Consequences for P6-26 and P6-27: one reading column with top navigation; the run page is a document
+in this order: question and status, answer with claim markers, claims with quotes and sources, "How
+this answer was made" (a narrative timeline, model-call text behind a disclosure), "What verification
+removed", diagnosis, budgets and provenance. The paper page shows the metadata the API serves (no
+authors, venue or abstract: `GET /v1/papers/{paper_id}` is metadata only) with references, citing
+papers and a search limited to the paper.
+
+Re-examine later: whether long runs (many tool calls) need the timeline collapsed by planning round.
+
+### 4. Video answer sources (2026-10-29, P6-18)
+
+The recorded live deep research run (the section 2.5 reference question, run `18800d70`, outcome
+partially supported, 3 verified claims) cites three abstracts of papers the agent found through
+OpenAlex discovery, outside the 100 papers of the public demo collection. The video script required
+a display record for every shown source. Decision: **show them.** The owner accepts displaying
+these abstracts on the basis that OpenAlex metadata, including abstracts, is CC0
+([ADR-0032](../adr/0032-phase6-public-cc-by-demo-collection.md), context). This applies to
+OpenAlex abstracts in the video only; passages from full texts still need a display record.
+
+The owner accepted the video: 1 min 25 s, the question and answer at normal speed, the agent's
+working time as a clock with the run's real step timings and six project highlights, and no
+narration. It replaces the script's longer segment plan (MCP and CI segments omitted).
+
+Re-examine later: whether the display policy should name OpenAlex abstracts explicitly.
+
+### 5. Phase 6 acceptance (2026-10-29, P6-19)
+
+All three gate items passed ([gate report](phase-6-gate-report.md)). The owner asked for the
+closeout to start, which this record takes as acceptance of Phase 6. Decision: **Phase 6 is
+accepted**, released as `v1.0.0`, and every section 22 item of the source of truth is ticked with
+its evidence.
+
+Carried forward, not part of Phase 6: answer quality, the planner and the `answered` definition
+(backlog [#115](https://github.com/avsngh-git/RAGpipeline/issues/115)); 422 responses that do not
+name the field ([#253](https://github.com/avsngh-git/RAGpipeline/issues/253)); the flaky embedding
+test ([#254](https://github.com/avsngh-git/RAGpipeline/issues/254)); public hosting (optional,
+ADR-0033); and refreshing the showcase model-call text before the payloads expire in about
+mid-January 2027 if the bundle is re-exported.

@@ -11,7 +11,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Final
 from urllib.parse import quote
 from uuid import UUID
 
@@ -40,6 +40,24 @@ from research_platform.ingestion.generation_index import GenerationIndexConfigur
 from research_platform.ingestion.provenance import code_revision
 from research_platform.search.active_profile import resolve_frozen_profile_path
 
+MODEL_ALLOW_PATTERNS: Final = (
+    "*.json",
+    "*.safetensors",
+    "*.txt",
+    "*.model",
+    "tokenizer*",
+    "1_Pooling/*",
+)
+MODEL_IGNORE_PATTERNS: Final = (
+    "onnx/*",
+    "openvino/*",
+    "*.onnx",
+    "*.bin",
+    "*.ot",
+    "*.msgpack",
+    "*.h5",
+)
+
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="research-demo")
@@ -48,7 +66,7 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--snapshot-id", required=True, type=UUID)
     export.add_argument("--run-principal", required=True)
     export.add_argument("--output", required=True, type=Path)
-    export.add_argument("--bundle-version", default="v1")
+    export.add_argument("--bundle-version", default="v2")
     load = commands.add_parser("load", help="load a demo bundle")
     load.add_argument("--bundle", required=True, type=Path)
     commands.add_parser("fetch-models", help="download the pinned local models")
@@ -88,7 +106,7 @@ async def _execute(args: argparse.Namespace, settings: Settings) -> None:
 async def _export(args: argparse.Namespace, settings: Settings) -> None:
     if args.output.exists():
         raise DemoExportRefused("output directory already exists")
-    if args.bundle_version != "v1":
+    if args.bundle_version != "v2":
         raise DemoExportRefused("unsupported bundle version")
 
     args.output.mkdir(parents=True)
@@ -295,7 +313,12 @@ def _fetch_models(settings: Settings) -> None:
     for role in ("embedding", "reranker"):
         model = profile[role]["model"]
         revision = profile[role]["revision"]
-        options: dict[str, str] = {"repo_id": model, "revision": revision}
+        options: dict[str, object] = {
+            "repo_id": model,
+            "revision": revision,
+            "allow_patterns": list(MODEL_ALLOW_PATTERNS),
+            "ignore_patterns": list(MODEL_IGNORE_PATTERNS),
+        }
         if role == "reranker" and settings.reranker_cache_dir is not None:
             options["cache_dir"] = str(settings.reranker_cache_dir)
         snapshot_download = getattr(hub, "snapshot_download")

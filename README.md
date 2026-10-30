@@ -1,10 +1,16 @@
 # Scientific Research Platform
 
-A self-hosted research assistant for scientific literature. You ask a research question; it searches a fixed collection of papers, gathers evidence passages and tables, and writes an answer in which **every claim carries a quote copied from its source, which code checks against the cited passage**. Each answer is stored with enough provenance (snapshot, index generation, models, prompts, configuration hash, trace) to explain how it was produced and to rebuild its configuration later.
+A self-hosted research assistant for scientific literature. You ask a research question; it searches its indexed collection of papers (and can look up newer work on OpenAlex), gathers evidence passages and tables, and writes an answer in which **every claim carries a quote copied from its source, which code checks against the cited passage**. Each answer is stored with enough provenance (snapshot, index generation, models, prompts, configuration hash, trace) to explain how it was produced and to rebuild its configuration later.
 
 It runs entirely on local infrastructure: FastAPI, PostgreSQL, Qdrant, a LangGraph agent and a small local language model (Qwen3.5-2B on Ollama). It was developed on a laptop with a 4 GB RTX 3050. No hosted LLM API is involved.
 
-> **Status:** v0.6.0 is released, and the CPU demo passes its smoke checks on a fresh GitHub runner ([Phase 6 gate report](docs/reference/phase-6-gate-report.md)). Answer quality is the main open problem; see [Limitations](#limitations).
+> **Status:** v1.0.0 is released and Phase 6 is complete: the CPU demo passes its smoke checks on a fresh GitHub runner ([Phase 6 gate report](docs/reference/phase-6-gate-report.md)). Answer quality is the main open problem; see [Limitations](#limitations).
+
+## Video
+
+A live deep research run on the project's reference question, recorded on a laptop with an RTX 3050 GPU. The agent's 4 min 43 s of work is shown accelerated; the question and the answer play at normal speed.
+
+https://github.com/user-attachments/assets/6bf3debb-862c-4f89-822d-042e13705d83
 
 ## The problem it addresses
 
@@ -45,33 +51,44 @@ The [documentation guide](docs/guide/README.md) explains each step in depth.
 
 ## Try it (about 10 minutes, CPU only)
 
-Requirements: Docker with Compose v2, `curl`, `sha256sum`, about 12 GB free disk and 8 GB RAM. No GPU is needed.
+The commands are implemented by [`scripts/demo_load.sh`](scripts/demo_load.sh). On 2026-10-14 a fresh clone completed it in 634 seconds on a laptop CPU, most of it downloading the image, the bundle and the models.
 
 ```bash
-git clone https://github.com/avsngh-git/RAGpipeline.git
+TAG=v1.0.0  # the release tag you check out; see https://github.com/avsngh-git/RAGpipeline/releases
+git clone --branch "$TAG" https://github.com/avsngh-git/RAGpipeline.git
 cd RAGpipeline
+export RESEARCH_PLATFORM_IMAGE="ghcr.io/avsngh-git/ragpipeline:$TAG"
 scripts/demo_load.sh
-docker compose up -d
 ```
 
-[`scripts/demo_load.sh`](scripts/demo_load.sh) downloads the [`demo-data-v1`](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v1) bundle (354 MB: the 100-paper corpus, its search index and eight showcase research runs) and verifies its checksum. It then pulls the released image, applies migrations, loads the data, fetches the pinned embedding and reranker models, and creates a read-only API key in `demo-data/api-key`. On a laptop CPU a fresh clone took 568–634 seconds, mostly downloads.
+Set `RESEARCH_PLATFORM_IMAGE` to the release tag you checked out before running the script; without it Compose uses `:latest`, which may be an older image already on the machine. The script leaves the stack running; `docker compose up -d` restarts it later.
 
-Then:
+The loader downloads the [`demo-data-v2`](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v2) bundle (the 100-paper corpus, its search indexes and eight showcase runs, including their model-call text), verifies its checksum and prepares the local services ([Phase 6 plan](docs/plans/phase-6-portfolio.md), [display policy](docs/adr/0032-phase6-public-cc-by-demo-collection.md)). Then open `http://127.0.0.1:8000/`, paste the key saved in `demo-data/api-key`, and open one of the showcase run links printed by the script. The page lets you search the released collection and inspect its showcase runs. Public display is limited to material cleared by the document review ([ADR-0031](docs/adr/0031-phase5-external-passage-exposure.md), [ADR-0032](docs/adr/0032-phase6-public-cc-by-demo-collection.md)).
 
-- open `http://127.0.0.1:8000/`, paste the key, and search the collection or open a showcase run (the script prints run links);
-- call the API directly. See the [HTTP API guide](docs/guide/04-http-api.md);
-- connect an MCP client to `http://127.0.0.1:8000/mcp/` with the same key. See the [MCP guide](docs/guide/05-mcp.md).
+The UI supports paper and evidence search with filters and paper pages.
+Browse the eight showcase runs, their records and their recorded model-call text.
+Starting a live run needs a GPU and the optional `llm` profile; CPU small mode supports search and run inspection. See the [UI guide](docs/operations/ui.md) for pages, scopes and model-text behavior.
 
-If another checkout of this project already runs under Docker Compose, give the demo its own project name and ports:
+Requirements: Docker with Compose v2 ([Compose configuration](docker-compose.yml)), about 11.1 GB free disk, and 8 GB RAM. Measured on 2026-10-29, the parts add up to 9.2 GB: the API image (4.2 GB), the PostgreSQL and Qdrant images (0.8 GB), the bundle and its unpacked copy (0.8 GB), the loaded data (2.4 GB: Qdrant 1.8 GB, PostgreSQL 0.6 GB) and the two models (1.0 GB); the free-disk figure adds 20%. It ran on a laptop VM with 11 GB of memory and on a standard GitHub runner.
+
+If you already run another checkout of this project with Docker Compose, give the demo its own project name and ports so the two stacks do not share containers or volumes; Compose names a project after its directory:
 
 ```bash
 export COMPOSE_PROJECT_NAME=ragdemo POSTGRES_PORT=55432 QDRANT_PORT=56333 API_PORT=18000
-scripts/demo_load.sh && docker compose up -d
+scripts/demo_load.sh
 ```
 
-The CPU demo searches the corpus and shows stored research runs. Starting **new** research runs needs the local LLM on an NVIDIA GPU (`scripts/demo_load.sh --with-llm`); see [Getting started](docs/guide/02-getting-started.md#live-research-runs-gpu).
+The script then prints links on the chosen `API_PORT`.
 
-<!-- TODO(owner): add the recorded demo video link here (P6-18). -->
+### Check the demo
+
+`python3 scripts/demo_smoke.py` (standard library only) runs the eleven checks against `http://127.0.0.1:${API_PORT:-8000}`; it reads `API_PORT`, or pass `--base-url`.
+
+### Remove the demo
+
+Run `docker compose down -v` with the same `COMPOSE_PROJECT_NAME`, then delete the clone. Docker creates `data/` inside the clone as root, so deleting it needs `sudo`.
+
+Call the API directly with the same key ([HTTP API guide](docs/guide/04-http-api.md)), or connect an MCP client to `http://127.0.0.1:8000/mcp/` (or your `API_PORT`) ([MCP guide](docs/guide/05-mcp.md)).
 
 ## Results
 
@@ -79,10 +96,11 @@ All numbers come from one 100-paper corpus with assistant-reviewed relevance lab
 
 | What was measured | Result | Caveat |
 | --- | --- | --- |
-| Retrieval, one-time held-out assessment (30 question families) | 16 of 16 frozen gates passed; evidence nDCG@10 0.407, paper nDCG@10 0.652, warm p95 1.0 s on the RTX 3050 | Three quality gates passed by margins inside sampling noise, and their thresholds were lowered after an earlier set failed. Dense-only search ranked *papers* better (0.718). |
+| Retrieval, one-time held-out assessment (30 question families) | 16 of 16 frozen gates passed; evidence nDCG@10 0.407, paper nDCG@10 0.652, warm p95 1.0 s on the RTX 3050 | Three quality gates passed by margins inside sampling noise, and their thresholds were lowered for that one fresh set after v13 failed ([ADR-0015](docs/adr/0015-phase2-acceptance-gate-revision.md)). Dense-only search ranked *papers* better (0.718). |
 | Reranking, paired on the same set | Evidence nDCG@10 +0.043 (95% CI +0.010 to +0.075); direct-evidence MRR@10 +0.204 | No effect on paper ranking. |
 | Agent runs (21 development tasks × 2 modes) | 42 of 42 completed within budget, with no unknown evidence handles | Operational gate only. |
 | Answers on the same tasks | Latest 42-run sweep: 5 answered, 25 partially supported, 12 insufficient evidence | Answer quality was reported, never gated. |
+| Run reproduction (Phase 4) | 5 of 5 accepted walkthroughs reproduced | `reproduce` matches at each run's recorded commit, not with current code ([backlog #115](https://github.com/avsngh-git/RAGpipeline/issues/115), [Phase 4 gate report](docs/reference/phase-4-gate-report.md)). |
 | Quote verification, reviewed sample | Rejected 7 of 15 partial or unsupported claims and 2 of 60 supported ones | It filters bad claims but also drops some good ones. |
 
 Details, intervals and baselines (BM25-only, dense-only, hybrid without reranking, fixed-window chunking) are in [Benchmarks](docs/reference/benchmarks.md). Failed assessments and rejected experiments are in [Failure analysis](docs/reference/failure-analysis.md).
@@ -110,7 +128,7 @@ The project deliberately leaves out generator fine-tuning, Kubernetes, a graph d
 
 - **Small corpus.** 100 papers on retrieval and RAG. Results do not generalize beyond it.
 - **Answer quality.** The 2B model often declares evidence insufficient when reviewed evidence partly answers the question (57 of 131 synthesis calls in one review). Two prompt trials did not fix this.
-- **Planner.** In `deep_research` mode the planner almost never chooses OpenAlex discovery or ingestion on its own; it keeps to local search ([backlog #115](https://github.com/avsngh-git/RAGpipeline/issues/115)).
+- **Planner.** In `deep_research` mode the 2B planner rarely chooses evidence search, OpenAlex discovery or ingestion on its own. Code therefore starts every first plan with whole-question searches and, when an OpenAlex key is configured, discovery ([backlog #115](https://github.com/avsngh-git/RAGpipeline/issues/115)).
 - **Automatic ingestion.** Ingestion stops at papers whose tables are flagged for manual review, which blocks many table-heavy papers.
 - **Labels.** Relevance labels and judgments are assistant-reviewed, not independently human-verified.
 - **CPU mode.** The demo runs retrieval on CPU. Its latency is not benchmarked, and new research runs need a GPU.
@@ -129,17 +147,51 @@ The project deliberately leaves out generator fine-tuning, Kubernetes, a graph d
 
 ## Development
 
+The [development guide](docs/guide/14-development.md) covers the code layout, test suites, CI and conventions.
+
+Create the Conda environment and install the package in editable mode ([environment definition](environment.yaml)):
+
+`conda env create --file environment.yaml` creates an environment named `sci_research_agent`; add `--name <yours>` if that name is taken (and activate that name instead).
+
 ```bash
 conda env create --file environment.yaml
 conda activate sci_research_agent
 python -m pip install --no-deps --require-hashes -r requirements-bm25s.txt
 python -m pip install --no-deps --require-hashes -r requirements-langgraph.txt
 python -m pip install --no-build-isolation --no-deps -e .
-
-python -m ruff check . && python -m ruff format --check . && python -m mypy && python -m pytest
+python -m playwright install --with-deps chromium
 ```
 
-Integration tests run only when `RESEARCH_PLATFORM_TEST_DATABASE_URL` and `RESEARCH_PLATFORM_TEST_QDRANT_URL` point to disposable services. The [development guide](docs/guide/14-development.md) covers the code layout, test suites, CI and conventions.
+The last line installs the Chromium that the browser tests use, as CI does. On WSL or without root, install the system libraries and the browser separately: `sudo "$(which python)" -m playwright install-deps chromium`, then `python -m playwright install chromium`.
+
+CI builds the same environment from the exact lock instead (`conda create --name sci_research_agent --file environment-linux-64.lock`, then the three `pip` lines; see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Keep the checkout outside the system temporary directory: the Phase 3 evaluation script refuses to run from there to protect private data, and its test fails at import.
+
+Run the project checks from the repository root:
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
+python -m pytest
+```
+
+Integration tests skip unless `RESEARCH_PLATFORM_TEST_DATABASE_URL` and `RESEARCH_PLATFORM_TEST_QDRANT_URL` point to disposable services. The PostgreSQL URL must use a dedicated `research_test` database; tests apply migrations and enforce constraints. CI supplies fresh service containers ([evaluation operations](docs/operations/evaluation.md)). See also the [observability](docs/operations/observability.md), [retention](docs/operations/retention.md), [authentication](docs/operations/authentication.md), and [serving environment](docs/operations/serving-environment.md) guides.
+
+### Integration test services
+
+Start the same disposable services CI uses ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), then point the tests at them. Change the host ports if 5432 or 6333 are taken, and never point these variables at a database you want to keep:
+
+```bash
+docker run -d --rm --name research-test-postgres -p 127.0.0.1:5432:5432 \
+  -e POSTGRES_DB=research_test -e POSTGRES_USER=research -e POSTGRES_PASSWORD=research \
+  postgres:16-alpine
+docker run -d --rm --name research-test-qdrant -p 127.0.0.1:6333:6333 \
+  qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
+export RESEARCH_PLATFORM_TEST_DATABASE_URL=postgresql://research:research@127.0.0.1:5432/research_test
+export RESEARCH_PLATFORM_TEST_QDRANT_URL=http://127.0.0.1:6333
+python -m pytest
+docker stop research-test-postgres research-test-qdrant
+```
 
 ## Data and licences
 

@@ -10,7 +10,7 @@ The platform answers research questions from a fixed, versioned collection of sc
 4. checks every quote against its passage in code, and drops claims that fail;
 5. stores the answer with its full provenance, so the run can later be explained and its configuration rebuilt.
 
-It is a backend system first. It exposes a versioned HTTP API, an MCP server for external AI clients, a set of command-line tools and a small web page. There is no chat interface.
+It is a backend system first. It exposes a versioned HTTP API, an MCP server for external AI clients, a set of command-line tools and a research web UI (search, paper pages, a run form, run history and a run page showing the run record). There is no chat interface.
 
 ## Design principles
 

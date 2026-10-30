@@ -1,6 +1,7 @@
 # Phase 6 — Agent handoff
 
-Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by the owner on
+Updated: 2026-10-29. **Status: accepted by the owner on 2026-10-29; released as `v1.0.0`.** ADR-0034 (product UI) accepted by the owner on
+2026-10-23 adds cards P6-21 to P6-32 ahead of the video. ADR-0032 and ADR-0033 accepted by the owner on
 2026-10-13. The [plan](phase-6-portfolio.md) and map issue
 [#209](https://github.com/avsngh-git/RAGpipeline/issues/209) define the cards; the
 [owner decisions](../reference/phase-6-owner-decisions.md) record the interview.
@@ -9,7 +10,7 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 
 - Each card is a GitHub issue labelled `wayfinder:task`, plus `ready-for-agent` or
   `ready-for-human`, and is a sub-issue of map issue #209. P6-01 to P6-19 are #210 to #228 in
-  order. Blockers are native GitHub dependencies
+  order; P6-21 to P6-32 are #257 to #268 in order. Blockers are native GitHub dependencies
   and a "Blocked by" line.
 - Cards run in parallel. Pick any open, unassigned card whose blockers are closed, and claim it
   with `gh issue edit <n> --add-assignee @me`.
@@ -25,7 +26,13 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 4. P6-06 after P6-04; then P6-07.
 5. P6-08 after P6-02, P6-04 and P6-07; P6-16 after P6-09.
 6. P6-10, P6-11, P6-12 and P6-15 when their blockers close.
-7. P6-17 (gate items 1–2), P6-18 (video), P6-19 (closeout).
+7. P6-17 (gate items 1–2).
+8. Product UI ([ADR-0034](../adr/0034-phase6-product-ui.md), added 2026-10-23): P6-21, then P6-22
+   (prototype, owner approval), P6-23 and P6-28 in parallel; P6-24 and P6-25 after P6-23 (they
+   reuse its `owned_run`); P6-26 after P6-22;
+   P6-27 after P6-23 to P6-26; P6-29 after P6-27 and P6-28; P6-30 after P6-24; P6-31 after P6-27
+   and P6-30; P6-32 (gate items 1–2 again, `v0.6.1`) after P6-29 and P6-31.
+9. P6-18 (video) after P6-32, then P6-19 (closeout).
 
 ## Progress
 
@@ -49,6 +56,25 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
 | P6-15 (#224) | merged | PR #247 | Reviewed on `main`: ten sections, links resolve, no private data |
 | P6-11 (#220) | done | fixes #248, #249 | 100 display decisions (all CC BY; 11 via Crossref); 8 showcase runs by principal `demo` (2 answered, 5 partially supported, 1 insufficient evidence); bundle 35 tables, 288,407 rows, 354 MB, privacy-scanned clean; fresh-clone load 634 s and 6/6 smoke checks; release `demo-data-v1` |
 | P6-17 (#226) | done | #250, #251, #252 | `v0.6.0` released (`977e7aa`); demo-smoke run 38576130251 passed 6/6 on a fresh runner; cold review passed, findings fixed or filed (#253, #254). See `docs/reference/phase-6-gate-report.md` |
+| P6-21 (#257) | merged | `782a590` / PR #269 | ADR-0034, plan section, owner decisions entry 2, source of truth 1.44 |
+| P6-25 (#261) | merged | PR #274, merge commit `78a7c418b80457177fcf1fc3f226836764b63cb2` | Exact-head CI [#39998594754](https://github.com/avsngh-git/RAGpipeline/actions/runs/39998594754) passed (1,628 tests), including PostgreSQL cancellation and migration checks; issue closed |
+| P6-23 (#259) | merged | PR #272 | Merged before review; reviewed on `main`: matches the card (owner-scoped keyset list, `/v1/me` states, cached Ollama probe, Langfuse traces URL) |
+| P6-24 (#260) | merged | PR #273 | Merged before review; reviewed on `main`: matches the card; withheld model text never loads payloads; `recorded_at` excluded from equality |
+| P6-26 (#262) | merged | PR #271 | Merged before review; reviewed on `main` in headless Chromium on fakes: search, paper pages, phone width, no console errors. Three search-page defects (duplicate status pill, raw status value, evidence kinds shown for paper search) moved into P6-27 step 7 |
+| P6-27 (#263) | merged | PR #276, merge commit `ef89099c1487d6fe7b3a27be1b4c3df6e5d852a5` | Exact-head CI [#40005630677](https://github.com/avsngh-git/RAGpipeline/actions/runs/40005630677) passed. Focused local UI/cancel tests passed (21); local full pytest was incomplete; CI installed and launched Chromium |
+| P6-28 (#264) | merged | PR #270, `01bd124` | `pytest-playwright` 0.9.0; Chromium launched in CI; original security bumps (brotli, certifi, OpenTelemetry 1.45.1; Pillow 13.0.0 in the serving lock); later advisories fixed in PR #282 |
+| P6-29 (#265) | merged | PR #281, `bc6481e` | Final-head CI [#40084280628](https://github.com/avsngh-git/RAGpipeline/actions/runs/40084280628) passed (1,645 tests), including running Chromium journeys, dependency checks, migration, Docker build, Trivy and secret scan; issue closed |
+| P6-25 review | — | — | Reviewed on `main`: executor cancellation and shutdown behave as the card says; cancelled runs record `plan_rounds=0`, fixed in P6-27 step 7 |
+| P6-30 (#266) | merged | PR #277, `0b311f3` | Bundle v2 with showcase model-call text; release `demo-data-v2` (353,781,760 bytes) |
+| P6-33 (#278) | merged | PR #279, `cd3c213` | Run page polish |
+| P6-31 (#267) | merged | PR #280, `6c42844` | Five new `demo-smoke` checks, UI guide, video script segments 4–5 |
+| P6-34 (#283) | merged | PR #285, `5301dd5` | Cold-review code and UI fixes; `fetch-models` downloads 863 MB instead of 6.7 GB |
+| P6-35 (#284) | merged | PR #287, `ad013d0` | Cold-review docs fixes; disk re-measured (9.2 GB rounded, 11.1 GB free needed) |
+| Security | merged | PR #282, PR #286 | Dependency advisories and image base fixes found by pip-audit and Trivy |
+| P6-32 (#268) | done | `v0.6.1`, `v0.6.2` | Demo smoke runs 40089248595 and 40882980828 passed 11 of 11; cold review findings fixed or recorded. See `docs/reference/phase-6-gate-report.md` |
+| P6-18 (#227) | done | owner decisions entry 4 | Video accepted 2026-10-29 (1 min 25 s, run `18800d70`), embedded in the README; gate item 3 passed |
+| P6-19 (#228) | done | `v1.0.0` | Owner acceptance (owner decisions entry 5); source of truth 1.45 with section 22 ticked; map issue #209 closed |
+| P6-22 (#258) | done | branch `prototype/p6-22-ui` (`9047560`, not for `main`) | Owner chose layout B, Report (owner decisions entry 3); P6-26 and P6-27 written against it |
 
 ## Environment facts
 
@@ -66,3 +92,4 @@ Updated: 2026-10-14. **Status: in progress.** ADR-0032 and ADR-0033 accepted by 
   `research_phase1_review`. Agent cards never touch them.
 - **Integration tests:** new modules are named `test_phase6_*.py`.
 - **Private data:** Phase 6 private data goes under `local-reference/phase6/`.
+- **Browser tests locally:** Chromium needs system libraries that WSL lacks (`libnspr4`, `libnss3` and others). Install them once with `sudo "$(conda run -n sci_research_agent which python)" -m playwright install-deps chromium`, then `python -m playwright install chromium`.

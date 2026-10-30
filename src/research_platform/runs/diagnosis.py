@@ -203,6 +203,13 @@ def diagnose(inputs: DiagnosisInputs) -> RunDiagnosis:
         findings.append(
             Finding(code="omitted_evidence", detail=str(len(synthesis.omitted_handles)))
         )
+    if view.failure_category is FailureCategory.CANCELLED_BY_PRINCIPAL:
+        findings.append(
+            Finding(
+                code="cancelled_by_principal",
+                detail=f"{len(inputs.tool_calls)} tool calls, {len(inputs.llm_calls)} model calls recorded",
+            )
+        )
     return RunDiagnosis(
         run_id=view.run_id,
         status=view.status,
@@ -273,6 +280,7 @@ def _stage(inputs: DiagnosisInputs) -> DiagnosisStage:
             FailureCategory.RETRIEVAL_ERROR: DiagnosisStage.RETRIEVAL,
             FailureCategory.RESUME_EXHAUSTED: DiagnosisStage.INFRASTRUCTURE,
             FailureCategory.CONFIGURATION_CHANGED: DiagnosisStage.INFRASTRUCTURE,
+            FailureCategory.CANCELLED_BY_PRINCIPAL: DiagnosisStage.NONE,
             FailureCategory.INTERNAL: DiagnosisStage.INFRASTRUCTURE,
         }[cast(FailureCategory, category)]
     if view.status is RunStatus.COMPLETED:

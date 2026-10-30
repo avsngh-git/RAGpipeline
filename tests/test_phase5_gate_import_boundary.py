@@ -41,7 +41,9 @@ ALLOWED_EXCEPTIONS: dict[str, frozenset[str]] = {
         {"EvidenceKind", "EvidenceSourceSpan", "SourceLocation"}
     ),
     "research_platform.ingestion.identity": frozenset({"DocumentVersionKind"}),
-    "research_platform.runs.repository": frozenset({"RunNotFound"}),
+    "research_platform.runs.repository": frozenset(
+        {"RunNotFound", "InvalidRunTransition"}
+    ),
 }
 
 DIRECT_SERVICE_METHODS = frozenset(

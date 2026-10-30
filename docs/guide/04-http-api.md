@@ -17,7 +17,7 @@ AUTH="Authorization: Bearer $KEY"
 | `GET` | `/health` | none | — | Process liveness |
 | `GET` | `/ready` | none | — | Dependency readiness |
 | `GET` | `/metrics` | none | — | Prometheus metrics |
-| `GET` | `/` | none | — | The web page |
+| `GET` | `/` | none | — | The research web UI ([UI guide](../operations/ui.md)) |
 | `GET` | `/v1/serving` | `read` | run read | The snapshot, retrieval profile and generation this server answers from |
 | `POST` | `/v1/search` | `read` | search | Ranked papers with supporting evidence |
 | `POST` | `/v1/evidence/search` | `read` | search | Ranked passages and table excerpts |
@@ -25,7 +25,12 @@ AUTH="Authorization: Bearer $KEY"
 | `GET` | `/v1/papers/{paper_id}/references` | `read` | paper read | Papers this paper cites (stored, one hop) |
 | `GET` | `/v1/papers/{paper_id}/citations` | `read` | paper read | Papers in the corpus that cite this paper |
 | `POST` | `/v1/research` | `research` | research run creation | Start a research run |
+| `GET` | `/v1/research` | `read` | run read | List your runs, newest first (keyset cursor) |
 | `GET` | `/v1/research/{run_id}` | `read` | run read | Read a run you started |
+| `GET` | `/v1/research/{run_id}/record` | `read` | run read | The run record: tool calls, model calls, drafted claims and their verdicts, diagnosis |
+| `GET` | `/v1/research/{run_id}/model-calls/{ordinal}` | `read` | run read | One model call's prompt, thinking and output, when recorded at trace content `full` under `trusted_private_local` |
+| `POST` | `/v1/research/{run_id}/cancel` | `research` | run read | Cancel an active run (category `cancelled_by_principal`); a finished run returns `409 run_not_active` |
+| `GET` | `/v1/me` | `read` | run read | The calling key's principal, scopes and whether it can start runs |
 | `POST` | `/v1/collections/{collection_id}/ingest` | `ingest` | ingestion | Request ingestion of papers |
 | `GET` | `/v1/collections/{collection_id}/ingest/{request_id}` | `ingest` | run read | Read an ingestion request |
 

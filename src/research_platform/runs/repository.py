@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal, NoReturn, cast
 from uuid import UUID
@@ -27,6 +27,7 @@ from research_platform.runs.contracts import (
     ResearchRunView,
     RunProvenance,
     RunStatus,
+    RunSummary,
     RunUsage,
     SupportLabel,
     SynthesisSummary,
@@ -88,6 +89,7 @@ class ToolCallRecord:
     result_summary: Mapping[str, object]
     duration_ms: float
     error_category: str | None = None
+    recorded_at: datetime | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -153,6 +155,55 @@ class RunRepository:
         if row is None:
             raise RunNotFound(f"run {run_id} was not found")
         return _stored_run(row)
+
+    async def list_principal_runs(
+        self,
+        principal: str,
+        *,
+        limit: int,
+        before: tuple[datetime, UUID] | None = None,
+    ) -> tuple[RunSummary, ...]:
+        """List one principal's newest runs using a keyset cursor."""
+        if not 1 <= limit <= 101:
+            raise ValueError("limit must be between 1 and 101")
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT id, status, mode, request->>'question' AS question, answer_outcome,
+                       failure_category, created_at, completed_at, active_seconds
+                FROM research_runs
+                WHERE principal = $1
+                  AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::uuid))
+                ORDER BY created_at DESC, id DESC
+                LIMIT $4
+                """,
+                principal,
+                before[0] if before is not None else None,
+                before[1] if before is not None else None,
+                limit,
+            )
+        return tuple(
+            RunSummary(
+                run_id=row["id"],
+                status=RunStatus(row["status"]),
+                mode=ResearchMode(row["mode"]),
+                question=row["question"],
+                answer_outcome=(
+                    AnswerOutcome(row["answer_outcome"])
+                    if row["answer_outcome"] is not None
+                    else None
+                ),
+                failure_category=(
+                    FailureCategory(row["failure_category"])
+                    if row["failure_category"] is not None
+                    else None
+                ),
+                created_at=row["created_at"],
+                completed_at=row["completed_at"],
+                active_seconds=row["active_seconds"],
+            )
+            for row in rows
+        )
 
     async def list_runs(
         self, statuses: Sequence[RunStatus], *, limit: int = 100
@@ -328,7 +379,7 @@ class RunRepository:
             rows = await connection.fetch(
                 """
                 SELECT ordinal, tool_name, arguments, result, status, duration_ms,
-                       error_category
+                       error_category, created_at
                 FROM tool_calls WHERE run_id = $1 ORDER BY ordinal
                 """,
                 run_id,
@@ -342,6 +393,7 @@ class RunRepository:
                 status=row["status"],
                 duration_ms=row["duration_ms"],
                 error_category=row["error_category"],
+                recorded_at=row["created_at"],
             )
             for row in rows
         )
@@ -1044,7 +1096,12 @@ def _stored_llm_call(row: asyncpg.Record) -> StoredLLMCall:
         if row["payload_run"] is not None
         else None
     )
-    return StoredLLMCall(ordinal=row["ordinal"], record=record, payload=payload)
+    return StoredLLMCall(
+        ordinal=row["ordinal"],
+        record=record,
+        payload=payload,
+        recorded_at=row["created_at"],
+    )
 
 
 def _configuration_hash(configuration: Mapping[str, object]) -> str:

@@ -4,49 +4,53 @@ There are three ways to run the platform, in increasing order of effort:
 
 | Path | Needs | Gives you |
 | --- | --- | --- |
-| [CPU demo](#cpu-demo) | Docker, about 12 GB disk, 8 GB RAM | Search over the 100-paper corpus, eight stored research runs, the web page, the API and MCP |
+| [CPU demo](#cpu-demo) | Docker, about 11.1 GB free disk, 8 GB RAM | Search over the 100-paper corpus, eight stored research runs, the web UI, the API and MCP |
 | [Live research runs](#live-research-runs-gpu) | The above, plus an NVIDIA GPU with the NVIDIA Container Toolkit | New research runs with the local model |
 | [Development environment](#development-environment) | Conda, Docker | Running the tests, changing the code, building corpora |
 
 ## CPU demo
 
 ```bash
-git clone https://github.com/avsngh-git/RAGpipeline.git
+TAG=v1.0.0  # the release tag you check out
+git clone --branch "$TAG" https://github.com/avsngh-git/RAGpipeline.git
 cd RAGpipeline
+export RESEARCH_PLATFORM_IMAGE="ghcr.io/avsngh-git/ragpipeline:$TAG"
 scripts/demo_load.sh
-docker compose up -d
 ```
+
+Set `RESEARCH_PLATFORM_IMAGE` to the tag you checked out; without it Compose uses `:latest`, which may be an older image already on the machine. The script leaves the stack running; `docker compose up -d` restarts it later.
 
 `scripts/demo_load.sh` is idempotent. It:
 
 1. checks for `docker`, `docker compose`, `curl`, `sha256sum` and `tar`;
-2. downloads `research-demo-v1.tar` from the [`demo-data-v1` release](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v1) into `demo-data/`, verifies its SHA-256 and unpacks it;
-3. pulls the API image (`ghcr.io/avsngh-git/ragpipeline:latest`), or builds it locally if the pull fails;
+2. downloads `research-demo-v2.tar` from the [`demo-data-v2` release](https://github.com/avsngh-git/RAGpipeline/releases/tag/demo-data-v2) into `demo-data/`, verifies its SHA-256 and unpacks it (v2 adds the showcase runs' model-call text);
+3. pulls the API image (`RESEARCH_PLATFORM_IMAGE`, default `ghcr.io/avsngh-git/ragpipeline:latest`), or builds it locally if the pull fails;
 4. starts PostgreSQL and Qdrant and runs `research-migrate`;
-5. loads the bundle's PostgreSQL rows and Qdrant snapshots with `research-demo load` (once, guarded by `demo-data/.loaded-v1`);
+5. loads the bundle's PostgreSQL rows and Qdrant snapshots with `research-demo load` (once, guarded by `demo-data/.loaded-v2`);
 6. fetches the pinned embedding and reranker models into the `model_cache` volume with `research-demo fetch-models`;
 7. creates a `read`-scoped API key for principal `demo` and saves it to `demo-data/api-key` (mode 600);
-8. starts the API, waits for `/ready`, and prints the web page URL and one link per showcase run.
+8. starts the API, waits for `/ready`, and prints the UI URL and one link per showcase run.
 
 After it finishes:
 
-- **Web page.** Open `http://127.0.0.1:8000/`, paste the contents of `demo-data/api-key`, and search, or open a showcase run link (`http://127.0.0.1:8000/#run=<run_id>`).
+- **Web UI.** Open `http://127.0.0.1:8000/`, paste the contents of `demo-data/api-key`, and search, or open a showcase run link. The showcase runs belong to principal `demo`, so only the demo key (or an admin key) can open them. See the [UI guide](../operations/ui.md).
 - **API.** `curl -H "Authorization: Bearer $(cat demo-data/api-key)" http://127.0.0.1:8000/v1/serving`. See the [HTTP API](04-http-api.md).
 - **MCP.** Point a client at `http://127.0.0.1:8000/mcp/` with the same bearer key. See [MCP](05-mcp.md).
-- **Smoke check.** `python3 scripts/demo_smoke.py` runs the checks CI runs: readiness, serving identity, paper and evidence search, the stored runs and the MCP tool list.
+- **Smoke check.** `python3 scripts/demo_smoke.py` (standard library only) runs the eleven checks CI runs against `http://127.0.0.1:${API_PORT:-8000}`: readiness, serving identity, paper and evidence search, the stored runs, the MCP tool list, the UI, `/v1/me`, the run list, run records and model-call text. Pass `--base-url` to point it elsewhere.
+- **Remove the demo.** Run `docker compose down -v` with the same `COMPOSE_PROJECT_NAME`, then delete the clone. Docker creates `data/` inside it as root, so deleting it needs `sudo`.
 
 ### Options
 
 | Variable or flag | Effect |
 | --- | --- |
 | `COMPOSE_PROJECT_NAME`, `POSTGRES_PORT`, `QDRANT_PORT`, `API_PORT` | Run beside another checkout without sharing containers, volumes or ports. Compose otherwise names the project after the directory. |
-| `RESEARCH_PLATFORM_IMAGE` | Use a specific image tag or digest instead of `latest`, for example `ghcr.io/avsngh-git/ragpipeline:v0.6.0`. |
+| `RESEARCH_PLATFORM_IMAGE` | Use a specific image tag or digest instead of `latest`, for example `ghcr.io/avsngh-git/ragpipeline:v1.0.0`. |
 | `--reset` | Runs `docker compose down -v`, deleting **all** Compose volumes (PostgreSQL, Qdrant, model cache), then loads the demo again. |
 | `--with-llm` | Also starts Ollama and gives the demo key `research` scope. See below. |
 
 ### Disk and memory
 
-The parts add up to about 7.5 GB: the API image (4.2 GB), the PostgreSQL and Qdrant images (0.7 GB), the bundle and its unpacked copy (0.7 GB), the loaded data (about 0.8 GB) and the two models (about 1.2 GB). The demo ran on an 11 GB laptop VM and on a standard GitHub runner.
+Measured on 2026-10-29, the parts add up to 9.2 GB: the API image (4.2 GB), the PostgreSQL and Qdrant images (0.8 GB), the bundle and its unpacked copy (0.8 GB), the loaded data (2.4 GB: Qdrant 1.8 GB, PostgreSQL 0.6 GB) and the two models (1.0 GB). Keep about 11.1 GB free (20% headroom). The demo ran on an 11 GB laptop VM and on a standard GitHub runner.
 
 ### If something fails
 

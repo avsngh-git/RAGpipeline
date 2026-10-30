@@ -7,13 +7,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install --yes --only-upgrade libssl3t64 openssl \
+    && apt-get install --yes --only-upgrade libssl3t64 openssl libbrotli1 \
     && rm -rf /var/lib/apt/lists/* \
     && conda install --yes --name base --override-channels -c conda-forge \
         conda=26.9.2 \
-        msgpack-python=1.2.2 \
+        msgpack-python=1.2.4 \
+        brotli-python=1.2.1 \
         urllib3=2.8.0 \
-    && conda remove --yes --name base --force pip \
+    && conda remove --yes --name base --force pip py-rattler conda-rattler-solver \
     && conda clean --all --yes
 
 COPY environment-serving-linux-64.lock /tmp/environment-serving-linux-64.lock

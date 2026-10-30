@@ -19,11 +19,11 @@ whose notes include the digest. It does not rebuild the image.
 
 Phase 6 release tags use the `v0.6.x` series. For example, after confirming the main CI
 run for the chosen commit is green, set `MAIN_COMMIT` to that commit SHA, then create and
-push its version tag:
+push its version tag (`vX.Y.Z` is the release tag you deploy):
 
 ```bash
-git tag v0.6.0 "$MAIN_COMMIT"
-git push origin v0.6.0
+git tag vX.Y.Z "$MAIN_COMMIT"
+git push origin vX.Y.Z
 ```
 
 The first GHCR push creates a private package. Set the package visibility to public once
@@ -33,10 +33,10 @@ The image and release policy is recorded in
 
 ## Run a pinned version
 
-Choose a released version and set the image before starting Compose:
+Choose a released version and set the image before starting Compose; `vX.Y.Z` is the release tag you deploy:
 
 ```bash
-export RESEARCH_PLATFORM_IMAGE=ghcr.io/avsngh-git/ragpipeline:v0.6.0
+export RESEARCH_PLATFORM_IMAGE=ghcr.io/avsngh-git/ragpipeline:vX.Y.Z
 docker compose up -d
 ```
 
@@ -96,7 +96,7 @@ The image sets `RESEARCH_PLATFORM_MIGRATIONS_DIR` to `/app/migrations`; keep tha
 unless you intentionally provide a different migration directory ([Dockerfile](../../Dockerfile)).
 
 ```bash
-export RESEARCH_PLATFORM_IMAGE=ghcr.io/avsngh-git/ragpipeline:v0.6.0
+export RESEARCH_PLATFORM_IMAGE=ghcr.io/avsngh-git/ragpipeline:vX.Y.Z
 docker compose pull api
 docker compose run --rm --no-deps api research-migrate
 docker compose up -d

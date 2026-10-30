@@ -6,10 +6,10 @@ from asyncio import CancelledError, timeout
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from research_platform.auth.keys import Principal, Scope
 from research_platform.config import Settings
@@ -18,10 +18,20 @@ from research_platform.runs.contracts import (
     FailureCategory,
     ResearchRequest,
     ResearchRunView,
+    RunPage,
+    RunStatus,
     RunUsage,
 )
+from research_platform.runs.diagnosis import diagnose, load_diagnosis_inputs
 from research_platform.runs.executor import ResearchQueueFull, RunExecutor
-from research_platform.runs.repository import RunNotFound
+from research_platform.runs.record_views import (
+    ModelCallTextView,
+    ModelMessageView,
+    RunRecordView,
+    model_call_view,
+    tool_call_view,
+)
+from research_platform.runs.repository import InvalidRunTransition, RunNotFound
 from research_platform.runs.runner import ServingIdentity
 from research_platform.runs.store import RunStore
 from research_platform.search.application_errors import (
@@ -50,6 +60,10 @@ from research_platform.search.paper_reads import (
 from research_platform.search.paper_related import RelatedPapersPage
 from research_platform.services.citation_cursor import decode_cursor, encode_cursor
 from research_platform.services.errors import AppError
+from research_platform.services.run_cursor import decode_run_cursor, encode_run_cursor
+
+if TYPE_CHECKING:
+    from research_platform.runs.store import StoredRun as StoredRun
 
 
 @dataclass(frozen=True)
@@ -59,6 +73,23 @@ class ResearchAPIServices:
     store: RunStore
     executor: RunExecutor
     serving: ServingIdentity
+    llm_available: Callable[[], Awaitable[bool]] | None = None
+
+
+ResearchRunsState = Literal[
+    "available", "no_research_scope", "service_unavailable", "model_unreachable"
+]
+
+
+class MeView(BaseModel):
+    """The caller and what this server lets it do."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    principal: str
+    scopes: tuple[str, ...]
+    research_runs: ResearchRunsState
+    evidence_text: bool
+    langfuse_ui_url: str | None = None
 
 
 class SearchExecutor(Protocol):
@@ -279,7 +310,8 @@ class ResearchCapabilities:
             ) from None
         return queued_view
 
-    async def get_run(self, run_id: UUID, *, principal: Principal) -> ResearchRunView:
+    async def owned_run(self, run_id: UUID, *, principal: Principal) -> StoredRun:
+        """The stored run if the principal owns it or has admin; 404 otherwise."""
         research = self.research
         if research is None:
             raise AppError(
@@ -297,7 +329,192 @@ class ResearchCapabilities:
             raise AppError(
                 "run_not_found", "The requested research run does not exist.", 404
             )
+        return stored
+
+    async def get_run(self, run_id: UUID, *, principal: Principal) -> ResearchRunView:
+        stored = await self.owned_run(run_id, principal=principal)
+        if self.research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        return await self.research.store.get_run_view(stored.run_id)
+
+    async def cancel_run(
+        self, run_id: UUID, *, principal: Principal
+    ) -> ResearchRunView:
+        """Cancel an active run owned by the principal or an administrator."""
+        stored = await self.owned_run(run_id, principal=principal)
+        if stored.status in (RunStatus.COMPLETED, RunStatus.FAILED):
+            raise AppError(
+                "run_not_active", "The research run has already finished.", 409
+            )
+        research = self.research
+        if research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        await research.executor.cancel(run_id)
+        tool_calls = await research.store.list_tool_calls(run_id)
+        llm_calls = await research.store.list_llm_calls(run_id)
+        current = await research.store.get_run(run_id)
+        usage = RunUsage(
+            plan_rounds=sum(call.record.kind.value == "plan" for call in llm_calls),
+            tool_calls=len(tool_calls),
+            model_calls=len(llm_calls),
+            active_seconds=current.active_seconds,
+            resumes=current.resume_count,
+            rejected_claims=0,
+            unsupported_claims=0,
+        )
+        try:
+            await research.store.fail_run(
+                run_id,
+                category=FailureCategory.CANCELLED_BY_PRINCIPAL,
+                message="cancelled_by_principal",
+                usage=usage,
+            )
+        except InvalidRunTransition:
+            raise AppError(
+                "run_not_active", "The research run has already finished.", 409
+            ) from None
         return await research.store.get_run_view(run_id)
+
+    async def run_record(self, run_id: UUID, *, principal: Principal) -> RunRecordView:
+        await self.owned_run(run_id, principal=principal)
+        research = self.research
+        if research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        inputs = await load_diagnosis_inputs(research.store, run_id)
+        diagnosis = diagnose(inputs)
+        stored_text = {
+            call.ordinal
+            for call in await research.store.list_llm_calls(
+                run_id, include_payloads=True
+            )
+            if call.payload is not None
+        }
+        return RunRecordView(
+            run_id=run_id,
+            tool_calls=tuple(
+                tool_call_view(record)
+                for record in sorted(inputs.tool_calls, key=lambda item: item.ordinal)
+            ),
+            model_calls=tuple(
+                model_call_view(call, text_recorded=call.ordinal in stored_text)
+                for call in sorted(inputs.llm_calls, key=lambda item: item.ordinal)
+            ),
+            drafted_claims=inputs.drafts,
+            synthesis=inputs.synthesis,
+            diagnosis=diagnosis,
+        )
+
+    async def model_call_text(
+        self, run_id: UUID, ordinal: int, *, principal: Principal
+    ) -> ModelCallTextView:
+        await self.owned_run(run_id, principal=principal)
+        research = self.research
+        if research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        trusted = self.settings.evidence_access_profile == "trusted_private_local"
+        calls = await research.store.list_llm_calls(run_id, include_payloads=trusted)
+        call = next((item for item in calls if item.ordinal == ordinal), None)
+        if call is None:
+            raise AppError(
+                "model_call_not_found",
+                "The requested model call does not exist.",
+                404,
+            )
+        if not trusted:
+            return ModelCallTextView(
+                run_id=run_id,
+                ordinal=ordinal,
+                kind=call.record.kind.value,
+                state="withheld",
+            )
+        payload = call.payload
+        if payload is None:
+            return ModelCallTextView(
+                run_id=run_id,
+                ordinal=ordinal,
+                kind=call.record.kind.value,
+                state="not_recorded",
+            )
+        return ModelCallTextView(
+            run_id=run_id,
+            ordinal=ordinal,
+            kind=call.record.kind.value,
+            state="available",
+            messages=tuple(
+                ModelMessageView(role=message.role, content=message.content)
+                for message in payload.messages
+            ),
+            thinking=payload.thinking,
+            output=payload.output,
+            error_preview=payload.error_preview,
+        )
+
+    async def list_runs(
+        self, *, principal: Principal, limit: int = 20, cursor: str | None = None
+    ) -> RunPage:
+        """The principal's own runs, newest first."""
+        if self.research is None:
+            raise AppError(
+                "service_unavailable",
+                "The research service is not configured.",
+                status_code=503,
+            )
+        if not 1 <= limit <= 50:
+            raise AppError("invalid_request", "limit must be between 1 and 50.", 422)
+        rows = await self.research.store.list_principal_runs(
+            principal.name, limit=limit + 1, before=decode_run_cursor(cursor)
+        )
+        has_more = len(rows) > limit
+        runs = rows[:limit]
+        next_cursor = (
+            encode_run_cursor(runs[-1].created_at, runs[-1].run_id)
+            if has_more
+            else None
+        )
+        return RunPage(runs=runs, next_cursor=next_cursor)
+
+    async def me(self, *, principal: Principal) -> MeView:
+        scopes = tuple(sorted(scope.value for scope in principal.scopes))
+        if not principal.has(Scope.RESEARCH):
+            research_runs: ResearchRunsState = "no_research_scope"
+        elif self.research is None:
+            research_runs = "service_unavailable"
+        elif self.research.llm_available is None:
+            research_runs = "model_unreachable"
+        else:
+            try:
+                research_runs = (
+                    "available"
+                    if await self.research.llm_available()
+                    else "model_unreachable"
+                )
+            except Exception:
+                research_runs = "model_unreachable"
+        return MeView(
+            principal=principal.name,
+            scopes=scopes,
+            research_runs=research_runs,
+            evidence_text=(
+                self.settings.evidence_access_profile == "trusted_private_local"
+            ),
+            langfuse_ui_url=self.settings.langfuse_ui_url,
+        )
 
     async def search_papers(
         self, request: SearchRequest, *, request_id: str
